@@ -1,0 +1,13 @@
+{
+  "sessionId": "voyager/transcribe/972FD705884F4A0CB4AA2DCADED52FFF",
+  "transcript": "Hey, what's the name of the place you you suggested? Oh, it's on the corner of Atlantic and Seventh. Oh, okay. okay. What should I get? Citrus shrimp. shrimp. What? The citrus shrimp. It's so good. Shrimp in the afternoon? Of course. I'll do it. Alright, have a good time.",
+  "audioDurationMs": 16560,
+  "turns": [
+    {
+      "turnId": 0,
+      "startMs": 460,
+      "endMs": 15660,
+      "transcript": "Hey, what's the name of the place you you suggested? Oh, it's on the corner of Atlantic and Seventh. Oh, okay. okay. What should I get? Citrus shrimp. shrimp. What? The citrus shrimp. It's so good. Shrimp in the afternoon? Of course. I'll do it. Alright, have a good time."
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "note": "Dry-run fixture for scripts/gate_voice.py. ENDPOINTING is the shape and text the file endpoint returned on 10/26 for the cookbook's 16.6 s two-speaker clip (docs/API_NOTES.md: one turn spanning 0.5 to 15.3 s). DIARIZATION is a synthetic narration of a walkaround in the same response shape, written so the pin code has noun-naming turns to place; it is not a measurement.",
+  "modes": {
+    "ENDPOINTING": {
+      "sessionId": "fixture-endpointing-0001",
+      "audioDurationMs": 16560,
+      "transcript": "Hey, what's the name of the place you suggested? Oh, it's on the corner of Atlantic and seventh. Oh, okay. What should I get? Citrus shrimp. What? The citrus sh",
+      "turns": [
+        {"turnId": 0, "startMs": 540, "endMs": 15340, "transcript": "Hey, what's the name of the place you suggested? Oh, it's on"}
+      ]
+    },
+    "DIARIZATION": {
+      "sessionId": "fixture-diarization-0001",
+      "audioDurationMs": 5875,
+      "transcript": "Starting at the front bumper, small scuff on the corner. Now the driver door, there is a scratch under the handle. Wheel looks fine. Back to the bumper.",
+      "turns": [
+        {"turnId": 0, "speaker": "0", "startMs": 100, "endMs": 1500, "transcript": "Starting at the front bumper, small scuff on the corner."},
+        {"turnId": 1, "speaker": "0", "startMs": 1600, "endMs": 3600, "transcript": "Now the driver door, there is a scratch under the handle."},
+        {"turnId": 2, "speaker": "0", "startMs": 3700, "endMs": 4700, "transcript": "Wheel looks fine."},
+        {"turnId": 3, "speaker": "0", "startMs": 4800, "endMs": 5800, "transcript": "Back to the bumper."}
+      ]
+    }
+  }
+}

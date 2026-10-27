@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ sheet.product }} evidence sheet {{ sheet.run_id }}</title>
+<style>
+  @page { size: Letter; margin: 14mm 14mm 16mm 14mm; }
+  :root {
+    --ink: #1c1c1c; --muted: #5a5a5a; --rule: #c9c9c9; --paper: #ffffff; --soft: #f3f3f1;
+    --already: #2d6a4f; --eye: #9a6700; --new: #9b2226; --notseen: #3a5a8c; --notcomp: #666666;
+  }
+  html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); }
+  body { font-family: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif; font-size: 10.5pt; line-height: 1.4; }
+  code, .mono, td.mono, .hash { font-family: "IBM Plex Mono", Menlo, Consolas, monospace; font-size: 9pt; }
+  .hash { word-break: break-all; }
+  .page { max-width: 190mm; margin: 0 auto; padding: 10mm 6mm 8mm 6mm; border-bottom: 1px dashed var(--rule); break-after: page; page-break-after: always; }
+  .page:last-child { border-bottom: 0; break-after: auto; page-break-after: auto; }
+  h1 { font-size: 20pt; font-weight: 600; margin: 0 0 2mm 0; letter-spacing: -0.01em; }
+  h2 { font-size: 14pt; font-weight: 600; margin: 0 0 3mm 0; }
+  h3 { font-size: 11pt; font-weight: 600; margin: 4mm 0 1.5mm 0; }
+  p { margin: 0 0 2mm 0; }
+  .lede { color: var(--muted); margin-bottom: 4mm; }
+  .disclaimer { border: 1px solid var(--ink); display: inline-block; padding: 1mm 2.5mm; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; margin: 0 0 3mm 0; }
+  th, td { text-align: left; vertical-align: top; padding: 1.2mm 2mm; border-bottom: 1px solid var(--rule); }
+  th { font-weight: 600; color: var(--muted); font-size: 9pt; text-transform: none; }
+  .kv th { width: 34%; }
+  .clocks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3mm; margin: 3mm 0 4mm 0; }
+  .clock { background: var(--soft); padding: 2.5mm 3mm; }
+  .clock .k { color: var(--muted); font-size: 9pt; }
+  .clock .v { font-size: 12pt; font-weight: 600; }
+  ol.note { padding-left: 5mm; margin: 0 0 3mm 0; }
+  ol.note li { margin-bottom: 1.5mm; }
+  .frames { display: flex; gap: 4mm; align-items: flex-start; margin: 2mm 0 3mm 0; }
+  .frame { flex: 1 1 0; min-width: 0; }
+  .frame img { width: 100%; height: auto; display: block; border: 1px solid var(--rule); }
+  .frame .cap { font-size: 9pt; color: var(--muted); margin-top: 1mm; }
+  .frame .missing { border: 1px dashed var(--rule); padding: 12mm 3mm; text-align: center; color: var(--muted); }
+  .label { display: inline-block; padding: 0.3mm 1.8mm; border: 1px solid currentColor; font-weight: 600; font-size: 9pt; }
+  .label.already_there { color: var(--already); }
+  .label.needs_your_eye { color: var(--eye); }
+  .label.new_or_unseen { color: var(--new); }
+  .label.not_seen_at_return { color: var(--notseen); }
+  .label.not_comparable { color: var(--notcomp); }
+  .rules { color: var(--muted); font-size: 9pt; }
+  .sub { color: var(--muted); font-size: 9pt; }
+  ul.plain { margin: 0 0 2mm 0; padding-left: 4.5mm; }
+  ul.plain li { margin-bottom: 1mm; }
+  .cov { columns: 2; column-gap: 6mm; font-size: 9.5pt; }
+  .cov ul { margin: 0; padding-left: 4.5mm; }
+  pre.md { white-space: pre-wrap; font-family: "IBM Plex Mono", Menlo, Consolas, monospace; font-size: 9pt; background: var(--soft); padding: 3mm; margin: 0 0 3mm 0; }
+  .footer { margin-top: 6mm; padding-top: 2mm; border-top: 1px solid var(--rule); font-size: 8.5pt; color: var(--muted); display: flex; justify-content: space-between; gap: 4mm; }
+  .thresholds td { padding: 0.6mm 2mm; font-size: 8.5pt; }
+  @media print { .page { border-bottom: 0; padding: 0; max-width: none; } }
+</style>
+</head>
+<body>
+
+{% macro footer() -%}
+<div class="footer">
+  <span>{{ sheet.product }} run {{ sheet.run_id }}</span>
+  <span class="mono">{% for p in sheet.footer_hash_prefixes %}{{ p }}{% if not loop.last %} / {% endif %}{% endfor %}</span>
+</div>
+{%- endmacro %}
+
+{% macro frame_block(frame, role_name) -%}
+<div class="frame">
+  {% if frame and frame.path %}
+  <img src="../{{ frame.path }}" alt="{{ role_name }} frame {{ frame.kf_id }}, marks drawn">
+  <div class="cap">{{ role_name }}: video time {{ "%.2f"|format(frame.video_time_s) }} s{% if frame.wall_clock %}; wall clock {{ frame.wall_clock }}{% endif %}{% if frame.mark_ids %}; marks {{ frame.mark_ids|join(", ") }}{% endif %}</div>
+  {% elif frame %}
+  <div class="missing">{{ role_name }} frame {{ frame.kf_id }} not available</div>
+  <div class="cap">{{ role_name }}: video time {{ "%.2f"|format(frame.video_time_s) }} s{% if frame.wall_clock %}; wall clock {{ frame.wall_clock }}{% endif %}</div>
+  {% else %}
+  <div class="missing">no {{ role_name }} frame for this panel</div>
+  {% endif %}
+</div>
+{%- endmacro %}
+
+<section class="page" id="page-1">
+  <h1>{{ sheet.product }} evidence sheet</h1>
+  <p class="lede">Two walkaround videos of one rental car, compared panel by panel. Code decides every verdict; a model answer can only lower one.</p>
+  <p><span class="disclaimer">{{ sheet.disclaimer }}</span></p>
+
+  <table class="kv">
+    <tr><th>run id</th><td class="mono">{{ sheet.run_id }}</td></tr>
+    <tr><th>app commit</th><td class="mono">{{ sheet.app_commit or "not recorded" }}</td></tr>
+    <tr><th>config hash</th><td class="mono hash">{{ sheet.config_hash or "not recorded" }}</td></tr>
+    <tr><th>events head hash</th><td class="mono hash">{{ sheet.events_head_hash or "not recorded" }}</td></tr>
+    <tr><th>rental agreement number</th><td>{{ sheet.agreement_number or "________________ (fill in)" }}</td></tr>
+    <tr><th>plate</th><td>{{ sheet.plate_line }}</td></tr>
+  </table>
+
+  <h3>The three clocks</h3>
+  <div class="clocks">
+    <div class="clock"><div class="k">sealed at</div><div class="v">{{ sheet.clocks.sealed_at or "not sealed" }}</div></div>
+    <div class="clock"><div class="k">first model call at</div><div class="v">{{ sheet.clocks.first_model_call_at or "none yet" }}</div></div>
+    <div class="clock"><div class="k">sealed after the camera time</div><div class="v">{% if sheet.clocks.sealed_minutes_after_camera is none %}unknown{% elif sheet.clocks.sealed_minutes_after_camera is string %}{{ sheet.clocks.sealed_minutes_after_camera }}{% else %}sealed {{ sheet.clocks.sealed_minutes_after_camera }} minutes after the camera time{% endif %}</div></div>
+  </div>
+
+  <h3>Originals</h3>
+  <table>
+    <tr><th>walk</th><th>file</th><th>bytes</th><th>sha256</th><th>camera says</th><th>received</th><th>hash on your phone = hash on receipt</th><th>proven to exist by</th></tr>
+    {% for o in sheet.originals %}
+    <tr>
+      <td>{{ o.role }}</td>
+      <td>{{ o.name }}</td>
+      <td class="mono">{{ o.bytes }}</td>
+      <td class="mono hash">{{ o.sha256 }}</td>
+      <td>{{ o.camera_time }}</td>
+      <td>{{ o.received_at or "not recorded" }}</td>
+      <td>{% if o.hash_match is none %}not checked{% elif o.hash_match %}match{% else %}MISMATCH{% endif %}</td>
+      <td>{% if o.tsr_time %}{{ o.tsr_time }} (RFC 3161 token){% else %}no RFC 3161 token{% endif %}; {% if o.bitcoin_block %}Bitcoin block {{ o.bitcoin_block }}{% elif o.ots_status %}OpenTimestamps {{ o.ots_status }}{% else %}OpenTimestamps not stamped{% endif %}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="8">no originals recorded</td></tr>
+    {% endfor %}
+  </table>
+
+  <h3>Privacy</h3>
+  <p>{{ sheet.privacy_line }}</p>
+  <p class="sub">Files API upload deleted: {{ sheet.deletion_clocks.files_deleted_at or "not yet" }}. Stored responses deleted: {{ sheet.deletion_clocks.responses_deleted_at or "none stored or not yet" }}. Quarantine (unblurred originals) deleted: {{ sheet.deletion_clocks.quarantine_deleted_at or "not yet" }}.</p>
+
+  <h3>What to do with this sheet</h3>
+  <ol class="note">
+    {% for line in sheet.note_lines %}<li>{{ line }}</li>{% endfor %}
+  </ol>
+
+  <h3>Coverage per walk</h3>
+  <div class="cov">
+    {% for role, lines in sheet.coverage_summary.items() %}
+    <p><strong>{{ role }}</strong></p>
+    <ul>{% for line in lines %}<li>{{ line }}</li>{% endfor %}</ul>
+    {% else %}
+    <p>coverage not computed</p>
+    {% endfor %}
+  </div>
+  {{ footer() }}
+</section>
+
+{% for block in panel_pages %}
+<section class="page" id="panel-{{ block.panel_id.value }}">
+  <h2>{{ block.display_name }}</h2>
+  {% if block.lead_with_frames %}
+  <div class="frames">{{ frame_block(block.pickup, "pickup") }}{{ frame_block(block.return_, "return") }}</div>
+  <p class="sub">coverage: {% for role, s in block.coverage_seconds.items() %}{{ role }} {{ "%.1f"|format(s) }} s ({{ block.coverage_states.get(role).value if block.coverage_states.get(role) else "state unknown" }}){% if not loop.last %}; {% endif %}{% else %}not measured{% endfor %}</p>
+  {% else %}
+  <p class="sub">coverage: {% for role, s in block.coverage_seconds.items() %}{{ role }} {{ "%.1f"|format(s) }} s ({{ block.coverage_states.get(role).value if block.coverage_states.get(role) else "state unknown" }}){% if not loop.last %}; {% endif %}{% else %}not measured{% endfor %}</p>
+  <div class="frames">{{ frame_block(block.pickup, "pickup") }}{{ frame_block(block.return_, "return") }}</div>
+  {% endif %}
+
+  {% if block.verdicts %}
+  <h3>Verdicts</h3>
+  <table>
+    <tr><th>marks</th><th>verdict</th><th>rule ids</th><th>distance</th><th>detail</th></tr>
+    {% for v in block.verdicts %}
+    <tr>
+      <td class="mono">{{ v.mark_ids|join(", ") }}{% if v.type %}<br><span class="sub">{{ v.type.value }}{% if v.size_class %} {{ v.size_class.value }}{% endif %}</span>{% endif %}</td>
+      <td><span class="label {{ v.label.value }}">{{ label_text[v.label.value] }}</span></td>
+      <td class="rules">{% for rid in v.rule_ids %}<span title="{{ rule_text.get(rid, '') }}">{{ rid }}</span>{% if not loop.last %}, {% endif %}{% endfor %}</td>
+      <td>{% if v.distance_units is not none %}{{ "%.2f"|format(v.distance_units) }} units{% if v.distance_cm_est is not none %}, about {{ "%.0f"|format(v.distance_cm_est) }} cm{% endif %}{% else %}no pair{% endif %}</td>
+      <td>
+        {% if v.staysput_line %}<div>Stays Put: {{ v.staysput_line }}</div>{% endif %}
+        {% if v.size_line %}<div>{{ v.size_line }}</div>{% endif %}
+        {% if v.ordinary_wear_line %}<div>{{ v.ordinary_wear_line }}</div>{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+  <p class="rules">{% for rid in block_rule_ids[block.panel_id.value] %}{{ rid }} {{ rule_text.get(rid, '') }}{% if not loop.last %}<br>{% endif %}{% endfor %}</p>
+  {% else %}
+  <p>No marks compared on this panel.</p>
+  {% endif %}
+
+  {% if block.group_lines %}
+  <h3>Groups</h3>
+  <ul class="plain">{% for g in block.group_lines %}<li>{{ g }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  {% if block.chips %}
+  <h3>What was said</h3>
+  <ul class="plain">{% for c in block.chips %}<li><span class="mono">{{ c.start_ms }} to {{ c.end_ms }} ms</span>: {{ c.text }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  {% if block.odometer_path %}
+  <h3>Odometer</h3>
+  <div class="frames"><div class="frame"><img src="../{{ block.odometer_path }}" alt="odometer frame"></div><div class="frame"></div></div>
+  {% endif %}
+  {{ footer() }}
+</section>
+{% endfor %}
+
+<section class="page" id="not-filmed">
+  <h2>Panels without frames</h2>
+  {% if frameless_blocks %}
+  <table>
+    <tr><th>panel</th><th>coverage</th></tr>
+    {% for block in frameless_blocks %}
+    <tr><td>{{ block.display_name }}</td><td>{% for role, state in block.coverage_states.items() %}{{ role }}: {{ state.value }}{% if block.coverage_seconds.get(role) is not none %} ({{ "%.1f"|format(block.coverage_seconds.get(role)) }} s){% endif %}{% if not loop.last %}; {% endif %}{% else %}not seen in either walk{% endfor %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>Every canonical panel has a frame.</p>
+  {% endif %}
+
+  <h2>Not comparable</h2>
+  {% if sheet.not_comparable %}
+  <table>
+    <tr><th>panel</th><th>rule ids</th><th>why</th></tr>
+    {% for nc in sheet.not_comparable %}
+    <tr><td>{{ panel_names[nc.panel_id.value] }}</td><td class="mono">{{ nc.rule_ids|join(", ") }}</td><td>{% for r in nc.reasons %}{{ r }}{% if not loop.last %}<br>{% endif %}{% endfor %}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>Every compared panel passed its gates.</p>
+  {% endif %}
+  {{ footer() }}
+</section>
+
+{% include "method.html" %}
+
+{% for title, text in sheet.appendices.items() %}
+<section class="page" id="appendix-{{ loop.index }}">
+  <h2>Appendix {{ title }}</h2>
+  <pre class="md">{{ text }}</pre>
+  {{ footer() }}
+</section>
+{% endfor %}
+
+{% if sheet.letter_md %}
+<section class="page" id="letter">
+  <h2>Letter: write to the company first</h2>
+  <pre class="md">{{ sheet.letter_md }}</pre>
+  {{ footer() }}
+</section>
+{% endif %}
+
+</body>
+</html>

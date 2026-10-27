@@ -1,0 +1,75 @@
+<section class="page" id="method">
+  <h2>Method and limits</h2>
+  <p>Every verdict on the panel pages was decided by code from the numbers below. The thresholds were frozen into this run under config hash <span class="mono hash">{{ sheet.method.config_hash or "not recorded" }}</span>. Rebuilding the derived files from the stored model answers and these thresholds gives the same bytes when the line below says so.</p>
+  <table class="kv">
+    <tr><th>rebuild</th><td>{{ sheet.method.rebuild_status or "rebuild not run" }}</td></tr>
+    <tr><th>storage</th><td>{{ sheet.method.storage_line }}</td></tr>
+    <tr><th>Hertz thresholds</th><td>{{ sheet.method.hertz_threshold_note }}</td></tr>
+  </table>
+
+  <h3>Eval numbers</h3>
+  {% if sheet.method.eval_lines %}
+  <ul class="plain">{% for line in sheet.method.eval_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+  {% else %}
+  <p>No eval run is attached to this sheet; the README carries the eval tables with their N.</p>
+  {% endif %}
+
+  {% set cal = sheet.method.thresholds.get("calibration") %}
+  <h3>Calibration</h3>
+  {% if cal %}
+  <table class="kv">
+    <tr><th>tau_pre (already there below)</th><td class="mono">{{ cal.tau_pre }}</td></tr>
+    <tr><th>tau_eye (needs your eye below)</th><td class="mono">{{ cal.tau_eye }}</td></tr>
+    <tr><th>tau_fix (Stays Put fixed below)</th><td class="mono">{{ cal.tau_fix }}</td></tr>
+    <tr><th>sigma_frame / sigma_spark / sigma_view / sigma_within</th><td class="mono">{{ cal.sigma_frame }} / {{ cal.sigma_spark }} / {{ cal.sigma_view }} / {{ cal.sigma_within }}</td></tr>
+    <tr><th>calibrated</th><td>{{ "yes" if cal.calibrated else "no: tau_pre hit its cap, so the matcher is not calibrated for this run" }}</td></tr>
+  </table>
+  {% else %}
+  <p>No calibration record for this run.</p>
+  {% endif %}
+
+  {% set led = sheet.method.thresholds.get("ledger_totals") %}
+  <h3>Model calls (from runs/ledger.jsonl)</h3>
+  {% if led %}
+  <table>
+    <tr><th>kind</th><th>calls</th><th>dollars</th><th>quantity</th></tr>
+    {% for kind, row in led.by_kind.items() %}
+    <tr><td>{{ kind }}</td><td class="mono">{{ row.calls }}</td><td class="mono">{{ "%.4f"|format(row.usd) }}</td><td class="mono">{{ row.quantity }}</td></tr>
+    {% endfor %}
+    <tr><th>total</th><td class="mono">{{ led.calls }}</td><td class="mono">{{ "%.4f"|format(led.usd) }}</td><td></td></tr>
+  </table>
+  {% else %}
+  <p>No ledger rows for this run.</p>
+  {% endif %}
+
+  <h3>What was blurred</h3>
+  {% if sheet.method.blurred %}
+  <ul class="plain">{% for line in sheet.method.blurred %}<li>{{ line }}</li>{% endfor %}</ul>
+  {% else %}
+  <p>No blur record.</p>
+  {% endif %}
+
+  <h3>What was deleted and when</h3>
+  {% if sheet.method.deletions %}
+  <table>
+    <tr><th>kind</th><th>target</th><th>sha256</th><th>bytes</th><th>deleted at</th><th>reason</th><th>receipt</th></tr>
+    {% for d in sheet.method.deletions %}
+    <tr><td>{{ d.kind.value }}</td><td class="mono">{{ d.target }}</td><td class="mono">{{ d.sha256[:12] if d.sha256 else "" }}</td><td class="mono">{{ d.bytes if d.bytes is not none else "" }}</td><td>{{ d.deleted_at }}</td><td>{{ d.reason }}</td><td class="mono">{{ d.api_response if d.api_response else "" }}</td></tr>
+    {% endfor %}
+  </table>
+  {% else %}
+  <p>No deletion rows yet.</p>
+  {% endif %}
+
+  <h3>What the seal does not prove</h3>
+  <ul class="plain">{% for line in sheet.method.what_seal_does_not_prove %}<li>{{ line }}</li>{% endfor %}</ul>
+  <p class="sub">The seal is offered as a process record under FRE 901(b)(9): the same inputs through the same code give the same output, and the method page states that code's inputs.</p>
+
+  <h3>Thresholds frozen into this run</h3>
+  <table class="thresholds">
+    {% for key, value in flat_thresholds %}
+    <tr><td class="mono">{{ key }}</td><td class="mono">{{ value }}</td></tr>
+    {% endfor %}
+  </table>
+  {{ footer() }}
+</section>

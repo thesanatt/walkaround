@@ -1,0 +1,254 @@
+{
+  "id": "resp_6ae0e9901bb3190e731d4a51",
+  "access_programs": null,
+  "created_at": 1793124752.0,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "metadata": null,
+  "model": "muse-spark-1.3",
+  "object": "response",
+  "output": [
+    {
+      "id": "rs_6ae0e9901bb3190e731d4a51:rs_a87fd123-d6cb-4fcf-af2a-29e9fee08e64",
+      "summary": [],
+      "type": "reasoning",
+      "content": null,
+      "encrypted_content": null,
+      "status": "completed"
+    },
+    {
+      "id": "msg_4a351777-bf10-4e6a-b877-ce47067e80db",
+      "content": [
+        {
+          "annotations": [],
+          "text": "{\"conditions\": {\"dark\": false, \"dirty\": false, \"glare\": false, \"wet\": false}, \"landmarks\": [], \"marks\": [{\"bbox\": {\"x_max\": 616, \"x_min\": 319, \"y_max\": 478, \"y_min\": 400}, \"confidence\": \"high\", \"note\": \"long thin dark line\", \"point\": {\"x\": 468, \"y\": 439}, \"size_class\": \"M\", \"type\": \"scratch\"}, {\"bbox\": {\"x_max\": 746, \"x_min\": 730, \"y_max\": 774, \"y_min\": 756}, \"confidence\": \"high\", \"note\": \"small dark dot\", \"point\": {\"x\": 738, \"y\": 765}, \"size_class\": \"S\", \"type\": \"chip\"}], \"neighbour_car_visible\": false}",
+          "type": "output_text",
+          "logprobs": []
+        }
+      ],
+      "role": "assistant",
+      "status": "completed",
+      "type": "message",
+      "phase": null
+    }
+  ],
+  "parallel_tool_calls": true,
+  "temperature": 1.0,
+  "tool_choice": "auto",
+  "tools": [],
+  "top_p": 1.0,
+  "background": false,
+  "completed_at": 1793124752.0,
+  "conversation": null,
+  "max_output_tokens": 4000,
+  "max_tool_calls": null,
+  "moderation": null,
+  "previous_response_id": null,
+  "prompt": null,
+  "prompt_cache_diagnostics": null,
+  "prompt_cache_key": null,
+  "prompt_cache_options": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "context": null,
+    "effort": "low",
+    "generate_summary": null,
+    "mode": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "auto",
+  "status": "completed",
+  "text": {
+    "format": {
+      "name": "marks_v1",
+      "schema_": {
+        "properties": {
+          "conditions": {
+            "additionalProperties": false,
+            "properties": {
+              "dark": {
+                "type": "boolean"
+              },
+              "dirty": {
+                "type": "boolean"
+              },
+              "glare": {
+                "type": "boolean"
+              },
+              "wet": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "wet",
+              "dirty",
+              "glare",
+              "dark"
+            ],
+            "type": "object"
+          },
+          "landmarks": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "name": {
+                  "enum": [
+                    "handle",
+                    "lock",
+                    "mirror_base",
+                    "wheel_arch"
+                  ],
+                  "type": "string"
+                },
+                "point": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    },
+                    "y": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "name",
+                "point"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "marks": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "bbox": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "x_max": {
+                      "type": "integer"
+                    },
+                    "x_min": {
+                      "type": "integer"
+                    },
+                    "y_max": {
+                      "type": "integer"
+                    },
+                    "y_min": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x_min",
+                    "y_min",
+                    "x_max",
+                    "y_max"
+                  ],
+                  "type": "object"
+                },
+                "confidence": {
+                  "enum": [
+                    "low",
+                    "medium",
+                    "high"
+                  ],
+                  "type": "string"
+                },
+                "note": {
+                  "type": "string"
+                },
+                "point": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "x": {
+                      "type": "integer"
+                    },
+                    "y": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y"
+                  ],
+                  "type": "object"
+                },
+                "size_class": {
+                  "enum": [
+                    "S",
+                    "M",
+                    "L"
+                  ],
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "scratch",
+                    "scuff",
+                    "chip",
+                    "dent",
+                    "crack",
+                    "dirt",
+                    "reflection",
+                    "unsure"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "point",
+                "bbox",
+                "size_class",
+                "confidence",
+                "note"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "neighbour_car_visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "marks",
+          "conditions",
+          "landmarks",
+          "neighbour_car_visible"
+        ],
+        "additionalProperties": false,
+        "type": "object"
+      },
+      "type": "json_schema",
+      "description": null,
+      "strict": true
+    },
+    "verbosity": null
+  },
+  "top_logprobs": 0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 1938,
+    "input_tokens_details": {
+      "cache_write_tokens": null,
+      "cached_tokens": 0
+    },
+    "output_tokens": 829,
+    "output_tokens_details": {
+      "reasoning_tokens": 634
+    },
+    "total_tokens": 2767
+  },
+  "user": null,
+  "store": false
+}
