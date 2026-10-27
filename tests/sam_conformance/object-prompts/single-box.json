@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "single-box",
+  "description": "A box with half-open right and bottom becomes a box token with inclusive x2 and y2 on frame 0, the default frame.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "box": {
+              "left": 10,
+              "top": 20,
+              "right": 40,
+              "bottom": 60
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "text": "<0f>1<|box;x1=10;y1=20;x2=39;y2=59;w=640;h=480|>"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "name": "live-api-content-part-refusal",
+  "description": "A response.content_part.done carrying a refusal part is a terminal refusal error.",
+  "media": "image",
+  "chunks": [],
+  "events": [
+    {
+      "type": "content_part_done",
+      "lane": {
+        "item_id": "message-live-image",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "part_type": "refusal",
+      "text": "I cannot segment that."
+    }
+  ],
+  "expected": {
+    "snapshots": [],
+    "error": {
+      "code": "response_refusal",
+      "message": "I cannot segment that."
+    }
+  }
+}

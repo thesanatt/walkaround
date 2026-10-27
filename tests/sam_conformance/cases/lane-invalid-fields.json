@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "name": "lane-invalid-fields",
+  "description": "Invalid raw lane fields reach runtime validation and become a lane error.",
+  "media": "image",
+  "chunks": ["ignored"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "",
+        "output_index": -1,
+        "content_index": 9007199254740992
+      },
+      "chunk": 0
+    }
+  ],
+  "expected": {
+    "snapshots": [],
+    "error": {
+      "code": "response_lane",
+      "message": "The output text event has an invalid lane identity.",
+      "expected_lane": null,
+      "received_lane": null
+    }
+  }
+}

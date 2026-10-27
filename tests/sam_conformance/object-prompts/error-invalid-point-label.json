@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "error-invalid-point-label",
+  "description": "A point label is 'positive' or 'negative'.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "points": [
+              {
+                "x": 1,
+                "y": 1,
+                "label": "include"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "error": "invalid_point_label"
+  }
+}

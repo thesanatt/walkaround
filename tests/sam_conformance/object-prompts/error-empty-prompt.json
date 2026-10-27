@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "name": "error-empty-prompt",
+  "description": "A frame prompt needs a box or at least one point.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "frame": 2,
+            "points": []
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "error": "empty_prompt"
+  }
+}

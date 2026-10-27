@@ -1,0 +1,212 @@
+{
+  "schema_version": 1,
+  "name": "source-done-only",
+  "description": "A nonempty output-text done event supplies the complete parser input when no deltas were emitted.",
+  "media": "image",
+  "chunks": [],
+  "events": [
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-done-only",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "Done-only prose.\n<0f>0<|box;x1=5;y1=6;x2=9;y2=9;w=20;h=10|><|mask;x=0;y=0;data=4,5,!!!!!(o=)O621!|>\n"
+    },
+    {
+      "type": "response_completed"
+    }
+  ],
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "text",
+            "order": 0,
+            "text": "Done-only prose."
+          },
+          {
+            "kind": "box",
+            "order": 1,
+            "object_id": "0",
+            "frame_index": null,
+            "left": 5,
+            "top": 6,
+            "right": 10,
+            "bottom": 10
+          },
+          {
+            "kind": "mask",
+            "order": 2,
+            "object_id": "0",
+            "frame_index": null,
+            "identity": {
+              "media": "image",
+              "frame_index": null,
+              "object_id": "0"
+            },
+            "revision": 1,
+            "mask": {
+              "encoding": "one_bit",
+              "payload": "!!!!!(o=)O621!",
+              "width": 5,
+              "height": 4,
+              "decoded": {
+                "length": 20,
+                "runs": [
+                  {
+                    "value": 1,
+                    "length": 3
+                  },
+                  {
+                    "value": 0,
+                    "length": 2
+                  },
+                  {
+                    "value": 1,
+                    "length": 3
+                  },
+                  {
+                    "value": 0,
+                    "length": 2
+                  },
+                  {
+                    "value": 1,
+                    "length": 3
+                  },
+                  {
+                    "value": 0,
+                    "length": 2
+                  },
+                  {
+                    "value": 1,
+                    "length": 3
+                  },
+                  {
+                    "value": 0,
+                    "length": 2
+                  }
+                ]
+              },
+              "raster": [
+                1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0
+              ],
+              "coco_rle": {
+                "size": [4, 5],
+                "counts": "0<8"
+              },
+              "svg_path": "M-0.5 0L0 -0.5L1 -0.5L2 -0.5L2.5 0L2.5 1L2.5 2L2.5 3L2 3.5L1 3.5L0 3.5L-0.5 3L-0.5 2L-0.5 1Z"
+            },
+            "bounds": {
+              "left": 5,
+              "top": 6,
+              "right": 10,
+              "bottom": 10
+            }
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "Done-only prose.\n<0f>0<|box;x1=5;y1=6;x2=9;y2=9;w=20;h=10|><|mask;x=0;y=0;data=4,5,!!!!!(o=)O621!|>\n"
+      }
+    ],
+    "result": {
+      "media": "image",
+      "revision": 1,
+      "records": [
+        {
+          "kind": "text",
+          "order": 0,
+          "text": "Done-only prose."
+        },
+        {
+          "kind": "box",
+          "order": 1,
+          "object_id": "0",
+          "frame_index": null,
+          "left": 5,
+          "top": 6,
+          "right": 10,
+          "bottom": 10
+        },
+        {
+          "kind": "mask",
+          "order": 2,
+          "object_id": "0",
+          "frame_index": null,
+          "identity": {
+            "media": "image",
+            "frame_index": null,
+            "object_id": "0"
+          },
+          "revision": 1,
+          "mask": {
+            "encoding": "one_bit",
+            "payload": "!!!!!(o=)O621!",
+            "width": 5,
+            "height": 4,
+            "decoded": {
+              "length": 20,
+              "runs": [
+                {
+                  "value": 1,
+                  "length": 3
+                },
+                {
+                  "value": 0,
+                  "length": 2
+                },
+                {
+                  "value": 1,
+                  "length": 3
+                },
+                {
+                  "value": 0,
+                  "length": 2
+                },
+                {
+                  "value": 1,
+                  "length": 3
+                },
+                {
+                  "value": 0,
+                  "length": 2
+                },
+                {
+                  "value": 1,
+                  "length": 3
+                },
+                {
+                  "value": 0,
+                  "length": 2
+                }
+              ]
+            },
+            "raster": [
+              1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0
+            ],
+            "coco_rle": {
+              "size": [4, 5],
+              "counts": "0<8"
+            },
+            "svg_path": "M-0.5 0L0 -0.5L1 -0.5L2 -0.5L2.5 0L2.5 1L2.5 2L2.5 3L2 3.5L1 3.5L0 3.5L-0.5 3L-0.5 2L-0.5 1Z"
+          },
+          "bounds": {
+            "left": 5,
+            "top": 6,
+            "right": 10,
+            "bottom": 10
+          }
+        }
+      ],
+      "diagnostics": [],
+      "raw_output": "Done-only prose.\n<0f>0<|box;x1=5;y1=6;x2=9;y2=9;w=20;h=10|><|mask;x=0;y=0;data=4,5,!!!!!(o=)O621!|>\n",
+      "outcome": {
+        "status": "completed"
+      }
+    }
+  }
+}

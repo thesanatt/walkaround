@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "name": "lane-incomplete-before-done",
+  "description": "An incomplete response is rejected until an output-text lane is finalized.",
+  "media": "image",
+  "chunks": [],
+  "events": [
+    {
+      "type": "response_incomplete",
+      "detail": "max_output_tokens"
+    }
+  ],
+  "expected": {
+    "snapshots": [],
+    "error": {
+      "code": "response_lane",
+      "message": "The response became incomplete before finalizing one output text lane.",
+      "expected_lane": null,
+      "received_lane": null
+    }
+  }
+}

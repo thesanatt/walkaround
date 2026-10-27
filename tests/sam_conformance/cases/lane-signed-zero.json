@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "name": "lane-signed-zero",
+  "description": "Signed-zero lane indexes normalize to positive zero before an interleaving error exposes them.",
+  "media": "image",
+  "chunks": ["first", "second"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-1",
+        "output_index": -0,
+        "content_index": -0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "output_text_delta",
+      "lane": { "item_id": "message-2", "output_index": 1, "content_index": 0 },
+      "chunk": 1
+    }
+  ],
+  "expected": {
+    "snapshots": [],
+    "error": {
+      "code": "response_lane",
+      "message": "The response interleaved multiple output text lanes.",
+      "expected_lane": {
+        "item_id": "message-1",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "received_lane": {
+        "item_id": "message-2",
+        "output_index": 1,
+        "content_index": 0
+      }
+    }
+  }
+}

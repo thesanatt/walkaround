@@ -1,0 +1,409 @@
+"""Offline tests for walkaround.voice_client and scripts/gate_voice.py: fake transport, generated WAVs."""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import struct
+import sys
+import types
+import wave
+from datetime import datetime, timedelta, timezone
+from email.parser import BytesParser
+from email.policy import HTTP
+from email.utils import format_datetime
+from pathlib import Path
+
+import httpx
+import pytest
+
+from walkaround import ledger, voice_client
+from walkaround.config import VOICE_MODEL, VOICE_TRANSCRIBE_URL
+from walkaround.voice_client import TranscribeError, Turn, check_wav, transcribe_wav
+
+FAKE_KEY = "LLM|test-team|test-secret"
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "gate_voice.py"
+
+TURNS_RESPONSE = {
+    "sessionId": "ABC123",
+    "transcript": "Small scuff on the right rear door. Chip on the hood.",
+    "audioDurationMs": 80000,
+    "turns": [
+        {"turnId": 0, "startMs": 1200, "endMs": 3400, "transcript": "Small scuff on the right rear door."},
+        {"turnId": 1, "startMs": 12400, "endMs": 14100, "transcript": "Chip on the hood."},
+    ],
+}
+
+
+def write_wav(path: Path, *, rate: int = 24000, channels: int = 1, width: int = 2, seconds: float = 1.0) -> Path:
+    frames = int(rate * seconds)
+    with wave.open(str(path), "wb") as writer:
+        writer.setnchannels(channels)
+        writer.setsampwidth(width)
+        writer.setframerate(rate)
+        writer.writeframes(bytes(frames * channels * width))
+    return path
+
+
+def write_wav_header_only(path: Path, *, rate: int, seconds: int) -> Path:
+    """A RIFF header whose data chunk claims `seconds` of mono 16-bit audio with no samples behind it."""
+    data_bytes = rate * 2 * seconds
+    fmt = struct.pack("<4sIHHIIHH", b"fmt ", 16, 1, 1, rate, rate * 2, 2, 16)
+    data = struct.pack("<4sI", b"data", data_bytes)
+    riff = struct.pack("<4sI4s", b"RIFF", 4 + len(fmt) + len(data) + data_bytes, b"WAVE")
+    path.write_bytes(riff + fmt + data)
+    return path
+
+
+class FakeServer:
+    """httpx.MockTransport handler that records requests and answers from a queue."""
+
+    def __init__(self, *responses: httpx.Response) -> None:
+        self.responses = list(responses)
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        return self.responses.pop(0)
+
+
+def multipart_parts(request: httpx.Request) -> dict[str, tuple[str | None, str, bytes]]:
+    """name -> (filename, content type, payload) for each part of a multipart body."""
+    raw = b"Content-Type: " + request.headers["content-type"].encode() + b"\r\n\r\n" + request.content
+    message = BytesParser(policy=HTTP).parsebytes(raw)
+    return {
+        part.get_param("name", header="content-disposition"): (
+            part.get_filename(),
+            part.get_content_type(),
+            part.get_payload(decode=True),
+        )
+        for part in message.iter_parts()
+    }
+
+
+def request_json(request: httpx.Request) -> dict:
+    return json.loads(multipart_parts(request)["request"][2])
+
+
+def serve(monkeypatch, *responses: httpx.Response) -> FakeServer:
+    server = FakeServer(*responses)
+    monkeypatch.setattr(voice_client, "TRANSPORT", httpx.MockTransport(server))
+    return server
+
+
+def load_gate_script():
+    spec = importlib.util.spec_from_file_location("gate_voice", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.fixture
+def ledger_path(tmp_path, monkeypatch):
+    path = tmp_path / "ledger.jsonl"
+    monkeypatch.setattr(ledger, "LEDGER_PATH", path)
+    monkeypatch.setenv("MODEL_API_KEY", FAKE_KEY)
+    return path
+
+
+@pytest.fixture
+def good_wav(tmp_path):
+    return write_wav(tmp_path / "narration.wav", seconds=1.5)
+
+
+# WAV validation
+
+
+def test_check_wav_accepts_24k_mono(tmp_path):
+    assert check_wav(write_wav(tmp_path / "ok.wav", rate=24000, seconds=2.0)) == pytest.approx(2.0)
+
+
+def test_check_wav_accepts_16k_mono(tmp_path):
+    assert check_wav(write_wav(tmp_path / "ok16.wav", rate=16000, seconds=0.5)) == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"channels": 2}, "2 channels"),
+        ({"width": 1}, "8-bit"),
+        ({"rate": 44100}, "44100 Hz"),
+    ],
+)
+def test_check_wav_rejects_bad_format(tmp_path, kwargs, message):
+    bad = write_wav(tmp_path / "bad.wav", **kwargs)
+    with pytest.raises(ValueError, match=message):
+        check_wav(bad)
+
+
+def test_check_wav_rejects_non_wav(tmp_path):
+    junk = tmp_path / "junk.wav"
+    junk.write_bytes(b"ID3\x03\x00 not a wav at all")
+    with pytest.raises(ValueError, match="not a PCM WAV"):
+        check_wav(junk)
+
+
+def test_check_wav_rejects_empty_audio(tmp_path):
+    with pytest.raises(ValueError, match="no audio samples"):
+        check_wav(write_wav(tmp_path / "empty.wav", seconds=0))
+
+
+def test_check_wav_rejects_long_audio(tmp_path):
+    long = write_wav_header_only(tmp_path / "long.wav", rate=16000, seconds=601)
+    with pytest.raises(ValueError, match="10 minutes"):
+        check_wav(long)
+    assert check_wav(write_wav_header_only(tmp_path / "max.wav", rate=16000, seconds=600)) == 600.0
+
+
+def test_check_wav_rejects_big_file(tmp_path):
+    big = write_wav(tmp_path / "big.wav")
+    os.truncate(big, voice_client.MAX_BYTES + 1)
+    with pytest.raises(ValueError, match="32 MB"):
+        check_wav(big)
+
+
+# transcribe_wav
+
+
+def test_transcribe_turns_and_ledger_row(monkeypatch, ledger_path, good_wav):
+    serve(monkeypatch, httpx.Response(200, json=TURNS_RESPONSE))
+    result = transcribe_wav(good_wav, run_id="gate1")
+    assert result.turns == [
+        Turn(1200, 3400, "Small scuff on the right rear door."),
+        Turn(12400, 14100, "Chip on the hood."),
+    ]
+    assert result.text == TURNS_RESPONSE["transcript"]
+    assert result.duration_ms == 80000
+    assert result.session_id == "ABC123"
+    assert result.raw == TURNS_RESPONSE
+    rows = ledger.rows(ledger_path)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["kind"] == "voice"
+    assert row["model"] == VOICE_MODEL
+    assert row["note"] == "ENDPOINTING"
+    assert row["run_id"] == "gate1"
+    assert row["audio_seconds"] == 80.0
+    assert row["usd"] == pytest.approx(int(80.0) * 0.18 / 3600, abs=1e-6)
+    assert result.usd == row["usd"]
+    assert row["seconds"] >= 0
+
+
+def test_whole_seconds_are_billed(monkeypatch, ledger_path, good_wav):
+    serve(monkeypatch, httpx.Response(200, json={**TURNS_RESPONSE, "audioDurationMs": 80900}))
+    result = transcribe_wav(good_wav)
+    assert result.usd == pytest.approx(80 * 0.18 / 3600, abs=1e-6)
+    assert ledger.rows(ledger_path)[0]["audio_seconds"] == 80.9
+
+
+def test_empty_turns_fallback(monkeypatch, ledger_path, good_wav):
+    body = {"sessionId": "S", "transcript": "Scuff on the door.", "audioDurationMs": 4000, "turns": []}
+    serve(monkeypatch, httpx.Response(200, json=body))
+    result = transcribe_wav(good_wav, mode="PUSH_TO_TALK")
+    assert result.turns == [Turn(0, 4000, "Scuff on the door.")]
+    assert ledger.rows(ledger_path)[0]["note"] == "PUSH_TO_TALK"
+
+
+def test_missing_turns_key_falls_back_too(monkeypatch, ledger_path, good_wav):
+    serve(monkeypatch, httpx.Response(200, json={"transcript": "Dent on the hood.", "audioDurationMs": 2500}))
+    result = transcribe_wav(good_wav, mode="PUSH_TO_TALK")
+    assert result.turns == [Turn(0, 2500, "Dent on the hood.")]
+
+
+def test_diarization_speaker_label(monkeypatch, ledger_path, good_wav):
+    body = {
+        "transcript": "Hi.",
+        "audioDurationMs": 1000,
+        "turns": [{"turnId": 0, "startMs": 0, "endMs": 900, "transcript": "Hi.", "speaker": "A"}],
+    }
+    serve(monkeypatch, httpx.Response(200, json=body))
+    result = transcribe_wav(good_wav, mode="DIARIZATION")
+    assert result.turns == [Turn(0, 900, "Hi.", "A")]
+    assert request_json(voice_client.TRANSPORT.handler.requests[0])["mode"] == "DIARIZATION"
+
+
+def test_silence_gives_no_turns(monkeypatch, ledger_path, good_wav):
+    serve(monkeypatch, httpx.Response(200, json={"sessionId": "S", "transcript": "", "audioDurationMs": 1500, "turns": []}))
+    result = transcribe_wav(good_wav)
+    assert result.turns == []
+    assert result.text == ""
+
+
+def test_duration_falls_back_to_wav_header(monkeypatch, ledger_path, good_wav):
+    serve(monkeypatch, httpx.Response(200, json={"transcript": "x", "turns": []}))
+    result = transcribe_wav(good_wav)
+    assert result.duration_ms == 1500
+    assert ledger.rows(ledger_path)[0]["audio_seconds"] == 1.5
+
+
+def test_413_raises_clear_error(monkeypatch, ledger_path, good_wav):
+    serve(monkeypatch, httpx.Response(413, text="Payload Too Large"))
+    with pytest.raises(TranscribeError, match=r"\[413\] body over 32 MB: Payload Too Large"):
+        transcribe_wav(good_wav)
+    assert ledger.rows(ledger_path) == []
+
+
+def test_other_errors_carry_status_and_body(monkeypatch, ledger_path, good_wav):
+    serve(monkeypatch, httpx.Response(401, text="bad token"))
+    with pytest.raises(TranscribeError, match=r"\[401\] the credential was not accepted: bad token"):
+        transcribe_wav(good_wav)
+
+
+def test_non_json_200_raises(monkeypatch, ledger_path, good_wav):
+    serve(monkeypatch, httpx.Response(200, text="<html>"))
+    with pytest.raises(TranscribeError, match="not JSON"):
+        transcribe_wav(good_wav)
+    assert ledger.rows(ledger_path) == []
+
+
+def test_multipart_request_shape(monkeypatch, ledger_path, good_wav):
+    server = serve(monkeypatch, httpx.Response(200, json=TURNS_RESPONSE))
+    transcribe_wav(good_wav, keywords=["scuff", "hood"])
+    (request,) = server.requests
+    assert request.method == "POST"
+    assert str(request.url) == VOICE_TRANSCRIBE_URL
+    assert request.headers["authorization"] == f"Bearer {FAKE_KEY}"
+    assert request.headers["content-type"].startswith("multipart/form-data; boundary=")
+    parts = multipart_parts(request)
+    assert set(parts) == {"request", "audio"}
+    filename, ctype, payload = parts["request"]
+    assert (filename, ctype) == (None, "application/json")
+    assert json.loads(payload) == {
+        "mode": "ENDPOINTING",
+        "model": VOICE_MODEL,
+        "audioEncoding": "WAV",
+        "keywords": ["scuff", "hood"],
+    }
+    filename, ctype, payload = parts["audio"]
+    assert (filename, ctype) == ("narration.wav", "audio/wav")
+    assert payload == good_wav.read_bytes()
+    assert payload[:4] == b"RIFF"
+
+
+def test_default_keywords_and_empty_keywords(monkeypatch, ledger_path, good_wav):
+    server = serve(monkeypatch, httpx.Response(200, json=TURNS_RESPONSE), httpx.Response(200, json=TURNS_RESPONSE))
+    transcribe_wav(good_wav)
+    transcribe_wav(good_wav, keywords=[])
+    first, second = (request_json(r) for r in server.requests)
+    assert first["keywords"] == voice_client.DEFAULT_KEYWORDS
+    assert "keywords" not in second
+    assert "languageBias" not in first
+
+
+def test_language_bias_when_set(monkeypatch, ledger_path, good_wav):
+    monkeypatch.setattr(voice_client, "LANGUAGE_BIAS", ["english"])
+    server = serve(monkeypatch, httpx.Response(200, json=TURNS_RESPONSE))
+    transcribe_wav(good_wav)
+    assert request_json(server.requests[0])["languageBias"] == ["english"]
+
+
+def test_429_retries_once_honoring_retry_after(monkeypatch, ledger_path, good_wav):
+    waits = []
+    monkeypatch.setattr(voice_client, "_sleep", waits.append)
+    server = serve(
+        monkeypatch, httpx.Response(429, headers={"Retry-After": "3"}), httpx.Response(200, json=TURNS_RESPONSE)
+    )
+    result = transcribe_wav(good_wav)
+    assert len(result.turns) == 2
+    assert len(server.requests) == 2
+    assert waits == [3.0]
+    assert len(ledger.rows(ledger_path)) == 1
+
+
+def test_429_twice_raises(monkeypatch, ledger_path, good_wav):
+    monkeypatch.setattr(voice_client, "_sleep", lambda seconds: None)
+    server = serve(monkeypatch, httpx.Response(429), httpx.Response(429, text="slow down"))
+    with pytest.raises(TranscribeError, match=r"\[429\] rate limited; back off and retry: slow down"):
+        transcribe_wav(good_wav)
+    assert len(server.requests) == 2
+    assert ledger.rows(ledger_path) == []
+
+
+def test_retry_after_parsing():
+    soon = format_datetime(datetime.now(timezone.utc) + timedelta(seconds=5), usegmt=True)
+    assert 3.0 <= voice_client._retry_after_s(httpx.Response(429, headers={"Retry-After": soon})) <= 5.0
+    assert voice_client._retry_after_s(httpx.Response(429, headers={"Retry-After": "9999"})) == voice_client.MAX_RETRY_WAIT_S
+    assert voice_client._retry_after_s(httpx.Response(429, headers={"Retry-After": "0"})) == 0.5
+    assert voice_client._retry_after_s(httpx.Response(429)) == 1.0
+    assert voice_client._retry_after_s(httpx.Response(429, headers={"Retry-After": "soon"})) == 1.0
+
+
+def test_bad_mode_sends_nothing(monkeypatch, ledger_path, good_wav):
+    server = serve(monkeypatch)
+    with pytest.raises(ValueError, match="mode must be one of"):
+        transcribe_wav(good_wav, mode="endpointing")
+    assert server.requests == []
+
+
+def test_bad_wav_sends_nothing(monkeypatch, ledger_path, tmp_path):
+    server = serve(monkeypatch)
+    with pytest.raises(ValueError, match="2 channels"):
+        transcribe_wav(write_wav(tmp_path / "stereo.wav", channels=2))
+    assert server.requests == []
+    assert ledger.rows(ledger_path) == []
+
+
+# scripts/gate_voice.py
+
+
+def test_gate_voice_wav(monkeypatch, ledger_path, good_wav, tmp_path, capsys):
+    serve(monkeypatch, httpx.Response(200, json=TURNS_RESPONSE))
+    gate = load_gate_script()
+    out = tmp_path / "runs" / "voice_gate"
+    assert gate.main([str(good_wav), "--out", str(out)]) == 0
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[0] == "[   1.20s -    3.40s] Small scuff on the right rear door."
+    assert lines[1] == "[  12.40s -   14.10s] Chip on the hood."
+    assert any(line.startswith("Gate: PASS") for line in lines)
+    data = json.loads((out / "transcript.json").read_text())
+    assert data["mode"] == "ENDPOINTING"
+    assert data["model"] == VOICE_MODEL
+    assert data["duration_ms"] == 80000
+    assert data["turns"][1] == {"start_ms": 12400, "end_ms": 14100, "text": "Chip on the hood.", "speaker": None}
+    assert data["usd"] == pytest.approx(0.004, abs=1e-6)
+    assert data["latency_s"] >= 0
+    assert data["raw"] == TURNS_RESPONSE
+    summary = (out / "gate_summary.md").read_text()
+    assert summary.isascii()
+    assert "80.0 s" in summary
+    assert "$0.0040" in summary
+    assert "Latency" in summary
+    assert "[  12.40s -   14.10s] Chip on the hood." in summary
+    assert ledger.rows(ledger_path)[0]["run_id"] == "voice_gate"
+
+
+def test_gate_voice_video_extracts_wav(monkeypatch, ledger_path, good_wav, tmp_path, capsys):
+    serve(monkeypatch, httpx.Response(200, json=TURNS_RESPONSE))
+    calls = []
+
+    def fake_extract_wav(src, dst, *, rate=24000):
+        calls.append((Path(src), Path(dst), rate))
+        Path(dst).write_bytes(good_wav.read_bytes())
+        return Path(dst)
+
+    # Stand in for walkaround.video so this test never needs ffmpeg or the real module.
+    fake_video = types.ModuleType("walkaround.video")
+    fake_video.extract_wav = fake_extract_wav
+    monkeypatch.setitem(sys.modules, "walkaround.video", fake_video)
+    gate = load_gate_script()
+    out = tmp_path / "gate_video"
+    video = tmp_path / "pickup.mov"
+    video.write_bytes(b"not really a video")
+    assert gate.main([str(video), "--mode", "PUSH_TO_TALK", "--keywords", "scuff", "--out", str(out)]) == 0
+    assert calls == [(video, out / "audio.wav", 24000)]
+    data = json.loads((out / "transcript.json").read_text())
+    assert data["wav"] == str(out / "audio.wav")
+    assert data["mode"] == "PUSH_TO_TALK"
+    assert request_json(voice_client.TRANSPORT.handler.requests[0])["keywords"] == ["scuff"]
+    assert "PUSH_TO_TALK" in capsys.readouterr().out
+
+
+def test_gate_voice_bad_input_returns_1(monkeypatch, ledger_path, tmp_path, capsys):
+    server = serve(monkeypatch)
+    gate = load_gate_script()
+    stereo = write_wav(tmp_path / "stereo.wav", channels=2)
+    assert gate.main([str(stereo), "--out", str(tmp_path / "o")]) == 1
+    assert "2 channels" in capsys.readouterr().err
+    assert server.requests == []
+    assert not (tmp_path / "o" / "transcript.json").exists()

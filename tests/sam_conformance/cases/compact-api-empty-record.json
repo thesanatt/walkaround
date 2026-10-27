@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "name": "compact-api-empty-record",
+  "description": "A bare SAM API frame header is diagnosed instead of disappearing.",
+  "media": "image",
+  "chunks": ["<0f>\n"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-empty-compact-api",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-empty-compact-api",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "<0f>\n"
+    },
+    {
+      "type": "response_completed"
+    }
+  ],
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [],
+        "diagnostics": [
+          {
+            "severity": "error",
+            "code": "malformed_record",
+            "message": "Malformed SAM API object record.",
+            "line": 1,
+            "raw": "<0f>"
+          }
+        ],
+        "raw_output": "<0f>\n"
+      }
+    ],
+    "result": {
+      "media": "image",
+      "revision": 1,
+      "records": [],
+      "diagnostics": [
+        {
+          "severity": "error",
+          "code": "malformed_record",
+          "message": "Malformed SAM API object record.",
+          "line": 1,
+          "raw": "<0f>"
+        }
+      ],
+      "raw_output": "<0f>\n",
+      "outcome": {
+        "status": "completed"
+      }
+    }
+  }
+}

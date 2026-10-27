@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "name": "error-duplicate-frame",
+  "description": "An object has at most one prompt per frame.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "frame": 4,
+            "box": {
+              "left": 10,
+              "top": 20,
+              "right": 40,
+              "bottom": 60
+            }
+          },
+          {
+            "frame": 4,
+            "points": [
+              {
+                "x": 1,
+                "y": 1
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "error": "duplicate_frame"
+  }
+}

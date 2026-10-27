@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "source-iterator-failure",
+  "description": "A source failure while acquiring the iterator is normalized and cannot be skipped.",
+  "media": "image",
+  "chunks": [],
+  "events": [{ "type": "response_completed" }],
+  "source": {
+    "operation": "iterator",
+    "message": "Synthetic iterator failure."
+  },
+  "expected": {
+    "snapshots": [],
+    "error": {
+      "code": "source_error",
+      "message": "The Responses event source failed during iterator.",
+      "source_operation": "iterator"
+    }
+  }
+}

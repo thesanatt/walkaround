@@ -1,0 +1,583 @@
+{
+  "schema_version": 1,
+  "name": "compact-api-field-order",
+  "description": "Box and mask fields are read by name in any order. Keys the format does not define, including a key with an empty value, are ignored and the record is kept; each is reported once as an ignored_field warning. Video frames keep their confidence per record.",
+  "media": "video",
+  "chunks": [
+    "<0f>0<|box;h=10;c=0.5;w=20;y2=8;x2=7;y1=4;x1=3|><|mask;data=5,5,!!!!!(QO(0lu8?;c=0.5;y=0;x=0|>\n",
+    "<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>\n"
+  ],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-field-order",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-field-order",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 1
+    },
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-field-order",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "<0f>0<|box;h=10;c=0.5;w=20;y2=8;x2=7;y1=4;x1=3|><|mask;data=5,5,!!!!!(QO(0lu8?;c=0.5;y=0;x=0|>\n<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>\n"
+    },
+    {
+      "type": "response_completed"
+    }
+  ],
+  "expected": {
+    "snapshots": [
+      {
+        "media": "video",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "box",
+            "order": 0,
+            "object_id": "0",
+            "frame_index": 0,
+            "left": 3,
+            "top": 4,
+            "right": 8,
+            "bottom": 9,
+            "confidence": 0.5
+          },
+          {
+            "kind": "mask",
+            "order": 1,
+            "object_id": "0",
+            "frame_index": 0,
+            "identity": {
+              "media": "video",
+              "frame_index": 0,
+              "object_id": "0"
+            },
+            "revision": 1,
+            "mask": {
+              "encoding": "one_bit",
+              "payload": "!!!!!(QO(0lu8?",
+              "width": 5,
+              "height": 5,
+              "decoded": {
+                "length": 25,
+                "runs": [
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 2
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 3
+                  },
+                  {
+                    "value": 1,
+                    "length": 2
+                  },
+                  {
+                    "value": 0,
+                    "length": 6
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 1
+                  },
+                  {
+                    "value": 1,
+                    "length": 4
+                  },
+                  {
+                    "value": 0,
+                    "length": 3
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  }
+                ]
+              },
+              "raster": [
+                1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1,
+                0, 0, 0, 1
+              ],
+              "coco_rle": {
+                "size": [5, 5],
+                "counts": "01214OK0010O31"
+              },
+              "svg_path": "M-0.5 0L0 -0.5L0.5 0L0 0.5ZM2.5 0L3 -0.5L3.5 0L3.5 1L3 1.5L2 1.5L1.5 1L2 0.5ZM-0.5 3L0 2.5L0.5 3L0.5 4L0 4.5L-0.5 4ZM1.5 3L2 2.5L3 2.5L4 2.5L4.5 3L4.5 4L4 4.5L3.5 4L3 3.5L2 3.5Z"
+            },
+            "bounds": {
+              "left": 3,
+              "top": 4,
+              "right": 8,
+              "bottom": 9
+            },
+            "confidence": 0.5
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "<0f>0<|box;h=10;c=0.5;w=20;y2=8;x2=7;y1=4;x1=3|><|mask;data=5,5,!!!!!(QO(0lu8?;c=0.5;y=0;x=0|>\n"
+      },
+      {
+        "media": "video",
+        "revision": 2,
+        "records": [
+          {
+            "kind": "box",
+            "order": 0,
+            "object_id": "0",
+            "frame_index": 0,
+            "left": 3,
+            "top": 4,
+            "right": 8,
+            "bottom": 9,
+            "confidence": 0.5
+          },
+          {
+            "kind": "mask",
+            "order": 1,
+            "object_id": "0",
+            "frame_index": 0,
+            "identity": {
+              "media": "video",
+              "frame_index": 0,
+              "object_id": "0"
+            },
+            "revision": 1,
+            "mask": {
+              "encoding": "one_bit",
+              "payload": "!!!!!(QO(0lu8?",
+              "width": 5,
+              "height": 5,
+              "decoded": {
+                "length": 25,
+                "runs": [
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 2
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 3
+                  },
+                  {
+                    "value": 1,
+                    "length": 2
+                  },
+                  {
+                    "value": 0,
+                    "length": 6
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 1
+                  },
+                  {
+                    "value": 1,
+                    "length": 4
+                  },
+                  {
+                    "value": 0,
+                    "length": 3
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  }
+                ]
+              },
+              "raster": [
+                1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1,
+                0, 0, 0, 1
+              ],
+              "coco_rle": {
+                "size": [5, 5],
+                "counts": "01214OK0010O31"
+              },
+              "svg_path": "M-0.5 0L0 -0.5L0.5 0L0 0.5ZM2.5 0L3 -0.5L3.5 0L3.5 1L3 1.5L2 1.5L1.5 1L2 0.5ZM-0.5 3L0 2.5L0.5 3L0.5 4L0 4.5L-0.5 4ZM1.5 3L2 2.5L3 2.5L4 2.5L4.5 3L4.5 4L4 4.5L3.5 4L3 3.5L2 3.5Z"
+            },
+            "bounds": {
+              "left": 3,
+              "top": 4,
+              "right": 8,
+              "bottom": 9
+            },
+            "confidence": 0.5
+          },
+          {
+            "kind": "box",
+            "order": 2,
+            "object_id": "0",
+            "frame_index": 3,
+            "left": 3,
+            "top": 4,
+            "right": 8,
+            "bottom": 9
+          },
+          {
+            "kind": "mask",
+            "order": 3,
+            "object_id": "0",
+            "frame_index": 3,
+            "identity": {
+              "media": "video",
+              "frame_index": 3,
+              "object_id": "0"
+            },
+            "revision": 1,
+            "mask": {
+              "encoding": "one_bit",
+              "payload": "!!!!!(QO(0lu8?",
+              "width": 5,
+              "height": 5,
+              "decoded": {
+                "length": 25,
+                "runs": [
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 2
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 3
+                  },
+                  {
+                    "value": 1,
+                    "length": 2
+                  },
+                  {
+                    "value": 0,
+                    "length": 6
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  },
+                  {
+                    "value": 0,
+                    "length": 1
+                  },
+                  {
+                    "value": 1,
+                    "length": 4
+                  },
+                  {
+                    "value": 0,
+                    "length": 3
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  }
+                ]
+              },
+              "raster": [
+                1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1,
+                0, 0, 0, 1
+              ],
+              "coco_rle": {
+                "size": [5, 5],
+                "counts": "01214OK0010O31"
+              },
+              "svg_path": "M-0.5 0L0 -0.5L0.5 0L0 0.5ZM2.5 0L3 -0.5L3.5 0L3.5 1L3 1.5L2 1.5L1.5 1L2 0.5ZM-0.5 3L0 2.5L0.5 3L0.5 4L0 4.5L-0.5 4ZM1.5 3L2 2.5L3 2.5L4 2.5L4.5 3L4.5 4L4 4.5L3.5 4L3 3.5L2 3.5Z"
+            },
+            "bounds": {
+              "left": 3,
+              "top": 4,
+              "right": 8,
+              "bottom": 9
+            }
+          }
+        ],
+        "diagnostics": [
+          {
+            "severity": "warning",
+            "code": "ignored_field",
+            "message": "Ignored unknown box field \"score_v2\".",
+            "line": 2,
+            "raw": "<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>"
+          },
+          {
+            "severity": "warning",
+            "code": "ignored_field",
+            "message": "Ignored unknown box field \"z\".",
+            "line": 2,
+            "raw": "<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>"
+          },
+          {
+            "severity": "warning",
+            "code": "ignored_field",
+            "message": "Ignored unknown mask field \"future_field\".",
+            "line": 2,
+            "raw": "<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>"
+          }
+        ],
+        "raw_output": "<0f>0<|box;h=10;c=0.5;w=20;y2=8;x2=7;y1=4;x1=3|><|mask;data=5,5,!!!!!(QO(0lu8?;c=0.5;y=0;x=0|>\n<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>\n"
+      }
+    ],
+    "result": {
+      "media": "video",
+      "revision": 2,
+      "records": [
+        {
+          "kind": "box",
+          "order": 0,
+          "object_id": "0",
+          "frame_index": 0,
+          "left": 3,
+          "top": 4,
+          "right": 8,
+          "bottom": 9,
+          "confidence": 0.5
+        },
+        {
+          "kind": "mask",
+          "order": 1,
+          "object_id": "0",
+          "frame_index": 0,
+          "identity": {
+            "media": "video",
+            "frame_index": 0,
+            "object_id": "0"
+          },
+          "revision": 1,
+          "mask": {
+            "encoding": "one_bit",
+            "payload": "!!!!!(QO(0lu8?",
+            "width": 5,
+            "height": 5,
+            "decoded": {
+              "length": 25,
+              "runs": [
+                {
+                  "value": 1,
+                  "length": 1
+                },
+                {
+                  "value": 0,
+                  "length": 2
+                },
+                {
+                  "value": 1,
+                  "length": 1
+                },
+                {
+                  "value": 0,
+                  "length": 3
+                },
+                {
+                  "value": 1,
+                  "length": 2
+                },
+                {
+                  "value": 0,
+                  "length": 6
+                },
+                {
+                  "value": 1,
+                  "length": 1
+                },
+                {
+                  "value": 0,
+                  "length": 1
+                },
+                {
+                  "value": 1,
+                  "length": 4
+                },
+                {
+                  "value": 0,
+                  "length": 3
+                },
+                {
+                  "value": 1,
+                  "length": 1
+                }
+              ]
+            },
+            "raster": [
+              1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0,
+              0, 0, 1
+            ],
+            "coco_rle": {
+              "size": [5, 5],
+              "counts": "01214OK0010O31"
+            },
+            "svg_path": "M-0.5 0L0 -0.5L0.5 0L0 0.5ZM2.5 0L3 -0.5L3.5 0L3.5 1L3 1.5L2 1.5L1.5 1L2 0.5ZM-0.5 3L0 2.5L0.5 3L0.5 4L0 4.5L-0.5 4ZM1.5 3L2 2.5L3 2.5L4 2.5L4.5 3L4.5 4L4 4.5L3.5 4L3 3.5L2 3.5Z"
+          },
+          "bounds": {
+            "left": 3,
+            "top": 4,
+            "right": 8,
+            "bottom": 9
+          },
+          "confidence": 0.5
+        },
+        {
+          "kind": "box",
+          "order": 2,
+          "object_id": "0",
+          "frame_index": 3,
+          "left": 3,
+          "top": 4,
+          "right": 8,
+          "bottom": 9
+        },
+        {
+          "kind": "mask",
+          "order": 3,
+          "object_id": "0",
+          "frame_index": 3,
+          "identity": {
+            "media": "video",
+            "frame_index": 3,
+            "object_id": "0"
+          },
+          "revision": 1,
+          "mask": {
+            "encoding": "one_bit",
+            "payload": "!!!!!(QO(0lu8?",
+            "width": 5,
+            "height": 5,
+            "decoded": {
+              "length": 25,
+              "runs": [
+                {
+                  "value": 1,
+                  "length": 1
+                },
+                {
+                  "value": 0,
+                  "length": 2
+                },
+                {
+                  "value": 1,
+                  "length": 1
+                },
+                {
+                  "value": 0,
+                  "length": 3
+                },
+                {
+                  "value": 1,
+                  "length": 2
+                },
+                {
+                  "value": 0,
+                  "length": 6
+                },
+                {
+                  "value": 1,
+                  "length": 1
+                },
+                {
+                  "value": 0,
+                  "length": 1
+                },
+                {
+                  "value": 1,
+                  "length": 4
+                },
+                {
+                  "value": 0,
+                  "length": 3
+                },
+                {
+                  "value": 1,
+                  "length": 1
+                }
+              ]
+            },
+            "raster": [
+              1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 0,
+              0, 0, 1
+            ],
+            "coco_rle": {
+              "size": [5, 5],
+              "counts": "01214OK0010O31"
+            },
+            "svg_path": "M-0.5 0L0 -0.5L0.5 0L0 0.5ZM2.5 0L3 -0.5L3.5 0L3.5 1L3 1.5L2 1.5L1.5 1L2 0.5ZM-0.5 3L0 2.5L0.5 3L0.5 4L0 4.5L-0.5 4ZM1.5 3L2 2.5L3 2.5L4 2.5L4.5 3L4.5 4L4 4.5L3.5 4L3 3.5L2 3.5Z"
+          },
+          "bounds": {
+            "left": 3,
+            "top": 4,
+            "right": 8,
+            "bottom": 9
+          }
+        }
+      ],
+      "diagnostics": [
+        {
+          "severity": "warning",
+          "code": "ignored_field",
+          "message": "Ignored unknown box field \"score_v2\".",
+          "line": 2,
+          "raw": "<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>"
+        },
+        {
+          "severity": "warning",
+          "code": "ignored_field",
+          "message": "Ignored unknown box field \"z\".",
+          "line": 2,
+          "raw": "<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>"
+        },
+        {
+          "severity": "warning",
+          "code": "ignored_field",
+          "message": "Ignored unknown mask field \"future_field\".",
+          "line": 2,
+          "raw": "<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>"
+        }
+      ],
+      "raw_output": "<0f>0<|box;h=10;c=0.5;w=20;y2=8;x2=7;y1=4;x1=3|><|mask;data=5,5,!!!!!(QO(0lu8?;c=0.5;y=0;x=0|>\n<3f>0<|box;x1=3;y1=4;x2=7;y2=8;w=20;h=10;score_v2=high;z=|><|mask;future_field=1;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>\n",
+      "outcome": {
+        "status": "completed"
+      }
+    }
+  }
+}

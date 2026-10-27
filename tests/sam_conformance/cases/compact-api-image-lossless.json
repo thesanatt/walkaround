@@ -1,0 +1,177 @@
+{
+  "schema_version": 1,
+  "name": "compact-api-image-lossless",
+  "description": "A SAM API image box uses inclusive source coordinates and carries an asymmetric lossless threshold vector.",
+  "media": "image",
+  "chunks": [
+    "<0f>7<|box;x1=0;y1=0;x2=2;y2=1;w=3;h=2|><|mask;x=0;y=0;data=2,3,~!!!!.!0^zlTde]:)]`W|>\n"
+  ],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-lossless",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-lossless",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "<0f>7<|box;x1=0;y1=0;x2=2;y2=1;w=3;h=2|><|mask;x=0;y=0;data=2,3,~!!!!.!0^zlTde]:)]`W|>\n"
+    },
+    {
+      "type": "response_completed"
+    }
+  ],
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "box",
+            "order": 0,
+            "object_id": "7",
+            "frame_index": null,
+            "left": 0,
+            "top": 0,
+            "right": 3,
+            "bottom": 2
+          },
+          {
+            "kind": "mask",
+            "order": 1,
+            "object_id": "7",
+            "frame_index": null,
+            "identity": {
+              "media": "image",
+              "frame_index": null,
+              "object_id": "7"
+            },
+            "revision": 1,
+            "mask": {
+              "encoding": "lossless",
+              "payload": "~!!!!.!0^zlTde]:)]`W",
+              "width": 3,
+              "height": 2,
+              "decoded": {
+                "length": 6,
+                "runs": [
+                  {
+                    "value": 0,
+                    "length": 2
+                  },
+                  {
+                    "value": 1,
+                    "length": 2
+                  },
+                  {
+                    "value": 0,
+                    "length": 1
+                  },
+                  {
+                    "value": 1,
+                    "length": 1
+                  }
+                ]
+              },
+              "raster": [0, 0, 1, 1, 0, 1],
+              "coco_rle": {
+                "size": [2, 3],
+                "counts": "1121"
+              },
+              "svg_path": "M1.5 0L2 -0.5L2.5 0L2.5 1L2 1.5L1.5 1ZM-0.5 1L0 0.5L0.5 1L0 1.5Z"
+            },
+            "bounds": {
+              "left": 0,
+              "top": 0,
+              "right": 3,
+              "bottom": 2
+            }
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "<0f>7<|box;x1=0;y1=0;x2=2;y2=1;w=3;h=2|><|mask;x=0;y=0;data=2,3,~!!!!.!0^zlTde]:)]`W|>\n"
+      }
+    ],
+    "result": {
+      "media": "image",
+      "revision": 1,
+      "records": [
+        {
+          "kind": "box",
+          "order": 0,
+          "object_id": "7",
+          "frame_index": null,
+          "left": 0,
+          "top": 0,
+          "right": 3,
+          "bottom": 2
+        },
+        {
+          "kind": "mask",
+          "order": 1,
+          "object_id": "7",
+          "frame_index": null,
+          "identity": {
+            "media": "image",
+            "frame_index": null,
+            "object_id": "7"
+          },
+          "revision": 1,
+          "mask": {
+            "encoding": "lossless",
+            "payload": "~!!!!.!0^zlTde]:)]`W",
+            "width": 3,
+            "height": 2,
+            "decoded": {
+              "length": 6,
+              "runs": [
+                {
+                  "value": 0,
+                  "length": 2
+                },
+                {
+                  "value": 1,
+                  "length": 2
+                },
+                {
+                  "value": 0,
+                  "length": 1
+                },
+                {
+                  "value": 1,
+                  "length": 1
+                }
+              ]
+            },
+            "raster": [0, 0, 1, 1, 0, 1],
+            "coco_rle": {
+              "size": [2, 3],
+              "counts": "1121"
+            },
+            "svg_path": "M1.5 0L2 -0.5L2.5 0L2.5 1L2 1.5L1.5 1ZM-0.5 1L0 0.5L0.5 1L0 1.5Z"
+          },
+          "bounds": {
+            "left": 0,
+            "top": 0,
+            "right": 3,
+            "bottom": 2
+          }
+        }
+      ],
+      "diagnostics": [],
+      "raw_output": "<0f>7<|box;x1=0;y1=0;x2=2;y2=1;w=3;h=2|><|mask;x=0;y=0;data=2,3,~!!!!.!0^zlTde]:)]`W|>\n",
+      "outcome": {
+        "status": "completed"
+      }
+    }
+  }
+}

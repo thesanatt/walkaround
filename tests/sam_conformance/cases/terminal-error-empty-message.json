@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "terminal-error-empty-message",
+  "description": "An explicitly empty source error message is preserved.",
+  "media": "image",
+  "chunks": [],
+  "events": [
+    {
+      "type": "error",
+      "message": ""
+    }
+  ],
+  "expected": {
+    "snapshots": [],
+    "error": {
+      "code": "response_error",
+      "message": ""
+    }
+  }
+}

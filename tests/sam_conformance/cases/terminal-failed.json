@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "name": "terminal-failed",
+  "description": "A failed response is a normalized terminal error after any snapshots already emitted.",
+  "media": "image",
+  "chunks": ["Before failure.\n"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-failed",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "response_failed",
+      "message": "Synthetic response failure."
+    }
+  ],
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "text",
+            "order": 0,
+            "text": "Before failure."
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "Before failure.\n"
+      }
+    ],
+    "error": {
+      "code": "response_failed",
+      "message": "Synthetic response failure."
+    }
+  }
+}

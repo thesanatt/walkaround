@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "error-no-objects",
+  "description": "At least one object is required.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": []
+  },
+  "expected": {
+    "error": "no_objects"
+  }
+}

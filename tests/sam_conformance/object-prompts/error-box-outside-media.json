@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "error-box-outside-media",
+  "description": "A box must lie inside the media.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "box": {
+              "left": 10,
+              "top": 20,
+              "right": 641,
+              "bottom": 60
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "error": "invalid_box"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "name": "lane-conflicting-done",
+  "description": "Final output text must exactly equal the deltas accumulated for its lane.",
+  "media": "image",
+  "chunks": ["partial"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-conflict",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-conflict",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "different"
+    }
+  ],
+  "expected": {
+    "snapshots": [],
+    "error": {
+      "code": "response_lane",
+      "message": "The finalized output text conflicts with its accumulated deltas.",
+      "expected_lane": {
+        "item_id": "message-conflict",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "received_lane": {
+        "item_id": "message-conflict",
+        "output_index": 0,
+        "content_index": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "name": "error-negative-frame",
+  "description": "A frame index cannot be negative.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "frame": -1,
+            "box": {
+              "left": 10,
+              "top": 20,
+              "right": 40,
+              "bottom": 60
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "error": "invalid_frame"
+  }
+}

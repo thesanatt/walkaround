@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "name": "terminal-refusal",
+  "description": "A refusal event terminates the stream as a typed error after prior snapshots.",
+  "media": "image",
+  "chunks": ["Context before refusal.\n"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-refusal",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "refusal_done",
+      "lane": {
+        "item_id": "message-refusal",
+        "output_index": 0,
+        "content_index": 1
+      },
+      "text": "Synthetic refusal."
+    }
+  ],
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "text",
+            "order": 0,
+            "text": "Context before refusal."
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "Context before refusal.\n"
+      }
+    ],
+    "error": {
+      "code": "response_refusal",
+      "message": "Synthetic refusal."
+    }
+  }
+}

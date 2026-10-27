@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/meta-models/meta-sam/blob/main/conformance/object-prompt.schema.json",
+  "title": "meta-sam object-prompt conformance case",
+  "description": "Language-neutral builder input and the exact object-prompt text, or the error code, every implementation must produce for it. Input values are deliberately untyped so cases can exercise rejected input.",
+  "type": "object",
+  "required": ["schema_version", "name", "description", "input", "expected"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": 1 },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "description": { "type": "string", "minLength": 1 },
+    "input": {
+      "type": "object",
+      "required": ["size", "objects"],
+      "additionalProperties": false,
+      "properties": {
+        "size": {
+          "type": "object",
+          "required": ["width", "height"],
+          "additionalProperties": false,
+          "properties": { "width": {}, "height": {} }
+        },
+        "objects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/object" }
+        }
+      }
+    },
+    "expected": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["text"],
+          "additionalProperties": false,
+          "properties": { "text": { "type": "string", "minLength": 1 } }
+        },
+        {
+          "type": "object",
+          "required": ["error"],
+          "additionalProperties": false,
+          "properties": {
+            "error": {
+              "enum": [
+                "no_objects",
+                "invalid_size",
+                "invalid_object_id",
+                "duplicate_object_id",
+                "empty_object",
+                "invalid_frame",
+                "duplicate_frame",
+                "empty_prompt",
+                "invalid_box",
+                "invalid_point",
+                "invalid_point_label"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "object": {
+      "type": "object",
+      "required": ["id", "prompts"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {},
+        "prompts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/prompt" }
+        }
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "frame": {},
+        "box": {
+          "type": "object",
+          "required": ["left", "top", "right", "bottom"],
+          "additionalProperties": false,
+          "properties": { "left": {}, "top": {}, "right": {}, "bottom": {} }
+        },
+        "points": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["x", "y"],
+            "additionalProperties": false,
+            "properties": { "x": {}, "y": {}, "label": {} }
+          }
+        }
+      }
+    }
+  }
+}

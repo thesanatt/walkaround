@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "box-fills-media",
+  "description": "A box may span the whole media: right equal to the width becomes x2 one less than the width.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 0,
+        "prompts": [
+          {
+            "box": {
+              "left": 0,
+              "top": 0,
+              "right": 640,
+              "bottom": 480
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "text": "<0f>0<|box;x1=0;y1=0;x2=639;y2=479;w=640;h=480|>"
+  }
+}

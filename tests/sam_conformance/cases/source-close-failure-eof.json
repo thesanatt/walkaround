@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "name": "source-close-failure-eof",
+  "description": "A source cleanup failure at EOF is normalized instead of being skipped.",
+  "media": "image",
+  "chunks": ["before eof\n"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-close-eof",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    }
+  ],
+  "source": {
+    "operation": "close",
+    "message": "Synthetic EOF close failure."
+  },
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "text",
+            "order": 0,
+            "text": "before eof"
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "before eof\n"
+      }
+    ],
+    "error": {
+      "code": "source_error",
+      "message": "The Responses event source failed during return.",
+      "source_operation": "return"
+    }
+  }
+}

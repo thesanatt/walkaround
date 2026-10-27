@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "name": "source-next-failure",
+  "description": "A source failure after one event preserves the observable snapshot and is normalized.",
+  "media": "image",
+  "chunks": ["before failure\n"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-next-failure",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    }
+  ],
+  "source": {
+    "operation": "next",
+    "message": "Synthetic next failure.",
+    "after_events": 1
+  },
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "text",
+            "order": 0,
+            "text": "before failure"
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "before failure\n"
+      }
+    ],
+    "error": {
+      "code": "source_error",
+      "message": "The Responses event source failed during next.",
+      "source_operation": "next"
+    }
+  }
+}

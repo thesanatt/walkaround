@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "name": "source-close-failure",
+  "description": "A source cleanup failure after terminal input is normalized and cannot be skipped.",
+  "media": "image",
+  "chunks": ["before close\n"],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-close-failure",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-close-failure",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "before close\n"
+    },
+    { "type": "response_completed" }
+  ],
+  "source": {
+    "operation": "close",
+    "message": "Synthetic close failure."
+  },
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "text",
+            "order": 0,
+            "text": "before close"
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "before close\n"
+      }
+    ],
+    "error": {
+      "code": "source_error",
+      "message": "The Responses event source failed during return.",
+      "source_operation": "return"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "terminal-error-event",
+  "description": "A source error event becomes a normalized response error without a final result.",
+  "media": "image",
+  "chunks": [],
+  "events": [{ "type": "error", "message": "Synthetic event error." }],
+  "expected": {
+    "snapshots": [],
+    "error": {
+      "code": "response_error",
+      "message": "Synthetic event error."
+    }
+  }
+}

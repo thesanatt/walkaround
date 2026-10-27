@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "string-object-id",
+  "description": "An object id may be the decimal string of a parsed record.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": "10",
+        "prompts": [
+          {
+            "box": {
+              "left": 10,
+              "top": 20,
+              "right": 40,
+              "bottom": 60
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "text": "<0f>10<|box;x1=10;y1=20;x2=39;y2=59;w=640;h=480|>"
+  }
+}

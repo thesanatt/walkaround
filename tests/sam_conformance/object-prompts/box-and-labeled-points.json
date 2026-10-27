@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "name": "box-and-labeled-points",
+  "description": "A box comes before the object's points, points keep their order, and a negative point carries a leading minus.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "box": {
+              "left": 10,
+              "top": 20,
+              "right": 40,
+              "bottom": 60
+            },
+            "points": [
+              {
+                "x": 25,
+                "y": 30,
+                "label": "negative"
+              },
+              {
+                "x": 15,
+                "y": 50,
+                "label": "positive"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "text": "<0f>1<|box;x1=10;y1=20;x2=39;y2=59;w=640;h=480|>-<|point;x=25;y=30;w=640;h=480|><|point;x=15;y=50;w=640;h=480|>"
+  }
+}

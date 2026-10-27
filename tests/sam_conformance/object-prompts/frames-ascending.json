@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "name": "frames-ascending",
+  "description": "Frames come out in ascending order whatever the input order, and the same object on another frame repeats its id there.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "frame": 120,
+            "points": [
+              {
+                "x": 20,
+                "y": 40
+              }
+            ]
+          },
+          {
+            "frame": 30,
+            "box": {
+              "left": 10,
+              "top": 20,
+              "right": 40,
+              "bottom": 60
+            }
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "prompts": [
+          {
+            "frame": 120,
+            "box": {
+              "left": 5,
+              "top": 5,
+              "right": 30,
+              "bottom": 30
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "text": "<30f>1<|box;x1=10;y1=20;x2=39;y2=59;w=640;h=480|><120f>1<|point;x=20;y=40;w=640;h=480|>,2<|box;x1=5;y1=5;x2=29;y2=29;w=640;h=480|>"
+  }
+}

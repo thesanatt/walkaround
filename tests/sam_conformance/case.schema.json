@@ -1,0 +1,920 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/meta-models/meta-sam/blob/main/conformance/case.schema.json",
+  "title": "meta-sam parser conformance case",
+  "description": "Language-neutral source events and normalized parser observations for one deterministic SAM 3 conformance case.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "name",
+    "description",
+    "media",
+    "chunks",
+    "events",
+    "expected"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "media": {
+      "enum": [
+        "image",
+        "video"
+      ]
+    },
+    "chunks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source_event"
+      }
+    },
+    "source": {
+      "$ref": "#/$defs/source_directive"
+    },
+    "expected": {
+      "$ref": "#/$defs/expectation"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "non_negative_integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "positive_integer": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "lane": {
+      "type": "object",
+      "required": [
+        "item_id",
+        "output_index",
+        "content_index"
+      ],
+      "properties": {
+        "item_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "output_index": {
+          "$ref": "#/$defs/non_negative_integer"
+        },
+        "content_index": {
+          "$ref": "#/$defs/non_negative_integer"
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_lane": {
+      "description": "Raw source lane fields are intentionally permissive so runtime lane validation is testable.",
+      "type": "object",
+      "properties": {
+        "item_id": true,
+        "output_index": true,
+        "content_index": true
+      },
+      "additionalProperties": false
+    },
+    "source_directive": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "operation",
+            "message"
+          ],
+          "properties": {
+            "operation": {
+              "const": "iterator"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "operation",
+            "message",
+            "after_events"
+          ],
+          "properties": {
+            "operation": {
+              "const": "next"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            },
+            "after_events": {
+              "$ref": "#/$defs/non_negative_integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "operation",
+            "message"
+          ],
+          "properties": {
+            "operation": {
+              "const": "close"
+            },
+            "message": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "source_event": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "lane",
+            "chunk"
+          ],
+          "properties": {
+            "type": {
+              "const": "output_text_delta"
+            },
+            "lane": {
+              "$ref": "#/$defs/source_lane"
+            },
+            "chunk": {
+              "$ref": "#/$defs/non_negative_integer"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "lane",
+            "text"
+          ],
+          "properties": {
+            "type": {
+              "const": "output_text_done"
+            },
+            "lane": {
+              "$ref": "#/$defs/source_lane"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "lane",
+            "part_type",
+            "text"
+          ],
+          "properties": {
+            "type": {
+              "const": "content_part_done"
+            },
+            "lane": {
+              "$ref": "#/$defs/source_lane"
+            },
+            "part_type": {
+              "enum": [
+                "output_text",
+                "refusal",
+                "reasoning_text"
+              ]
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "response_completed"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "const": "response_incomplete"
+            },
+            "detail": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "message"
+          ],
+          "properties": {
+            "type": {
+              "const": "response_failed"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "message"
+          ],
+          "properties": {
+            "type": {
+              "const": "error"
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "lane",
+            "text"
+          ],
+          "properties": {
+            "type": {
+              "const": "refusal_delta"
+            },
+            "lane": {
+              "$ref": "#/$defs/source_lane"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "lane",
+            "text"
+          ],
+          "properties": {
+            "type": {
+              "const": "refusal_done"
+            },
+            "lane": {
+              "$ref": "#/$defs/source_lane"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "decoded_mask": {
+      "type": "object",
+      "required": [
+        "length",
+        "runs"
+      ],
+      "properties": {
+        "length": {
+          "$ref": "#/$defs/positive_integer"
+        },
+        "runs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "value",
+              "length"
+            ],
+            "properties": {
+              "value": {
+                "enum": [
+                  0,
+                  1
+                ]
+              },
+              "length": {
+                "$ref": "#/$defs/positive_integer"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "raster": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": [
+          0,
+          1
+        ]
+      }
+    },
+    "rle_object": {
+      "type": "object",
+      "required": [
+        "size",
+        "counts"
+      ],
+      "properties": {
+        "size": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "$ref": "#/$defs/positive_integer"
+            },
+            {
+              "$ref": "#/$defs/positive_integer"
+            }
+          ],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "counts": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "mask": {
+      "type": "object",
+      "required": [
+        "encoding",
+        "payload",
+        "width",
+        "height",
+        "decoded",
+        "raster",
+        "coco_rle",
+        "svg_path"
+      ],
+      "properties": {
+        "encoding": {
+          "enum": [
+            "one_bit",
+            "lossless"
+          ]
+        },
+        "payload": {
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "$ref": "#/$defs/positive_integer"
+        },
+        "height": {
+          "$ref": "#/$defs/positive_integer"
+        },
+        "decoded": {
+          "$ref": "#/$defs/decoded_mask"
+        },
+        "raster": {
+          "$ref": "#/$defs/raster"
+        },
+        "coco_rle": {
+          "$ref": "#/$defs/rle_object"
+        },
+        "svg_path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mask_identity": {
+      "type": "object",
+      "required": [
+        "media",
+        "frame_index",
+        "object_id"
+      ],
+      "properties": {
+        "media": {
+          "enum": [
+            "image",
+            "video"
+          ]
+        },
+        "frame_index": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/non_negative_integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "object_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "bounds": {
+      "type": "object",
+      "required": [
+        "left",
+        "top",
+        "right",
+        "bottom"
+      ],
+      "properties": {
+        "left": {
+          "type": "number"
+        },
+        "top": {
+          "type": "number"
+        },
+        "right": {
+          "type": "number"
+        },
+        "bottom": {
+          "type": "number"
+        }
+      },
+      "additionalProperties": false
+    },
+    "record": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "order",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "order": {
+              "$ref": "#/$defs/non_negative_integer"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "order",
+            "object_id",
+            "frame_index",
+            "left",
+            "top",
+            "right",
+            "bottom"
+          ],
+          "properties": {
+            "kind": {
+              "const": "box"
+            },
+            "order": {
+              "$ref": "#/$defs/non_negative_integer"
+            },
+            "object_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frame_index": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "left": {
+              "type": "number"
+            },
+            "top": {
+              "type": "number"
+            },
+            "right": {
+              "type": "number"
+            },
+            "bottom": {
+              "type": "number"
+            },
+            "confidence": {
+              "description": "Detection confidence from the token's optional `c` field. Omitted when the source record has no `c`.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "order",
+            "object_id",
+            "frame_index",
+            "identity",
+            "revision",
+            "mask",
+            "bounds"
+          ],
+          "properties": {
+            "kind": {
+              "const": "mask"
+            },
+            "order": {
+              "$ref": "#/$defs/non_negative_integer"
+            },
+            "object_id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frame_index": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "identity": {
+              "$ref": "#/$defs/mask_identity"
+            },
+            "revision": {
+              "$ref": "#/$defs/positive_integer"
+            },
+            "mask": {
+              "$ref": "#/$defs/mask"
+            },
+            "bounds": {
+              "$ref": "#/$defs/bounds"
+            },
+            "confidence": {
+              "description": "Detection confidence from the token's optional `c` field. Omitted when the source record has no `c`.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": [
+        "severity",
+        "code",
+        "message",
+        "line",
+        "raw"
+      ],
+      "properties": {
+        "severity": {
+          "enum": [
+            "warning",
+            "error"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        },
+        "line": {
+          "$ref": "#/$defs/positive_integer"
+        },
+        "raw": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "required": [
+        "media",
+        "revision",
+        "records",
+        "diagnostics",
+        "raw_output"
+      ],
+      "properties": {
+        "media": {
+          "enum": [
+            "image",
+            "video"
+          ]
+        },
+        "revision": {
+          "$ref": "#/$defs/non_negative_integer"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/record"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "raw_output": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "outcome": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "const": "completed"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "reason"
+          ],
+          "properties": {
+            "status": {
+              "const": "incomplete"
+            },
+            "reason": {
+              "const": "response"
+            },
+            "detail": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "reason"
+          ],
+          "properties": {
+            "status": {
+              "const": "incomplete"
+            },
+            "reason": {
+              "const": "eof"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "media",
+        "revision",
+        "records",
+        "diagnostics",
+        "raw_output",
+        "outcome"
+      ],
+      "properties": {
+        "media": {
+          "enum": [
+            "image",
+            "video"
+          ]
+        },
+        "revision": {
+          "$ref": "#/$defs/non_negative_integer"
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/record"
+          }
+        },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/diagnostic"
+          }
+        },
+        "raw_output": {
+          "type": "string"
+        },
+        "outcome": {
+          "$ref": "#/$defs/outcome"
+        }
+      },
+      "additionalProperties": false
+    },
+    "terminal_error": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "code",
+            "message"
+          ],
+          "properties": {
+            "code": {
+              "enum": [
+                "response_failed",
+                "response_error",
+                "response_refusal"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "code",
+            "message",
+            "expected_lane",
+            "received_lane"
+          ],
+          "properties": {
+            "code": {
+              "const": "response_lane"
+            },
+            "message": {
+              "type": "string"
+            },
+            "expected_lane": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/lane"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "received_lane": {
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/lane"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "code",
+            "message",
+            "source_operation"
+          ],
+          "properties": {
+            "code": {
+              "const": "source_error"
+            },
+            "message": {
+              "type": "string"
+            },
+            "source_operation": {
+              "enum": [
+                "iterator",
+                "next",
+                "return"
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "expectation": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "snapshots",
+            "result"
+          ],
+          "properties": {
+            "snapshots": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/snapshot"
+              }
+            },
+            "result": {
+              "$ref": "#/$defs/result"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": [
+            "snapshots",
+            "error"
+          ],
+          "properties": {
+            "snapshots": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/snapshot"
+              }
+            },
+            "error": {
+              "$ref": "#/$defs/terminal_error"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}

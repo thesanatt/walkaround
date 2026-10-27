@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "name": "error-object-id-leading-zero",
+  "description": "A string id must be canonical decimal, so a leading zero is rejected.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": "01",
+        "prompts": [
+          {
+            "box": {
+              "left": 10,
+              "top": 20,
+              "right": 40,
+              "bottom": 60
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "error": "invalid_object_id"
+  }
+}

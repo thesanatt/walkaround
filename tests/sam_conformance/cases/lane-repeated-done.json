@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "name": "lane-repeated-done",
+  "description": "A second output-text done event on the same lane is rejected.",
+  "media": "image",
+  "chunks": [],
+  "events": [
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-repeated-done",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "done\n"
+    },
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-repeated-done",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "done\n"
+    }
+  ],
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [
+          {
+            "kind": "text",
+            "order": 0,
+            "text": "done"
+          }
+        ],
+        "diagnostics": [],
+        "raw_output": "done\n"
+      }
+    ],
+    "error": {
+      "code": "response_lane",
+      "message": "The response finalized its output text lane more than once.",
+      "expected_lane": {
+        "item_id": "message-repeated-done",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "received_lane": {
+        "item_id": "message-repeated-done",
+        "output_index": 0,
+        "content_index": 0
+      }
+    }
+  }
+}

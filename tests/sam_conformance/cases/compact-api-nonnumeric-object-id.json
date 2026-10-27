@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "name": "compact-api-nonnumeric-object-id",
+  "description": "SAM API records reject string object identifiers; the object id is a non-negative ASCII-decimal integer retained as a string.",
+  "media": "image",
+  "chunks": [
+    "<0f>car<|box;x1=0;y1=0;x2=4;y2=4;w=5;h=5|><|mask;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>\n"
+  ],
+  "events": [
+    {
+      "type": "output_text_delta",
+      "lane": {
+        "item_id": "message-nonnumeric-id",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "chunk": 0
+    },
+    {
+      "type": "output_text_done",
+      "lane": {
+        "item_id": "message-nonnumeric-id",
+        "output_index": 0,
+        "content_index": 0
+      },
+      "text": "<0f>car<|box;x1=0;y1=0;x2=4;y2=4;w=5;h=5|><|mask;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>\n"
+    },
+    {
+      "type": "response_completed"
+    }
+  ],
+  "expected": {
+    "snapshots": [
+      {
+        "media": "image",
+        "revision": 1,
+        "records": [],
+        "diagnostics": [
+          {
+            "severity": "error",
+            "code": "malformed_record",
+            "message": "Malformed SAM API object record.",
+            "line": 1,
+            "raw": "<0f>car<|box;x1=0;y1=0;x2=4;y2=4;w=5;h=5|><|mask;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>"
+          }
+        ],
+        "raw_output": "<0f>car<|box;x1=0;y1=0;x2=4;y2=4;w=5;h=5|><|mask;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>\n"
+      }
+    ],
+    "result": {
+      "media": "image",
+      "revision": 1,
+      "records": [],
+      "diagnostics": [
+        {
+          "severity": "error",
+          "code": "malformed_record",
+          "message": "Malformed SAM API object record.",
+          "line": 1,
+          "raw": "<0f>car<|box;x1=0;y1=0;x2=4;y2=4;w=5;h=5|><|mask;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>"
+        }
+      ],
+      "raw_output": "<0f>car<|box;x1=0;y1=0;x2=4;y2=4;w=5;h=5|><|mask;x=0;y=0;data=5,5,!!!!!(QO(0lu8?|>\n",
+      "outcome": {
+        "status": "completed"
+      }
+    }
+  }
+}

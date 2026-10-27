@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "name": "error-empty-object",
+  "description": "An object needs at least one frame prompt.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 1,
+        "prompts": []
+      }
+    ]
+  },
+  "expected": {
+    "error": "empty_object"
+  }
+}

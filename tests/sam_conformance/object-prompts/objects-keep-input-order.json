@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "name": "objects-keep-input-order",
+  "description": "Objects on the same frame keep their input order, not id order.",
+  "input": {
+    "size": {
+      "width": 640,
+      "height": 480
+    },
+    "objects": [
+      {
+        "id": 2,
+        "prompts": [
+          {
+            "points": [
+              {
+                "x": 1,
+                "y": 2
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": 1,
+        "prompts": [
+          {
+            "points": [
+              {
+                "x": 3,
+                "y": 4
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "text": "<0f>2<|point;x=1;y=2;w=640;h=480|>,1<|point;x=3;y=4;w=640;h=480|>"
+  }
+}
