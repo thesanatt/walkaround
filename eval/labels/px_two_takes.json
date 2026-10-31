@@ -1,0 +1,192 @@
+{
+ "schema": "walkaround_labels_v1",
+ "pair_id": "px_two_takes",
+ "status": "labeled by the developer from the frames, not yet reviewed",
+ "labeler": "developer",
+ "labeled_on": "2026-10-31",
+ "kind": "pseudo",
+ "table": "C",
+ "split": "report",
+ "nothing_changed": true,
+ "footage": {
+  "pickup": {
+   "path": "data/derived/px4228872_0000_1379.mp4",
+   "sha256": "533d29739383f1a38826b4d88bdc1f6a99dc32ffad912650783411573777e2c1",
+   "t0": 0.0,
+   "t1": 13.791667,
+   "source": "data/candidates/pexels_westarmoney_s550/pexels_4228872.mp4",
+   "credit": "Stock video: WeStarMoney Rec on Pexels, Pexels License, https://www.pexels.com/license/"
+  },
+  "return": {
+   "path": "data/candidates/pexels_westarmoney_s550/pexels_4281322.mp4",
+   "sha256": "e25b935543511999ad05db023ac7e8adcc8a9c39ba6657fa21565bdbd7204e33",
+   "t0": 0.0,
+   "t1": null,
+   "source": "Pexels 4281322",
+   "credit": "Stock video: WeStarMoney Rec on Pexels, Pexels License, https://www.pexels.com/license/"
+  }
+ },
+ "run_id": null,
+ "panels": {
+  "left_front_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "glimpsed"
+   },
+   "note": "return: so close the frame cuts it"
+  },
+  "left_rear_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": null
+   },
+   "note": "return: big at 5 to 7 s with the window top cut"
+  },
+  "right_front_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "not_filmed"
+   }
+  },
+  "right_rear_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "not_filmed"
+   }
+  },
+  "left_front_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": "glimpsed"
+   }
+  },
+  "left_rear_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "glimpsed"
+   }
+  },
+  "right_front_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "not_filmed"
+   }
+  },
+  "right_rear_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "not_filmed"
+   }
+  },
+  "hood": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": "not_filmed"
+   }
+  },
+  "roof": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "trunk_lid": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": "glimpsed"
+   }
+  },
+  "front_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "not_filmed"
+   }
+  },
+  "rear_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "glimpsed"
+   }
+  },
+  "left_front_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "left_rear_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": "glimpsed"
+   }
+  },
+  "right_front_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "not_filmed"
+   }
+  },
+  "right_rear_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "not_filmed"
+   }
+  },
+  "headlights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "not_filmed"
+   }
+  },
+  "tail_lights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "filmed"
+   },
+   "note": "return: the left lamp fills a large part of the frame at 12 to 13 s"
+  },
+  "mirrors": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "windshield": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "rear_window": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": "glimpsed"
+   }
+  }
+ },
+ "marks": [],
+ "reference_marks": [],
+ "notes": "Two takes from one shoot: the first scene of Pexels 4228872 (the rear, then the left side at a distance) and Pexels 4281322 (a close pass along the left side from the front door to the rear). The close pass cuts most panels at the frame edge, so few panels will compare. Black paint with strong reflections; a mark reported here is most likely a reflection or dust. One shoot, so nothing changed between the walks. Coverage follows eval/README.md (filmed is at least 85% of the panel in the frame); the return walk's left doors were read again under that wording: the front door is cut at the bottom whenever it is large, and the rear door stays too close to call."
+}

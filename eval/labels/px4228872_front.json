@@ -1,0 +1,191 @@
+{
+ "schema": "walkaround_labels_v1",
+ "pair_id": "px4228872_front",
+ "status": "labeled by the developer from the frames, not yet reviewed",
+ "labeler": "developer",
+ "labeled_on": "2026-10-31",
+ "kind": "pseudo",
+ "table": "C",
+ "split": "fit",
+ "nothing_changed": true,
+ "footage": {
+  "pickup": {
+   "path": "data/derived/px4228872_1379_2900.mp4",
+   "sha256": "938da517c9655c3d3f4ae49568a5aed93f4ac2a647be1107c4795c7ebf3709e3",
+   "t0": 13.791667,
+   "t1": 29.0,
+   "source": "data/candidates/pexels_westarmoney_s550/pexels_4228872.mp4",
+   "credit": "Stock video: WeStarMoney Rec on Pexels, Pexels License, https://www.pexels.com/license/"
+  },
+  "return": {
+   "path": "data/derived/px4228872_2900_4488.mp4",
+   "sha256": "7d4cc3b79451941b91d806f186351c60fac0e901ffb72e2efc37319e73a975d6",
+   "t0": 29.0,
+   "t1": 44.875,
+   "source": "data/candidates/pexels_westarmoney_s550/pexels_4228872.mp4",
+   "credit": "Stock video: WeStarMoney Rec on Pexels, Pexels License, https://www.pexels.com/license/"
+  }
+ },
+ "run_id": null,
+ "panels": {
+  "left_front_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": null
+   }
+  },
+  "left_rear_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": null
+   }
+  },
+  "right_front_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": "filmed"
+   },
+   "note": "return: the right side at the end"
+  },
+  "right_rear_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "left_front_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": null
+   }
+  },
+  "left_rear_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "right_front_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "right_rear_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "hood": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "roof": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "trunk_lid": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  },
+  "front_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   },
+   "note": "whole in both halves; about 2 to 5% of the frame and soft at the front-left corner"
+  },
+  "rear_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  },
+  "left_front_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": null
+   }
+  },
+  "left_rear_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "right_front_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "right_rear_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "headlights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "tail_lights": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "mirrors": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "windshield": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "rear_window": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  }
+ },
+ "marks": [],
+ "reference_marks": [],
+ "notes": "Pexels 4228872, its second scene split at 29.0 s, in the middle of the front view, so both halves hold the front and the front panels can pair. Pickup: the front-left corner, then the front. Return: the front, the front-right corner, then the right side. The car is small in the front view (about a third of the frame width), so many panels sit near the 3% bar and are left unlabeled for coverage. Black paint with strong reflections; a mark reported here is most likely a reflection or dust. One shoot, so nothing changed between the walks."
+}

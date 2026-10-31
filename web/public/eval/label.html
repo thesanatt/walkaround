@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Label a Walkaround run: real or not for each mark, missed marks, and which panels changed between the walks.">
+<title>Walkaround labels</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f4f1ea;
+  --surface: #fffdf9;
+  --surface-2: #ece8de;
+  --ink: #1d2321;
+  --muted: #5f6b67;
+  --line: #d8d2c4;
+  --accent: #1f3a34;
+  --accent-ink: #f4f1ea;
+  --focus: #b5651d;
+  --good: #2b7a5b;
+  --warn: #9a6a12;
+  --bad: #a33a3a;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #151918; --surface: #1d2321; --surface-2: #242c29; --ink: #e9e4d9; --muted: #a8a295; --line: #333d3a;
+    --accent: #9ad0c0; --accent-ink: #10201b; --focus: #e9a960; --good: #6fc39f; --warn: #d9a84a; --bad: #e07a7a;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #151918; --surface: #1d2321; --surface-2: #242c29; --ink: #e9e4d9; --muted: #a8a295; --line: #333d3a;
+  --accent: #9ad0c0; --accent-ink: #10201b; --focus: #e9a960; --good: #6fc39f; --warn: #d9a84a; --bad: #e07a7a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { font-family: var(--sans); font-size: 15px; line-height: 1.5; color: var(--ink); background: var(--bg); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+h1 { font-size: 1.3rem; margin: 0 0 4px; font-weight: 600; }
+h2 { font-size: 1.05rem; margin: 0; font-weight: 600; }
+p { margin: 0 0 8px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 16px; }
+.mono { font-family: var(--mono); font-size: 0.85rem; }
+.muted { color: var(--muted); }
+header.wrap { padding-bottom: 8px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; }
+label.field { display: flex; flex-direction: column; gap: 2px; font-size: 0.85rem; color: var(--muted); }
+input[type='text'], select { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; min-width: 0; }
+input[type='text'] { width: 15em; }
+button { font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 5px 10px; cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button[aria-pressed='true'].real { background: var(--good); color: var(--surface); border-color: var(--good); }
+button[aria-pressed='true'].fake { background: var(--bad); color: var(--surface); border-color: var(--bad); }
+button[aria-pressed='true'].new { background: var(--warn); color: var(--surface); border-color: var(--warn); }
+#status { min-height: 1.5em; margin-top: 8px; }
+#status.error { color: var(--bad); }
+.how { border-left: 3px solid var(--line); padding: 2px 0 2px 12px; color: var(--muted); max-width: 70em; }
+.how p { margin: 0 0 4px; }
+.toolbar { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); }
+.toolbar .wrap { padding-top: 8px; padding-bottom: 8px; }
+.counts { margin-left: auto; }
+article.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; margin: 16px 0; padding: 12px 14px; }
+.panel-head { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; margin-bottom: 8px; }
+.panel-controls { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; margin-bottom: 10px; }
+fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+legend { float: left; margin-right: 8px; font-size: 0.85rem; color: var(--muted); }
+.walks { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.videos { margin: 8px 0 0; }
+.videos video { width: 100%; max-height: 360px; background: var(--surface-2); display: block; }
+.walk h3 { font-size: 0.9rem; margin: 0 0 6px; font-weight: 600; }
+.crops { display: flex; flex-direction: column; gap: 12px; }
+figure.crop { margin: 0; }
+.stage { position: relative; width: 100%; background: var(--surface-2); cursor: crosshair; }
+.stage img { display: block; width: 100%; height: 100%; }
+.stage svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.stage svg .mark { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; cursor: pointer; pointer-events: all; }
+.stage svg .mark.unjudged { stroke: var(--warn); }
+.stage svg .mark.real { stroke: var(--good); }
+.stage svg .mark.fake { stroke: var(--bad); stroke-dasharray: 6 4; }
+.stage svg .mark.hand { stroke: var(--accent); }
+.stage svg .mark.selected { stroke-width: 4; }
+.stage svg .ref { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.stage svg text { font: 600 14px var(--mono); fill: var(--ink); paint-order: stroke; stroke: var(--bg); stroke-width: 3px; vector-effect: non-scaling-stroke; pointer-events: none; }
+figcaption { font-size: 0.8rem; color: var(--muted); margin: 4px 0; }
+ul.marks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+ul.marks li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-size: 0.85rem; padding: 3px 0; border-top: 1px solid var(--line); }
+ul.marks li.selected { background: var(--surface-2); }
+ul.marks .what { min-width: 12em; flex: 1 1 14em; }
+.empty { font-size: 0.85rem; color: var(--muted); }
+.hint { font-size: 0.8rem; color: var(--muted); }
+.inline { display: flex; gap: 6px; align-items: center; color: var(--ink); }
+.refbox { font-size: 0.85rem; margin: 0 0 10px; }
+.refbox ul { margin: 2px 0 0; padding-left: 18px; }
+label.off { color: var(--muted); }
+.scroll { overflow-x: auto; }
+table.others { border-collapse: collapse; width: 100%; background: var(--surface); border: 1px solid var(--line); }
+table.others th, table.others td { text-align: left; padding: 5px 8px; border-top: 1px solid var(--line); font-size: 0.85rem; }
+footer.wrap { color: var(--muted); font-size: 0.85rem; padding-bottom: 32px; }
+@media (max-width: 760px) {
+  .walks { grid-template-columns: 1fr; }
+  input[type='text'] { width: 100%; }
+  #load-form > label.field { flex: 1 1 100%; }
+  .toolbar { position: static; }
+}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <h1>Walkaround labels</h1>
+  <p class="muted">One run at a time. The page reads the run's blurred crops and marks from this server and saves nothing; your labels leave as a JSON download for eval/labels/.</p>
+  <form id="load-form" class="row" autocomplete="off">
+    <label class="field">Run id<input type="text" id="run-id" list="run-list" required pattern="[A-Za-z0-9_-]{1,64}"></label>
+    <datalist id="run-list"></datalist>
+    <label class="field">Pair id<input type="text" id="pair-id" pattern="[A-Za-z0-9_-]{1,64}" placeholder="same as eval/labels/&lt;pair&gt;.json"></label>
+    <label class="field">Your name<input type="text" id="labeler" placeholder="goes in the status line"></label>
+    <button type="submit" class="primary">Load run</button>
+  </form>
+  <p id="status" role="status"></p>
+  <div class="how">
+    <p>Look for marks first with the system's marks hidden ("First pass" in the bar), adding each one you see, then show them and judge every box. Click a box to cycle it: real, not real, not judged. Or use the buttons under each crop. For a mark that is not real, say why: a reflection, dirt, or something else. For a real mark, fix its size if the system got it wrong.</p>
+    <p>Click an empty spot on a crop to add a mark the system missed, with the type and size set in the bar above. With the keyboard, focus a crop, press Enter to add a mark at its centre, move it with the arrow keys (Shift for bigger steps) and remove it with Delete. On the return walk, say for each real mark whether it is new since pickup or was there at pickup.</p>
+    <p>For every panel, say whether it changed between the walks and how well each walk filmed it: filmed means at least 85% of the panel in the frame, in focus, at 3% of the frame or more, in at least one frame; glimpsed means less of it, or smaller or blurred; not filmed means none of it. Tick "all marks checked" for a walk once every system mark on its crops has a call and you have looked for missed marks; the box stays off until every mark has a call, and turns off again if one goes back to not judged.</p>
+  </div>
+</header>
+
+<div class="toolbar" id="toolbar" hidden>
+  <div class="wrap row">
+    <label class="field">New mark type<select id="new-type"></select></label>
+    <label class="field">New mark size<select id="new-size"><option value="S">S</option><option value="M" selected>M</option><option value="L">L</option></select></label>
+    <label class="field">First pass<span class="inline"><input type="checkbox" id="hide-system"> hide the system's marks</span></label>
+    <label class="field">Pair kind<select id="pair-kind"><option value="cross_walk">cross walk</option><option value="pseudo">pseudo pair</option><option value="before_after">before and after</option></select></label>
+    <label class="field">Table<select id="pair-table"><option>A</option><option selected>B</option><option>C</option><option>D</option><option>E</option></select></label>
+    <label class="field">Split<select id="pair-split"><option value="report">report</option><option value="fit">fit</option></select></label>
+    <label class="field">Nothing changed<select id="pair-nothing"><option value="">cannot tell</option><option value="true">yes</option><option value="false">no</option></select></label>
+    <label class="field">Load a labels file<input type="file" id="labels-file" accept="application/json,.json"></label>
+    <button type="button" id="download" class="primary">Download labels</button>
+    <span class="counts muted" id="counts"></span>
+  </div>
+</div>
+
+<div class="wrap" id="videos"></div>
+<main class="wrap" id="main"></main>
+
+<footer class="wrap">
+  <p>Labels follow the walkaround_labels_v1 schema in eval/README.md. scripts/eval_run.py reads them; hand marks go through the same whitening as the system's marks.</p>
+</footer>
+
+<script id="label-core">
+(function (root) {
+  'use strict';
+  var SCHEMA = 'walkaround_labels_v1';
+  var ROLES = ['pickup', 'return'];
+  var PANEL_IDS = ['left_front_door', 'left_rear_door', 'right_front_door', 'right_rear_door', 'left_front_fender',
+    'left_rear_fender', 'right_front_fender', 'right_rear_fender', 'hood', 'roof', 'trunk_lid', 'front_bumper',
+    'rear_bumper', 'left_front_wheel', 'left_rear_wheel', 'right_front_wheel', 'right_rear_wheel', 'headlights',
+    'tail_lights', 'mirrors', 'windshield', 'rear_window'];
+  var MARK_TYPES = ['scratch', 'scuff', 'chip', 'dent', 'crack', 'dirt', 'reflection', 'unsure'];
+  var COVERAGE = ['filmed', 'glimpsed', 'not_filmed'];
+  var REASONS = ['reflection', 'dirt', 'other'];
+  var SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+  function displayName(pid) {
+    var s = String(pid).replace(/_/g, ' ');
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  function emptyPanelLabel() {
+    return { changed: null, coverage: { pickup: null, return: null }, marks_checked: { pickup: false, return: false }, note: '' };
+  }
+
+  function round1(v) {
+    return Math.round(Number(v) * 10) / 10;
+  }
+
+  // A click at (clientX, clientY) on a stage drawn at rect, mapped into crop pixels of a w x h crop.
+  function cropPoint(clientX, clientY, rect, w, h) {
+    var x = (clientX - rect.left) / rect.width * w;
+    var y = (clientY - rect.top) / rect.height * h;
+    return [Math.min(Math.max(round1(x), 0), w - 0.1), Math.min(Math.max(round1(y), 0), h - 0.1)];
+  }
+
+  function footageFromVideos(videos) {
+    var out = {};
+    ROLES.forEach(function (role) {
+      var v = (videos || {})[role] || {};
+      out[role] = { path: v.original_filename || '', sha256: v.sha256_server || v.sha256_browser || null, t0: 0, t1: null, source: null, credit: '' };
+    });
+    return out;
+  }
+
+  function cycleReal(j) {
+    // not judged -> real -> not real -> not judged; a size the labeler set stays for the next time it is real
+    var size = j.size_class || null;
+    if (j.real === null || j.real === undefined) return { real: true, new: j.new === undefined ? null : j.new, not_real_reason: null, note: j.note || '', size_class: size };
+    if (j.real === true) return { real: false, new: null, not_real_reason: j.not_real_reason || 'other', note: j.note || '', size_class: size };
+    return { real: null, new: null, not_real_reason: null, note: j.note || '', size_class: size };
+  }
+
+  function triState(v) {
+    return v === true || v === false ? v : null;
+  }
+
+  // System marks on this panel and walk that have no call yet.
+  function unjudged(s, pid, role) {
+    return (s.marks || []).filter(function (m) {
+      var j = s.judgments[m.mark_id];
+      return m.panel_id === pid && m.role === role && (!j || j.real === null || j.real === undefined);
+    }).length;
+  }
+
+  function hasCrops(s, pid, role) {
+    return (s.keyframes || []).some(function (k) { return k.panel_id === pid && k.role === role && k.crop && k.crop.path; });
+  }
+
+  // "All marks checked" means every system mark on the walk's crops has a call and the labeler looked for missed
+  // marks; the first part is checked here, the second is the labeler's own tick.
+  function canCheck(s, pid, role) {
+    return hasCrops(s, pid, role) && unjudged(s, pid, role) === 0;
+  }
+
+  function fixChecks(s) {
+    PANEL_IDS.forEach(function (pid) {
+      var p = s.panelLabels[pid];
+      if (!p) return;
+      ROLES.forEach(function (role) { if (p.marks_checked[role] && !canCheck(s, pid, role)) p.marks_checked[role] = false; });
+    });
+  }
+
+  // A reference mark sits on a crop cut at the same proxy slot (times agree to the microsecond, as eval_run.py asks).
+  function sameSlot(a, b) {
+    return Math.abs(Math.round(Number(a) * 1e6) - Math.round(Number(b) * 1e6)) <= 1;
+  }
+
+  function statusLine(s) {
+    var who = s.labeler ? 'labeled by ' + s.labeler + ' on the labeling page' : 'labeled on the labeling page';
+    var line = who + ', not yet reviewed';
+    var before = s.imported && s.imported.status;
+    return before && before !== line ? line + ' (started from a file ' + before + ')' : line;
+  }
+
+  function today() {
+    var d = new Date();
+    var pad = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function buildLabels(s) {
+    var imp = s.imported || {};
+    var panels = {};
+    PANEL_IDS.forEach(function (pid) {
+      var p = s.panelLabels[pid];
+      if (!p) return;
+      var checked = { pickup: !!p.marks_checked.pickup && canCheck(s, pid, 'pickup'), return: !!p.marks_checked.return && canCheck(s, pid, 'return') };
+      if (p.changed === null && !p.coverage.pickup && !p.coverage.return && !checked.pickup && !checked.return && !p.note) return;
+      var out = { changed: p.changed, coverage: { pickup: p.coverage.pickup || null, return: p.coverage.return || null } };
+      if (checked.pickup || checked.return) out.marks_checked = checked;
+      if (p.note) out.note = p.note;
+      panels[pid] = out;
+    });
+    var marks = [];
+    (s.marks || []).forEach(function (m) {
+      var j = s.judgments[m.mark_id];
+      if (!j || ((j.real === null || j.real === undefined) && !j.note)) return;
+      var real = triState(j.real);
+      var entry = { mark_id: m.mark_id, source: 'system', role: m.role, panel_id: m.panel_id, kf_id: m.kf_id, real: real,
+        new: m.role === 'return' && real === true ? triState(j.new) : null,
+        not_real_reason: real === false ? (j.not_real_reason || 'other') : null, note: j.note || '' };
+      if (real === true && j.size_class && j.size_class !== m.size_class) entry.size_class = j.size_class;
+      marks.push(entry);
+    });
+    (s.hand || []).forEach(function (h) {
+      marks.push({ mark_id: h.mark_id, source: 'hand', role: h.role, panel_id: h.panel_id, kf_id: h.kf_id,
+        point_crop: [round1(h.point_crop[0]), round1(h.point_crop[1])], type: h.type, size_class: h.size_class, real: true,
+        new: h.role === 'return' ? triState(h.new) : null, not_real_reason: null, note: h.note || '' });
+    });
+    return {
+      schema: SCHEMA,
+      pair_id: s.pairId,
+      status: statusLine(s),
+      labeler: s.labeler || '',
+      labeled_on: s.labeledOn || today(),
+      kind: s.meta.kind,
+      table: s.meta.table,
+      split: s.meta.split,
+      nothing_changed: s.meta.nothing_changed,
+      footage: imp.footage || footageFromVideos(s.videos),
+      run_id: s.runId,
+      panels: panels,
+      marks: marks,
+      reference_marks: imp.reference_marks || [],
+      notes: imp.notes || ''
+    };
+  }
+
+  // The download as ASCII JSON: anything past ASCII typed into a note leaves as a \u escape.
+  function toJSON(labels) {
+    return JSON.stringify(labels, null, 1).replace(/[\u007f-\uffff]/g, function (c) {
+      return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+    }) + '\n';
+  }
+
+  // Problems that would make eval_run.py refuse the download; the page shows them instead of saving.
+  function problems(labels) {
+    var out = [];
+    if (!SAFE_ID.test(labels.pair_id || '')) out.push('set a pair id (letters, digits, _ and -)');
+    if (!SAFE_ID.test(labels.run_id || '')) out.push('load a run first');
+    ROLES.forEach(function (role) {
+      var f = labels.footage && labels.footage[role];
+      if (!f || typeof f.path !== 'string' || !f.path.trim()) out.push('footage for the ' + role + ' walk is missing (load the pair\'s labels file)');
+    });
+    return out;
+  }
+
+  // Merge a labels file into the page state. Panel labels and pair details always come in; mark calls and hand marks
+  // only when the file was made on this same run (their crop pixels belong to that run's crops). Marks made on another
+  // run are recorded in s.foreign, so the download can warn that it leaves them out.
+  function mergeLabels(s, file) {
+    var notes = [];
+    if (!file || file.schema !== SCHEMA) throw new Error('not a ' + SCHEMA + ' file');
+    s.imported = { status: file.status || '', footage: file.footage || null, reference_marks: file.reference_marks || [], notes: file.notes || '' };
+    s.foreign = null;
+    s.foreignOk = false;
+    if (!s.pairId && file.pair_id) s.pairId = file.pair_id;
+    ['kind', 'table', 'split', 'nothing_changed'].forEach(function (k) { if (file[k] !== undefined) s.meta[k] = file[k]; });
+    Object.keys(file.panels || {}).forEach(function (pid) {
+      if (PANEL_IDS.indexOf(pid) < 0) return;
+      var src = file.panels[pid] || {};
+      var p = s.panelLabels[pid] || emptyPanelLabel();
+      if (src.changed !== undefined) p.changed = src.changed;
+      ROLES.forEach(function (role) {
+        if (src.coverage && src.coverage[role] !== undefined) p.coverage[role] = src.coverage[role];
+        if (src.marks_checked && src.marks_checked[role] !== undefined) p.marks_checked[role] = !!src.marks_checked[role];
+      });
+      if (src.note) p.note = src.note;
+      s.panelLabels[pid] = p;
+    });
+    var marks = file.marks || [];
+    if (marks.length && file.run_id !== s.runId) {
+      s.foreign = { run_id: file.run_id, count: marks.length };
+      notes.push(marks.length + ' mark labels were made on run ' + file.run_id + '; they are not loaded, and a download for this run leaves them out, so keep that file');
+      fixChecks(s);
+      return notes;
+    }
+    var known = {};
+    (s.marks || []).forEach(function (m) { known[m.mark_id] = true; });
+    var skipped = 0;
+    marks.forEach(function (m) {
+      if (m.source === 'system') {
+        if (!known[m.mark_id]) { skipped += 1; return; }
+        s.judgments[m.mark_id] = { real: triState(m.real), new: triState(m.new), not_real_reason: m.not_real_reason || null, note: m.note || '', size_class: m.size_class || null };
+      } else if (m.source === 'hand') {
+        s.hand = s.hand.filter(function (h) { return h.mark_id !== m.mark_id; });
+        s.hand.push({ mark_id: m.mark_id, role: m.role, panel_id: m.panel_id, kf_id: m.kf_id, point_crop: m.point_crop, type: m.type, size_class: m.size_class, new: triState(m.new), note: m.note || '' });
+        var n = parseInt(String(m.mark_id).replace(/^hand_/, ''), 10);
+        if (!isNaN(n) && n >= s.nextHand) s.nextHand = n + 1;
+      }
+    });
+    if (skipped) notes.push(skipped + ' system marks are not in this run and stay out');
+    fixChecks(s);
+    return notes;
+  }
+
+  function newState(runId, pairId, labeler) {
+    var panelLabels = {};
+    PANEL_IDS.forEach(function (pid) { panelLabels[pid] = emptyPanelLabel(); });
+    return { runId: runId, pairId: pairId || '', labeler: labeler || '', labeledOn: null, run: null, keyframes: [], marks: [],
+      coverage: null, matches: [], videos: {}, panelLabels: panelLabels, judgments: {}, hand: [], nextHand: 1, imported: null,
+      foreign: null, foreignOk: false, hideSystem: false,
+      meta: { kind: 'cross_walk', table: 'B', split: 'report', nothing_changed: null } };
+  }
+
+  root.LabelCore = { SCHEMA: SCHEMA, ROLES: ROLES, PANEL_IDS: PANEL_IDS, MARK_TYPES: MARK_TYPES, COVERAGE: COVERAGE, REASONS: REASONS,
+    SAFE_ID: SAFE_ID, displayName: displayName, emptyPanelLabel: emptyPanelLabel, cropPoint: cropPoint, cycleReal: cycleReal,
+    footageFromVideos: footageFromVideos, buildLabels: buildLabels, mergeLabels: mergeLabels, newState: newState, problems: problems,
+    toJSON: toJSON, triState: triState, unjudged: unjudged, hasCrops: hasCrops, canCheck: canCheck, fixChecks: fixChecks, sameSlot: sameSlot };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var C = window.LabelCore;
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  var state = null;
+  var selected = null; // mark id of the selected mark, system or hand
+
+  function $(id) { return document.getElementById(id); }
+
+  // createElement with attributes and text or element children; no HTML string is ever parsed, since mark notes come from a model.
+  function el(tag, attrs) {
+    var node = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) {
+      if (k === 'text') node.textContent = attrs[k];
+      else if (k === 'onclick' || k === 'onchange' || k === 'oninput') node[k] = attrs[k];
+      else if (attrs[k] !== null && attrs[k] !== undefined && attrs[k] !== false) node.setAttribute(k, attrs[k] === true ? '' : attrs[k]);
+    });
+    for (var i = 2; i < arguments.length; i++) {
+      var child = arguments[i];
+      if (child === null || child === undefined) continue;
+      node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+    }
+    return node;
+  }
+
+  function svg(tag, attrs) {
+    var node = document.createElementNS(SVG_NS, tag);
+    Object.keys(attrs).forEach(function (k) { node.setAttribute(k, attrs[k]); });
+    return node;
+  }
+
+  function say(text, isError) {
+    var s = $('status');
+    s.textContent = text;
+    s.className = isError ? 'error' : '';
+  }
+
+  function fileUrl(rel) {
+    return '/api/runs/' + encodeURIComponent(state.runId) + '/files/' + rel.split('/').map(encodeURIComponent).join('/');
+  }
+
+  function getJSON(url, optional) {
+    return fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) {
+      if (!r.ok) {
+        if (optional && r.status === 404) return null;
+        throw new Error(url + ' answered ' + r.status);
+      }
+      return r.json();
+    });
+  }
+
+  function listRuns() {
+    getJSON('/api/runs', true).then(function (runs) {
+      var list = $('run-list');
+      (runs || []).forEach(function (r) { list.appendChild(el('option', { value: r.run_id })); });
+    }).catch(function () {});
+  }
+
+  function load(runId, pairId, labeler) {
+    state = C.newState(runId, pairId, labeler);
+    state.hideSystem = $('hide-system').checked;
+    selected = null;
+    say('Loading ' + runId + ' ...');
+    var parts = [
+      getJSON('/api/runs/' + encodeURIComponent(runId), false),
+      getJSON(fileUrl('derived/keyframes.json'), false),
+      getJSON(fileUrl('derived/marks.json'), true),
+      getJSON(fileUrl('derived/coverage.json'), true),
+      getJSON(fileUrl('derived/matches.json'), true),
+      getJSON(fileUrl('videos/pickup.json'), true),
+      getJSON(fileUrl('videos/return.json'), true)
+    ];
+    return Promise.all(parts).then(function (got) {
+      state.run = got[0];
+      state.keyframes = (got[1] || []).filter(function (k) { return k.crop && k.crop.path; });
+      state.marks = got[2] || [];
+      state.coverage = got[3];
+      state.matches = got[4] || [];
+      state.videos = { pickup: got[5], return: got[6] };
+      $('toolbar').hidden = false;
+      $('videos').textContent = '';
+      $('videos').appendChild(walkVideos()); // once per load, so a click elsewhere never resets playback
+      syncMetaControls();
+      render();
+      say('Loaded ' + runId + ': ' + state.keyframes.length + ' crops, ' + state.marks.length + ' system marks. Status ' + (state.run.status || '?') + '.');
+    }).catch(function (err) {
+      say('Could not load ' + runId + ': ' + err.message + '. Is the run on this server, and is it yours to view?', true);
+    });
+  }
+
+  function judgment(markId) {
+    return state.judgments[markId] || { real: null, new: null, not_real_reason: null, note: '' };
+  }
+
+  function markClass(markId) {
+    var j = judgment(markId);
+    return j.real === true ? 'real' : j.real === false ? 'fake' : 'unjudged';
+  }
+
+  // Only the labeler ticks "all marks checked"; a mark going back to not judged takes the tick away again.
+  function setJudgment(markId, change) {
+    var j = Object.assign({}, judgment(markId), change);
+    state.judgments[markId] = j;
+    C.fixChecks(state);
+    render();
+  }
+
+  function coverageText(role, pid) {
+    var per = state.coverage && state.coverage.per_role && state.coverage.per_role[role];
+    var c = per && per[pid];
+    if (!c) return role + ': no coverage row';
+    return role + ': ' + String(c.state).replace(/_/g, ' ') + (c.seconds ? ', ' + Number(c.seconds).toFixed(1) + ' s' : '');
+  }
+
+  function matchText(pid) {
+    var pm = state.matches.find(function (m) { return m.panel_id === pid; });
+    if (!pm) return 'not compared';
+    return pm.state === 'comparable' ? 'comparable' : 'not comparable' + (pm.reasons && pm.reasons.length ? ' (' + pm.reasons.join(', ') + ')' : '');
+  }
+
+  function changedControl(pid, name) {
+    var p = state.panelLabels[pid];
+    var box = el('fieldset', {}, el('legend', { text: 'Changed between the walks' }));
+    [['unchanged', false], ['changed', true], ['cannot tell', null]].forEach(function (opt) {
+      var input = el('input', { type: 'radio', name: name, checked: p.changed === opt[1], onchange: function () { p.changed = opt[1]; updateCounts(); } });
+      box.appendChild(el('label', {}, input, ' ' + opt[0]));
+    });
+    return box;
+  }
+
+  function coverageControl(pid, role, bare) {
+    var p = state.panelLabels[pid];
+    var select = el('select', { 'aria-label': C.displayName(pid) + ', ' + role + ' coverage', onchange: function () { p.coverage[role] = select.value || null; updateCounts(); } },
+      el('option', { value: '', text: 'cannot tell' }));
+    C.COVERAGE.forEach(function (c) { select.appendChild(el('option', { value: c, text: c.replace('_', ' '), selected: p.coverage[role] === c })); });
+    return bare ? select : el('label', { class: 'field' }, role + ' coverage', select);
+  }
+
+  function checkedControl(pid, role) {
+    var p = state.panelLabels[pid];
+    var left = C.unjudged(state, pid, role);
+    var ok = C.canCheck(state, pid, role);
+    var box = el('input', { type: 'checkbox', 'data-focus': 'checked:' + pid + ':' + role, checked: ok && p.marks_checked[role], disabled: !ok,
+      onchange: function () { p.marks_checked[role] = box.checked; updateCounts(); } });
+    var hint = !C.hasCrops(state, pid, role) ? 'no ' + role + ' crop' : left ? left + ' left to judge' : '';
+    return el('label', { class: ok ? null : 'off' }, box, ' all ' + role + ' marks checked', hint ? el('span', { class: 'hint', text: ' (' + hint + ')' }) : null);
+  }
+
+  // new since pickup, there at pickup, or not said; null, true and false in the labels.
+  function newControl(value, key, onPick) {
+    var select = el('select', { 'aria-label': 'new since pickup or there at pickup', 'data-focus': key, onchange: function () { onPick(select.value === '' ? null : select.value === 'true'); } },
+      el('option', { value: '', text: 'new or not: not said', selected: value !== true && value !== false }),
+      el('option', { value: 'true', text: 'new since pickup', selected: value === true }),
+      el('option', { value: 'false', text: 'there at pickup', selected: value === false }));
+    return select;
+  }
+
+  function noteControl(pid) {
+    var p = state.panelLabels[pid];
+    var input = el('input', { type: 'text', value: p.note, placeholder: 'note', 'aria-label': C.displayName(pid) + ' note', oninput: function () { p.note = input.value; } });
+    return input;
+  }
+
+  function markRow(m) {
+    var j = judgment(m.mark_id);
+    var row = el('li', { class: selected === m.mark_id ? 'selected' : null });
+    var what = el('span', { class: 'what' }, el('span', { class: 'mono', text: shortId(m.mark_id) }), ' ' + m.type + ' ' + m.size_class + ', ' + m.confidence);
+    if (m.description) what.appendChild(el('span', { class: 'muted', text: ' "' + m.description + '"' }));
+    row.appendChild(what);
+    row.appendChild(el('button', { type: 'button', class: 'real', 'data-focus': 'real:' + m.mark_id, 'aria-pressed': String(j.real === true), onclick: function () { setJudgment(m.mark_id, { real: j.real === true ? null : true, not_real_reason: null }); } }, 'real'));
+    row.appendChild(el('button', { type: 'button', class: 'fake', 'data-focus': 'fake:' + m.mark_id, 'aria-pressed': String(j.real === false), onclick: function () { setJudgment(m.mark_id, { real: j.real === false ? null : false, new: null, not_real_reason: j.not_real_reason || 'other' }); } }, 'not real'));
+    if (j.real === false) {
+      var reason = el('select', { 'aria-label': 'why not real', 'data-focus': 'reason:' + m.mark_id, onchange: function () { setJudgment(m.mark_id, { not_real_reason: reason.value }); } });
+      C.REASONS.forEach(function (r) { reason.appendChild(el('option', { value: r, text: r, selected: (j.not_real_reason || 'other') === r })); });
+      row.appendChild(reason);
+    }
+    if (j.real === true) {
+      var size = el('select', { 'aria-label': 'size of this mark', 'data-focus': 'size:' + m.mark_id, onchange: function () { setJudgment(m.mark_id, { size_class: size.value === m.size_class ? null : size.value }); } });
+      ['S', 'M', 'L'].forEach(function (c) { size.appendChild(el('option', { value: c, text: 'size ' + c + (c === m.size_class ? ' (system)' : ''), selected: (j.size_class || m.size_class) === c })); });
+      row.appendChild(size);
+    }
+    if (m.role === 'return' && j.real === true) {
+      row.appendChild(newControl(j.new, 'new:' + m.mark_id, function (v) { setJudgment(m.mark_id, { new: v }); }));
+    }
+    return row;
+  }
+
+  function handRow(h) {
+    var row = el('li', { class: selected === h.mark_id ? 'selected' : null });
+    row.appendChild(el('span', { class: 'what' }, el('span', { class: 'mono', text: h.mark_id }), ' added: ' + h.type + ' ' + h.size_class));
+    if (h.role === 'return') {
+      row.appendChild(newControl(h.new, 'new:' + h.mark_id, function (v) { h.new = v; render(); }));
+    }
+    row.appendChild(el('button', { type: 'button', 'data-focus': 'remove:' + h.mark_id, onclick: function () { state.hand = state.hand.filter(function (x) { return x !== h; }); render(); } }, 'remove'));
+    return row;
+  }
+
+  function addHand(kf, point) {
+    var id = 'hand_' + state.nextHand++;
+    state.hand.push({ mark_id: id, role: kf.role, panel_id: kf.panel_id, kf_id: kf.kf_id, point_crop: point, type: $('new-type').value, size_class: $('new-size').value, new: null, note: '' });
+    selected = id;
+    render();
+  }
+
+  // Arrow keys move the selected added mark on a focused crop (Shift for 5% steps), Enter adds one, Delete removes it.
+  function stageKeys(event, kf) {
+    var w = kf.crop.w, h = kf.crop.h;
+    if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); addHand(kf, [Math.round(w / 2), Math.round(h / 2)]); return; }
+    var mine = state.hand.filter(function (x) { return x.kf_id === kf.kf_id && x.mark_id === selected; })[0];
+    if (!mine) return;
+    var step = (event.shiftKey ? 5 : 1) * Math.max(w, h) / 100;
+    var d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
+    if (d) {
+      event.preventDefault();
+      mine.point_crop = [Math.min(Math.max(mine.point_crop[0] + d[0], 0), w - 0.1), Math.min(Math.max(mine.point_crop[1] + d[1], 0), h - 0.1)];
+      render();
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      state.hand = state.hand.filter(function (x) { return x !== mine; });
+      selected = null;
+      render();
+    }
+  }
+
+  function refsOn(kf) {
+    return ((state.imported && state.imported.reference_marks) || []).filter(function (r) {
+      return r.role === kf.role && r.panel_id === kf.panel_id && C.sameSlot(r.t, kf.pts);
+    });
+  }
+
+  function referenceNotes(pid) {
+    var refs = ((state.imported && state.imported.reference_marks) || []).filter(function (r) { return r.panel_id === pid; });
+    if (!refs.length) return null;
+    var list = el('ul');
+    refs.forEach(function (r) {
+      var call = r.real ? 'real' + (r.new === true ? ', new since pickup' : r.new === false ? ', there at pickup' : '') : 'not a mark (' + (r.not_real_reason || 'other') + ')';
+      list.appendChild(el('li', {}, el('span', { class: 'mono', text: r.role + ' ' + Number(r.t).toFixed(3) + ' s' }), ' ' + r.type + ' ' + r.size_class + ', ' + call + (r.note ? ': ' + r.note : '')));
+    });
+    return el('div', { class: 'refbox' }, el('p', { class: 'muted', text: 'Reference marks in the labels file. Each counts only on a crop cut at its moment, where a dashed ring shows it; elsewhere it tells you where to look.' }), list);
+  }
+
+  function shortId(markId) {
+    var m = /_m(\d+)$/.exec(markId);
+    return m ? '#' + m[1] : markId;
+  }
+
+  function cropFigure(kf) {
+    var w = kf.crop.w, h = kf.crop.h;
+    var marks = state.hideSystem ? [] : state.marks.filter(function (m) { return m.kf_id === kf.kf_id; });
+    var hand = state.hand.filter(function (x) { return x.kf_id === kf.kf_id; });
+    var img = el('img', { src: fileUrl(kf.crop.path), alt: C.displayName(kf.panel_id) + ', ' + kf.role + ' walk, blurred crop at ' + Number(kf.pts).toFixed(2) + ' s', width: w, height: h, draggable: 'false' });
+    var layer = svg('svg', { viewBox: '0 0 ' + w + ' ' + h, preserveAspectRatio: 'none', role: 'presentation' });
+    marks.forEach(function (m) {
+      var cls = 'mark ' + markClass(m.mark_id) + (selected === m.mark_id ? ' selected' : '');
+      var shape;
+      if (m.bbox_crop) {
+        var b = m.bbox_crop;
+        var least = Math.max(w, h) / 40; // a tiny mark still gets a box big enough to click
+        var bw = Math.max(b[2] - b[0], least), bh = Math.max(b[3] - b[1], least);
+        shape = svg('rect', { x: (b[0] + b[2] - bw) / 2, y: (b[1] + b[3] - bh) / 2, width: bw, height: bh, class: cls });
+      } else if (m.point_crop) {
+        shape = svg('circle', { cx: m.point_crop[0], cy: m.point_crop[1], r: Math.max(w, h) / 80, class: cls });
+      }
+      if (!shape) return;
+      shape.dataset.mark = m.mark_id;
+      layer.appendChild(shape);
+      var label = svg('text', { x: (m.bbox_crop ? m.bbox_crop[0] : m.point_crop[0]) + 2, y: Math.max((m.bbox_crop ? m.bbox_crop[1] : m.point_crop[1]) - 4, 14) });
+      label.textContent = shortId(m.mark_id);
+      layer.appendChild(label);
+    });
+    hand.forEach(function (x) {
+      var dot = svg('circle', { cx: x.point_crop[0], cy: x.point_crop[1], r: Math.max(w, h) / 60, class: 'mark hand' + (selected === x.mark_id ? ' selected' : '') });
+      dot.dataset.mark = x.mark_id;
+      layer.appendChild(dot);
+    });
+    refsOn(kf).forEach(function (r) {
+      var p = [(r.point_src[0] - kf.crop.dx) * kf.crop.scale, (r.point_src[1] - kf.crop.dy) * kf.crop.scale];
+      if (p[0] >= 0 && p[1] >= 0 && p[0] < w && p[1] < h) layer.appendChild(svg('circle', { cx: p[0], cy: p[1], r: Math.max(w, h) / 45, class: 'ref' }));
+    });
+    var stage = el('div', { class: 'stage', style: 'aspect-ratio: ' + w + ' / ' + h, tabindex: '0', 'data-focus': 'stage:' + kf.kf_id,
+      'aria-label': C.displayName(kf.panel_id) + ', ' + kf.role + ' crop. Enter adds a missed mark at the centre; arrow keys move the selected added mark; Delete removes it.' }, img);
+    stage.appendChild(layer);
+    stage.addEventListener('keydown', function (event) { stageKeys(event, kf); });
+    stage.addEventListener('click', function (event) {
+      var hit = event.target && event.target.dataset ? event.target.dataset.mark : null;
+      if (hit) {
+        selected = hit;
+        if (state.marks.some(function (m) { return m.mark_id === hit; })) setJudgment(hit, C.cycleReal(judgment(hit)));
+        else render();
+        return;
+      }
+      addHand(kf, C.cropPoint(event.clientX, event.clientY, stage.getBoundingClientRect(), w, h));
+    });
+    var list = el('ul', { class: 'marks' });
+    marks.forEach(function (m) { list.appendChild(markRow(m)); });
+    hand.forEach(function (x) { list.appendChild(handRow(x)); });
+    var frame = 'keyframes/' + kf.role + '/' + kf.kf_id + '.frame.jpg';
+    var none = state.hideSystem ? 'The system\'s marks are hidden for a first pass; no marks added here yet.' : 'No marks on this crop.';
+    return el('figure', { class: 'crop' }, stage,
+      el('figcaption', {}, kf.kf_id + ', ' + Number(kf.pts).toFixed(3) + ' s, ' + w + 'x' + h + ', marks ' + (kf.marks_status || '?') + '. ', el('a', { href: fileUrl(frame), target: '_blank', rel: 'noopener' }, 'blurred full frame')),
+      marks.length || hand.length ? list : el('p', { class: 'empty', text: none }));
+  }
+
+  function panelArticle(pid) {
+    var kfs = state.keyframes.filter(function (k) { return k.panel_id === pid; });
+    var art = el('article', { class: 'panel', id: 'panel-' + pid });
+    art.appendChild(el('div', { class: 'panel-head' }, el('h2', { text: C.displayName(pid) }),
+      el('span', { class: 'muted', text: coverageText('pickup', pid) + '; ' + coverageText('return', pid) + '; ' + matchText(pid) })));
+    art.appendChild(el('div', { class: 'panel-controls' }, changedControl(pid, 'changed-' + pid), coverageControl(pid, 'pickup'), coverageControl(pid, 'return'),
+      checkedControl(pid, 'pickup'), checkedControl(pid, 'return'), noteControl(pid)));
+    var refs = referenceNotes(pid);
+    if (refs) art.appendChild(refs);
+    var walks = el('div', { class: 'walks' });
+    C.ROLES.forEach(function (role) {
+      var mine = kfs.filter(function (k) { return k.role === role; });
+      var col = el('div', { class: 'walk' }, el('h3', { text: role === 'pickup' ? 'Pickup' : 'Return' }));
+      var crops = el('div', { class: 'crops' });
+      if (!mine.length) crops.appendChild(el('p', { class: 'empty', text: 'No keyframe of this panel in this walk.' }));
+      mine.forEach(function (k) { crops.appendChild(cropFigure(k)); });
+      col.appendChild(crops);
+      walks.appendChild(col);
+    });
+    art.appendChild(walks);
+    return art;
+  }
+
+  function othersTable(pids) {
+    var table = el('table', { class: 'others' }, el('caption', { class: 'muted', text: 'Panels with no crop in either walk: changed and coverage only' }),
+      el('thead', {}, el('tr', {}, el('th', { text: 'Panel' }), el('th', { text: 'System' }), el('th', { text: 'Changed' }), el('th', { text: 'Pickup' }), el('th', { text: 'Return' }))));
+    var body = el('tbody');
+    pids.forEach(function (pid) {
+      var p = state.panelLabels[pid];
+      var changed = el('select', { 'aria-label': C.displayName(pid) + ' changed', onchange: function () { p.changed = changed.value === '' ? null : changed.value === 'true'; updateCounts(); } },
+        el('option', { value: '', text: 'cannot tell' }), el('option', { value: 'false', text: 'unchanged', selected: p.changed === false }), el('option', { value: 'true', text: 'changed', selected: p.changed === true }));
+      body.appendChild(el('tr', {}, el('td', { text: C.displayName(pid) }), el('td', { class: 'muted', text: coverageText('pickup', pid) + '; ' + coverageText('return', pid) }),
+        el('td', {}, changed), el('td', {}, coverageControl(pid, 'pickup', true)), el('td', {}, coverageControl(pid, 'return', true))));
+    });
+    table.appendChild(body);
+    return el('div', { class: 'scroll' }, table);
+  }
+
+  // The blurred walks, for judging coverage on panels the crops do not show.
+  function walkVideos() {
+    var box = el('section', { class: 'walks videos', 'aria-label': 'The two walks, blurred' });
+    C.ROLES.forEach(function (role) {
+      var v = el('video', { src: fileUrl('media/' + role + '.proxy_blurred.mp4'), controls: true, preload: 'metadata', muted: true, playsinline: true });
+      var col = el('div', { class: 'walk' }, el('h3', { text: (role === 'pickup' ? 'Pickup' : 'Return') + ' walk, blurred' }), v);
+      v.addEventListener('error', function () { v.replaceWith(el('p', { class: 'empty', text: 'No blurred ' + role + ' walk on this server.' })); });
+      box.appendChild(col);
+    });
+    return box;
+  }
+
+  // Rebuilds the panels; the control that had focus gets it back (by its data-focus key), so a keyboard labeler
+  // stays where they were.
+  function render() {
+    var main = $('main');
+    var y = window.scrollY;
+    var active = document.activeElement;
+    var key = active && active.dataset ? active.dataset.focus : null;
+    main.textContent = '';
+    var withCrops = C.PANEL_IDS.filter(function (pid) { return state.keyframes.some(function (k) { return k.panel_id === pid; }); });
+    var without = C.PANEL_IDS.filter(function (pid) { return withCrops.indexOf(pid) < 0; });
+    if (!withCrops.length) main.appendChild(el('p', { class: 'empty', text: 'This run has no blurred crops yet, so only changed and coverage can be labeled.' }));
+    withCrops.forEach(function (pid) { main.appendChild(panelArticle(pid)); });
+    main.appendChild(othersTable(without));
+    window.scrollTo(0, y);
+    if (key) {
+      var again = main.querySelector('[data-focus="' + (window.CSS && CSS.escape ? CSS.escape(key) : key) + '"]');
+      if (again) again.focus({ preventScroll: true });
+    }
+    updateCounts();
+  }
+
+  function updateCounts() {
+    var judged = state.marks.filter(function (m) { return judgment(m.mark_id).real !== null && judgment(m.mark_id).real !== undefined; }).length;
+    var panels = C.PANEL_IDS.filter(function (pid) { return state.panelLabels[pid].changed !== null; }).length;
+    $('counts').textContent = judged + ' of ' + state.marks.length + ' system marks judged' + (state.hideSystem ? ' (hidden for a first pass)' : '') + '; ' + state.hand.length + ' added; ' + panels + ' of ' + C.PANEL_IDS.length + ' panels with a changed call';
+  }
+
+  function syncMetaControls() {
+    $('pair-kind').value = state.meta.kind;
+    $('pair-table').value = state.meta.table;
+    $('pair-split').value = state.meta.split;
+    $('pair-nothing').value = state.meta.nothing_changed === null ? '' : String(state.meta.nothing_changed);
+    $('pair-id').value = state.pairId;
+  }
+
+  function download() {
+    state.pairId = $('pair-id').value.trim();
+    state.labeler = $('labeler').value.trim();
+    var labels = C.buildLabels(state);
+    var bad = C.problems(labels);
+    if (bad.length) { say('Not saved: ' + bad.join('; ') + '.', true); return; }
+    if (state.foreign && !state.foreignOk) {
+      state.foreignOk = true;
+      say('Not saved yet: this download is for run ' + state.runId + ' and leaves out the ' + state.foreign.count + ' mark labels made on run ' + state.foreign.run_id +
+        '. eval_run.py reads one file per pair, so keep that file, or open run ' + state.foreign.run_id + ' to go on labeling it. Press Download again to save without them.', true);
+      return;
+    }
+    var blob = new Blob([C.toJSON(labels)], { type: 'application/json' });
+    var a = el('a', { href: URL.createObjectURL(blob), download: labels.pair_id + '.json' });
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    say('Saved ' + labels.pair_id + '.json with ' + labels.marks.length + ' mark labels and ' + Object.keys(labels.panels).length + ' panel labels. Move it to eval/labels/.');
+  }
+
+  function init() {
+    C.MARK_TYPES.forEach(function (t) { $('new-type').appendChild(el('option', { value: t, text: t, selected: t === 'scratch' })); });
+    $('load-form').addEventListener('submit', function (event) {
+      event.preventDefault();
+      var runId = $('run-id').value.trim();
+      if (!C.SAFE_ID.test(runId)) { say('A run id is letters, digits, _ and -.', true); return; }
+      load(runId, $('pair-id').value.trim(), $('labeler').value.trim());
+    });
+    $('download').addEventListener('click', download);
+    $('pair-kind').addEventListener('change', function () { state.meta.kind = this.value; });
+    $('pair-table').addEventListener('change', function () { state.meta.table = this.value; });
+    $('pair-split').addEventListener('change', function () { state.meta.split = this.value; });
+    $('pair-nothing').addEventListener('change', function () { state.meta.nothing_changed = this.value === '' ? null : this.value === 'true'; });
+    $('hide-system').addEventListener('change', function () {
+      if (!state) return;
+      state.hideSystem = this.checked;
+      if (state.hideSystem) selected = null;
+      render();
+    });
+    $('labels-file').addEventListener('change', function () {
+      var f = this.files && this.files[0];
+      if (!f) return;
+      if (!state) { say('Load a run first, then its labels file.', true); this.value = ''; return; }
+      f.text().then(function (text) {
+        var notes = C.mergeLabels(state, JSON.parse(text));
+        syncMetaControls();
+        render();
+        say('Loaded ' + f.name + '.' + (notes.length ? ' ' + notes.join('; ') + '.' : ''));
+      }).catch(function (err) { say('Could not read ' + f.name + ': ' + err.message, true); });
+      this.value = '';
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && selected) { selected = null; render(); }
+    });
+    var q = new URLSearchParams(window.location.search);
+    if (q.get('pair')) $('pair-id').value = q.get('pair');
+    if (q.get('labeler')) $('labeler').value = q.get('labeler');
+    listRuns();
+    if (q.get('run') && C.SAFE_ID.test(q.get('run'))) {
+      $('run-id').value = q.get('run');
+      load(q.get('run'), $('pair-id').value.trim(), $('labeler').value.trim());
+    }
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

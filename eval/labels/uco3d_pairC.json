@@ -1,0 +1,330 @@
+{
+ "schema": "walkaround_labels_v1",
+ "pair_id": "uco3d_pairC",
+ "status": "labeled by the developer from the frames, not yet reviewed",
+ "labeler": "developer",
+ "labeled_on": "2026-10-31",
+ "kind": "cross_walk",
+ "table": "B",
+ "split": "report",
+ "nothing_changed": true,
+ "footage": {
+  "pickup": {
+   "path": "data/candidates/uco3d_car_automobile/uco3d_7336-29949-54766.mp4",
+   "sha256": "0afacdbbd4799b35767f895bf4491df275c01ecf069edcba42eb31bcf09c7750",
+   "t0": 0.0,
+   "t1": null,
+   "source": "uCO3D car_automobile 7336-29949-54766",
+   "credit": "uCO3D (Meta), CC BY 4.0, https://github.com/facebookresearch/uco3d; modified (proxied and blurred)"
+  },
+  "return": {
+   "path": "data/candidates/uco3d_car_automobile/uco3d_50152-5241-46685.mp4",
+   "sha256": "f49b432f2932d4a9ffeb59881c992c5054e09a2d7d6b816a41d5dd1df9c8646b",
+   "t0": 0.0,
+   "t1": null,
+   "source": "uCO3D car_automobile 50152-5241-46685",
+   "credit": "uCO3D (Meta), CC BY 4.0, https://github.com/facebookresearch/uco3d; modified (proxied and blurred)"
+  }
+ },
+ "run_id": null,
+ "panels": {
+  "left_front_door": {
+   "changed": null,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "glimpsed"
+   },
+   "note": "seen only at the front-left corner of the return walk"
+  },
+  "left_rear_door": {
+   "changed": null,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "right_front_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   },
+   "note": "a dark chip under the window, right of the handle, in both walks; the window top is cut in the pickup"
+  },
+  "right_rear_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "left_front_fender": {
+   "changed": null,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": null
+   },
+   "note": "return: a steep view at 18 to 20 s; too close to call filmed or glimpsed"
+  },
+  "left_rear_fender": {
+   "changed": null,
+   "coverage": {
+    "pickup": null,
+    "return": "glimpsed"
+   },
+   "note": "pickup: a steep view at 18.5 to 19.7 s; too close to call"
+  },
+  "right_front_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "right_rear_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "hood": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   },
+   "note": "dried twigs and dirt streaks lie on the hood in both walks; they are not marks"
+  },
+  "roof": {
+   "changed": null,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   },
+   "note": "only a thin strip above the glass in either walk"
+  },
+  "trunk_lid": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   },
+   "note": "chips above and left of the plate in both walks; a dried leaf (return only) and a twig (pickup only) are not marks"
+  },
+  "front_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "rear_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   },
+   "note": "dried leaves caught at the trunk and bumper joint in both walks; not marks"
+  },
+  "left_front_wheel": {
+   "changed": null,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "glimpsed"
+   }
+  },
+  "left_rear_wheel": {
+   "changed": null,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  },
+  "right_front_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "right_rear_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "headlights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   },
+   "note": "each lamp stays under 3% of the frame"
+  },
+  "tail_lights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   },
+   "note": "each lamp stays under 3% of the frame"
+  },
+  "mirrors": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   },
+   "note": "the right mirror is about 1.4% of the frame at its closest"
+  },
+  "windshield": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "filmed"
+   },
+   "note": "pickup: cut by the top edge; return: whole above the hood at 15.5 to 17 s"
+  },
+  "rear_window": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  }
+ },
+ "marks": [],
+ "reference_marks": [
+  {
+   "ref_id": "c_p_trunk_chips_upper",
+   "panel_id": "trunk_lid",
+   "role": "pickup",
+   "t": 16.4,
+   "point_src": [
+    1506,
+    219
+   ],
+   "type": "chip",
+   "size_class": "S",
+   "real": true,
+   "new": false,
+   "group": "trunk_chips_upper",
+   "note": "a cluster of 3 or 4 small dark chips above the plate, right of centre"
+  },
+  {
+   "ref_id": "c_r_trunk_chips_upper",
+   "panel_id": "trunk_lid",
+   "role": "return",
+   "t": 1.533333,
+   "point_src": [
+    1128,
+    225
+   ],
+   "type": "chip",
+   "size_class": "S",
+   "real": true,
+   "new": false,
+   "group": "trunk_chips_upper",
+   "note": "the same cluster"
+  },
+  {
+   "ref_id": "c_p_trunk_chips_left",
+   "panel_id": "trunk_lid",
+   "role": "pickup",
+   "t": 16.4,
+   "point_src": [
+    1293,
+    443
+   ],
+   "type": "chip",
+   "size_class": "S",
+   "real": true,
+   "new": false,
+   "group": "trunk_chips_left",
+   "note": "5 to 7 small dark spots in two short vertical rows left of the plate; the point is the middle of the group"
+  },
+  {
+   "ref_id": "c_r_trunk_chips_left",
+   "panel_id": "trunk_lid",
+   "role": "return",
+   "t": 1.533333,
+   "point_src": [
+    965,
+    485
+   ],
+   "type": "chip",
+   "size_class": "S",
+   "real": true,
+   "new": false,
+   "group": "trunk_chips_left",
+   "note": "the same spots"
+  },
+  {
+   "ref_id": "c_p_rfd_chip",
+   "panel_id": "right_front_door",
+   "role": "pickup",
+   "t": 9.533333,
+   "point_src": [
+    1368,
+    260
+   ],
+   "type": "chip",
+   "size_class": "S",
+   "real": true,
+   "new": false,
+   "group": "rfd_chip",
+   "note": "a dark chip under the window, right of the handle"
+  },
+  {
+   "ref_id": "c_r_rfd_chip",
+   "panel_id": "right_front_door",
+   "role": "return",
+   "t": 8.0,
+   "point_src": [
+    1050,
+    318
+   ],
+   "type": "chip",
+   "size_class": "S",
+   "real": true,
+   "new": false,
+   "group": "rfd_chip",
+   "note": "the same chip"
+  },
+  {
+   "ref_id": "c_r_trunk_leaf",
+   "panel_id": "trunk_lid",
+   "role": "return",
+   "t": 1.533333,
+   "point_src": [
+    1017,
+    257
+   ],
+   "type": "dirt",
+   "size_class": "S",
+   "real": false,
+   "not_real_reason": "dirt",
+   "group": "trunk_leaf",
+   "note": "a dried leaf on the lid, only in the return walk"
+  },
+  {
+   "ref_id": "c_p_trunk_twig",
+   "panel_id": "trunk_lid",
+   "role": "pickup",
+   "t": 16.4,
+   "point_src": [
+    1775,
+    211
+   ],
+   "type": "dirt",
+   "size_class": "S",
+   "real": false,
+   "not_real_reason": "dirt",
+   "group": "trunk_twig",
+   "note": "a twig lying on the lid, only in the pickup walk"
+  }
+ ],
+ "notes": "One white Hindustan Ambassador filmed twice in different light (uCO3D pair C). The pickup walk goes front, right side, rear; the return walk goes rear, right side, front, so the left side is only seen at the corners. I saw no new damage: the trunk chips and the right front door chip are in both walks. Each reference mark's t is a 15 fps proxy slot (k/15 s, to 6 places) and its point is in original pixels (1920x1080) of the frame the slot shows. They were first read at 16.43002, 9.533469, 1.521298 and 8.01217 s, on source frames between slots, then moved on Oct 31 to the slot frame by template matching and checked by eye. Coverage follows eval/README.md: filmed is at least 85% of the panel in the frame, in focus, at 3% of the frame or more; the pickup windshield was read again under that wording and stays glimpsed (about half of it is above the frame)."
+}

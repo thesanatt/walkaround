@@ -1,0 +1,195 @@
+{
+ "schema": "walkaround_labels_v1",
+ "pair_id": "px4228872_cut",
+ "status": "labeled by the developer from the frames, not yet reviewed",
+ "labeler": "developer",
+ "labeled_on": "2026-10-31",
+ "kind": "pseudo",
+ "table": "C",
+ "split": "report",
+ "nothing_changed": true,
+ "footage": {
+  "pickup": {
+   "path": "data/derived/px4228872_0000_1379.mp4",
+   "sha256": "533d29739383f1a38826b4d88bdc1f6a99dc32ffad912650783411573777e2c1",
+   "t0": 0.0,
+   "t1": 13.791667,
+   "source": "data/candidates/pexels_westarmoney_s550/pexels_4228872.mp4",
+   "credit": "Stock video: WeStarMoney Rec on Pexels, Pexels License, https://www.pexels.com/license/"
+  },
+  "return": {
+   "path": "data/derived/px4228872_1379_4488.mp4",
+   "sha256": "28fefdfb8af725c4eb7ba8f193e1dc94176ea76d5686726100cbebde3c0f79e5",
+   "t0": 13.791667,
+   "t1": 44.875,
+   "source": "data/candidates/pexels_westarmoney_s550/pexels_4228872.mp4",
+   "credit": "Stock video: WeStarMoney Rec on Pexels, Pexels License, https://www.pexels.com/license/"
+  }
+ },
+ "run_id": null,
+ "panels": {
+  "left_front_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "glimpsed"
+   },
+   "note": "return: a steep view from the front-left corner"
+  },
+  "left_rear_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "glimpsed"
+   }
+  },
+  "right_front_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": "filmed"
+   },
+   "note": "return: the right side at 42.5 to 44.9 s of the source"
+  },
+  "right_rear_door": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  },
+  "left_front_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": "glimpsed"
+   },
+   "note": "pickup: whole and sharp but about 2.5% of the frame"
+  },
+  "left_rear_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "glimpsed"
+   }
+  },
+  "right_front_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  },
+  "right_rear_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  },
+  "hood": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "roof": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "trunk_lid": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   },
+   "note": "pickup: whole but about 2% of the frame from behind"
+  },
+  "front_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": null
+   },
+   "note": "return: whole but soft at the front-left corner, small in the front view"
+  },
+  "rear_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "glimpsed"
+   }
+  },
+  "left_front_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "left_rear_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": "glimpsed"
+   },
+   "note": "pickup: about 3.3% of the frame, too close to the bar to call"
+  },
+  "right_front_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  },
+  "right_rear_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "not_filmed",
+    "return": null
+   }
+  },
+  "headlights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "tail_lights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "mirrors": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "windshield": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "rear_window": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  }
+ },
+ "marks": [],
+ "reference_marks": [],
+ "notes": "Pexels 4228872 split at its scene cut (13.791667 s). Pickup: the rear, then the left side square on. Return: the front-left corner, the front, the front-right corner and the right side, until the car leaves the frame at 44.875 s. Little overlap: the left side is seen square on, then from the front corner, so few panels can compare. Black paint with strong reflections; a mark reported here is most likely a reflection or dust. One shoot, so nothing changed between the walks."
+}

@@ -1,0 +1,199 @@
+{
+ "schema": "walkaround_labels_v1",
+ "pair_id": "nhtsa15759",
+ "status": "labeled by the developer from the frames, not yet reviewed",
+ "labeler": "developer",
+ "labeled_on": "2026-10-31",
+ "kind": "before_after",
+ "table": "D",
+ "split": "report",
+ "nothing_changed": false,
+ "footage": {
+  "pickup": {
+   "path": "data/derived/t15759_pre.mp4",
+   "sha256": "0f612417615726cf0bc5d0662a5373cdf92cd2defc7329e063685580a2fd04ed",
+   "t0": 32.0,
+   "t1": 52.0,
+   "source": "data/candidates/nhtsa_crash_test_db/video/t15759_documentation_video.mp4",
+   "credit": "NHTSA Vehicle Crash Test Database, test 15759, public information; NHTSA does not endorse this project"
+  },
+  "return": {
+   "path": "data/derived/t15759_post.mp4",
+   "sha256": "a157a4a7483b7540d1f4e133c1b69d7f51deeca9360336e96004e64fea2a7fed",
+   "t0": 112.0,
+   "t1": 142.0,
+   "source": "data/candidates/nhtsa_crash_test_db/video/t15759_documentation_video.mp4",
+   "credit": "NHTSA Vehicle Crash Test Database, test 15759, public information; NHTSA does not endorse this project"
+  }
+ },
+ "run_id": null,
+ "panels": {
+  "left_front_door": {
+   "changed": true,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   },
+   "note": "crushed by the barrier"
+  },
+  "left_rear_door": {
+   "changed": true,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   },
+   "note": "crushed by the barrier"
+  },
+  "right_front_door": {
+   "changed": null,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "not_filmed"
+   },
+   "note": "the after walk never shows the right side"
+  },
+  "right_rear_door": {
+   "changed": null,
+   "coverage": {
+    "pickup": "filmed",
+    "return": null
+   },
+   "note": "after: an open door edge shows in the rear view"
+  },
+  "left_front_fender": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   },
+   "note": "the door's leading edge moved; the fender looks the same"
+  },
+  "left_rear_fender": {
+   "changed": null,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   },
+   "note": "the rear door's trailing edge is pushed in at the seam; the panel itself looks the same at this resolution"
+  },
+  "right_front_fender": {
+   "changed": null,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "not_filmed"
+   }
+  },
+  "right_rear_fender": {
+   "changed": null,
+   "coverage": {
+    "pickup": "filmed",
+    "return": null
+   }
+  },
+  "hood": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   },
+   "note": "a camera rig sits on the hood in both walks"
+  },
+  "roof": {
+   "changed": null,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   }
+  },
+  "trunk_lid": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "front_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "rear_bumper": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "left_front_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "left_rear_wheel": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  },
+  "right_front_wheel": {
+   "changed": null,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "not_filmed"
+   }
+  },
+  "right_rear_wheel": {
+   "changed": null,
+   "coverage": {
+    "pickup": "filmed",
+    "return": null
+   }
+  },
+  "headlights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   },
+   "note": "lit in the after walk; lit is not changed"
+  },
+  "tail_lights": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   },
+   "note": "lit in the after walk; lit is not changed"
+  },
+  "mirrors": {
+   "changed": false,
+   "coverage": {
+    "pickup": "glimpsed",
+    "return": "glimpsed"
+   }
+  },
+  "windshield": {
+   "changed": false,
+   "coverage": {
+    "pickup": null,
+    "return": null
+   },
+   "note": "behind the camera rig in the front view"
+  },
+  "rear_window": {
+   "changed": false,
+   "coverage": {
+    "pickup": "filmed",
+    "return": "filmed"
+   }
+  }
+ },
+ "marks": [],
+ "reference_marks": [],
+ "notes": "NHTSA crash test 15759, a 2025 Volkswagen Golf GTI struck on the left (driver) side by a moving barrier. Cut per docs/DATA_HUNT.md 3.4 with scripts/pseudo_pair.py: before is 32 to 52 s of the documentation video (left side, rear, right side, front, then half a second of the interior), after is 112 to 142 s (rear-left corner with the barrier, the left side, a placard close-up, the left side square on, front, rear, then the interior). The left doors changed; the rest of what both walks show did not. The yellow and black tape grid and the placards are on the car in both walks and are not marks; the PRE-TEST and POST-TEST placards differ, and that must not come back as new damage."
+}
