@@ -39,6 +39,7 @@ end. A fatal failure still runs run-end deletion before run.failed.
 from __future__ import annotations
 
 import asyncio
+import gzip
 import hashlib
 import importlib
 import inspect
@@ -61,7 +62,7 @@ from zoneinfo import ZoneInfo
 
 from . import contracts as c
 from . import ledger, paths
-from .config import BASE_URL, REPO_DIR
+from .config import BASE_URL, REPO_DIR, redact
 
 ET = ZoneInfo("America/New_York")
 TERMINAL_EVENTS = frozenset({c.EventKind.RUN_COMPLETED, c.EventKind.RUN_FAILED})
@@ -168,13 +169,24 @@ def _plain(value: Any) -> Any:
     return json.loads(c.canonical_json(value))
 
 
+def _scrubbed(value: Any) -> Any:
+    """Every string in a payload with key values and key shapes replaced; events reach the browser as they are."""
+    if isinstance(value, str):
+        return redact(value)
+    if isinstance(value, list):
+        return [_scrubbed(v) for v in value]
+    if isinstance(value, dict):
+        return {k: _scrubbed(v) for k, v in value.items()}
+    return value
+
+
 def _error_text(exc: BaseException) -> str:
     """The first real error, not the TaskGroup wrapper around it; a sentence written for the renter as it is."""
     while isinstance(exc, BaseExceptionGroup) and exc.exceptions:
         exc = exc.exceptions[0]
     if isinstance(exc, VideoUnreadable):
-        return str(exc)
-    return f"{type(exc).__name__}: {exc}"
+        return redact(str(exc))
+    return redact(f"{type(exc).__name__}: {exc}")
 
 
 def role_order(role: str) -> tuple[int, str]:
@@ -504,7 +516,7 @@ class Orchestrator:
 
     def emit(self, run_id: str, kind: c.EventKind, payload: dict[str, Any]) -> c.Event:
         """eventlog.append once the chain is open; before the seal the event waits in events.pending.ndjson."""
-        plain = _plain(payload)
+        plain = _scrubbed(_plain(payload))
         if not self.chain_open(run_id):
             return self._emit_pending(run_id, kind, plain)
         self.flush_pending(run_id)
@@ -956,12 +968,14 @@ class Orchestrator:
         return error
 
     def _record_error(self, run_id: str, stage: str, text: str) -> None:
+        text = redact(text)
         self.update_run(run_id, lambda r: r.errors.append(c.RunError(stage=stage, text=text[:500])))
 
     async def _fail(self, run_id: str, stage: str, text: str) -> c.RunManifest:
         """A fatal failure: the error recorded, run-end deletion done anyway (Files API uploads, originals, chunks, any
         unblurred proxy; deletions.json closed), then run.failed and the failed status back to back, so whoever sees
         the status finds the event too."""
+        text = redact(text)
 
         def record(run: c.RunManifest) -> None:
             if not any(e.stage == stage and e.text == text[:500] for e in run.errors):
@@ -1606,13 +1620,13 @@ class Orchestrator:
                 continue
             video = self.load_video(run_id, role)
             if video is None or video.wav is None:
-                self.emit(run_id, c.EventKind.VOICE_DONE, {"role": role, "mode_applied": False, "text": "no narration found: the clip has no audio track"})
+                self.emit(run_id, c.EventKind.VOICE_DONE, {"role": role, "mode_applied": None, "text": "no narration found: the clip has no audio track"})
                 continue
             wav = paths.run_dir(run_id) / video.wav.path
             try:
                 transcript = await asyncio.to_thread(self.dep("voice_client.transcribe_wav"), wav, mode=th["voice"]["mode"], keywords=list(th["nouns"]["voice_keywords"]), run_id=run_id)
             except Exception as exc:
-                self.emit(run_id, c.EventKind.VOICE_DONE, {"role": role, "mode_applied": False, "text": f"no narration found: {_error_text(exc)}"[:300]})
+                self.emit(run_id, c.EventKind.VOICE_DONE, {"role": role, "mode_applied": None, "text": f"no narration found: {_error_text(exc)}"[:300]})
                 continue
             record = self.dep("voice_client.voice_record")(transcript, role=role, wav_sha256=video.wav.sha256 or sha256_path(wav))
             records.append(record)
@@ -2050,6 +2064,10 @@ class Orchestrator:
             target = paths.runs_root() / entry.name
             if (entry / "run.json").is_file() and not target.exists():
                 shutil.copytree(entry, target)
+                packed = target / "events.ndjson.gz"
+                if packed.is_file() and not (target / "events.ndjson").exists():
+                    (target / "events.ndjson").write_bytes(gzip.decompress(packed.read_bytes()))
+                    packed.unlink()
                 seeded.append(entry.name)
         return seeded
 

@@ -344,7 +344,7 @@ def resolve_inputs(args: argparse.Namespace, plan: dict[str, Any], dry: bool) ->
 
 def input_problems(inputs: dict[str, Path | None]) -> list[str]:
     """Any pickup, return, take 2 or narration file that is missing or that ffprobe cannot read as a video, one line each.
-    Any path works (data/raw, data/eval_internal, a phone export elsewhere, MOV, MP4, WebM, MPEG-4 Part 2): the gates
+    Any path works (data/raw, data/candidates, a phone export elsewhere, MOV, MP4, WebM, MPEG-4 Part 2): the gates
     make their own H.264 proxies."""
     problems = []
     for role, path in inputs.items():

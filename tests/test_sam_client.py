@@ -690,6 +690,25 @@ async def test_segment_video_many_turns_a_lane_bug_into_failed(server: FakeServe
     assert record.status is LaneStatus.FAILED and "bug in one lane" in record.error and frames == []
 
 
+async def test_a_lane_the_deadline_cancels_mid_stream_is_billed_at_frames_sent(server: FakeServer, monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    started = asyncio.Event()
+
+    async def hang(*args: Any, **kwargs: Any) -> Any:
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(sam_client, "segment_video", hang)
+    with pytest.raises(TimeoutError):
+        async with asyncio.timeout(0.2):
+            await sam_client.segment_video_many("file-abc", [("car", "car"), ("hood", "hood")], run_id="late", role="pickup", frames_sent=141, media_size=SIZE, metadata={}, concurrency=1)
+    rows = ledger.rows(ledger.LEDGER_PATH)
+    # concurrency 1: the hood lane was still waiting on the semaphore, so it sent nothing and is not billed
+    assert started.is_set() and [(r["note"], r["status"], r["frames"]) for r in rows] == [("car", "cancelled", 141)]
+    assert rows[0]["usd"] > 0
+
+
 async def test_segment_clip_sends_a_data_url_and_checks_the_size(server: FakeServer, tmp_path: Path) -> None:
     clip = tmp_path / "clip.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x48:rate=10:duration=0.5", "-pix_fmt", "yuv420p", str(clip)], check=True)

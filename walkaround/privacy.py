@@ -23,6 +23,7 @@ import numpy as np
 from meta_sam_parser import decode_mask_to_raster
 
 from . import paths, sam_client
+from .config import redact
 from .contracts import (
     PRIVACY_NOUNS,
     BlurRecord,
@@ -460,7 +461,7 @@ async def delete_remote(
                 rows.append(DeletionRecord(target=video.files_api.file_id, kind=DeletionKind.FILES_API, sha256=sha, deleted_at=now, reason=f"run end ({video.role} proxy)", api_response=body))
                 break
             except Exception as exc:  # noqa: BLE001 - the reason is recorded, never raised
-                error = f"{type(exc).__name__}: {exc}"[:300]
+                error = redact(f"{type(exc).__name__}: {exc}")[:300]
                 if attempt < retries:
                     await asyncio.sleep(_RETRY_SLEEP_S * attempt)
         else:
@@ -473,7 +474,7 @@ async def delete_remote(
             body = await sam_client.delete_response(rid)
             rows.append(DeletionRecord(target=rid, kind=DeletionKind.RESPONSE, deleted_at=now, reason="store false refused; response deleted at run end", api_response=body))
         except Exception as exc:  # noqa: BLE001
-            rows.append(DeletionRecord(target=rid, kind=DeletionKind.RESPONSE, deleted_at=now, reason=f"delete request failed ({type(exc).__name__}: {exc})"[:300]))
+            rows.append(DeletionRecord(target=rid, kind=DeletionKind.RESPONSE, deleted_at=now, reason=redact(f"delete request failed ({type(exc).__name__}: {exc})")[:300]))
     return rows
 
 

@@ -1021,7 +1021,7 @@ async def test_narration_says_no_narration_found_per_walk_and_keeps_going(runs_d
     final = await orch.run_pipeline(run.run_id)
     assert final.status == c.RunStatus.DONE and fakes.calls["derive_narration"] == 1
     voice = [e.payload for e in orch.read_events(run.run_id) if e.kind == c.EventKind.VOICE_DONE]
-    assert voice[0] == {"role": "pickup", "mode_applied": False, "text": "no narration found: ValueError: audio over 10 minutes"}
+    assert voice[0] == {"role": "pickup", "mode_applied": None, "text": "no narration found: ValueError: audio over 10 minutes"}
     assert voice[1]["role"] == "return" and voice[1]["mode_applied"] is True
     assert [r.role for r in c.read_json_list(paths.voice_json(run.run_id), c.VoiceRecord)] == ["return"]
 
@@ -1436,6 +1436,33 @@ def test_seed_samples_copies_the_demo_run_once(runs_dir: Path, th: dict, tmp_pat
     orch = make_orch(th)
     assert orch.seed_samples() == ["RUNSAMPLE"] and orch.seed_samples() == []
     assert orch.run_exists("RUNSAMPLE") and orch.sample_run_id() == "RUNSAMPLE" and orch.is_public(orch.load_run("RUNSAMPLE"))
+
+
+def test_seed_samples_unpacks_a_gzipped_event_log(runs_dir: Path, th: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import gzip
+
+    import walkaround.orchestrator as orchestrator_module
+
+    repo = tmp_path / "repo"
+    sample = repo / "samples" / "RUNSAMPLE"
+    sample.mkdir(parents=True)
+    c.write_json(sample / "run.json", c.RunManifest(run_id="RUNSAMPLE", created_at="2026-10-28T14:00:00Z", keep=True, live_or_replay=c.LiveOrReplay.REPLAY))
+    log = b'{"seq": 0}\n{"seq": 1}\n'
+    (sample / "events.ndjson.gz").write_bytes(gzip.compress(log))
+    monkeypatch.setattr(orchestrator_module, "REPO_DIR", repo)
+    assert make_orch(th).seed_samples() == ["RUNSAMPLE"]
+    assert (runs_dir / "RUNSAMPLE" / "events.ndjson").read_bytes() == log
+    assert not (runs_dir / "RUNSAMPLE" / "events.ndjson.gz").exists()
+
+
+def test_error_text_and_event_payloads_never_carry_a_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    from walkaround.orchestrator import _error_text, _scrubbed
+
+    monkeypatch.setenv("MODEL_API_KEY", "LLM_1788601_notarealsecretvalue")
+    text = _error_text(RuntimeError("401: bad key LLM_1788601_notarealsecretvalue (Authorization: Bearer abc.def)"))
+    assert "notarealsecret" not in text and "abc.def" not in text and "[redacted]" in text
+    payload = _scrubbed({"error": ["sent LLM_42_shapeonlysecret"], "n": 3, "ok": None})
+    assert payload == {"error": ["sent [redacted]"], "n": 3, "ok": None}
 
 
 # CLI -----------------------------------------------------------------------------------------------------------------

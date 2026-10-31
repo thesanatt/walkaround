@@ -35,6 +35,7 @@ import numpy as np
 
 from . import contracts as c
 from . import paths, sam_wire
+from .config import redact
 from .contracts import (
     LANE_NOUNS,
     LOWER_BUMPERS,
@@ -2180,7 +2181,7 @@ async def _derive_keyframes(
                 _score_panel, panel, cands, rasters, lookups, kept_at, car_ids, video, src, pts, media_size, th
             )
         except Exception as exc:
-            last_error = f"{type(exc).__name__}: {exc}"
+            last_error = redact(f"{type(exc).__name__}: {exc}")
             log.warning("%s %s %s: keyframe pass failed (%s)", run_id, role, panel.panel_id.value, last_error)
             continue
         n_scored += len(scored)
@@ -2208,7 +2209,7 @@ async def _derive_keyframes(
                 )
             except Exception as exc:
                 failed += 1
-                last_error = f"{type(exc).__name__}: {exc}"
+                last_error = redact(f"{type(exc).__name__}: {exc}")
                 log.warning("%s %s %s frame %d: keyframe dropped (%s)", run_id, role, panel.panel_id.value, f, last_error)
                 continue
             taken.append(f)

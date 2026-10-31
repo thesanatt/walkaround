@@ -58,7 +58,7 @@ from meta_sam_parser import (
 from openai import APIConnectionError, APIError, APIStatusError, APITimeoutError, AsyncOpenAI, RateLimitError
 
 from . import contracts, ledger, paths, sam_wire
-from .config import BASE_URL, SAM_MODEL, api_key
+from .config import BASE_URL, SAM_MODEL, api_key, redact
 from .contracts import Box4, Diagnostic, FilesApiRecord, IndexFrame, LaneRecord, LaneStatus, Noun, noun_slug
 
 __all__ = [
@@ -456,7 +456,7 @@ async def _run_stream(request: dict[str, Any], sink: _Sink, check: _Check, *, ma
                     dropped.append(events)
                 sink.reset()
                 continue
-            return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, f"{type(error).__name__}: {error}", dropped)
+            return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, redact(f"{type(error).__name__}: {error}"), dropped)
         if stream_tries < STREAM_RETRIES and check.retry(events):
             stream_tries += 1
             retries += 1
@@ -677,7 +677,7 @@ async def delete_file(file_id: str) -> dict[str, Any]:
         except APIStatusError as error:
             if error.status_code == 404:
                 _forget_file(file_id)
-                return {"id": file_id, "deleted": False, "status_code": 404, "error": str(error)}
+                return {"id": file_id, "deleted": False, "status_code": 404, "error": redact(str(error))}
             if error.status_code != 429 and error.status_code < 500:
                 raise
             attempt += 1
@@ -707,7 +707,7 @@ async def delete_response(response_id: str) -> dict[str, Any]:
             return {"id": response_id, "status_code": http.status_code, "deleted": 200 <= http.status_code < 300, "body": body}
         except APIStatusError as error:
             if error.status_code != 429 and error.status_code < 500:
-                return {"id": response_id, "status_code": error.status_code, "deleted": False, "error": str(error)}
+                return {"id": response_id, "status_code": error.status_code, "deleted": False, "error": redact(str(error))}
             attempt += 1
             if attempt >= FILES_DELETE_RETRIES:
                 raise
@@ -941,9 +941,27 @@ async def segment_video_many(
                     on_event=callback,
                 )
             except asyncio.CancelledError:
+                # The deadline cut a lane that was already streaming. Bill it like an abandoned attempt (frames_sent),
+                # so the run and day ceilings err high; a lane still waiting on the semaphore never sent a request.
+                # TODO(D1): compare these rows with the dev.meta.ai usage page, like the abandoned rows.
+                ledger.record(
+                    "sam_video",
+                    SAM_MODEL,
+                    note=paths.lane_id(lane),
+                    run_id=run_id,
+                    frames=frames_sent,
+                    engine=ENGINE,
+                    request_id=None,
+                    unit="frames",
+                    quantity=frames_sent,
+                    status="cancelled",
+                    video_frames_processed=None,
+                    frames_sent=frames_sent,
+                    role=role,
+                )
                 raise
             except Exception as error:  # a bug in one lane must not take the other fifteen down
-                record = _failed_record(lane, role, prompt_text, media_size, metadata, index, f"{type(error).__name__}: {error}")
+                record = _failed_record(lane, role, prompt_text, media_size, metadata, index, redact(f"{type(error).__name__}: {error}"))
                 return lane, (record, [])
 
     results = await asyncio.gather(*(one(i, lane, text) for i, (lane, text) in enumerate(prompts)))

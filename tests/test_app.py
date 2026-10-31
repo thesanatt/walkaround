@@ -336,6 +336,11 @@ def test_healthz_and_spa_fallback(client: TestClient) -> None:
 # Files, sheet, top-up ----------------------------------------------------------------------------------------------------------
 
 
+def test_servable_floor_ignores_case_like_apfs() -> None:
+    for bad in ("media/PICKUP.PROXY.MP4", "QUARANTINE/pickup.mp4", "Uploads/x/0.part", "EVENTS.PENDING.NDJSON"):
+        assert not servable(bad), bad
+
+
 def test_servable_floor() -> None:
     for ok in ("derived/coverage.json", "sam/pickup/car.ndjson.gz", "media/pickup.proxy_blurred.mp4", "videos/pickup.json", "events.ndjson"):
         assert servable(ok), ok

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 BASE_URL = "https://api.meta.ai/v1"
@@ -76,6 +77,20 @@ def load_env() -> None:
     """Read walkaround/.env, then ~/meta2026/.keys. Existing environment wins."""
     _load_env_file(REPO_DIR / ".env")
     _load_env_file(Path.home() / "meta2026" / ".keys")
+
+
+_KEY_SHAPES = re.compile(r"\bLLM[_|][A-Za-z0-9_|-]{6,}|\bhf_[A-Za-z0-9]{10,}")  # LLM_{digits}_{secret}, HF tokens
+_BEARER = re.compile(r"(?i)\b(bearer\s+)\S+")
+_SECRET_ENV = ("MODEL_API_KEY", "BASETEN_API_KEY", "HF_TOKEN")
+
+
+def redact(text: str) -> str:
+    """Text with every configured key value and key-shaped token replaced, before it is stored, emitted or served."""
+    for name in _SECRET_ENV:
+        value = os.environ.get(name) or ""
+        if len(value) >= 8:
+            text = text.replace(value, "[redacted]")
+    return _BEARER.sub(r"\1[redacted]", _KEY_SHAPES.sub("[redacted]", text))
 
 
 def api_key() -> str:

@@ -136,9 +136,10 @@ def servable(rel_path: str) -> bool:
     p = PurePosixPath(rel_path)
     if not p.parts or p.is_absolute() or any(part in ("", ".", "..") or part.startswith(".") for part in p.parts):
         return False
-    if p.parts[0] in NEVER_SERVED_TOPS or p.name == PENDING_EVENTS_NAME:
+    top, name = p.parts[0].casefold(), p.name.casefold()  # APFS matches names case-insensitively
+    if top in NEVER_SERVED_TOPS or name == PENDING_EVENTS_NAME:
         return False
-    return not p.name.endswith(NEVER_SERVED_SUFFIXES)
+    return not name.endswith(NEVER_SERVED_SUFFIXES)
 
 
 class _ChunkSink:
