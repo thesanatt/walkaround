@@ -9,11 +9,17 @@ test, "scuff" as a text prompt once, and the carried-moments check on 5 frames o
     python scripts/gate_stays_put.py --fixture tests/fixtures/sam/pingpong_box.events.ndjson \
         [--text-fixture tests/fixtures/sam/pingpong_text.events.ndjson] [--cut-clip --clip data/test/pingpong.mp4] --out DIR
 
---plan takes a JSON list; each entry holds the single-clip arguments by name (src, pts, mark, panel, panel_lane,
-lane_fps, lane_size, label, control, panned, backtrack, scuff_text, role, clip_types). Every entry runs as a
-mark-centered clip and as a panel-crop clip (5.9 item 1 and section 16 item 7). Without LIVE=1 and without
---fixture the script prints what it would send and exits 2. Every call goes through walkaround.sam_client, which
-writes the ledger rows; lane names start with "D1 E5". Every number printed also lands in <out>/gate_stays_put.json.
+--plan takes a JSON list; each entry holds the single-clip arguments by name (src, pts, mark, panel, panel_start,
+panel_end, panel_lane, panel_object_id, lane_fps, lane_size, privacy_lanes, label, control, panned, backtrack,
+scuff_text, role, clip_types). Every entry runs as a mark-centered clip and as a panel-crop clip (5.9 item 1 and
+section 16 item 7). The window follows the panel box from panel_lane (the object holding the mark when no
+panel_object_id is named) or linearly between panel_start, panel and panel_end; an entry with neither is refused
+before any request, because a fixed window on walking footage reads as the mark leaving its panel. Each clip is
+pixelated per frame from the privacy_lanes (gate_sam's 'license plate' and 'face' lanes, {noun, path, status, fps,
+size}) and from the prompt frame's two image checks moved with the panel box; clip rows say whether the blur was
+track-based (run_d1 deletes the clips that were not). Without LIVE=1 and without --fixture the script prints what
+it would send and exits 2. Every call goes through walkaround.sam_client, which writes the ledger rows; lane names
+start with "D1 E5". Every number printed also lands in <out>/gate_stays_put.json.
 """
 
 from __future__ import annotations
@@ -26,7 +32,7 @@ import statistics
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 
@@ -50,6 +56,8 @@ MARK_OBJECT = "1"
 PANEL_OBJECT = "2"
 CLIP_TYPES = ("mark", "panel")
 CHECK_FRACTIONS = (0.0, 0.25, 0.5, 0.75, 1.0)  # the 5 frames of the carried-moments check
+# A lane that answered: completed, or zero matches (for a box prompt, a real "nothing tracked" outcome).
+MEASURED_STATUSES = (LaneStatus.COMPLETED.value, LaneStatus.ZERO_MATCHES.value)
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -160,6 +168,101 @@ def panel_boxes_linear(n: int, center: int, panel: Box4, start: Box4 | None = No
     return out
 
 
+def pick_panel_object(lane_frames: list[IndexFrame], p: float, *, scale: tuple[float, float], mark_src: Box4, panel_src: Box4 | None, bridge: int) -> str | None:
+    """The lane object whose box holds the mark centre on the proxy frame nearest p that has one (the best IoU with
+    the hand-measured panel box, else the largest); None when no box within bridge frames holds it."""
+    mc = box_center(mark_src)
+    near = sorted((fr for fr in lane_frames if fr.objects and abs(fr.frame - p) <= bridge), key=lambda fr: abs(fr.frame - p))
+    for fr in near:
+        cands = []
+        for o in fr.objects:
+            b = [o.box[0] * scale[0], o.box[1] * scale[1], o.box[2] * scale[0], o.box[3] * scale[1]]
+            if contains(b, mc):
+                cands.append((gate_sam.box_iou(b, panel_src) if panel_src else (b[2] - b[0]) * (b[3] - b[1]), o.id))
+        if cands:
+            return max(cands)[1]
+    return None
+
+
+def static_window(panel_boxes: list[Box4 | None]) -> bool:
+    """True when the window cannot follow the panel: no panel box, or the same box on every frame."""
+    return len({tuple(round(float(v), 2) for v in b) for b in panel_boxes if b is not None}) <= 1
+
+
+def shifted_boxes(image_boxes: list[Box4], panel_boxes: list[Box4 | None], center: int) -> list[list[Box4]]:
+    """The prompt frame's image-check boxes moved with the panel box centre on every clip frame (the last known shift
+    where the panel box is missing): a plate rides on the car, so it moves with the panel."""
+    ref = panel_boxes[center] if center < len(panel_boxes) else None
+    shift = (0.0, 0.0)
+    out: list[list[Box4]] = []
+    for box in panel_boxes:
+        if ref is not None and box is not None:
+            (rx, ry), (px, py) = box_center(ref), box_center(box)
+            shift = (px - rx, py - ry)
+        out.append([[b[0] + shift[0], b[1] + shift[1], b[2] + shift[0], b[3] + shift[1]] for b in image_boxes])
+    return out
+
+
+def lane_blur_boxes(
+    times: list[float],
+    frame_indices: list[int],
+    lanes: list[tuple[list[IndexFrame], float, tuple[int, int]]],
+    *,
+    src_size: tuple[int, int],
+    bridge_s: float,
+    dilate_frac: float,
+) -> list[list[Box4]]:
+    """Plate and face lane boxes on every clip frame in source pixels, dilated (5.9 item 2): each object on the proxy
+    frame after the clip frame's time, and the latest box of each object at or before it within bridge_s (the carry
+    of privacy.track_boxes_at). Over-blurring is the safe side. lanes: (frames, proxy fps, proxy size) per lane."""
+    t0 = times[0] if times else 0.0
+    out: list[list[Box4]] = [[] for _ in frame_indices]
+    for frames, fps, size in lanes:
+        sx, sy = src_size[0] / size[0], src_size[1] / size[1]
+        bridge = int(math.ceil(bridge_s * fps))
+        by_frame = {fr.frame: fr.objects for fr in frames if fr.objects}
+        for i, f in enumerate(frame_indices):
+            p = (times[f] - t0) * fps
+            lo = int(math.floor(p + 1e-6))
+            seen: dict[str, list[int]] = {}
+            for k in range(lo - bridge, lo + 1):
+                for o in by_frame.get(k, []):
+                    seen[o.id] = list(o.box)
+            boxes = list(seen.values()) + ([list(o.box) for o in by_frame.get(lo + 1, [])] if p - lo > 1e-6 else [])
+            for b in boxes:
+                x1, y1, x2, y2 = b[0] * sx, b[1] * sy, b[2] * sx, b[3] * sy
+                gw, gh = dilate_frac * (x2 - x1) / 2.0, dilate_frac * (y2 - y1) / 2.0
+                out[i].append([x1 - gw, y1 - gh, x2 + gw, y2 + gh])
+    return out
+
+
+def read_privacy_lanes(entry: dict[str, Any], th: dict) -> tuple[list[tuple[list[IndexFrame], float, tuple[int, int]]], dict[str, Any]]:
+    """gate_sam's plate and face lanes for the entry's walk: (frames, fps, size) per lane read, and what was read.
+    complete: at least one lane given and every one answered (completed, or zero matches: nothing there to blur)."""
+    read: list[tuple[list[IndexFrame], float, tuple[int, int]]] = []
+    rows = []
+    for spec in entry.get("privacy_lanes") or []:
+        spec = {"path": spec, "status": LaneStatus.COMPLETED.value} if isinstance(spec, str) else dict(spec)
+        row = {"noun": spec.get("noun"), "status": spec.get("status"), "path": spec.get("path"), "answered": False}
+        rows.append(row)
+        if row["status"] not in MEASURED_STATUSES:
+            row["note"] = "the lane did not answer"
+            continue
+        if not row["path"] or not Path(row["path"]).exists():
+            row["note"] = "lane file missing"
+            continue
+        try:
+            lane = gate_sam.lane_from_events(gate_sam.read_events(Path(row["path"])), lane_id=f"privacy {row['noun']}", role=str(entry.get("role") or "pickup"), noun=None, prompt_text=str(row["noun"] or "privacy"))
+        except Exception as exc:  # noqa: BLE001
+            row["note"] = f"unreadable: {gate_sam.error_text(exc, 200)}"
+            continue
+        size = spec.get("size") or entry.get("lane_size") or gate_sam.media_size_from_text(lane.text) or (960, 540)
+        fps = float(spec.get("fps") or entry.get("lane_fps") or th["media"]["proxy_fps"])
+        read.append((lane.frames, fps, (int(size[0]), int(size[1]))))
+        row.update({"answered": True, "frames_with_boxes": sum(1 for fr in lane.frames if fr.objects)})
+    return read, {"lanes": rows, "complete": bool(rows) and all(r["answered"] for r in rows)}
+
+
 def windows_for(clip_type: str, *, mark_box: Box4, panel_boxes: list[Box4 | None], center: int, th: dict) -> list[Box4]:
     """mark: a square of 0.3 x the panel width (min 400 px) centred on the mark, moving with the panel box;
     panel: the panel box padded by crop_pad_frac, made square, centred on the panel."""
@@ -242,7 +345,9 @@ def analyse(
     n_frames = len(windows)
     with_box = len(rows)
     box_share = with_box / n_frames if n_frames else 0.0
-    inside_share = (sum(1 for r in rows if r["inside"]) / with_box) if with_box else 0.0
+    # over the frames where the panel box is known: a frame without one says nothing about inside (5.9 item 5)
+    known = [r for r in rows if r["panel"] is not None]
+    inside_share = (sum(1 for r in known if r["inside"]) / len(known)) if known else None
     ws = np.array([r["w"] for r in rows if r["w"] is not None and r["inside"]], dtype=float).reshape(-1, 2)
     drift = None
     if len(ws) >= 2:
@@ -294,7 +399,8 @@ def analyse(
         "frames_total": n_frames,
         "frames_with_box": with_box,
         "box_share": round(box_share, 4),
-        "inside_panel_share": round(inside_share, 4),
+        "inside_panel_share": round(inside_share, 4) if inside_share is not None else None,
+        "frames_with_panel_box": len(known),
         "frames_whitened": int(len(ws)),
         "drift_rms_units": round(drift, 4) if drift is not None else None,
         "b1": round(b1, 4) if b1 is not None else None,
@@ -432,6 +538,7 @@ def clip_passes(metrics: dict[str, Any], th: dict) -> bool:
     sp = th["staysput"]
     return bool(
         metrics["box_share"] >= sp["d1_pass_box_share"]
+        and metrics["inside_panel_share"] is not None
         and metrics["inside_panel_share"] >= sp["d1_pass_box_share"]
         and metrics["drift_rms_units"] is not None
         and metrics["drift_rms_units"] < sp["d1_pass_drift_max"]
@@ -449,27 +556,40 @@ def control_passes(metrics: dict[str, Any], th: dict) -> bool:
     )
 
 
+def measured(clip: dict[str, Any]) -> bool:
+    """A clip whose SAM lane answered. An error, or a failed or broken lane, measured nothing about Stays Put."""
+    return "error" not in clip and (clip.get("metrics") or {}).get("lane_status") in MEASURED_STATUSES
+
+
 def evaluate(clips: list[dict[str, Any]], th: dict) -> dict[str, Any]:
+    """The E5 pass, control, kill and panned lines from measured clips only. kill is True only when every demo label
+    has a measured clip of each type and all of them fail; a pass anywhere makes it False; otherwise None (not run)."""
     sp = th["staysput"]
-    demo = [c for c in clips if not c["is_control"] and not c["panned_pass"] and not c["backtrack"]]
-    controls = [c for c in clips if c["is_control"]]
-    panned = [c for c in clips if c["panned_pass"]]
-    labels = sorted({c["label"] for c in demo})
-    per_label = {}
-    for label in labels:
-        rows = [c for c in demo if c["label"] == label]
-        per_label[label] = {ct: next((c["pass"] for c in rows if c["clip_type"] == ct), None) for ct in CLIP_TYPES}
-    any_pass = any(v for d in per_label.values() for v in d.values())
-    kill = bool(labels) and all(not any(v for v in d.values()) for d in per_label.values())
+    demo_all = [c for c in clips if not c["is_control"] and not c["panned_pass"] and not c["backtrack"]]
+    demo = [c for c in demo_all if measured(c)]
+    controls = [c for c in clips if c["is_control"] and measured(c)]
+    panned = [c for c in clips if c["panned_pass"] and measured(c)]
+    labels = sorted({c["label"] for c in demo_all})
+    per_label = {label: {ct: next((c["pass"] for c in demo if c["label"] == label and c["clip_type"] == ct), None) for ct in CLIP_TYPES} for label in labels}
+    any_pass = any(c["pass"] for c in demo) if demo else None
+    if any_pass:
+        kill: bool | None = False
+    elif labels and all(v is False for d in per_label.values() for v in d.values()):
+        kill = True
+    else:
+        kill = None
+    counted = [c for c in clips if measured(c)]
     inconclusive_panned = sum(1 for c in panned if c["metrics"]["verdict"] in (StaysPutVerdict.INCONCLUSIVE.value, StaysPutVerdict.NO_TRACK.value))
-    b1s = [c["metrics"]["b1"] for c in clips if c["metrics"]["b1"] is not None]
-    b2s = [c["metrics"]["b2"] for c in clips if c["metrics"]["b2"] is not None]
-    sigma = next((c["metrics"]["sigma_frame"] for c in clips if c["metrics"].get("sigma_frame")), None)
+    b1s = [c["metrics"]["b1"] for c in counted if c["metrics"]["b1"] is not None]
+    b2s = [c["metrics"]["b2"] for c in counted if c["metrics"]["b2"] is not None]
+    sigma = next((c["metrics"]["sigma_frame"] for c in clips if (c.get("metrics") or {}).get("sigma_frame")), None)
     return {
         "demo_clips": len(demo),
+        "demo_clips_not_measured": len(demo_all) - len(demo),
+        "not_measured": [f"{c['label']}/{c['clip_type']}: {c.get('error') or (c.get('metrics') or {}).get('lane_status')}" for c in clips if not measured(c)],
         "demo_pass_by_label": per_label,
         "demo_pass_any": any_pass,
-        "demo_pass_both_types_any_label": any(all(v for v in d.values()) for d in per_label.values()) if per_label else False,
+        "demo_pass_both_types_any_label": any(all(v is True for v in d.values()) for d in per_label.values()) if per_label else False,
         "kill": kill,
         "control_clips": len(controls),
         "control_pass": any(c["pass"] for c in controls) if controls else None,
@@ -481,7 +601,7 @@ def evaluate(clips: list[dict[str, Any]], th: dict) -> dict[str, Any]:
         "b2_observed": {"min": round(min(b2s), 4), "max": round(max(b2s), 4)} if b2s else None,
         "b1_floor": sp["b1_floor"],
         "b2_floor": sp["b2_floor"],
-        "verdicts": {c["label"] + "/" + c["clip_type"]: c["metrics"]["verdict"] for c in clips},
+        "verdicts": {c["label"] + "/" + c["clip_type"]: (c.get("metrics") or {}).get("verdict") for c in clips},
     }
 
 
@@ -515,6 +635,8 @@ async def keyframe_mask(frame_rgb: np.ndarray, noun: str, mark_box: Box4, *, run
     info = {"request_id": run.response_id, "matches": len(dets), "holding_mark": len(holding), "best_c": best.confidence if best else None, "dollars": run.usd}
     if best is None:
         return None, info
+    if best.mask is None:
+        return None, {**info, "note": "the detection came without a mask; box moments stand in"}
     return sam_client.full_mask(best, (frame_rgb.shape[1], frame_rgb.shape[0])), info
 
 
@@ -555,9 +677,12 @@ async def run_clip(
     blur_boxes: list[Box4] | None = None,
     is_control: bool = False,
     text_prompt: str | None = None,
+    track_blur_boxes: list[list[Box4]] | None = None,
 ) -> MarkTrack:
     """One clip: cut (blurred), prompt the mark as object 1 at frame 45 (and the panel as object 2 on a panel-crop
-    clip), track, analyse. window_src is the window at the keyframe; it moves with panel_boxes_src when given."""
+    clip), track, analyse. window_src is the window at the keyframe; it moves with panel_boxes_src when given.
+    blur_boxes are the prompt frame's image-check boxes in source pixels, moved with the panel box on every frame;
+    track_blur_boxes are the plate and face lane boxes per clip frame (5.9 item 2); both are pixelated."""
     th = th or contracts.load_thresholds()
     video = _video()
     sam_client = _sam_client()
@@ -582,7 +707,10 @@ async def run_clip(
     out.mkdir(parents=True, exist_ok=True)
     clip_path = out / "clips" / f"{role}_{label}_{clip_type}.mp4"
     clip_path.parent.mkdir(parents=True, exist_ok=True)
-    blur = [list(blur_boxes)] * n if blur_boxes else None
+    moved = shifted_boxes(list(blur_boxes or []), boxes, prompt_frame)
+    tracked = track_blur_boxes if track_blur_boxes is not None else [[] for _ in range(n)]
+    blur_frames = [list(a) + list(b) for a, b in zip(moved, tracked)]
+    blur = blur_frames if any(blur_frames) else None
     t0 = time.monotonic()
     clip = video.cut_clip(Path(src), clip_path, pts_center=times[centre], frames=n, windows_src=windows, size=size, crf=int(th["media"]["clip_crf"]), blur_boxes=blur, block_px=int(th["privacy"]["pixel_block_px_at_4k"]))
     cut_s = round(time.monotonic() - t0, 3)
@@ -595,9 +723,7 @@ async def run_clip(
     metadata = sam_client.sam_metadata(mask_encoding=None, propagation_direction=None if text_prompt else "both")
     lane_name = f"D1 E5 {label} {clip_type}" + (" scuff text" if text_prompt else "")
     record, frames = await sam_client.segment_clip(clip_path, prompt_text, run_id=run_id, role=role, lane=lane_name, media_size=(size, size), metadata=metadata, frames_sent=n)
-    lane = gate_sam.Lane(record=record, frames=frames, reader="sam_wire", events_path=Path(record.lane_path) if record.lane_path else None)
-    if lane.events_path is not None and lane.events_path.exists():
-        lane.text = gate_sam.lane_text(gate_sam.read_events(lane.events_path))
+    lane = gate_sam.live_lane(run_id, lane_name, record, frames)
     moments = kf_moments or gate_sam.rect_moments(panel_at_prompt or window_src)
     kf_box = kf_panel_box or panel_at_prompt or list(window_src)
     src_info = gate_sam.probe_media(Path(src))
@@ -609,16 +735,43 @@ async def run_clip(
     metrics["dollars"] = record.dollars
     metrics["retries_429"] = record.retries
     metrics["video_frames_processed"] = record.video_frames_processed
+    metrics["lane_error"] = record.error
     track = mark_track(label, role, metrics, points, clip=clip, record=record, prompt_text=prompt_text, is_control=is_control)
     track_json = out / f"{role}_{label}_{clip_type}.mark_track.json"
     contracts.write_json(track_json, track)
-    extra = {"metrics": metrics, "windows": windows, "panel_boxes_src": boxes, "lane": lane, "track_path": str(track_json)}
+    extra = {"metrics": metrics, "windows": windows, "panel_boxes_src": boxes, "lane": lane, "track_path": str(track_json), "clip_file": str(clip_path.resolve()), "frames_pixelated": sum(1 for b in blur_frames if b)}
     setattr(track, "_gate", extra)  # the runner reads the measurements without re-parsing the lane
     return track
 
 
+def entry_panel_boxes(entry: dict[str, Any], times: list[float], frame_indices: list[int], *, centre: int, mark: Box4, panel: Box4 | None, src_size: tuple[int, int], th: dict) -> tuple[list[Box4 | None], str]:
+    """The panel box per clip frame (5.9 item 1) and where it came from: a SAM lane (the object holding the mark when
+    the entry names none), else linear between hand-measured boxes, else none."""
+    n = len(frame_indices)
+    prompt_frame = int(th["media"]["clip_prompt_frame"])
+    if entry.get("panel_lane"):
+        lane = gate_sam.lane_from_events(gate_sam.read_events(Path(entry["panel_lane"])), lane_id="panel lane", role=str(entry.get("role") or "pickup"), noun=None, prompt_text=str(entry.get("panel_noun") or "car door"))
+        lane_size = tuple(entry.get("lane_size") or gate_sam.media_size_from_text(lane.text) or (960, 540))
+        lane_fps = float(entry.get("lane_fps") or th["media"]["proxy_fps"])
+        scale = (src_size[0] / int(lane_size[0]), src_size[1] / int(lane_size[1]))
+        object_id = entry.get("panel_object_id")
+        how = f"lane {entry['panel_lane']}, object {object_id} (named)"
+        if object_id is None:
+            object_id = pick_panel_object(lane.frames, (times[centre] - times[0]) * lane_fps, scale=scale, mark_src=mark, panel_src=panel, bridge=int(round(0.5 * lane_fps)))
+            how = f"lane {entry['panel_lane']}, " + (f"object {object_id} (its box holds the mark)" if object_id else "largest box per frame (no box near the keyframe holds the mark)")
+        boxes = panel_boxes_from_lane(times, frame_indices, lane.frames, lane_fps=lane_fps, lane_size=(int(lane_size[0]), int(lane_size[1])), src_size=src_size, object_id=object_id)
+        if boxes[prompt_frame] is None and panel is not None:
+            boxes[prompt_frame] = panel
+        return boxes, how
+    if panel is not None:
+        return panel_boxes_linear(n, prompt_frame, panel, entry.get("panel_start"), entry.get("panel_end")), "linear between the hand-measured boxes"
+    return [None] * n, "none"
+
+
 async def run_entry(entry: dict[str, Any], *, out: Path, run_prefix: str, th: dict) -> dict[str, Any]:
-    """One plan entry: the keyframe mask, blur boxes, both clip types, the carried-moments check, "scuff" once."""
+    """One plan entry: the keyframe mask, the blur boxes, both clip types, the carried-moments check, "scuff" once.
+    Refused before any request when the window cannot follow the panel (a static window reads walking footage as a
+    mark leaving its panel), or when nothing can blur the clip because the image checks failed and no lane covers it."""
     video = _video()
     src = Path(entry["src"])
     label = str(entry.get("label") or "mark")
@@ -629,39 +782,45 @@ async def run_entry(entry: dict[str, Any], *, out: Path, run_prefix: str, th: di
     prompt_frame = int(th_media["clip_prompt_frame"])
     mark = [float(v) for v in entry["mark"]]
     panel = [float(v) for v in entry["panel"]] if entry.get("panel") else None
+    flags = {"is_control": bool(entry.get("control")), "panned_pass": bool(entry.get("panned")), "backtrack": bool(entry.get("backtrack"))}
     info = gate_sam.probe_media(src)
     src_size = (info["width"], info["height"])
     times = video.pts_map(src)
     centre = nearest_index(times, float(entry["pts"]))
     f0 = centre - n // 2
+    refused = {"label": label, "role": role, **flags, "clips": []}
+    if f0 < 0 or f0 + n > len(times):
+        return {**refused, "skipped": f"{n} frames around {float(entry['pts']):.3f} s run past the ends of {src.name}"}
     frame_indices = list(range(f0, f0 + n))
-    panel_boxes: list[Box4 | None]
-    panel_source = "static"
-    if entry.get("panel_lane"):
-        lane_events = gate_sam.read_events(Path(entry["panel_lane"]))
-        lane = gate_sam.lane_from_events(lane_events, lane_id="panel lane", role=role, noun=None, prompt_text=str(entry.get("panel_noun") or "car door"))
-        lane_size = tuple(entry.get("lane_size") or gate_sam.media_size_from_text(lane.text) or (960, 540))
-        panel_boxes = panel_boxes_from_lane(times, frame_indices, lane.frames, lane_fps=float(entry.get("lane_fps") or th_media["proxy_fps"]), lane_size=(int(lane_size[0]), int(lane_size[1])), src_size=src_size, object_id=entry.get("panel_object_id"))
-        panel_source = f"lane {entry['panel_lane']}"
-        if panel_boxes[prompt_frame] is None and panel is not None:
-            panel_boxes[prompt_frame] = panel
-    elif panel is not None:
-        panel_boxes = panel_boxes_linear(n, prompt_frame, panel, entry.get("panel_start"), entry.get("panel_end"))
-        panel_source = "linear between the hand-measured boxes"
-    else:
-        panel_boxes = [None] * n
+    panel_boxes, panel_source = entry_panel_boxes(entry, times, frame_indices, centre=centre, mark=mark, panel=panel, src_size=src_size, th=th)
+    if static_window(panel_boxes):
+        why = "the panel lane has no box near this clip" if entry.get("panel_lane") else "no panel_lane and no panel_start or panel_end"
+        return {**refused, "panel_boxes_source": panel_source, "skipped": f"static window: {why}, so the window cannot follow the panel and b1, b2 and the inside share would read a fixed box (5.9 item 1)"}
+    lanes_read, privacy = read_privacy_lanes(entry, th)
+    track_blur = lane_blur_boxes(times, frame_indices, lanes_read, src_size=src_size, bridge_s=float(th["privacy"]["track_gap_bridge_s"]), dilate_frac=float(th["staysput"]["clip_blur_dilation_frac"])) if lanes_read else None
     frame_rgb = gate_sam.frame_at(src, times[centre])
-    blur_boxes, blur_info = await blur_boxes_for(frame_rgb, run_id=run_id, role=role, label=label, th=th)
+    try:
+        blur_boxes, blur_info = await blur_boxes_for(frame_rgb, run_id=run_id, role=role, label=label, th=th)
+    except gate_sam.sam_request_error() as exc:
+        if not privacy["complete"]:
+            return {**refused, "panel_boxes_source": panel_source, "error": gate_sam.error_text(exc), "skipped": "the plate and face image checks did not complete and no plate or face lane covers the clip, so no clip is cut (section 8 item 4)"}
+        blur_boxes, blur_info = [], {"error": gate_sam.error_text(exc), "note": "image checks did not complete; the clip is pixelated from the plate and face lanes only"}
+    blur_info = {**blur_info, "track_based": privacy["complete"], "privacy_lanes": privacy["lanes"], "frames_with_lane_boxes": sum(1 for b in track_blur or [] if b)}
     kf_box = panel_boxes[prompt_frame] or panel
     kf_moments: Moments | None = None
     kf_info: dict[str, Any] = {"source": "box moments (no mask)"}
     if kf_box is not None and entry.get("panel_noun", "car door"):
-        mask, kf_info = await keyframe_mask(frame_rgb, str(entry.get("panel_noun") or "car door"), mark, run_id=run_id, role=role, label=label)
+        try:
+            mask, kf_info = await keyframe_mask(frame_rgb, str(entry.get("panel_noun") or "car door"), mark, run_id=run_id, role=role, label=label)
+        except gate_sam.sam_request_error() as exc:  # box moments stand in, and the row says why
+            mask, kf_info = None, {"error": gate_sam.error_text(exc), "dollars": gate_sam.billed_on_error(exc)}
         if mask is not None:
             kf_moments = gate_sam.moments_from_mask(mask)
             kf_info["source"] = "SAM image mask on the prompt frame"
             ys, xs = np.nonzero(mask)
             kf_box = [float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1)]
+        else:
+            kf_info.setdefault("source", "box moments (no mask)")
     if kf_moments is None and kf_box is not None:
         kf_moments = gate_sam.rect_moments(kf_box)
     clips: list[dict[str, Any]] = []
@@ -674,9 +833,9 @@ async def run_entry(entry: dict[str, Any], *, out: Path, run_prefix: str, th: di
             clips.append({"label": label, "clip_type": clip_type, "note": "no panel box; panel-crop clip skipped"})
             continue
         try:
-            track = await run_clip(src, pts_center=times[centre], window_src=window_kf, mark_box_src=mark, out=out, panel_box_src=kf_box, panel_boxes_src=panel_boxes, clip_type=clip_type, label=label, role=role, run_id=run_id, th=th, kf_moments=kf_moments, kf_panel_box=kf_box, front_sign=int(entry.get("front_sign") or 1), direction=entry.get("direction"), sigma_frame=entry.get("sigma_frame"), blur_boxes=blur_boxes, is_control=bool(entry.get("control")))
+            track = await run_clip(src, pts_center=times[centre], window_src=window_kf, mark_box_src=mark, out=out, panel_box_src=kf_box, panel_boxes_src=panel_boxes, clip_type=clip_type, label=label, role=role, run_id=run_id, th=th, kf_moments=kf_moments, kf_panel_box=kf_box, front_sign=int(entry.get("front_sign") or 1), direction=entry.get("direction"), sigma_frame=entry.get("sigma_frame"), blur_boxes=blur_boxes, is_control=flags["is_control"], track_blur_boxes=track_blur)
         except Exception as exc:  # noqa: BLE001 - one bad clip must not stop the row (section 14 item 35)
-            clips.append({"label": label, "clip_type": clip_type, "error": f"{type(exc).__name__}: {str(exc)[:300]}", "is_control": bool(entry.get("control")), "panned_pass": bool(entry.get("panned")), "backtrack": bool(entry.get("backtrack")), "pass": False, "metrics": {"verdict": StaysPutVerdict.NOT_RUN.value, "b1": None, "b2": None, "sigma_frame": None}})
+            clips.append({"label": label, "clip_type": clip_type, "error": f"{type(exc).__name__}: {str(exc)[:300]}", **flags, "pass": None, "metrics": {"verdict": StaysPutVerdict.NOT_RUN.value, "b1": None, "b2": None, "sigma_frame": None}})
             continue
         tracks[clip_type] = track
         extra = getattr(track, "_gate")
@@ -685,33 +844,32 @@ async def run_entry(entry: dict[str, Any], *, out: Path, run_prefix: str, th: di
             "label": label,
             "clip_type": clip_type,
             "role": role,
-            "is_control": bool(entry.get("control")),
-            "panned_pass": bool(entry.get("panned")),
-            "backtrack": bool(entry.get("backtrack")),
+            **flags,
             "clip": track.clip.model_dump() if track.clip else None,
+            "clip_file": extra["clip_file"],
             "request_id": track.request_id,
             "metrics": metrics,
-            "pass": control_passes(metrics, th) if entry.get("control") else clip_passes(metrics, th),
+            "pass": control_passes(metrics, th) if flags["is_control"] else clip_passes(metrics, th),
             "track_path": extra["track_path"],
             "panel_boxes_source": panel_source,
             "keyframe_mask": kf_info,
-            "blur": blur_info,
+            "blur": {**blur_info, "frames_pixelated": extra["frames_pixelated"]},
         }
         if clip_type == "panel":
             size_px = int(th_media["clip_size_px"])
             row["carried_moments_check"] = carried_moments_check(extra["lane"], PANEL_OBJECT, MARK_OBJECT, windows=extra["windows"], clip_size=(size_px, size_px), panel_boxes_src=extra["panel_boxes_src"], kf_moments=kf_moments or gate_sam.rect_moments(kf_box), kf_panel_box=kf_box, front_sign=int(entry.get("front_sign") or 1), th=th)
         clips.append(row)
-    result: dict[str, Any] = {"label": label, "clips": clips}
+    result: dict[str, Any] = {"label": label, "role": role, "panel_boxes_source": panel_source, "clips": clips}
     if entry.get("scuff_text") and "mark" in tracks:
         try:
-            text_track = await run_clip(src, pts_center=times[centre], window_src=window_kf, mark_box_src=mark, out=out, panel_box_src=kf_box, panel_boxes_src=panel_boxes, clip_type="mark", label=label, role=role, run_id=run_id, th=th, kf_moments=kf_moments, kf_panel_box=kf_box, blur_boxes=blur_boxes, text_prompt=str(th["nouns"]["d1_text_prompts"][0]))
+            text_track = await run_clip(src, pts_center=times[centre], window_src=window_kf, mark_box_src=mark, out=out, panel_box_src=kf_box, panel_boxes_src=panel_boxes, clip_type="mark", label=label, role=role, run_id=run_id, th=th, kf_moments=kf_moments, kf_panel_box=kf_box, blur_boxes=blur_boxes, text_prompt=str(th["nouns"]["d1_text_prompts"][0]), track_blur_boxes=track_blur)
             result["scuff_text"] = scuff_report(getattr(text_track, "_gate")["lane"], getattr(tracks["mark"], "_gate")["lane"], mark_id=MARK_OBJECT, prompt_frame=prompt_frame)
         except Exception as exc:  # noqa: BLE001
             result["scuff_text"] = {"error": f"{type(exc).__name__}: {str(exc)[:300]}"}
     return result
 
 
-async def run_live(args: argparse.Namespace, th: dict) -> dict[str, Any]:
+async def run_live(args: argparse.Namespace, th: dict, save: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
     out = Path(args.out)
     prefix = args.run_prefix or f"d1_{gate_sam.utc_ts()}"
     entries = plan_entries(args)
@@ -719,11 +877,18 @@ async def run_live(args: argparse.Namespace, th: dict) -> dict[str, Any]:
     for entry in entries:
         spend = gate_sam.spend_for_prefix(prefix)
         if args.budget is not None and spend >= args.budget:
-            results["entries"].append({"label": entry.get("label"), "skipped": f"budget {args.budget} reached (spent {spend})"})
+            results["entries"].append({"label": entry.get("label"), "skipped": f"budget {args.budget} reached (spent {spend})", "clips": []})
             continue
-        row = await run_entry(entry, out=out, run_prefix=prefix, th=th)
+        try:
+            row = await run_entry(entry, out=out, run_prefix=prefix, th=th)
+        except Exception as exc:  # noqa: BLE001 - one bad entry must not lose the entries already paid for
+            row = {"label": entry.get("label"), "error": gate_sam.error_text(exc), "clips": []}
         results["entries"].append(row)
         results["clips"].extend(c for c in row["clips"] if "metrics" in c)
+        results["evaluation"] = evaluate(results["clips"], th)
+        results["spend_usd"] = gate_sam.spend_for_prefix(prefix)
+        if save is not None:
+            save(results)
     results["evaluation"] = evaluate(results["clips"], th)
     results["spend_usd"] = gate_sam.spend_for_prefix(prefix)
     return results
@@ -734,12 +899,17 @@ def plan_entries(args: argparse.Namespace) -> list[dict[str, Any]]:
         entries = json.loads(Path(args.plan).read_text(encoding="utf-8"))
         if not isinstance(entries, list):
             raise SystemExit("--plan must hold a JSON list of clip entries")
+        for entry in entries:
+            if str(entry.get("role") or "pickup") not in ("pickup", "return"):
+                raise SystemExit(f"plan entry {entry.get('label')}: role must be pickup or return (contracts.Role), got {entry.get('role')}")
         return entries
     entry: dict[str, Any] = {
         "src": args.src,
         "pts": args.pts,
         "mark": args.mark,
         "panel": args.panel,
+        "panel_start": args.panel_start,
+        "panel_end": args.panel_end,
         "label": args.label,
         "role": args.role,
         "control": args.control,
@@ -754,6 +924,8 @@ def plan_entries(args: argparse.Namespace) -> list[dict[str, Any]]:
         entry["panel_lane"] = args.panel_lane
         entry["lane_fps"] = args.lane_fps
         entry["lane_size"] = args.lane_size
+    if args.privacy_lanes:
+        entry["privacy_lanes"] = [{"path": p, "status": LaneStatus.COMPLETED.value, "fps": args.lane_fps, "size": args.lane_size} for p in args.privacy_lanes]
     return [entry]
 
 
@@ -789,11 +961,12 @@ def run_fixture(args: argparse.Namespace, th: dict) -> dict[str, Any]:
     for clip_type, direction in (("mark", 1), ("panel", None)):
         # the clip is the whole source here, so clip pixels equal source pixels (the window is the full frame)
         metrics, points = analyse(lane.frames, mark_id, windows=windows, clip_size=media_size, panel_boxes_src=panel_boxes, kf_moments=kf_moments, kf_panel_box=kf_box, src_size=media_size, front_sign=1, direction=direction, th=th, sigma_frame=args.sigma_frame)
+        metrics["lane_status"] = lane.record.status.value
         track = mark_track("fixture_mark", "pickup", metrics, points, clip=None, record=lane.record, prompt_text="<0f>1<|box;...|> (fixture)", is_control=False)
         track_path = out / f"fixture_{clip_type}.mark_track.json"
         contracts.write_json(track_path, track)
         clips.append({"label": "fixture_mark", "clip_type": clip_type, "role": "pickup", "is_control": False, "panned_pass": False, "backtrack": False, "clip": None, "request_id": lane.record.request_id, "metrics": metrics, "pass": clip_passes(metrics, th), "track_path": str(track_path), "panel_boxes_source": "synthetic moving box (fixture)", "keyframe_mask": {"source": "box moments (fixture)"}, "note": "the ping pong ball stands in for the mark; the panel box is synthetic, so the verdict says nothing about a car"})
-    results: dict[str, Any] = {"mode": "fixture", "run_prefix": None, "fixture": {"path": str(fixture), "sha256": gate_sam.sha256_file(fixture), "frames": n, "media_size": list(media_size), "ids": lane.record.ids, "status": lane.record.status.value}, "entries": [{"label": "fixture_mark", "clips": clips}], "clips": clips, "spend_usd": 0.0}
+    results: dict[str, Any] = {"mode": "fixture", "run_prefix": args.run_prefix, "fixture": {"path": str(fixture), "sha256": gate_sam.sha256_file(fixture), "frames": n, "media_size": list(media_size), "ids": lane.record.ids, "status": lane.record.status.value}, "entries": [{"label": "fixture_mark", "clips": clips}], "clips": clips, "spend_usd": 0.0}
     # the carried-moments check needs a panel mask; the ball mask stands in for it on the fixture so the code runs
     ball_lane = gate_sam.Lane(record=lane.record, frames=lane.frames, text=lane.text, masks=lane.masks, reader=lane.reader, events_path=lane.events_path)
     ball_boxes: list[Box4 | None] = [largest_box(next((fr for fr in lane.frames if fr.frame == f), None), mark_id) for f in range(n)]
@@ -858,7 +1031,7 @@ def summary_markdown(results: dict[str, Any]) -> str:
         fx = results["fixture"]
         lines.append(f"- fixture {fx['path']} ({fx['frames']} frames, {fx['media_size'][0]}x{fx['media_size'][1]}, ids {fx['ids']}, {fx['status']}); the panel box is synthetic")
     lines += [
-        f"- demo clips passing (box >= 80%, inside >= 80%, drift < 0.08): any {_fmt(ev.get('demo_pass_any'))}, both clip types on one mark {_fmt(ev.get('demo_pass_both_types_any_label'))}; kill {_fmt(ev.get('kill'))}",
+        f"- demo clips passing (box >= 80%, inside >= 80%, drift < 0.08): any {_fmt(ev.get('demo_pass_any'))}, both clip types on one mark {_fmt(ev.get('demo_pass_both_types_any_label'))}; kill {_fmt(ev.get('kill'))}; not measured {ev.get('not_measured') or 'none'}",
         f"- reflection control (drift > 0.16, sign > 80% on >= 8 pairs): {_fmt(ev.get('control_pass'))} ({ev.get('control_clips', 0)} clips)",
         f"- panned pass: {ev.get('panned_clips', 0)} clips, inconclusive share {_fmt(ev.get('panned_inconclusive_share'), 2)}",
         f"- tau_fix {_fmt(ev.get('tau_fix'), 3)}; b1 observed {ev.get('b1_observed')} (floor {ev.get('b1_floor')}); b2 observed {ev.get('b2_observed')} (floor {ev.get('b2_floor')})",
@@ -885,6 +1058,8 @@ def summary_markdown(results: dict[str, Any]) -> str:
             lines.append(f"- scuff text prompt on {entry['label']}: {st.get('status') or st.get('error')}, ids {st.get('ids')}, overlap with the tracked mark {_fmt(st.get('overlap_share'), 2)} of {st.get('frames_shared_with_mark_track')} frames")
         if entry.get("skipped"):
             lines.append(f"- {entry.get('label')}: skipped ({entry['skipped']})")
+        elif entry.get("error"):
+            lines.append(f"- {entry.get('label')}: error ({entry['error']})")
     cm = results.get("carried_moments_check")
     if cm:
         lines.append(f"- carried moments (fixture): {cm.get('frames_checked')} frames, max residual {_fmt(cm.get('residual_max_units'), 4)} units, within {_fmt(cm.get('within_limit'))}")
@@ -894,7 +1069,8 @@ def summary_markdown(results: dict[str, Any]) -> str:
     cc = results.get("cut_clip_check")
     if cc:
         lines.append(f"- cut_clip check: {cc.get('w')}x{cc.get('h')} x {cc.get('frames')} frames in {_fmt(cc.get('cut_s'), 1)} s, ok {_fmt(cc.get('ok'))}" if "w" in cc else f"- cut_clip check: {cc.get('note') or cc.get('error')}")
-    lines += ["", f"Spend on this gate (ledger rows with the run prefix): ${results.get('spend_usd', 0.0):.4f}", ""]
+    spent = "dry-run ledger, nothing spent" if results.get("mode") == "fixture" else "ledger rows with the run prefix"
+    lines += ["", f"Spend so far under this run prefix ({spent}): ${results.get('spend_usd', 0.0):.4f}", ""]
     return "\n".join(lines)
 
 
@@ -914,7 +1090,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pts", type=float, help="keyframe time in seconds")
     parser.add_argument("--mark", nargs=4, type=float, metavar=("X1", "Y1", "X2", "Y2"), help="mark box in source pixels")
     parser.add_argument("--panel", nargs=4, type=float, metavar=("X1", "Y1", "X2", "Y2"), help="panel box in source pixels at the keyframe")
+    parser.add_argument("--panel-start", nargs=4, type=float, metavar=("X1", "Y1", "X2", "Y2"), help="panel box on the clip's first frame (with --panel-end, the window moves linearly)")
+    parser.add_argument("--panel-end", nargs=4, type=float, metavar=("X1", "Y1", "X2", "Y2"), help="panel box on the clip's last frame")
     parser.add_argument("--panel-lane", help="a SAM lane (ndjson or ndjson.gz) whose boxes move the window")
+    parser.add_argument("--privacy-lanes", nargs="+", help="the walk's 'license plate' and 'face' lanes; the clip is pixelated from their boxes (5.9 item 2)")
     parser.add_argument("--lane-fps", type=float, default=15.0, help="proxy fps of --panel-lane (default 15)")
     parser.add_argument("--lane-size", nargs=2, type=int, metavar=("W", "H"), help="proxy size of --panel-lane")
     parser.add_argument("--panel-noun", default="car door", help="noun of the keyframe mask image request (default 'car door')")
@@ -938,14 +1117,21 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
+    """The gate as a function. The live path writes gate_stays_put.json with partial true after every entry; the
+    last write sets partial false."""
     th = contracts.load_thresholds()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+
+    def save(partial: dict[str, Any]) -> None:
+        gate_sam.write_json(out / "gate_stays_put.json", {**partial, "partial": True, "thresholds_config_hash": contracts.config_hash(th), "written_at": gate_sam.utc_ts()})
+
     if args.fixture:
         ledger.LEDGER_PATH = out / "ledger.dryrun.jsonl"  # a fixture run never writes a spend row
         results = run_fixture(args, th)
     else:
-        results = asyncio.run(run_live(args, th))
+        results = asyncio.run(run_live(args, th, save))
+    results["partial"] = False
     results["thresholds_config_hash"] = contracts.config_hash(th)
     results["written_at"] = gate_sam.utc_ts()
     gate_sam.write_json(out / "gate_stays_put.json", results)

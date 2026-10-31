@@ -9,8 +9,9 @@ A video is turned into a 24 kHz mono WAV first (walkaround.video.extract_wav). P
 <out>/transcript_<mode>.json, <out>/gate_voice.json and <out>/gate_summary.md. Every call goes through
 walkaround.voice_client.transcribe_wav, which writes the ledger row (note = the mode, status "mode not applied"
 when a speech mode returned no turns). --pins takes gate_sam.json (the lane windows of the first sweep) or a
-derived/panels.json. The fixture path drives transcribe_wav through an httpx mock transport over a synthetic WAV,
-with the ledger pointed at <out>/ledger.dryrun.jsonl.
+derived/panels.json; the pins are read on the API's own turns (the E10 rule) and again after
+voice_client.split_long_turns, for the narration lane. The fixture path drives transcribe_wav through an httpx mock
+transport over a synthetic WAV, with the ledger pointed at <out>/ledger.dryrun.jsonl and a stand-in key.
 """
 
 from __future__ import annotations
@@ -222,6 +223,10 @@ def run_modes(wav: Path, *, source: Path, modes: list[str], keywords: list[str] 
         record = transcript_record(transcript, source=source, wav=wav, mode=mode, latency_s=latency_s)
         (out / f"transcript_{mode}.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
         pins = pin_turns(transcript.turns, windows or {}, keywords) if windows is not None else pin_turns(transcript.turns, {}, keywords)
+        # the narration lane's split of a turn that names more than one panel (voice_client.split_long_turns)
+        flat = [w for ws in (windows or {}).values() for w in ws] or None
+        split = voice_client.split_long_turns(transcript.turns, windows=flat, keywords=keywords)
+        split_pins = pin_turns(split, windows or {}, keywords)
         results["modes"][mode] = {
             "turns": len(transcript.turns),
             "timed_turns": sum(1 for t in transcript.turns if t.end_ms > t.start_ms),
@@ -234,6 +239,7 @@ def run_modes(wav: Path, *, source: Path, modes: list[str], keywords: list[str] 
             "verdict": gate_verdict(transcript, mode),
             "pins": pins,
             "pin_share": pin_share(pins) if windows is not None else None,
+            "split": {"turns": len(split), "pins": split_pins, "pin_share": pin_share(split_pins) if windows is not None else None},
             "keywords_heard": sorted({k for r in pins for k in r["keywords"]}),
         }
     results["windows_ms"] = {k: [list(w) for w in v] for k, v in (windows or {}).items()}
@@ -250,6 +256,8 @@ def evaluate(results: dict[str, Any], th: dict) -> dict[str, Any]:
         "turns_non_empty": (m.get("turns", 0) > 0) if m else None,
         "mode_applied": m.get("mode_applied"),
         "pin_share": share,
+        "split_turns": (m.get("split") or {}).get("turns"),
+        "pin_share_split": ((m.get("split") or {}).get("pin_share") or {}).get("share"),
         "pins_pass": (share >= 0.8) if share is not None else None,
         "pin_fallback": th["voice"]["pin_fallback"] if share is not None and share < 0.8 else None,
         "diarization_turns": (results["modes"].get("DIARIZATION") or {}).get("turns"),
@@ -270,8 +278,10 @@ def run_live(args: argparse.Namespace, th: dict) -> dict[str, Any]:
 
 
 def install_fixture(fixture: dict[str, Any], out: Path) -> None:
-    """transcribe_wav runs for real over a mock transport that answers with the fixture's response per mode."""
+    """transcribe_wav runs for real over a mock transport that answers with the fixture's response per mode; the
+    dry run never reads the real key."""
     ledger.LEDGER_PATH = out / "ledger.dryrun.jsonl"
+    voice_client.api_key = lambda: "dry-run-no-key"
 
     def handler(request: httpx.Request) -> httpx.Response:
         body = request.read()
@@ -292,8 +302,11 @@ def run_fixture(args: argparse.Namespace, th: dict) -> dict[str, Any]:
     wav = synthetic_wav(out / "fixture_tone.wav")
     windows = load_windows(Path(args.pins), args.role) if args.pins else {"bumper": [(0, 2000), (4500, 6000)], "car door": [(1400, 3800)], "wheel": [(3500, 4800)]}
     modes = list(args.modes) if args.modes else list(fixture["modes"])
-    results = run_modes(wav, source=Path(args.fixture), modes=modes, keywords=args.keywords, run_id="d1_fixture", windows=windows, out=out, th=th)
-    results.update({"mode": "fixture", "run_prefix": None, "source": str(args.fixture), "wav": str(wav), "spend_usd": 0.0, "fixture": {"path": str(args.fixture), "sha256": gate_sam.sha256_file(Path(args.fixture)), "note": fixture.get("note")}, "windows_source": str(args.pins) if args.pins else "synthetic windows (fixture)", "dryrun_ledger": str(ledger.LEDGER_PATH)})
+    try:
+        results = run_modes(wav, source=Path(args.fixture), modes=modes, keywords=args.keywords, run_id=args.run_prefix or "d1_fixture", windows=windows, out=out, th=th)
+    finally:
+        voice_client.TRANSPORT = None
+    results.update({"mode": "fixture", "run_prefix": args.run_prefix, "source": str(args.fixture), "wav": str(wav), "spend_usd": gate_sam.spend_for_prefix(args.run_prefix or "d1_fixture"), "fixture": {"path": str(args.fixture), "sha256": gate_sam.sha256_file(Path(args.fixture)), "note": fixture.get("note")}, "windows_source": str(args.pins) if args.pins else "synthetic windows (fixture)", "dryrun_ledger": str(ledger.LEDGER_PATH)})
     return results
 
 
@@ -324,10 +337,14 @@ def summary_markdown(results: dict[str, Any]) -> str:
         if m.get("pin_share"):
             ps = m["pin_share"]
             lines.append(f"pins: {ps['landed']} of {ps['noun_naming_turns']} noun-naming turns overlap the panel's SAM window ({_fmt(ps['share'], 2)}); {ps['about_pins']} 'about' pins")
+        sp = (m.get("split") or {}).get("pin_share")
+        if sp:
+            lines.append(f"after voice_client.split_long_turns: {m['split']['turns']} turns, {sp['landed']} of {sp['noun_naming_turns']} noun-naming turns land ({_fmt(sp['share'], 2)})")
         lines += ["", "| turn | span | nouns | landed | pin | kind | text |", "|---|---|---|---|---|---|---|"]
         for r in m.get("pins", []):
             lines.append(f"| {r['turn']} | {r['start_ms'] / 1000:.2f}-{r['end_ms'] / 1000:.2f} s | {', '.join(r['nouns']) or '-'} | {_fmt(r['landed'])} | {r['pin'] or '-'} | {r['pin_kind'] or '-'} | {r['text'][:80]} |")
-    lines += ["", f"Spend on this gate (ledger rows with the run prefix): ${results.get('spend_usd', 0.0):.4f}", ""]
+    spent = "dry-run ledger, nothing spent" if results.get("mode") == "fixture" else "ledger rows with the run prefix"
+    lines += ["", f"Spend so far under this run prefix ({spent}): ${results.get('spend_usd', 0.0):.4f}", ""]
     return "\n".join(lines)
 
 

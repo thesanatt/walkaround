@@ -12,12 +12,18 @@ rulers, the door whitened across a walk frame and a close photo) and E18 (note_p
     python scripts/gate_spark.py --fixture tests/fixtures/d1/spark_fixture.json --out DIR
 
 crops.json is a list of {name, source, t, crop [x1 y1 x2 y2], panel (a PanelId), clean (bool), targets [[u v] ...] in
-crop pixels, mask (optional one-bit PNG in crop pixels)}. A video source takes one full-resolution frame through
-walkaround.video.read_frame_at. Without LIVE=1 and without --fixture the script prints what it would send and exits
-2. Every call goes through walkaround.spark_client (and sam_client for the votes and rulers), which write the ledger
-rows; the run ids start with the D1 prefix and the E row. Every number printed also lands in <out>/gate_spark.json.
-The fixture path drives the real spark_client code through a canned client (set_client), writes its ledger rows
-to <out>/ledger.dryrun.jsonl and fakes the SAM image requests box-only.
+crop pixels, mask (optional one-bit PNG in crop pixels), control (optional bool: the second look's control crop)}. A
+video source takes one full-resolution frame through walkaround.video.read_frame_at. As in the pipeline, each source
+frame, claim photo and second-look image is blurred first ('license plate' and 'face' image requests, then
+pixelation) before Spark sees it or anything is written; the ruler and door-pair probes read unblurred frames in
+memory and write nothing. Without LIVE=1 and without --fixture the script prints what it would send and exits 2.
+Every call goes through walkaround.spark_client (and sam_client for the blur, votes and rulers), which write the
+ledger rows; the run ids start with the D1 prefix and the E row. The store field of every Spark answer is recorded
+for E12 through a pass-through client. Every number printed also lands in <out>/gate_spark.json, written with
+partial true after every probe; a frame whose plate or face check did not complete is never sent or written, and a
+SAM request that does not complete is recorded on its row instead of ending the gate. The fixture path
+drives the real spark_client code through a canned client (set_client), writes its ledger rows to
+<out>/ledger.dryrun.jsonl and fakes the SAM image requests box-only; --crops there adds real-frame crops.
 """
 
 from __future__ import annotations
@@ -102,6 +108,23 @@ def landmarks_for(panel_id: PanelId, th: dict) -> list[str]:
     table = th["spark"]["landmarks"]
     family = "door" if panel_id.value.endswith("_door") else "bumper" if panel_id.value.endswith("_bumper") else "wheel" if panel_id.value.endswith("_wheel") else "hood" if panel_id is PanelId.HOOD else None
     return list(table.get(family, []))[: th["spark"]["landmarks_max"]] if family else []
+
+
+async def blur_frame(frame: np.ndarray, *, run_id: str, tag: str, th: dict) -> tuple[np.ndarray, dict[str, Any]]:
+    """Step 7's order on one unblurred frame: 'license plate' and 'face' image requests first, then the boxes are
+    pixelated (dilated as in privacy) before Spark sees the frame or anything is written."""
+    plates = await segment_image(frame, Noun.LICENSE_PLATE.value, run_id=run_id, role="pickup", tag=f"{tag} blur plate")
+    faces = await segment_image(frame, Noun.FACE.value, run_id=run_id, role="pickup", tag=f"{tag} blur face")
+    boxes = [det_box(d) for d in detections(plates) + detections(faces)]
+    info = {"plates": len(detections(plates)), "faces": len(detections(faces)), "boxes": [[round(v, 1) for v in b] for b in boxes], "dollars": round(plates.usd + faces.usd, 4)}
+    return gate_sam.pixelate_boxes(frame, boxes, th), info
+
+
+def shifted(crop_rgb: np.ndarray, frac: float = 0.03, scale: float = 0.97) -> np.ndarray:
+    """The same crop moved by frac of its size and rescaled: the 'same mark' pair when no second walk crop is given."""
+    h, w = crop_rgb.shape[:2]
+    m = np.float32([[scale, 0, frac * w], [0, scale, frac * h]])
+    return cv2.warpAffine(np.ascontiguousarray(crop_rgb), m, (w, h), borderMode=cv2.BORDER_REFLECT)
 
 
 def synthetic_crop(name: str, specks: list[tuple[int, int]], *, size: tuple[int, int] = (1280, 900), seed: int = 7) -> np.ndarray:
@@ -232,6 +255,7 @@ def jitter(runs: list[list[dict[str, Any]]], crop_shape: tuple[int, ...], moment
     crop width and in whitened units (through the panel moments, a rectangle's when no mask exists); median Jaccard."""
     h, w = crop_shape[:2]
     radius = MATCH_RADIUS_FRACTION * max(h, w)
+    basis = "panel mask moments" if moments is not None else "rectangle moments of the crop"
     moments = moments or gate_sam.rect_moments([0.0, 0.0, float(w), float(h)])
     groups = clusters_of(runs, radius)
     dev_px: list[float] = []
@@ -260,7 +284,7 @@ def jitter(runs: list[list[dict[str, Any]]], crop_shape: tuple[int, ...], moment
         "sigma_px": round(sigma_px, 2) if sigma_px is not None else None,
         "sigma_frac_of_width": round(sigma_px / w, 4) if sigma_px is not None else None,
         "sigma_units": round(sigma_units, 4) if sigma_units is not None else None,
-        "units_basis": "mask moments" if moments is not None and moments.mu11 != 0 or (moments is not None and "mask" in str(getattr(moments, "note", ""))) else "rectangle moments of the crop",
+        "units_basis": basis,
         "jaccard_pairs": jaccards,
         "jaccard_median": round(statistics.median(jaccards), 4) if jaccards else None,
         "radius_px": round(radius, 1),
@@ -290,25 +314,47 @@ def false_marks(runs: list[list[dict[str, Any]]]) -> dict[str, Any]:
     }
 
 
+def attempts_of(result: Any) -> list[Any]:
+    """Every billed record of one spark_client call (a cut at 4000 and its 8000 retry are two)."""
+    return list(getattr(result, "attempts", None) or [result.record])
+
+
+def spent(result: Any) -> float:
+    return round(sum(a.dollars for a in attempts_of(result)), 6)
+
+
+def cut_at_4000(record: Any) -> bool:
+    return record.status is SparkStatus.INCOMPLETE and record.incomplete_reason == "max_output_tokens" and record.max_output_tokens == spark_client.MAX_OUTPUT_TOKENS
+
+
 def usage_line(results: list[MarksResult]) -> dict[str, Any]:
-    recs = [r.record for r in results]
-    if not recs:
+    """Per call, where a call is every attempt it took: tokens, ms and dollars summed over the attempts and averaged
+    over calls (what a crop costs); a cut at 4000 counted on any attempt, the one the 8000 retry hides included."""
+    if not results:
         return {}
+    per_call = [attempts_of(r) for r in results]
+    calls = len(per_call)
+    attempts = [a for rows in per_call for a in rows]
+
+    def mean(fn: Callable[[Any], float]) -> float:
+        return round(sum(fn(a) for a in attempts) / calls, 1)
+
     return {
-        "calls": len(recs),
-        "input_tokens_mean": round(sum(r.usage.input for r in recs) / len(recs), 1),
-        "output_tokens_mean": round(sum(r.usage.output for r in recs) / len(recs), 1),
-        "reasoning_tokens_mean": round(sum(r.usage.reasoning for r in recs) / len(recs), 1),
-        "cached_tokens_mean": round(sum(r.usage.cached for r in recs) / len(recs), 1),
-        "ms_mean": round(sum(r.ms for r in recs) / len(recs), 1),
-        "ms_max": max(r.ms for r in recs),
-        "dollars_mean": round(sum(r.dollars for r in recs) / len(recs), 6),
-        "dollars_total": round(sum(r.dollars for r in recs), 6),
-        "statuses": [r.status.value for r in recs],
-        "incomplete_at_4000": sum(1 for r in recs if r.status is SparkStatus.INCOMPLETE and r.incomplete_reason == "max_output_tokens" and r.max_output_tokens == spark_client.MAX_OUTPUT_TOKENS),
+        "calls": calls,
+        "attempts": len(attempts),
+        "input_tokens_mean": mean(lambda a: a.usage.input),
+        "output_tokens_mean": mean(lambda a: a.usage.output),
+        "reasoning_tokens_mean": mean(lambda a: a.usage.reasoning),
+        "cached_tokens_mean": mean(lambda a: a.usage.cached),
+        "ms_mean": mean(lambda a: a.ms),
+        "ms_max": max(sum(a.ms for a in rows) for rows in per_call),
+        "dollars_mean": round(sum(a.dollars for a in attempts) / calls, 6),
+        "dollars_total": round(sum(a.dollars for a in attempts), 6),
+        "statuses": [r.record.status.value for r in results],
+        "incomplete_at_4000": sum(1 for a in attempts if cut_at_4000(a)),
         "truncated_after_retry": sum(1 for r in results if r.truncated),
-        "invalid": sum(1 for r in recs if not r.valid),
-        "retries": sum(len(r.attempts) - 1 for r in results),
+        "invalid": sum(1 for r in results if not r.record.valid),
+        "retries": len(attempts) - calls,
     }
 
 
@@ -339,7 +385,7 @@ def run_crop(spec: dict[str, Any], crop_rgb: np.ndarray, *, efforts: list[str], 
             box_rows_low = runs[0]
         cv2.imwrite(str(out / f"overlay_{name}_{effort}.png"), draw_overlay(crop_rgb, runs, targets))
         row["efforts"][effort] = {
-            "runs": [{"marks": rows, "status": r.record.status.value, "valid": r.record.valid, "truncated": r.truncated, "incomplete_reason": r.record.incomplete_reason, "request_id": r.record.request_id, "usage": r.record.usage.model_dump(), "ms": r.record.ms, "dollars": r.record.dollars, "conditions": r.answer.conditions.model_dump() if r.answer else None, "landmarks": [lm.model_dump() for lm in r.answer.landmarks] if r.answer else [], "neighbour_car_visible": r.answer.neighbour_car_visible if r.answer else None} for r, rows in zip(results, runs)],
+            "runs": [{"marks": rows, "status": r.record.status.value, "valid": r.record.valid, "truncated": r.truncated, "incomplete_reason": r.record.incomplete_reason, "request_id": r.record.request_id, "usage": r.record.usage.model_dump(), "ms": r.record.ms, "dollars": spent(r), "attempts": [{"max_output_tokens": a.max_output_tokens, "status": a.status.value, "incomplete_reason": a.incomplete_reason, "dollars": a.dollars} for a in attempts_of(r)], "conditions": r.answer.conditions.model_dump() if r.answer else None, "landmarks": [lm.model_dump() for lm in r.answer.landmarks] if r.answer else [], "neighbour_car_visible": r.answer.neighbour_car_visible if r.answer else None} for r, rows in zip(results, runs)],
             "stability": stability(runs, crop_rgb.shape) if len(runs) > 1 else None,
             "jitter": jitter(runs, crop_rgb.shape, moments) if len(runs) > 1 else None,
             "targets": target_error(runs, targets, radius) if targets else None,
@@ -356,7 +402,6 @@ def count_probe(crop_rgb: np.ndarray, panel_id: PanelId, box_rows: list[dict[str
     h, w = crop_rgb.shape[:2]
     moments = moments or gate_sam.rect_moments([0.0, 0.0, float(w), float(h)])
     result = spark_client.count_marks(crop_rgb, panel_id, effort=th["spark"]["effort"], run_id=run_id)
-    sent_w, sent_h = result.record.parsed and (None, None) or (None, None)
     # count points stay on the grid; map them like marks through the same resize (prepare_image's scale)
     _, sent_w, sent_h, scale = spark_client.prepare_image(crop_rgb)
     points_px = []
@@ -384,30 +429,27 @@ def count_probe(crop_rgb: np.ndarray, panel_id: PanelId, box_rows: list[dict[str
         "targets_missed_by_box_pass": missed,
         "targets_recovered_by_count": recovered,
         "usage": result.record.usage.model_dump(),
-        "dollars": result.record.dollars,
+        "dollars": spent(result),
         "ms": result.record.ms,
         "request_id": result.record.request_id,
     }
 
 
-def truncation_probe(crop_rgb: np.ndarray, panel_id: PanelId, *, max_output_tokens: int, run_id: str, th: dict) -> dict[str, Any]:
-    """One marks_v1 call on purpose at a small output budget to see the truncation signal (no retry)."""
+def truncation_probe(crop_rgb: np.ndarray, panel_id: PanelId, *, max_output_tokens: int, run_id: str, th: dict, fallback_tokens: int = 150) -> dict[str, Any]:
+    """marks_v1 on purpose at a small output budget to see the truncation signal (no retry). A crop with few marks can
+    finish inside 600 tokens (the 10/31 smoke did), so a completed first call is repeated once at fallback_tokens."""
     landmarks = landmarks_for(panel_id, th)
     data_url, *_ = spark_client.prepare_image(crop_rgb)
     parts = [{"type": "input_text", "text": spark_client.marks_prompt(panel_id, landmarks)}, {"type": "input_image", "image_url": data_url}]
-    record = spark_client.ask(parts, purpose=SparkPurpose.MARKS, schema_name="marks_v1", schema=spark_client.marks_schema(landmarks), effort=th["spark"]["effort"], max_output_tokens=max_output_tokens, run_id=run_id, input_refs=[])
-    return {
-        "max_output_tokens": max_output_tokens,
-        "status": record.status.value,
-        "incomplete_reason": record.incomplete_reason,
-        "valid": record.valid,
-        "raw_chars": len(record.raw_text),
-        "usage": record.usage.model_dump(),
-        "ms": record.ms,
-        "dollars": record.dollars,
-        "request_id": record.request_id,
-        "signal_seen": record.status is SparkStatus.INCOMPLETE and record.incomplete_reason == "max_output_tokens",
-    }
+    attempts = []
+    for budget in (max_output_tokens, fallback_tokens):
+        record = spark_client.ask(parts, purpose=SparkPurpose.MARKS, schema_name="marks_v1", schema=spark_client.marks_schema(landmarks), effort=th["spark"]["effort"], max_output_tokens=budget, run_id=run_id, input_refs=[])
+        seen = record.status is SparkStatus.INCOMPLETE and record.incomplete_reason == "max_output_tokens"
+        attempts.append({"max_output_tokens": budget, "status": record.status.value, "incomplete_reason": record.incomplete_reason, "valid": record.valid, "raw_chars": len(record.raw_text), "usage": record.usage.model_dump(), "ms": record.ms, "dollars": record.dollars, "request_id": record.request_id, "signal_seen": seen})
+        if seen or budget <= fallback_tokens:
+            break
+    last = attempts[-1]
+    return {**last, "attempts": attempts, "signal_seen": any(a["signal_seen"] for a in attempts), "incomplete_reason": next((a["incomplete_reason"] for a in attempts if a["signal_seen"]), last["incomplete_reason"]), "dollars": round(sum(a["dollars"] for a in attempts), 6)}
 
 
 def second_look_probe(a: np.ndarray, b: np.ndarray, *, panel_id: PanelId, run_id: str, expect: str) -> dict[str, Any]:
@@ -420,7 +462,7 @@ def second_look_probe(a: np.ndarray, b: np.ndarray, *, panel_id: PanelId, run_id
         "expected": expect,
         "ok": (result.verdict in (LookVerdict.UNSURE, LookVerdict.DIFFERENT)) if expect == "different" else (result.verdict is LookVerdict.SAME),
         "usage": result.record.usage.model_dump(),
-        "dollars": result.record.dollars,
+        "dollars": spent(result),
         "ms": result.record.ms,
         "request_id": result.record.request_id,
     }
@@ -464,16 +506,22 @@ def touches_border(box: list[float], media_size: tuple[int, int], margin: float 
 
 
 async def sam_votes(image: np.ndarray, centre: tuple[float, float], *, run_id: str, th: dict) -> dict[str, Any]:
-    """14 image requests scored mask-contains-centre x area x c (c absent counts as the median c)."""
+    """14 image requests scored mask-contains-centre x area x c (c absent counts as the median c). A request that does
+    not complete is recorded on its row and the vote is marked incomplete; the other requests still count."""
     nouns = [n for n in PANEL_NOUNS if n is not Noun.CAR]
     media_size = (image.shape[1], image.shape[0])
     sem = asyncio.Semaphore(int(th["privacy"]["image_checks_in_flight"]))
 
-    async def one(noun: Noun) -> tuple[Noun, Any]:
+    async def one(noun: Noun) -> tuple[Noun, Any, str | None, float]:
         async with sem:
-            return noun, await segment_image(image, noun.value, run_id=run_id, role="claim", tag=f"D1 E11 vote {noun.value}")
+            try:
+                return noun, await segment_image(image, noun.value, run_id=run_id, role="claim", tag=f"D1 E11 vote {noun.value}"), None, 0.0
+            except gate_sam.sam_request_error() as exc:
+                return noun, None, gate_sam.error_text(exc, 200), gate_sam.billed_on_error(exc)
 
-    runs = await asyncio.gather(*(one(n) for n in nouns))
+    answers = await asyncio.gather(*(one(n) for n in nouns))
+    runs = [(noun, run) for noun, run, _, _ in answers if run is not None]
+    failed = [{"noun": noun.value, "error": error, "score": None, "dollars": usd} for noun, run, error, usd in answers if run is None]
     cs = [d.confidence for _, run in runs for d in detections(run) if d.confidence is not None]
     median_c = statistics.median(cs) if cs else 0.5
     area_total = float(media_size[0] * media_size[1])
@@ -491,7 +539,19 @@ async def sam_votes(image: np.ndarray, centre: tuple[float, float], *, run_id: s
         scores.append({"noun": noun.value, "matches": len(detections(run)), "score": round(best, 6), "dollars": run.usd})
     scores.sort(key=lambda s: -s["score"])
     winner = scores[0]["noun"] if scores and scores[0]["score"] > 0 else None
-    return {"winner": winner, "scores": scores, "dollars": round(sum(s["dollars"] for s in scores), 4)}
+    return {"winner": winner, "complete": not failed, "failed_nouns": [f["noun"] for f in failed], "scores": scores + failed, "dollars": round(sum(s["dollars"] for s in scores + failed), 4)}
+
+
+def vote_agrees(spark_noun: str | None, votes: dict[str, Any]) -> bool | None:
+    """Spark's noun against the SAM vote. With a request missing, agreement is unknown (the missing noun might have
+    won) unless Spark's noun was scored and lost, which no missing score can undo."""
+    if not spark_noun:
+        return False
+    if votes.get("complete", True):
+        return votes["winner"] == spark_noun
+    if spark_noun not in votes.get("failed_nouns", []) and votes["winner"] != spark_noun:
+        return False
+    return None
 
 
 def grayscale(rgb: np.ndarray) -> np.ndarray:
@@ -527,18 +587,28 @@ def verify_drawn_box(rgb: np.ndarray, box: list[int], th: dict) -> dict[str, Any
     return {"perimeter_saturated_share": round(p_share, 4), "inside_saturated_share": round(i_share, 4), "verified": p_share >= th["claim"]["drawn_box_perimeter_saturated_min"] and i_share <= th["claim"]["drawn_box_inside_saturated_max"]}
 
 
-async def claim_probe(path: Path, index: int, *, run_id: str, th: dict, out: Path) -> dict[str, Any]:
-    """Spark naming plus the SAM vote on the photo, then the grayscale and drawn-box shapes (labelled test only)."""
-    rgb = load_frame(path, None)
+async def claim_probe(source: Path | np.ndarray, index: int, *, run_id: str, th: dict, out: Path, blur: bool = True, label: str | None = None) -> dict[str, Any]:
+    """Spark naming plus the SAM vote on the photo, then the grayscale and drawn-box shapes (labelled test only).
+    The photo is blurred first (plate and face) unless it is already a blurred crop."""
+    name = label or (str(source) if not isinstance(source, np.ndarray) else f"array {index}")
+    rgb = source if isinstance(source, np.ndarray) else load_frame(Path(source), None)
+    blur_info = None
+    if blur:
+        try:
+            rgb, blur_info = await blur_frame(rgb, run_id=f"{run_id}_E11_claim{index}", tag=f"D1 E11 claim{index}", th=th)
+        except gate_sam.sam_request_error() as exc:
+            # section 8 item 4: no frame goes on from a check that did not happen, so Spark never sees this photo
+            return {"path": name, "error": f"blur checks did not complete: {gate_sam.error_text(exc)}", "agreed": None, "shapes": {}}
     h, w = rgb.shape[:2]
     shapes: dict[str, Any] = {}
     plain = spark_client.claim_name(rgb, run_id=f"{run_id}_E11_claim{index}")
     votes = await sam_votes(rgb, (w / 2.0, h / 2.0), run_id=f"{run_id}_E11_claim{index}", th=th)
-    shapes["plain"] = {"spark_noun": plain.noun.value if plain.noun else None, "spark_panel": plain.panel.value if plain.panel else None, "side": plain.side.value, "position": plain.position.value, "front_direction": plain.front_direction, "context": plain.context, "valid": plain.record.valid, "dollars": plain.record.dollars, "ms": plain.record.ms, "sam_vote": votes, "agreed": bool(plain.noun and votes["winner"] == plain.noun.value)}
+    spark_noun = plain.noun.value if plain.noun else None
+    shapes["plain"] = {"spark_noun": spark_noun, "spark_panel": plain.panel.value if plain.panel else None, "side": plain.side.value, "position": plain.position.value, "front_direction": plain.front_direction, "context": plain.context, "valid": plain.record.valid, "dollars": spent(plain), "ms": plain.record.ms, "sam_vote": votes, "agreed": vote_agrees(spark_noun, votes)}
     gray = grayscale(rgb)
     g = spark_client.claim_name(gray, run_id=f"{run_id}_E11_claim{index}_gray")
     is_scan, sat = scanner_style(gray, th)
-    shapes["grayscale"] = {"spark_noun": g.noun.value if g.noun else None, "side": g.side.value, "valid": g.record.valid, "scanner_style": is_scan, "mean_saturation": sat, "dollars": g.record.dollars}
+    shapes["grayscale"] = {"spark_noun": g.noun.value if g.noun else None, "side": g.side.value, "valid": g.record.valid, "scanner_style": is_scan, "mean_saturation": sat, "dollars": spent(g)}
     boxed, box = drawn_box(rgb)
     Image.fromarray(boxed).save(out / f"claim{index}_drawn_box.png")
     b = spark_client.claim_name(boxed, run_id=f"{run_id}_E11_claim{index}_box")
@@ -548,8 +618,8 @@ async def claim_probe(path: Path, index: int, *, run_id: str, th: dict, out: Pat
         _, sw, sh, scale = spark_client.prepare_image(boxed)
         x1, y1, x2, y2 = spark_client.grid_box_to_pixels(cb.bbox, sw, sh)
         found = [int(x1 / scale), int(y1 / scale), int(x2 / scale), int(y2 / scale)]
-    shapes["drawn_box"] = {"spark_noun": b.noun.value if b.noun else None, "valid": b.record.valid, "drawn": box, "spark_box": found, "box_iou": round(gate_sam.box_iou([float(v) for v in box], [float(v) for v in found]), 4) if found else None, "verified": verify_drawn_box(boxed, found, th) if found else None, "dollars": round(b.record.dollars + cb.record.dollars, 6)}
-    return {"path": str(path), "size": [w, h], "shapes": shapes, "agreed": shapes["plain"]["agreed"]}
+    shapes["drawn_box"] = {"spark_noun": b.noun.value if b.noun else None, "valid": b.record.valid, "drawn": box, "spark_box": found, "box_iou": round(gate_sam.box_iou([float(v) for v in box], [float(v) for v in found]), 4) if found else None, "verified": verify_drawn_box(boxed, found, th) if found else None, "dollars": round(spent(b) + spent(cb), 6)}
+    return {"path": name, "size": [w, h], "blur": blur_info, "shapes": shapes, "agreed": shapes["plain"]["agreed"]}
 
 
 def tire_diameter_in(code: str) -> float | None:
@@ -576,21 +646,35 @@ def extent_px(det: Any, media_size: tuple[int, int]) -> tuple[float, float, floa
     return max(w, h), (min(w, h) / max(w, h) if max(w, h) else 0.0), 0.0, "box"
 
 
+async def checked_image(image: np.ndarray, concept: str, *, run_id: str, role: str, tag: str, errors: dict[str, str]) -> tuple[Any | None, float]:
+    """(run or None, dollars): an image request that does not complete lands in errors[tag] instead of raising."""
+    try:
+        run = await segment_image(image, concept, run_id=run_id, role=role, tag=tag)
+        return run, float(run.usd)
+    except gate_sam.sam_request_error() as exc:
+        errors[tag] = gate_sam.error_text(exc, 200)
+        return None, gate_sam.billed_on_error(exc)
+
+
 async def ruler_probe(frame: np.ndarray, *, tire_code: str | None, run_id: str, th: dict) -> dict[str, Any]:
-    """Plate and wheel pixels per inch on one unblurred 4K frame, and the plate after pixelation (step 7 order)."""
+    """Plate and wheel pixels per inch on one unblurred 4K frame, and the plate after pixelation (step 7 order). A
+    request that does not complete leaves its ruler None with the error recorded (not run, never a failed ruler)."""
     r = th["ruler"]
     media_size = (frame.shape[1], frame.shape[0])
-    plate_run = await segment_image(frame, Noun.LICENSE_PLATE.value, run_id=f"{run_id}_E11_ruler", role="claim", tag="D1 E11 ruler plate")
-    wheel_run = await segment_image(frame, Noun.WHEEL.value, run_id=f"{run_id}_E11_ruler", role="claim", tag="D1 E11 ruler wheel")
-    out: dict[str, Any] = {"plate": None, "wheel": None, "dollars": round(plate_run.usd + wheel_run.usd, 4)}
-    plates = [d for d in detections(plate_run) if (d.confidence or 0.0) >= r["plate_c_min"] and not touches_border(det_box(d), media_size)]
+    errors: dict[str, str] = {}
+    plate_run, plate_usd = await checked_image(frame, Noun.LICENSE_PLATE.value, run_id=f"{run_id}_E11_ruler", role="claim", tag="D1 E11 ruler plate", errors=errors)
+    wheel_run, wheel_usd = await checked_image(frame, Noun.WHEEL.value, run_id=f"{run_id}_E11_ruler", role="claim", tag="D1 E11 ruler wheel", errors=errors)
+    out: dict[str, Any] = {"plate": None, "wheel": None, "plate_checked": plate_run is not None, "wheel_checked": wheel_run is not None, "dollars": round(plate_usd + wheel_usd, 4)}
+    if errors:
+        out["errors"] = errors
+    plates = [d for d in detections(plate_run) if (d.confidence or 0.0) >= r["plate_c_min"] and not touches_border(det_box(d), media_size)] if plate_run else []
     best_plate = max(plates, key=lambda d: d.confidence or 0.0, default=None)
     ppi_plate = None
     if best_plate is not None:
         long_px, hw, tilt, basis = extent_px(best_plate, media_size)
         ppi_plate = long_px / r["plate_long_side_in"]
         out["plate"] = {"long_px": round(long_px, 1), "c": best_plate.confidence, "apparent_hw": round(hw, 4), "tilt_deg": round(tilt, 1), "basis": basis, "ppi": round(ppi_plate, 2), "qualifies": long_px >= r["plate_min_px"] and (best_plate.confidence or 0.0) >= r["plate_c_min"]}
-    wheels = [d for d in detections(wheel_run) if (d.confidence or 0.0) >= r["wheel_c_min"] and not touches_border(det_box(d), media_size)]
+    wheels = [d for d in detections(wheel_run) if (d.confidence or 0.0) >= r["wheel_c_min"] and not touches_border(det_box(d), media_size)] if wheel_run else []
     best_wheel = max(wheels, key=lambda d: (d.box.right - d.box.left) * (d.box.bottom - d.box.top), default=None)
     ppi_wheel = None
     diameter = tire_diameter_in(tire_code) if tire_code else None
@@ -612,24 +696,31 @@ async def ruler_probe(frame: np.ndarray, *, tire_code: str | None, run_id: str, 
             blurred = frame.copy()
             x1, y1, x2, y2 = (int(v) for v in box)
             blurred[y1:y2, x1:x2] = cv2.resize(cv2.resize(frame[y1:y2, x1:x2], (max(1, (x2 - x1) // block), max(1, (y2 - y1) // block)), interpolation=cv2.INTER_AREA), (x2 - x1, y2 - y1), interpolation=cv2.INTER_NEAREST)
-        after_run = await segment_image(blurred, Noun.LICENSE_PLATE.value, run_id=f"{run_id}_E11_ruler", role="claim", tag="D1 E11 ruler plate pixelated")
-        after = max(detections(after_run), key=lambda d: d.confidence or 0.0, default=None)
-        if after is not None:
+        after_run, after_usd = await checked_image(blurred, Noun.LICENSE_PLATE.value, run_id=f"{run_id}_E11_ruler", role="claim", tag="D1 E11 ruler plate pixelated", errors=errors)
+        after = max(detections(after_run), key=lambda d: d.confidence or 0.0, default=None) if after_run else None
+        if after_run is None:
+            out["plate_after_pixelation"] = None
+            out["errors"] = errors
+        elif after is not None:
             long_after, _, _, basis_after = extent_px(after, media_size)
             out["plate_after_pixelation"] = {"long_px": round(long_after, 1), "c": after.confidence, "basis": basis_after, "relative_change": round(abs(long_after - out["plate"]["long_px"]) / out["plate"]["long_px"], 4), "over_20pct": abs(long_after - out["plate"]["long_px"]) / out["plate"]["long_px"] > 0.2}
         else:
             out["plate_after_pixelation"] = {"matches": 0, "note": "no plate found on the pixelated frame (the expected outcome for a blurred plate)"}
-        out["dollars"] = round(out["dollars"] + after_run.usd, 4)
+        out["dollars"] = round(out["dollars"] + after_usd, 4)
     return out
 
 
 async def door_pair_probe(walk_frame: np.ndarray, close_photo: np.ndarray, *, run_id: str) -> dict[str, Any]:
     """The same door whitened from a walk frame and from the close photo: the handle's whitened residual (r_claim)."""
-    rows = {}
+    rows: dict[str, Any] = {}
     for name, img in (("walk", walk_frame), ("close", close_photo)):
         media_size = (img.shape[1], img.shape[0])
-        door_run = await segment_image(img, Noun.CAR_DOOR.value, run_id=f"{run_id}_E11_door", role="claim", tag=f"D1 E11 door {name}")
-        handle_run = await segment_image(img, Noun.DOOR_HANDLE.value, run_id=f"{run_id}_E11_door", role="claim", tag=f"D1 E11 handle {name}")
+        errors: dict[str, str] = {}
+        door_run, door_usd = await checked_image(img, Noun.CAR_DOOR.value, run_id=f"{run_id}_E11_door", role="claim", tag=f"D1 E11 door {name}", errors=errors)
+        handle_run, handle_usd = await checked_image(img, Noun.DOOR_HANDLE.value, run_id=f"{run_id}_E11_door", role="claim", tag=f"D1 E11 handle {name}", errors=errors)
+        if errors:
+            rows[name] = {"note": "an image check did not complete", "errors": errors, "dollars": round(door_usd + handle_usd, 4)}
+            continue
         handles = detections(handle_run)
         doors = detections(door_run)
         if not handles or not doors:
@@ -691,16 +782,29 @@ def normalise_field(value: Any) -> str:
     return re.sub(r"[^a-z0-9]", "", str(value or "").lower().replace("$", ""))
 
 
-def note_prefill_probe(out: Path, *, run_id: str, th: dict) -> dict[str, Any]:
-    rows = []
-    for i, fields in enumerate(SYNTHETIC_AGREEMENTS, 1):
-        pdf = render_agreement_pdf(fields, out / f"synthetic_agreement_{i}.pdf")
-        claim_text = f"They charged me ${fields['amount']} for a scratch on the {fields['panel']}. Agreement {fields['agreement_number']}."
-        record = spark_client.note_prefill(claim_text, pdf, run_id=f"{run_id}_E18_agreement{i}")
-        parsed = record.parsed or {}
-        agree = {k: normalise_field(parsed.get(k)) == normalise_field(fields[k]) for k in NOTE_FIELDS}
-        rows.append({"agreement": i, "expected": fields, "parsed": {k: parsed.get(k) for k in NOTE_FIELDS}, "agree": agree, "agreed_fields": sum(agree.values()), "valid": record.valid, "status": record.status.value, "usage": record.usage.model_dump(), "dollars": record.dollars, "ms": record.ms, "request_id": record.request_id})
-    return {"agreements": rows, "all_fields_on_all": all(r["agreed_fields"] == len(NOTE_FIELDS) for r in rows), "dollars": round(sum(r["dollars"] for r in rows), 6)}
+def note_prefill_row(index: int, pdf: Path, claim_text: str, expected: dict[str, str] | None, *, run_id: str) -> dict[str, Any]:
+    """One note_prefill_v1 call; every field compared with the typed inputs when they are known."""
+    record = spark_client.note_prefill(claim_text, pdf, run_id=f"{run_id}_E18_agreement{index}")
+    parsed = record.parsed or {}
+    row: dict[str, Any] = {"agreement": index, "pdf": str(pdf), "expected": expected, "parsed": {k: parsed.get(k) for k in NOTE_FIELDS}, "valid": record.valid, "status": record.status.value, "usage": record.usage.model_dump(), "dollars": record.dollars, "ms": record.ms, "request_id": record.request_id}
+    if expected:
+        agree = {k: normalise_field(parsed.get(k)) == normalise_field(expected.get(k)) for k in NOTE_FIELDS if k in expected}
+        row.update({"agree": agree, "agreed_fields": sum(agree.values())})
+    return row
+
+
+def note_prefill_probe(out: Path, *, run_id: str, th: dict, pdf: Path | None = None, claim_text: str | None = None, expected: dict[str, str] | None = None) -> dict[str, Any]:
+    """E18 on the two synthetic agreements (ours, no real company), or on one given PDF (--note-prefill)."""
+    if pdf is not None:
+        rows = [note_prefill_row(1, Path(pdf), claim_text or "They charged me for a scratch on the door.", expected, run_id=run_id)]
+    else:
+        rows = []
+        for i, fields in enumerate(SYNTHETIC_AGREEMENTS, 1):
+            path = render_agreement_pdf(fields, out / f"synthetic_agreement_{i}.pdf")
+            text = f"They charged me ${fields['amount']} for a scratch on the {fields['panel']}. Agreement {fields['agreement_number']}."
+            rows.append(note_prefill_row(i, path, text, fields, run_id=run_id))
+    judged = [r for r in rows if "agreed_fields" in r]
+    return {"agreements": rows, "all_fields_on_all": all(r["agreed_fields"] == len(NOTE_FIELDS) for r in judged) if judged else None, "dollars": round(sum(r["dollars"] for r in rows), 6)}
 
 
 # ------------------------------------------------------------------------------------------------------------------
@@ -717,12 +821,14 @@ def evaluate(results: dict[str, Any], th: dict) -> dict[str, Any]:
         sig = [c["efforts"][effort]["jitter"]["sigma_frac_of_width"] for c in crops if not c["clean"] and c["efforts"].get(effort, {}).get("jitter") and c["efforts"][effort]["jitter"]["sigma_frac_of_width"] is not None]
         units = [c["efforts"][effort]["jitter"]["sigma_units"] for c in crops if not c["clean"] and c["efforts"].get(effort, {}).get("jitter") and c["efforts"][effort]["jitter"]["sigma_units"] is not None]
         jac = [c["efforts"][effort]["jitter"]["jaccard_median"] for c in crops if not c["clean"] and c["efforts"].get(effort, {}).get("jitter") and c["efforts"][effort]["jitter"]["jaccard_median"] is not None]
-        usage = [c["efforts"][effort]["usage"] for c in crops if c["efforts"].get(effort)]
+        pooled = [j for c in crops if not c["clean"] and c["efforts"].get(effort, {}).get("jitter") for j in c["efforts"][effort]["jitter"]["jaccard_pairs"]]
+        usage = [c["efforts"][effort]["usage"] for c in crops if c["efforts"].get(effort) and c["efforts"][effort].get("usage")]
         per_effort[effort] = {
             "sigma_frac_max": max(sig) if sig else None,
             "sigma_units_max": max(units) if units else None,
             "sigma_pass": (max(sig) <= sp["d1_sigma_pass_frac_of_crop_width"]) if sig else None,
             "jaccard_median_min": min(jac) if jac else None,
+            "jaccard_pooled_median": round(statistics.median(pooled), 4) if pooled else None,
             "jaccard_pass": (min(jac) >= sp["d1_jaccard_pass"]) if jac else None,
             "incomplete_at_4000": sum(u.get("incomplete_at_4000", 0) for u in usage),
             "truncated_after_retry": sum(u.get("truncated_after_retry", 0) for u in usage),
@@ -752,6 +858,7 @@ def evaluate(results: dict[str, Any], th: dict) -> dict[str, Any]:
     looks = results.get("second_look", {})
     count_rows = [c.get("count_mode") for c in crops if c.get("count_mode")]
     claims = results.get("claims", [])
+    judged = [c for c in claims if c.get("agreed") is not None]  # a photo whose blur or vote did not complete is not judged
     ruler = results.get("ruler") or {}
     note = results.get("note_prefill") or {}
     trunc = results.get("truncation") or {}
@@ -771,15 +878,16 @@ def evaluate(results: dict[str, Any], th: dict) -> dict[str, Any]:
         "second_look_pair_verdict": looks.get("pair", {}).get("verdict"),
         "count_mode_recovered_any": any(r.get("targets_recovered_by_count") for r in count_rows) if count_rows else None,
         "count_mode_new_points": sum(len(r.get("new_points", [])) for r in count_rows) if count_rows else None,
-        "claims_agreed": sum(1 for c in claims if c.get("agreed")) if claims else None,
-        "claims_total": len(claims),
+        "claims_agreed": sum(1 for c in judged if c["agreed"]) if judged else None,
+        "claims_total": len(judged),
+        "claims_not_judged": len(claims) - len(judged),
         "plate_qualifies": (ruler.get("plate") or {}).get("qualifies"),
         "wheel_qualifies": (ruler.get("wheel") or {}).get("qualifies"),
         "ppi_within_15pct": (ruler.get("ppi_agreement") or {}).get("within_15pct"),
         "plate_pixelated_over_20pct": (ruler.get("plate_after_pixelation") or {}).get("over_20pct"),
         "door_pair_residual_units": (results.get("door_pair") or {}).get("residual_units"),
         "note_prefill_all_fields": note.get("all_fields_on_all") if note else None,
-        "note_prefill_fields": [r["agreed_fields"] for r in note.get("agreements", [])] if note else None,
+        "note_prefill_fields": [r.get("agreed_fields") for r in note.get("agreements", [])] if note else None,
     }
 
 
@@ -892,85 +1000,309 @@ def crop_specs(args: argparse.Namespace) -> list[dict[str, Any]]:
     return []
 
 
-def run_gate(args: argparse.Namespace, th: dict, *, specs: list[dict[str, Any]], crops_rgb: dict[str, np.ndarray], claims: list[Path], ruler_frame: np.ndarray | None, door_pair: tuple[np.ndarray, np.ndarray] | None, out: Path, prefix: str, mode: str) -> dict[str, Any]:
-    efforts = list(args.efforts or [args.effort])
-    results: dict[str, Any] = {"mode": mode, "run_prefix": prefix, "model": SPARK_MODEL, "efforts": efforts, "n": args.n, "crops": [], "spend_usd": 0.0}
+class EchoClient:
+    """Wraps spark_client's client and keeps the store field of every answer (E12); the calls still go through
+    spark_client.ask, which writes the ledger rows."""
+
+    def __init__(self, inner: Any) -> None:
+        self.inner = inner
+        self.echoes: list[Any] = []
+        self.responses = self
+
+    def create(self, **request: Any) -> Any:
+        response = self.inner.responses.create(**request)
+        if request.get("stream"):
+            return self._tap(response)
+        data = response.model_dump() if hasattr(response, "model_dump") else response if isinstance(response, dict) else {}
+        self.echoes.append(data.get("store") if isinstance(data, dict) else None)
+        return response
+
+    def _tap(self, stream: Any) -> Any:
+        try:
+            for event in stream:
+                ev = event.model_dump() if hasattr(event, "model_dump") else event
+                if isinstance(ev, dict) and ev.get("type") == "response.completed" and isinstance(ev.get("response"), dict):
+                    self.echoes.append(ev["response"].get("store"))
+                yield event
+        finally:
+            close = getattr(stream, "close", None)
+            if callable(close):
+                close()
+
+    def summary(self) -> dict[str, Any]:
+        seen = [e for e in self.echoes if e is not None]
+        counts: dict[str, int] = {}
+        for e in self.echoes:
+            counts[str(e)] = counts.get(str(e), 0) + 1
+        return {"answers": len(self.echoes), "counts": counts, "all_false": (all(e is False for e in seen) if seen else None)}
+
+
+def install_echo() -> EchoClient:
+    echo = EchoClient(spark_client._client())  # noqa: SLF001 - the documented injection point (set_client)
+    spark_client.set_client(echo)
+    return echo
+
+
+async def load_crops(specs: list[dict[str, Any]], *, prefix: str, th: dict, blur: bool) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
+    """Each crop cut from its source frame after that frame is blurred (one blur per source frame). A frame whose
+    plate or face check did not complete gives no crop (section 8 item 4): its crops are left out, with the error."""
+    crops: dict[str, np.ndarray] = {}
+    info: dict[str, Any] = {}
+    frames: dict[tuple[str, Any], tuple[np.ndarray | None, dict[str, Any]]] = {}
     for spec in specs:
-        spend = gate_sam.spend_for_prefix(prefix)
-        if args.budget is not None and spend >= args.budget:
-            results["crops"].append({"name": spec["name"], "skipped": f"budget {args.budget} reached (spent {spend})", "clean": bool(spec.get("clean")), "efforts": {}})
+        key = (str(spec["source"]), spec.get("t"))
+        if key not in frames:
+            frame = load_frame(Path(spec["source"]), spec.get("t"))
+            if not blur:
+                frames[key] = (frame, {"note": "not blurred (--no-blur)"})
+            else:
+                try:
+                    frames[key] = await blur_frame(frame, run_id=f"{prefix}_E6_blur", tag=f"D1 E6 {spec['name']}", th=th)
+                except gate_sam.sam_request_error() as exc:
+                    frames[key] = (None, {"error": f"blur checks did not complete: {gate_sam.error_text(exc)}", "skipped": "the frame is not used"})
+        frame, binfo = frames[key]
+        info[spec["name"]] = binfo
+        if frame is None:
             continue
-        results["crops"].append(run_crop(spec, crops_rgb[spec["name"]], efforts=efforts, n=args.n, run_id=prefix, th=th, count=bool(args.count), out=out))
+        crop, box = crop_frame(frame, spec.get("crop"))
+        spec["crop"] = box
+        crops[spec["name"]] = crop
+    return crops, info
+
+
+async def load_looks(args: argparse.Namespace, *, prefix: str, th: dict) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, str]]:
+    """The second-look pairs named on the command line, each image blurred before Spark sees it; a pair that cannot
+    be read or blurred is left out with its error (key -> error)."""
+    looks: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    errors: dict[str, str] = {}
+    for key, pair in (("pair", args.second_look), ("control", args.second_look_control)):
+        if not pair:
+            continue
+        imgs = []
+        try:
+            for i, p in enumerate(pair):
+                img = p if isinstance(p, np.ndarray) else load_frame(Path(p), None)
+                if not args.no_blur and not isinstance(p, np.ndarray):
+                    img, _ = await blur_frame(img, run_id=f"{prefix}_E6_look_{key}", tag=f"D1 E6 look {key} {i}", th=th)
+                imgs.append(img)
+        except Exception as exc:  # noqa: BLE001 - an unreadable file or a blur check that did not complete
+            errors[key] = gate_sam.error_text(exc)
+            continue
+        looks[key] = (imgs[0], imgs[1])
+    return looks, errors
+
+
+def outline(rgb: np.ndarray, boxes: list[list[int]]) -> np.ndarray:
+    """Thin outlines on the candidate marks, as the pipeline draws them before a second look (marks.draw_outline)."""
+    marks_mod = gate_sam.optional_module("marks")
+    out = np.ascontiguousarray(rgb).copy()
+    for b in boxes:
+        if marks_mod is not None and gate_sam.implemented(marks_mod, "draw_outline"):
+            out = marks_mod.draw_outline(out, [float(v) for v in b], width_px=2)
+        else:
+            cv2.rectangle(out, (int(b[0]), int(b[1])), (int(b[2]), int(b[3])), (255, 0, 255), 2)
+    return out
+
+
+def auto_looks(results: dict[str, Any], specs: list[dict[str, Any]], crops_rgb: dict[str, np.ndarray], *, have: set[str]) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]], dict[str, str]]:
+    """When no second-look images are given: (the first marked crop, the same crop shifted) should read same, and
+    (that crop, the control crop or another panel) should read unsure or different. Both are weak and labelled so."""
+    first = next((s for s in specs if not s.get("clean")), None)
+    if first is None:
+        return {}, {}
+    row = next((c for c in results.get("crops", []) if c.get("name") == first["name"]), {})
+    effort = next(iter(row.get("efforts", {})), None)
+    runs = row.get("efforts", {}).get(effort, {}).get("runs", []) if effort else []
+    boxes = [m["bbox_px"] for m in (runs[0]["marks"] if runs else []) if not m.get("capped")][:3]
+    a = crops_rgb[first["name"]]
+    looks: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    notes: dict[str, str] = {}
+    if not boxes:
+        return looks, {"skipped": f"auto: no uncapped mark on {first['name']} to outline, so no auto pair"}
+    if "pair" not in have:
+        h, w = a.shape[:2]
+        moved = [[int(b[0] * 0.97 + 0.03 * w), int(b[1] * 0.97 + 0.03 * h), int(b[2] * 0.97 + 0.03 * w), int(b[3] * 0.97 + 0.03 * h)] for b in boxes]
+        looks["pair"] = (outline(a, boxes), outline(shifted(a), moved))
+        notes["pair"] = f"auto: {first['name']} against itself shifted 3% (weak)"
+    other = next((s for s in specs if s.get("control")), None) or next((s for s in reversed(specs) if s["name"] != first["name"]), None)
+    if "control" not in have and other is not None:
+        looks["control"] = (outline(a, boxes), crops_rgb[other["name"]])
+        notes["control"] = f"auto: {first['name']} against {other['name']}" + ("" if other.get("control") else " (another panel, weak)")
+    return looks, notes
+
+
+def over_budget(args: argparse.Namespace, prefix: str) -> bool:
+    return args.budget is not None and gate_sam.spend_for_prefix(prefix) >= args.budget
+
+
+def guarded(work: Callable[[], Any]) -> Any:
+    """One probe; an exception becomes its row ({'error': ...}) instead of ending the gate after paid calls."""
+    try:
+        return work()
+    except Exception as exc:  # noqa: BLE001 - the error is this probe's finding
+        return {"error": gate_sam.error_text(exc)}
+
+
+def run_gate(args: argparse.Namespace, th: dict, *, specs: list[dict[str, Any]], crops_rgb: dict[str, np.ndarray], claims: list[Path | np.ndarray], ruler_frame: np.ndarray | None, door_pair: tuple[np.ndarray, np.ndarray] | None, out: Path, prefix: str, mode: str, looks_in: dict[str, tuple[np.ndarray, np.ndarray]] | None = None, claim_labels: list[str] | None = None, save: Callable[[dict[str, Any]], None] | None = None, skipped: dict[str, str] | None = None) -> dict[str, Any]:
+    """Every probe in order; save(results) runs after each one, so a late failure keeps the calls already paid for.
+    skipped names crops that never reached Spark (their frame's blur did not complete) with the reason."""
+    efforts = list(args.efforts or [args.effort])
+    results: dict[str, Any] = {"mode": mode, "run_prefix": prefix, "model": SPARK_MODEL, "efforts": efforts, "n": args.n, "crops": [], "spend_usd": 0.0, "skipped": []}
+
+    def checkpoint() -> None:
+        if save is not None:
+            results["spend_usd"] = gate_sam.spend_for_prefix(prefix)
+            save(results)
+
+    for name, reason in (skipped or {}).items():
+        spec = next((s for s in specs if s["name"] == name), {"name": name})
+        results["crops"].append({"name": name, "skipped": reason, "clean": bool(spec.get("clean")), "efforts": {}})
+    specs = [s for s in specs if s["name"] in crops_rgb]
+    for spec in specs:
+        if over_budget(args, prefix):
+            results["crops"].append({"name": spec["name"], "skipped": f"budget {args.budget} reached (spent {gate_sam.spend_for_prefix(prefix)})", "clean": bool(spec.get("clean")), "efforts": {}})
+            continue
+        row = guarded(lambda: run_crop(spec, crops_rgb[spec["name"]], efforts=efforts, n=args.n, run_id=prefix, th=th, count=bool(args.count), out=out))
+        if "error" in row:
+            row = {"name": spec["name"], "clean": bool(spec.get("clean")), "efforts": {}, "error": row["error"]}
+        results["crops"].append(row)
+        checkpoint()
     first = next((s for s in specs if not s.get("clean")), specs[0] if specs else None)
-    if args.truncate and first is not None:
+    if args.truncate and first is not None and not over_budget(args, prefix):
         if FIXTURE_STATE is not None:
             FIXTURE_STATE["crop"] = first["name"]
-        results["truncation"] = truncation_probe(crops_rgb[first["name"]], panel_id_of(str(first.get("panel") or "left_front_door")), max_output_tokens=int(args.truncate), run_id=f"{prefix}_E6_truncate", th=th)
+        results["truncation"] = guarded(lambda: truncation_probe(crops_rgb[first["name"]], panel_id_of(str(first.get("panel") or "left_front_door")), max_output_tokens=int(args.truncate), run_id=f"{prefix}_E6_truncate", th=th))
+        checkpoint()
+    looks_in = dict(looks_in or {})
+    look_notes = {k: "given" for k in looks_in}
+    if args.auto_looks and specs:
+        extra, notes = auto_looks(results, specs, crops_rgb, have=set(looks_in))
+        looks_in.update(extra)
+        look_notes.update(notes)
+        if "skipped" in notes:
+            results["second_look_skipped"] = notes["skipped"]
     looks: dict[str, Any] = {}
     panel_id = panel_id_of(str(first.get("panel") or "left_front_door")) if first else PanelId.LEFT_FRONT_DOOR
-    for key, pair, expect in (("pair", args.second_look, "same"), ("control", args.second_look_control, "different")):
-        if not pair:
+    for key, expect in (("pair", "same"), ("control", "different")):
+        if key not in looks_in or over_budget(args, prefix):
             continue
         if FIXTURE_STATE is not None:
             FIXTURE_STATE["look"] = key
-        a, b = (load_frame(Path(p), None) if not isinstance(p, np.ndarray) else p for p in pair)
-        looks[key] = second_look_probe(a, b, panel_id=panel_id, run_id=f"{prefix}_E6_look_{key}", expect=expect)
+        a, b = looks_in[key]
+        cv2.imwrite(str(out / f"look_{key}.png"), cv2.cvtColor(np.hstack([a, cv2.resize(b, (a.shape[1], a.shape[0]))]), cv2.COLOR_RGB2BGR))
+        looks[key] = {**second_look_probe(a, b, panel_id=panel_id, run_id=f"{prefix}_E6_look_{key}", expect=expect), "source": look_notes.get(key)}
     if looks:
         results["second_look"] = looks
-    if claims:
-        results["claims"] = [asyncio.run(claim_probe(p, i, run_id=prefix, th=th, out=out)) for i, p in enumerate(claims, 1)]
-    if ruler_frame is not None:
-        results["ruler"] = asyncio.run(ruler_probe(ruler_frame, tire_code=args.tire_code, run_id=prefix, th=th))
-    if door_pair is not None:
-        results["door_pair"] = asyncio.run(door_pair_probe(door_pair[0], door_pair[1], run_id=prefix))
-    if args.note_prefill_synthetic:
-        results["note_prefill"] = note_prefill_probe(out, run_id=prefix, th=th)
+        checkpoint()
+    if claims and not over_budget(args, prefix):
+        labels = claim_labels or [None] * len(claims)
+        results["claims"] = []
+        for i, c in enumerate(claims, 1):
+            row = guarded(lambda: asyncio.run(claim_probe(c, i, run_id=prefix, th=th, out=out, blur=not isinstance(c, np.ndarray), label=labels[i - 1])))
+            if "error" in row and "path" not in row:
+                row = {"path": labels[i - 1] or (str(c) if not isinstance(c, np.ndarray) else f"array {i}"), "error": row["error"], "agreed": None, "shapes": {}}
+            results["claims"].append(row)
+            checkpoint()
+    if ruler_frame is not None and not over_budget(args, prefix):
+        results["ruler"] = guarded(lambda: asyncio.run(ruler_probe(ruler_frame, tire_code=args.tire_code, run_id=prefix, th=th)))
+        checkpoint()
+    if door_pair is not None and not over_budget(args, prefix):
+        results["door_pair"] = guarded(lambda: asyncio.run(door_pair_probe(door_pair[0], door_pair[1], run_id=prefix)))
+        checkpoint()
+    if (args.note_prefill_synthetic or args.note_prefill) and not over_budget(args, prefix):
+        def note() -> dict[str, Any]:
+            expected = json.loads(Path(args.note_expected).read_text(encoding="utf-8")) if args.note_expected else None
+            return note_prefill_probe(out, run_id=prefix, th=th, pdf=Path(args.note_prefill) if args.note_prefill else None, claim_text=args.note_claim_text, expected=expected)
+
+        results["note_prefill"] = guarded(note)
+        checkpoint()
     results["evaluation"] = evaluate(results, th)
     results["spend_usd"] = gate_sam.spend_for_prefix(prefix)
     return results
 
 
-def run_live(args: argparse.Namespace, th: dict) -> dict[str, Any]:
+def run_live(args: argparse.Namespace, th: dict, save: Callable[[dict[str, Any]], None] | None = None) -> dict[str, Any]:
     out = Path(args.out)
     prefix = args.run_prefix or f"d1_{gate_sam.utc_ts()}"
-    specs = crop_specs(args)
-    crops_rgb: dict[str, np.ndarray] = {}
-    for spec in specs:
-        frame = load_frame(Path(spec["source"]), spec.get("t"))
-        crop, box = crop_frame(frame, spec.get("crop"))
-        spec["crop"] = box
-        crops_rgb[spec["name"]] = crop
-    claims = [Path(p) for p in (args.claim or [])]
-    ruler_frame = load_frame(Path(args.ruler_frame), args.ruler_t) if args.ruler_frame else None
-    door_pair = (load_frame(Path(args.door_pair[0]), None), load_frame(Path(args.door_pair[1]), None)) if args.door_pair else None
-    return run_gate(args, th, specs=specs, crops_rgb=crops_rgb, claims=claims, ruler_frame=ruler_frame, door_pair=door_pair, out=out, prefix=prefix, mode="live")
+    echo = install_echo()
+    crop_blur: dict[str, Any] = {}
+    specs: list[dict[str, Any]] = []
+    look_errors: dict[str, str] = {}
+
+    def checkpoint(partial: dict[str, Any]) -> None:
+        if save is not None:
+            save({**partial, "crop_blur": crop_blur, "crop_specs": specs, "second_look_errors": look_errors, "store_echo": echo.summary()})
+
+    try:
+        specs = crop_specs(args)
+        crops_rgb, crop_blur = asyncio.run(load_crops(specs, prefix=prefix, th=th, blur=not args.no_blur))
+        looks, look_errors = asyncio.run(load_looks(args, prefix=prefix, th=th))
+        claims: list[Path | np.ndarray] = [Path(p) for p in (args.claim or [])]
+        labels = [str(p) for p in claims]
+        if args.claims_from_crops:
+            claims += [crops_rgb[s["name"]] for s in specs if s["name"] in crops_rgb]
+            labels += [f"crop {s['name']}" for s in specs if s["name"] in crops_rgb]
+        ruler_frame = load_frame(Path(args.ruler_frame), args.ruler_t) if args.ruler_frame else None
+        door_pair = (load_frame(Path(args.door_pair[0]), None), load_frame(Path(args.door_pair[1]), None)) if args.door_pair else None
+        skipped = {s["name"]: crop_blur[s["name"]]["error"] for s in specs if s["name"] not in crops_rgb and "error" in crop_blur.get(s["name"], {})}
+        results = run_gate(args, th, specs=specs, crops_rgb=crops_rgb, claims=claims, ruler_frame=ruler_frame, door_pair=door_pair, out=out, prefix=prefix, mode="live", looks_in=looks, claim_labels=labels, save=checkpoint, skipped=skipped)
+    finally:
+        spark_client.set_client(echo.inner)
+    results["crop_blur"] = crop_blur
+    results["crop_specs"] = specs
+    results["second_look_errors"] = look_errors
+    results["store_echo"] = echo.summary()
+    return results
 
 
 def run_fixture(args: argparse.Namespace, th: dict) -> dict[str, Any]:
+    """The real spark_client code over canned answers; synthetic crops, plus any --crops cut from real frames (blurred
+    through the box-only SAM fake), so run_d1's dry run exercises the crops it builds."""
     out = Path(args.out)
     fixture = json.loads(Path(args.fixture).read_text(encoding="utf-8"))
-    install_fixture(fixture, out)
+    state = install_fixture(fixture, out)
+    echo = EchoClient(spark_client._client())  # noqa: SLF001 - wraps the canned client the same way as live
+    spark_client.set_client(echo)
+    prefix = args.run_prefix or "d1_fixture"
     specs = []
     crops_rgb: dict[str, np.ndarray] = {}
     for spec in fixture["crops"]:
         crop = synthetic_crop(spec["name"], [tuple(t) for t in spec.get("targets", [])])
         specs.append({**spec, "source": "synthetic", "crop": [0, 0, crop.shape[1], crop.shape[0]]})
         crops_rgb[spec["name"]] = crop
+    crop_blur: dict[str, Any] = {}
+    if args.crops:
+        extra = crop_specs(args)
+        extra_rgb, crop_blur = asyncio.run(load_crops(extra, prefix=prefix, th=th, blur=not args.no_blur))
+        specs += extra
+        crops_rgb.update(extra_rgb)
     args.efforts = args.efforts or ["low", "medium"]
     args.n = args.n if args.n and args.n > 1 else 5
     args.count = True
     args.truncate = args.truncate or 600
-    first = crops_rgb[specs[0]["name"]]
-    args.second_look = [first, first]
-    args.second_look_control = [first, synthetic_crop("reflection", [(640, 450)], seed=99)]
     args.note_prefill_synthetic = True
+    first = crops_rgb[specs[0]["name"]]
+    looks = {"pair": (first, first), "control": (first, synthetic_crop("reflection", [(640, 450)], seed=99))}
+    if args.auto_looks:
+        looks = {}
     claim_img = out / "synthetic_claim.png"
     Image.fromarray(synthetic_crop("claim", [(500, 400), (520, 420)], size=(1600, 1200))).save(claim_img)
+    claims: list[Path | np.ndarray] = [claim_img]
+    labels = [str(claim_img)]
+    if args.claims_from_crops:
+        claims += [crops_rgb[s["name"]] for s in specs[len(fixture["crops"]):] if s["name"] in crops_rgb]
+        labels += [f"crop {s['name']}" for s in specs[len(fixture["crops"]):] if s["name"] in crops_rgb]
     ruler = synthetic_crop("ruler", [], size=(1920, 1080))
     door_pair = (synthetic_crop("walk", [], size=(1920, 1080)), synthetic_crop("close", [], size=(1600, 1200)))
     args.tire_code = args.tire_code or "225/60R16"
-    results = run_gate(args, th, specs=specs, crops_rgb=crops_rgb, claims=[claim_img], ruler_frame=ruler, door_pair=door_pair, out=out, prefix="d1_fixture", mode="fixture")
-    results["fixture"] = {"path": str(args.fixture), "sha256": gate_sam.sha256_file(Path(args.fixture)), "note": fixture.get("note")}
+    try:
+        results = run_gate(args, th, specs=specs, crops_rgb=crops_rgb, claims=claims, ruler_frame=ruler, door_pair=door_pair, out=out, prefix=prefix, mode="fixture", looks_in=looks, claim_labels=labels)
+    finally:
+        spark_client.set_client(None)
+    results["crop_blur"] = crop_blur
+    results["crop_specs"] = specs[len(fixture["crops"]):]
+    results["store_echo"] = {**echo.summary(), "note": "the canned answers carry no store field"}
+    results["fixture"] = {"path": str(args.fixture), "sha256": gate_sam.sha256_file(Path(args.fixture)), "note": fixture.get("note"), "calls": state.get("calls")}
     results["dryrun_ledger"] = str(ledger.LEDGER_PATH)
     return results
 
@@ -994,7 +1326,10 @@ def summary_markdown(results: dict[str, Any]) -> str:
     ev = results.get("evaluation", {})
     lines = [f"# Spark gate ({results['mode']})", "", f"- model {results['model']}, efforts {results['efforts']}, {results['n']} calls per crop and effort"]
     for effort, e in ev.get("per_effort", {}).items():
-        lines.append(f"- {effort}: sigma max {_fmt(e['sigma_frac_max'], 4)} of crop width ({_fmt(e['sigma_units_max'], 4)} units) pass {_fmt(e['sigma_pass'])}; Jaccard median min {_fmt(e['jaccard_median_min'], 3)} pass {_fmt(e['jaccard_pass'])}; incomplete at 4000: {e['incomplete_at_4000']}; invalid {e['invalid']}; tokens in {_fmt(e['input_tokens_mean'], 0)} out {_fmt(e['output_tokens_mean'], 0)} reasoning {_fmt(e['reasoning_tokens_mean'], 0)}; {_fmt(e['ms_mean'], 0)} ms; ${_fmt(e['dollars_mean'], 5)} per call")
+        lines.append(f"- {effort}: sigma max {_fmt(e['sigma_frac_max'], 4)} of crop width ({_fmt(e['sigma_units_max'], 4)} units) pass {_fmt(e['sigma_pass'])}; Jaccard median min {_fmt(e['jaccard_median_min'], 3)} (pooled {_fmt(e.get('jaccard_pooled_median'), 3)}) pass {_fmt(e['jaccard_pass'])}; incomplete at 4000: {e['incomplete_at_4000']}; invalid {e['invalid']}; tokens in {_fmt(e['input_tokens_mean'], 0)} out {_fmt(e['output_tokens_mean'], 0)} reasoning {_fmt(e['reasoning_tokens_mean'], 0)}; {_fmt(e['ms_mean'], 0)} ms; ${_fmt(e['dollars_mean'], 5)} per call")
+    echo = results.get("store_echo") or {}
+    if echo:
+        lines.append(f"- E12 store echo on {echo.get('answers')} Spark answers: {echo.get('counts')}; all false {_fmt(echo.get('all_false'))}{' (' + echo['note'] + ')' if echo.get('note') else ''}")
     lines += [
         f"- effort default: {ev.get('effort_default')}; tau_pre over the 0.4 cap: {_fmt(ev.get('tau_pre_over_cap'))}; tau_pre0 from sigma_spark: {_fmt(ev.get('tau_pre0_from_sigma_spark'), 3)}",
         f"- false uncapped marks on the clean crop (mean per call): {_fmt(ev.get('false_marks_uncapped_mean_on_clean'), 2)}",
@@ -1013,23 +1348,43 @@ def summary_markdown(results: dict[str, Any]) -> str:
             t = e.get("targets") or {}
             f = e.get("false_marks") or {}
             lines.append(f"| {crop['name']} | {effort} | {j.get('counts')} | {_fmt(j.get('sigma_px'), 1)} | {_fmt(j.get('sigma_frac_of_width'), 4)} | {_fmt(j.get('sigma_units'), 4)} | {_fmt(j.get('jaccard_median'), 3)} | {t.get('targets_hit_in_any_run', '-')}/{t.get('targets_total', '-')} | {_fmt(f.get('mean_uncapped'), 2)} |")
-        if crop.get("skipped"):
-            lines.append(f"| {crop['name']} | skipped: {crop['skipped']} | | | | | | | |")
-    lines += ["", f"Spend on this gate (ledger rows with the run prefix): ${results.get('spend_usd', 0.0):.4f}", ""]
+        if crop.get("skipped") or crop.get("error"):
+            lines.append(f"| {crop['name']} | {'skipped: ' + crop['skipped'] if crop.get('skipped') else 'error: ' + crop['error']} | | | | | | | |")
+    for key, look in (results.get("second_look") or {}).items():
+        lines.append(f"- second look {key} ({look.get('source')}): {look['verdict']}, expected {look['expected']}, ok {_fmt(look['ok'])}")
+    for key, error in (results.get("second_look_errors") or {}).items():
+        lines.append(f"- second look {key}: not run ({error})")
+    for claim in results.get("claims") or []:
+        if claim.get("error"):
+            lines.append(f"- claim {claim.get('path')}: not judged ({claim['error']})")
+    for name in ("ruler", "door_pair", "note_prefill", "truncation"):
+        if isinstance(results.get(name), dict) and results[name].get("error"):
+            lines.append(f"- {name}: error ({results[name]['error']})")
+    spent = "dry-run ledger, nothing spent" if results.get("mode") == "fixture" else "ledger rows with the run prefix"
+    lines += ["", f"Spend so far under this run prefix ({spent}): ${results.get('spend_usd', 0.0):.4f}", ""]
     return "\n".join(lines)
+
+
+def planned_calls(args: argparse.Namespace) -> dict[str, int]:
+    """Spark calls and SAM image requests this invocation plans (no retries counted); run_d1 prices them."""
+    specs = crop_specs(args)
+    efforts = list(args.efforts or [args.effort])
+    n_claims = len(args.claim or []) + (len(specs) if args.claims_from_crops else 0)
+    looks = (1 if args.second_look or args.auto_looks else 0) + (1 if args.second_look_control or args.auto_looks else 0)
+    sources = len({(str(s.get("source")), s.get("t")) for s in specs})
+    spark = len(specs) * len(efforts) * max(1, args.n) + (len(specs) if args.count else 0) + (1 if args.truncate else 0) + looks + n_claims * 3 + (1 if args.note_prefill else 2 if args.note_prefill_synthetic else 0)
+    blur = 0 if args.no_blur else 2 * (sources + len(args.claim or []) + 2 * sum(1 for p in (args.second_look, args.second_look_control) if p))
+    images = blur + n_claims * 14 + (3 if args.ruler_frame else 0) + (4 if args.door_pair else 0)
+    return {"spark": spark, "sam_images": images}
 
 
 def print_plan(args: argparse.Namespace, th: dict) -> None:
     specs = crop_specs(args)
     efforts = list(args.efforts or [args.effort])
-    calls = len(specs) * len(efforts) * max(1, args.n)
-    extra = (1 if args.truncate else 0) + (1 if args.second_look else 0) + (1 if args.second_look_control else 0) + len(args.claim or []) * 3 + (2 if args.note_prefill_synthetic else 0) + (len(specs) if args.count else 0)
+    plan = planned_calls(args)
     print("gate_spark would send (set LIVE=1 to run):")
-    print(f"  {len(specs)} crop(s) x {efforts} x {args.n} = {calls} marks_v1 calls at about ${th['cost'].get('spark_call_estimate_usd', 0.01):.3f} each (estimate), plus {extra} other Spark calls")
-    if args.claim:
-        print(f"  {len(args.claim)} claim photo(s) x 14 SAM image requests x $0.0025")
-    if args.ruler_frame:
-        print("  3 SAM image requests for the rulers")
+    print(f"  {len(specs)} crop(s) x {efforts} x {args.n} marks_v1 calls plus the other probes: {plan['spark']} Spark calls at about $0.01 each (estimate from 10/26)")
+    print(f"  {plan['sam_images']} SAM image requests x $0.0025 (plate and face blur before Spark, claim votes, rulers, door pair)")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1053,6 +1408,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--tire-code", default=None, help="E11: the sidewall code for the wheel ruler, e.g. 225/60R16")
     parser.add_argument("--door-pair", nargs=2, metavar=("WALK_FRAME", "CLOSE_PHOTO"), help="E11: the same door in a walk frame and a close photo")
     parser.add_argument("--note-prefill-synthetic", action="store_true", help="E18: two synthetic agreements through note_prefill_v1")
+    parser.add_argument("--note-prefill", metavar="PDF", help="E18 on one given agreement PDF instead of the synthetic two")
+    parser.add_argument("--note-claim-text", help="the claim text sent with --note-prefill")
+    parser.add_argument("--note-expected", metavar="JSON", help="the typed fields to compare with --note-prefill's answer")
+    parser.add_argument("--auto-looks", action="store_true", help="E6: when no second-look images are given, pair the first marked crop with itself shifted and with the control crop (weak, labelled)")
+    parser.add_argument("--claims-from-crops", action="store_true", help="E11: also run the claim probes on the (blurred) crops")
+    parser.add_argument("--no-blur", action="store_true", help="skip the plate and face pixelation of crops and photos (only for frames already blurred)")
     parser.add_argument("--budget", type=float, default=None, help="stop starting crops past this many dollars on the run prefix")
     parser.add_argument("--run-prefix", default=None, help="ledger run_id prefix (default d1_<timestamp>)")
     parser.add_argument("--fixture", help="canned answers JSON for a dry run through the real spark_client code (no call)")
@@ -1061,10 +1422,17 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
+    """The gate as a function. The live path writes gate_spark.json with partial true after every probe; the last
+    write sets partial false."""
     th = contracts.load_thresholds()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
-    results = run_fixture(args, th) if args.fixture else run_live(args, th)
+
+    def save(partial: dict[str, Any]) -> None:
+        gate_sam.write_json(out / "gate_spark.json", {**partial, "partial": True, "thresholds_config_hash": contracts.config_hash(th), "written_at": gate_sam.utc_ts()})
+
+    results = run_fixture(args, th) if args.fixture else run_live(args, th, save)
+    results["partial"] = False
     results["thresholds_config_hash"] = contracts.config_hash(th)
     results["written_at"] = gate_sam.utc_ts()
     gate_sam.write_json(out / "gate_spark.json", results)
@@ -1076,7 +1444,7 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     th = contracts.load_thresholds()
     if not args.fixture:
-        if not args.source and not args.crops and not args.claim and not args.note_prefill_synthetic and not args.ruler_frame:
+        if not args.source and not args.crops and not args.claim and not args.note_prefill_synthetic and not args.note_prefill and not args.ruler_frame:
             print("gate_spark: a SOURCE, --crops, --claim, --ruler-frame or --note-prefill-synthetic is required (or --fixture)", file=sys.stderr)
             return 2
         if not gate_sam.live_allowed():
