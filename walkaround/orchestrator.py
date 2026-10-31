@@ -260,8 +260,8 @@ STAGES: tuple[Stage, ...] = (
     Stage("panels", c.RunStatus.TRACKING, 55, model=True, fatal=False),  # needs tracks, so before the blur
     Stage("blur", c.RunStatus.BLURRING, 60, model=False, fatal=False),
     Stage("marks", c.RunStatus.MARKING, 70, model=True, fatal=False),
+    Stage("narration", c.RunStatus.STAYSPUT, 74, model=True, fatal=False),  # before Stays Put, so seed marks get clips
     Stage("staysput", c.RunStatus.STAYSPUT, 78, model=True, fatal=False),
-    Stage("narration", c.RunStatus.STAYSPUT, 82, model=True, fatal=False),
     Stage("match", c.RunStatus.MATCHING, 88, model=False, fatal=False, pair_only=True),
     Stage("release", c.RunStatus.SHEET, 92, model=False, fatal=False),  # deletions before the sheet prints their clocks
     Stage("sheet", c.RunStatus.SHEET, 95, model=False, fatal=False),
@@ -577,10 +577,13 @@ class Orchestrator:
         run_id: str | None = None,
         noun_list: list[c.Noun] | None = None,
         prompts: dict[str, str] | None = None,
+        keep: bool = False,
+        footage_credit: str | None = None,
     ) -> c.RunManifest:
         """ULID run_id (or a chosen one that does not exist yet), the layout on disk, thresholds frozen with their hash,
         run.json, run.created. noun_list narrows the lanes (car, license plate and face always stay); prompts gives a
-        lane stand-in text for a test clip that has no car (see prompt_text)."""
+        lane stand-in text for a test clip that has no car (see prompt_text). keep (sample and eval runs) survives the
+        retention sweep and makes the run public; footage_credit is the credit line shown under the walk player."""
         nouns, prompts = _check_nouns(noun_list, prompts)
         if run_id is not None:
             _check_new_run_id(run_id)
@@ -604,6 +607,8 @@ class Orchestrator:
             sam_engine=self.engine,
             noun_list=nouns,
             prompts=prompts,
+            keep=keep,
+            footage_credit=" ".join(footage_credit.split()) if footage_credit else None,
         )
         self.save_run(run)
         payload: dict[str, Any] = {"kind": kind.value, "mode": mode.value, "keep_plate": keep_plate, "config_hash": run.config_hash}
@@ -803,7 +808,9 @@ class Orchestrator:
         if name == "marks":
             return (derived / "marks.json").is_file() and all(self._marks_done(run_id, r) for r in roles)
         if name == "staysput":
-            return (derived / "mark_tracks.json").is_file()
+            if not (derived / "mark_tracks.json").is_file():
+                return False  # written after each walk, so it alone cannot say every walk finished
+            return not self.has_dep("staysput.role_done") or all(self.dep("staysput.role_done")(run_id, r) for r in roles)
         if name == "narration":
             return (derived / "narration.json").is_file()
         if name == "match":
@@ -1605,9 +1612,12 @@ class Orchestrator:
         if not self.has_dep("staysput.derive_staysput"):
             raise StageGap("staysput module not wired (backlog B2)")
         count = 0
-        for role in self.expected_roles(run):
-            count += len(await self.dep("staysput.derive_staysput")(run_id, role, th=self.run_th(run)))
+        roles = self.expected_roles(run)
+        for role in roles:
+            count += len(await self.dep("staysput.derive_staysput")(run_id, role, th=self.run_th(run), stop=lambda: self.past_deadline(run_id)))
         self.emit(run_id, c.EventKind.STAYSPUT_DERIVED, {"sha256": sha256_path(paths.mark_tracks_json(run_id)), "mark_tracks": count})
+        if self.has_dep("staysput.role_done") and not all(self.dep("staysput.role_done")(run_id, r) for r in roles):
+            raise StageGap(f"run deadline {int(self.th['orchestrator']['run_deadline_s'])} s passed during Stays Put; the clips not started wait for a resume")
 
     async def _stage_narration(self, run: c.RunManifest, keep_done: bool) -> None:
         """Voice per walk once (voice.json keeps every answer), then narration. A clip with no audio, over 10 minutes
@@ -1634,15 +1644,44 @@ class Orchestrator:
             self.emit(run_id, c.EventKind.VOICE_DONE, {"role": role, "mode_applied": record.mode_applied, "turns": len(record.response.turns), "sha256": record.digest()})
         if not self.has_dep("narration.derive_narration"):
             raise StageGap("narration module not wired (backlog B6)")
+        asked = {r.request_id for r in c.read_json_list(paths.spark_json(run_id), c.SparkRequestRecord)} if paths.spark_json(run_id).is_file() else set()
         narration = await self.dep("narration.derive_narration")(run_id, th=th)
+        if self.has_dep("narration.seed_records"):
+            for role, record in self.dep("narration.seed_records")(run_id):
+                if record.request_id not in asked:  # seed_v1 answers join the chain like the marks pass's
+                    asked.add(record.request_id)
+                    self._emit_spark(run_id, role, record)
         self.emit(run_id, c.EventKind.NARRATION_DERIVED, {"sha256": sha256_path(paths.narration_json(run_id)), "mode_applied": narration.mode_applied})
 
     async def _stage_match(self, run: c.RunManifest, keep_done: bool) -> None:
+        """Match and verdicts, the second look inside it (it can only lower a label), then the ruler's sizes. The stage
+        stays model=False so the free match always runs; the look alone is skipped past the ceiling or the deadline."""
         run_id = run.run_id
-        matches, verdicts, _calibration = await asyncio.to_thread(self.dep("match.derive_match"), run_id, th=self.run_th(run), second_look=None)
+        th = self.run_th(run)
+        look = None
+        if self.has_dep("second_look.make_second_look") and not self.over_ceiling(run) and not self.past_deadline(run_id):
+            look = self.dep("second_look.make_second_look")(run_id, th=th)  # None while spark.second_look_engine is off
+        matches, verdicts, _calibration = await asyncio.to_thread(self.dep("match.derive_match"), run_id, th=th, second_look=look)
+        if look is not None:
+            self._emit_looks(run_id)
+            self._note_spend(run_id)
+        if self.has_dep("ruler.size_verdicts"):
+            await asyncio.to_thread(self.dep("ruler.size_verdicts"), run_id, th=th)
         self.emit(run_id, c.EventKind.MATCH_DERIVED, {"sha256": {"matches": sha256_path(paths.matches_json(run_id)), "verdicts": sha256_path(paths.verdicts_json(run_id))}, "panels": len(matches), "verdicts": len(verdicts)})
         pairs = sum(len(pm.pairs) for pm in matches)
         self.update_run(run_id, lambda r: setattr(r.counts, "matches", pairs))
+
+    def _emit_looks(self, run_id: str) -> None:
+        """spark.request and spark.response for every model answer behind derived/looks.json (both engines), once each,
+        so the chain covers the second looks like the marks pass. role is 'pair': a look shows both walks."""
+        if not self.has_dep("second_look.stored_looks"):
+            return
+        seen = {e.payload.get("request_id") for e in self.read_events(run_id) if e.kind == c.EventKind.SPARK_RESPONSE}
+        for look in self.dep("second_look.stored_looks")(run_id):
+            for record in look.records:
+                if record.request_id and record.request_id not in seen:
+                    seen.add(record.request_id)
+                    self._emit_spark(run_id, "pair", record)
 
     async def _write_sheet(self, run: c.RunManifest) -> None:
         """Freeze the head the sheet prints into run.json, then write the sheet (a rebuild reads the same head)."""
@@ -1763,6 +1802,11 @@ class Orchestrator:
             ids += [r.request_id for r in c.read_json_list(paths.spark_json(run_id), c.SparkRequestRecord)]
         if paths.mark_tracks_json(run_id).is_file():
             ids += [t.request_id for t in c.read_json_list(paths.mark_tracks_json(run_id), c.MarkTrack) if t.request_id]
+        if self.has_dep("staysput.request_ids"):
+            ids += self.dep("staysput.request_ids")(run_id)  # the clip checks live only in clips/<role>/staysput.json
+        if self.has_dep("second_look.stored_looks"):
+            # hosted Muse Spark answers behind the second looks; Baseten's chatcmpl- ids never go to Meta's DELETE
+            ids += [r.request_id for look in self.dep("second_look.stored_looks")(run_id) for r in look.records if r.engine == c.SparkEngine.META_MODEL_API and not r.request_id.startswith("local-")]
         return list(dict.fromkeys(i for i in ids if i))
 
     def _pending_response_ids(self, run_id: str) -> list[str]:
@@ -2162,17 +2206,26 @@ class Orchestrator:
             return self._rebuild_in_place(run, th)
 
     def _rebuild_in_place(self, run: c.RunManifest, th: dict[str, Any]) -> dict[str, str]:
+        """In stage order, with no call: coverage, marks, narration (it puts the seed rows back into marks.json), Stays
+        Put (match reads mark_tracks.json), match with the second looks replayed from looks.json, the ruler's sizes,
+        the claims, the sheet."""
         run_id = run.run_id
-        result: dict[str, str] = {name: NOT_REBUILT for name in ("mark_tracks.json", "narration.json", "claim.json")}
+        result: dict[str, str] = {}
         result["coverage.json"] = self._rebuild_coverage(run, th)
         result.update(self._rebuild_marks(run, th))
+        result.update(self._rebuild_narration(run, th))
+        result.update(self._rebuild_staysput(run, th))
         if run.kind == c.RunKind.PAIR and self.has_dep("match.derive_match"):
             try:
-                self.dep("match.derive_match")(run_id, th=th, second_look=None)
+                replay = self.dep("second_look.replay_second_look")(run_id, th=th) if self.has_dep("second_look.replay_second_look") else None
+                self.dep("match.derive_match")(run_id, th=th, second_look=replay)
+                if self.has_dep("ruler.size_verdicts"):
+                    self.dep("ruler.size_verdicts")(run_id, th=th)
                 result["matches.json"] = sha256_path(paths.matches_json(run_id))
                 result["verdicts.json"] = sha256_path(paths.verdicts_json(run_id))
             except Exception as exc:
                 result["matches.json"] = result["verdicts.json"] = f"failed: {_error_text(exc)}"
+        result.update(self._rebuild_claims(run, th))
         if self.has_dep("sheet.write_sheet"):
             try:
                 self.dep("sheet.write_sheet")(run_id, th=th)
@@ -2180,6 +2233,18 @@ class Orchestrator:
             except Exception as exc:
                 result["sheet.json"] = f"failed: {_error_text(exc)}"
         return result
+
+    def _rebuild_staysput(self, run: c.RunManifest, th: dict[str, Any]) -> dict[str, str]:
+        """mark_tracks.json from the stored clip plans, clip lanes and keyframe crops (staysput.rebuild_staysput, no call)."""
+        run_id = run.run_id
+        if not self.has_dep("staysput.rebuild_staysput"):
+            return {"mark_tracks.json": NOT_REBUILT}
+        try:
+            self.dep("staysput.rebuild_staysput")(run_id, th=th)
+        except Exception as exc:
+            return {"mark_tracks.json": f"failed: {_error_text(exc)}"}
+        path = paths.derived_dir(run_id) / "mark_tracks.json"
+        return {"mark_tracks.json": sha256_path(path) if path.is_file() else "not rebuilt: the Stays Put stage never ran"}
 
     def _rebuild_marks(self, run: c.RunManifest, th: dict[str, Any]) -> dict[str, str]:
         """marks.json, and with it calibration.json's pooled sigma_view, from spark.json and keyframes.json for each walk
@@ -2198,6 +2263,40 @@ class Orchestrator:
         if paths.calibration_json(run_id).is_file():
             out["calibration.json"] = sha256_path(paths.calibration_json(run_id))
         return out
+
+    def _rebuild_narration(self, run: c.RunManifest, th: dict[str, Any]) -> dict[str, str]:
+        """narration.json and the seed rows of marks.json (marks.rebuild_marks dropped them) from voice.json, seeds.json and
+        spark.json (narration.rebuild_narration, no call); before the match, which reads the seeds."""
+        run_id = run.run_id
+        if not paths.narration_json(run_id).is_file():
+            return {"narration.json": "not rebuilt: narration.json missing (the narration stage never ran)"}
+        if not self.has_dep("narration.rebuild_narration"):
+            return {"narration.json": NOT_REBUILT}
+        try:
+            self.dep("narration.rebuild_narration")(run_id, th=th)
+        except Exception as exc:
+            return {"narration.json": f"failed: {_error_text(exc)}"}
+        out = {"narration.json": sha256_path(paths.narration_json(run_id))}
+        pieces = paths.derived_dir(run_id) / "narration_pieces.json"
+        if pieces.is_file():
+            out["narration_pieces.json"] = sha256_path(pieces)
+        if paths.marks_json(run_id).is_file():
+            out["marks.json"] = sha256_path(paths.marks_json(run_id))
+        return out
+
+    def _rebuild_claims(self, run: c.RunManifest, th: dict[str, Any]) -> dict[str, str]:
+        """Every claim/<claim_id>.json from its recorded answers and pixelated photo, and derived/claim.json from the
+        claim it already holds (claim.rebuild_claims, no call); nothing when the run has no claim."""
+        run_id = run.run_id
+        folder = paths.runs_root() / run_id / "claim"
+        if not (folder.is_dir() and any(folder.glob("claim_*.answers.json"))) and not paths.claim_json(run_id).is_file():
+            return {}
+        if not self.has_dep("claim.rebuild_claims"):
+            return {"claim.json": NOT_REBUILT}
+        try:
+            return dict(self.dep("claim.rebuild_claims")(run_id, th=th))
+        except Exception as exc:
+            return {"claim.json": f"failed: {_error_text(exc)}"}
 
     def _rebuild_coverage(self, run: c.RunManifest, th: dict[str, Any]) -> str:
         """coverage.json from panels, tracks, keyframes and the lane summaries, the way panels.derive's last call

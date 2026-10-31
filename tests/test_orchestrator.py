@@ -14,6 +14,7 @@ import itertools
 import json
 import os
 import re
+import sys
 import time
 from collections import Counter
 from pathlib import Path
@@ -108,9 +109,13 @@ class Fakes:
             "privacy.served_file_allowed": self.served_file_allowed,
             "marks.derive_marks": self.derive_marks,
             "staysput.derive_staysput": self.derive_staysput,
+            "staysput.role_done": lambda run_id, role: paths.mark_tracks_json(run_id).is_file(),
+            "staysput.rebuild_staysput": lambda run_id, *, th: [],
+            "staysput.request_ids": lambda run_id: [],
             "voice_client.transcribe_wav": self.transcribe_wav,
             "voice_client.voice_record": self.voice_record,
             "narration.derive_narration": self.derive_narration,
+            "narration.rebuild_narration": self.rebuild_narration,
             "match.derive_match": self.derive_match,
             "sheet.write_sheet": self.write_sheet,
             "seal.seal_run": self.seal_run,
@@ -265,7 +270,7 @@ class Fakes:
         c.write_json(paths.spark_json(run_id), _read(paths.spark_json(run_id), c.SparkRequestRecord) + records)
         return [], list(stamped.values()), records
 
-    async def derive_staysput(self, run_id: str, role: str, *, th: dict) -> list:
+    async def derive_staysput(self, run_id: str, role: str, *, th: dict, stop: Any = None) -> list:
         self.calls["derive_staysput"] += 1
         c.write_json(paths.mark_tracks_json(run_id), [])
         return []
@@ -285,6 +290,9 @@ class Fakes:
 
     async def derive_narration(self, run_id: str, *, th: dict) -> c.Narration:
         self.calls["derive_narration"] += 1
+        return self.rebuild_narration(run_id, th=th)
+
+    def rebuild_narration(self, run_id: str, *, th: dict) -> c.Narration:
         narration = c.Narration(per_role={}, mode_applied=True)
         c.write_json(paths.narration_json(run_id), narration)
         return narration
@@ -422,10 +430,10 @@ def test_et_day_of_handles_ledger_and_utc_stamps() -> None:
 
 
 def test_stage_table_covers_the_section_5_order() -> None:
-    assert [s.name for s in STAGES] == ["seal", "media", "files", "lanes", "panels", "blur", "marks", "staysput", "narration", "match", "release", "sheet", "close"]
+    assert [s.name for s in STAGES] == ["seal", "media", "files", "lanes", "panels", "blur", "marks", "narration", "staysput", "match", "release", "sheet", "close"]
     assert [s.name for s in STAGES if s.fatal] == ["seal", "media"]
     assert [s.name for s in STAGES if s.pair_only] == ["match"]
-    assert [s.name for s in STAGES if s.model] == ["lanes", "panels", "marks", "staysput", "narration"]
+    assert [s.name for s in STAGES if s.model] == ["lanes", "panels", "marks", "narration", "staysput"]
 
 
 # The event log stand-in ----------------------------------------------------------------------------------------------
@@ -890,10 +898,10 @@ async def test_blur_is_refused_when_a_privacy_lane_did_not_complete(runs_dir: Pa
     assert all(orch.stage_done(final, s) for s in orch.stages_for(final))  # the refusal settles the stage: a resume redoes nothing
 
 
-async def test_a_lane_that_is_not_wired_is_a_recorded_gap_not_a_retry(runs_dir: Path, th: dict) -> None:
+async def test_a_lane_that_is_not_wired_is_a_recorded_gap_not_a_retry(runs_dir: Path, th: dict, monkeypatch: pytest.MonkeyPatch) -> None:
     fakes = Fakes()
-    overrides = fakes.overrides()
-    del overrides["staysput.derive_staysput"]
+    overrides = {k: v for k, v in fakes.overrides().items() if not k.startswith("staysput.")}
+    monkeypatch.setitem(sys.modules, "walkaround.staysput", None)  # the module exists now: hide it to test an unwired lane
     orch = Orchestrator(th=th, engine=c.SamEngine.META_MODEL_API, max_concurrent_runs=1, media_workers=1, decode_workers=1, events=FileEventLog(), overrides=overrides, delays_path=Path("/nonexistent"))
     run = await new_run(orch, c.RunKind.PICKUP_CHECK)
     final = await orch.run_pipeline(run.run_id)
@@ -1201,7 +1209,7 @@ async def test_rebuild_into_out_dir_and_verify_reports_a_tampered_file(runs_dir:
     assert result["coverage.json"] == hashlib.sha256(paths.coverage_json(run.run_id).read_bytes()).hexdigest()
     assert result["sheet.json"] == hashlib.sha256(paths.sheet_json(run.run_id).read_bytes()).hexdigest()  # the frozen head
     assert result["marks.json"] == hashlib.sha256(paths.marks_json(run.run_id).read_bytes()).hexdigest()  # from spark.json
-    assert result["mark_tracks.json"].startswith("not rebuilt")
+    assert result["mark_tracks.json"] == hashlib.sha256(paths.mark_tracks_json(run.run_id).read_bytes()).hexdigest()  # staysput.rebuild_staysput
     assert paths.RUNS_DIR == runs_dir  # the root swap is undone
     assert orch.verify(run.run_id, out=tmp_path / "verify") == []
     paths.matches_json(run.run_id).write_text('[{"tampered": true}]\n', encoding="utf-8")
@@ -1212,6 +1220,65 @@ async def test_rebuild_into_out_dir_and_verify_reports_a_tampered_file(runs_dir:
     events_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
     problems = orch.verify(run.run_id, out=tmp_path / "verify3")
     assert problems[0] == "rebuild differs: derived/matches.json" and sum(p.startswith("event chain broken") for p in problems) == 1
+
+
+async def test_the_match_stage_asks_the_second_look_then_sizes_and_rebuild_replays_both(runs_dir: Path, th: dict, tmp_path: Path) -> None:
+    fakes = Fakes()
+    given: list[Any] = []
+    seen: dict[str, list[str]] = {"live": [], "replay": [], "sizes": [], "claims": []}
+
+    def live_look(pair: Any) -> Any:
+        return c.LookVerdict.SAME
+
+    def replay_look(pair: Any) -> Any:
+        return None
+
+    def derive_match(run_id: str, *, th: dict, second_look: Any = None) -> Any:
+        given.append(second_look)
+        return fakes.derive_match(run_id, th=th, second_look=second_look)
+
+    def rebuild_claims(run_id: str, *, th: dict) -> dict[str, str]:
+        seen["claims"].append(run_id)
+        return {"claim/claim_1.json": "0" * 64}
+
+    overrides = {
+        **fakes.overrides(),
+        "match.derive_match": derive_match,
+        "second_look.make_second_look": lambda run_id, *, th: seen["live"].append(run_id) or live_look,
+        "second_look.replay_second_look": lambda run_id, *, th=None: seen["replay"].append(run_id) or replay_look,
+        "second_look.stored_looks": lambda run_id: [],
+        "ruler.size_verdicts": lambda run_id, *, th: seen["sizes"].append(run_id) or [],
+        "claim.rebuild_claims": rebuild_claims,
+    }
+    orch = Orchestrator(th=th, engine=c.SamEngine.META_MODEL_API, max_concurrent_runs=1, media_workers=1, decode_workers=1, events=FileEventLog(), overrides=overrides, delays_path=Path("/nonexistent"))
+    run = await new_run(orch)
+    assert (await orch.run_pipeline(run.run_id)).status == c.RunStatus.DONE
+    assert given == [live_look] and seen["live"] == [run.run_id] and seen["sizes"] == [run.run_id]
+    result = orch.rebuild(run.run_id, out=tmp_path / "out")
+    assert given == [live_look, replay_look] and seen["replay"] == [run.run_id] and seen["sizes"] == [run.run_id] * 2
+    assert seen["claims"] == [] and not any(k.startswith("claim") for k in result)  # no claim on the run: nothing to rebuild
+    answers = paths.runs_root() / run.run_id / "claim" / "claim_1.answers.json"
+    answers.parent.mkdir(parents=True, exist_ok=True)
+    answers.write_text("{}", encoding="utf-8")
+    result = orch.rebuild(run.run_id, out=tmp_path / "out")
+    assert seen["claims"] == [run.run_id] and result["claim/claim_1.json"] == "0" * 64
+
+
+async def test_no_second_look_is_asked_past_the_deadline_but_the_free_match_still_runs(runs_dir: Path, th: dict) -> None:
+    fakes = Fakes()
+    given: list[Any] = []
+    asked: list[str] = []
+
+    def derive_match(run_id: str, *, th: dict, second_look: Any = None) -> Any:
+        given.append(second_look)
+        return fakes.derive_match(run_id, th=th, second_look=second_look)
+
+    overrides = {**fakes.overrides(), "match.derive_match": derive_match, "second_look.make_second_look": lambda run_id, *, th: asked.append(run_id) or (lambda pair: c.LookVerdict.SAME)}
+    orch = Orchestrator(th=th, engine=c.SamEngine.META_MODEL_API, max_concurrent_runs=1, media_workers=1, decode_workers=1, events=FileEventLog(), overrides=overrides, delays_path=Path("/nonexistent"))
+    run = await new_run(orch)
+    orch.past_deadline = lambda run_id: True  # type: ignore[method-assign]
+    await orch.run_pipeline(run.run_id)
+    assert given == [None] and asked == []
 
 
 def _snapshot(root: Path) -> dict[str, tuple[bytes, int]]:

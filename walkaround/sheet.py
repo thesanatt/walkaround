@@ -17,6 +17,7 @@ from __future__ import annotations
 import base64
 import concurrent.futures
 import hashlib
+import json
 import re
 import unicodedata
 from collections.abc import Callable
@@ -278,15 +279,27 @@ def _num(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.2f}"
 
 
-def staysput_line(mt: MarkTrack | None) -> str | None:
-    """'drift 0.03, b1 0.20, b2 0.01, not panned; fixed' or 'inconclusive (camera did not move enough)'."""
+STAYSPUT_UNCALIBRATED = "recorded only: Stays Put is not calibrated yet and changes no label"
+
+
+def staysput_line(mt: MarkTrack | None, *, calibrated: bool = True) -> str | None:
+    """'drift 0.03, b1 0.20, b2 0.01, not panned; fixed'; an inconclusive track says which test it stopped at: the
+    camera's motion (section 14 item 18), too few whitened frames, or a drift between fixed and sliding. Uncalibrated
+    (thresholds staysput.cap_enabled off, docs/D1_MEMO.md note 2) the numbers only, said to change no label."""
     if mt is None or mt.verdict == StaysPutVerdict.NOT_RUN:
         return None
     if mt.verdict == StaysPutVerdict.NO_TRACK:
         return "no track (SAM did not follow the mark through the clip)"
+    numbers = f"drift {_num(mt.drift_rms)}, b1 {_num(mt.b1)}, b2 {_num(mt.b2)}, {'panned' if mt.panned else 'not panned'}"
+    if not calibrated:
+        return f"{numbers}; {STAYSPUT_UNCALIBRATED}"
+    if mt.verdict == StaysPutVerdict.INCONCLUSIVE and not mt.b_pass:
+        return "inconclusive (camera did not move enough)"
+    if mt.verdict == StaysPutVerdict.INCONCLUSIVE and mt.drift_rms is None:
+        return "inconclusive (the whole panel was in view on too few frames)"
+    line = f"{numbers}; {mt.verdict.value}"
     if mt.verdict == StaysPutVerdict.INCONCLUSIVE:
-        return "inconclusive (the camera panned: b1 under its floor, b2 over)" if mt.panned else "inconclusive (camera did not move enough)"
-    line = f"drift {_num(mt.drift_rms)}, b1 {_num(mt.b1)}, b2 {_num(mt.b2)}, {'panned' if mt.panned else 'not panned'}; {mt.verdict.value}"
+        line += f" (between fixed and sliding; sign test {_num(mt.sign_agreement)} on {mt.pairs_n} pairs)"
     if mt.curvature_cap:
         line += "; curvature cap"
     if mt.highlight_cap:
@@ -411,7 +424,7 @@ def glossary_md() -> str:
         "Glossary\n"
         "\n"
         "already there: the same mark was found at pickup within tau_pre of its return position (rule L3).\n"
-        "needs your eye: a human should look; the pair sat in the band between tau_pre and tau_eye, or a cap (K1 to K13) applied (L4).\n"
+        "needs your eye: a human should look; the pair sat in the band between tau_pre and tau_eye, or a cap (K1 to K14) applied (L4).\n"
         "new or unseen: a return mark with no pickup mark near it; new, or not filmed at pickup (L2).\n"
         "not seen at return: a pickup mark with no return mark near it (L1).\n"
         "not comparable: a panel gate failed (G1 to G10); both best frames still show with the reason (L6).\n"
@@ -688,6 +701,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     match_by_panel = {m.panel_id: m for m in matches}
     marks_by_id = {m.mark_id: m for m in marks}
     mt_by_mark = {t.mark_id: t for t in mark_tracks}
+    staysput_calibrated = bool(th["staysput"].get("cap_enabled", True))  # match.staysput_caps reads the same leaf
     label_by_mark = {mid: v.label for v in verdicts for mid in v.mark_ids}
     panel_by_id = {p.panel_id: p for p in panels}
     owner_frames = 0
@@ -736,7 +750,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
         lines: list[SheetVerdictLine] = []
         for v in [v for v in verdicts if v.panel_id == pid]:
             first = next((marks_by_id[i] for i in v.mark_ids if i in marks_by_id), None)
-            sp = next((s for s in (staysput_line(mt_by_mark[i]) for i in v.mark_ids if i in mt_by_mark) if s), None)
+            sp = next((s for s in (staysput_line(mt_by_mark[i], calibrated=staysput_calibrated) for i in v.mark_ids if i in mt_by_mark) if s), None)
             size_text = size_line(v.size)
             extra = threshold_line(v.size, th)
             lines.append(
@@ -836,7 +850,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     sheet = SheetModel(
         run_id=run_id, app_commit=run.app_commit, config_hash=run.config_hash, events_head_hash=run.events_head_hash,
         clocks=run.clocks, deletion_clocks=clocks, originals=originals, plate_line=plate_line,
-        privacy_line=privacy.privacy_line(run, plate_found, deletion_rows), coverage_summary=coverage_summary, panels=blocks,
+        privacy_line=privacy.privacy_line(run, plate_found, deletion_rows, baseten=_used_baseten(run_id)), coverage_summary=coverage_summary, panels=blocks,
         stand_in_line=stand_in_line(run),
         not_comparable=not_comparable, method=method, footer_hash_prefixes=[o.sha256[:12] for o in originals],
     )
@@ -867,11 +881,23 @@ def _claim_text(claim: Claim, th: dict[str, Any]) -> str:
     if claim.coverage_state is not None:
         lines.append(f"coverage at pickup: {claim.coverage_state.value}")
     if claim.paragraph:
-        lines += ["", claim.paragraph]
-    size_text = size_line(claim.size)
-    extra = threshold_line(claim.size, th)
-    lines += ["", f"{size_text}; {extra}" if extra else size_text]
+        lines += ["", claim.paragraph]  # it already holds the size sentence when the claim was compared
+    elif claim.size is not None:
+        size_text = size_line(claim.size)
+        extra = threshold_line(claim.size, th)
+        lines += ["", f"{size_text}; {extra}" if extra else size_text]
     return "\n".join(lines) + "\n"
+
+
+def _used_baseten(run_id: str) -> bool:
+    """The run sent second looks to Muse Spark Open on Baseten: a look answered there, or a provenance line exists."""
+    log = paths.open_weights_log(run_id)
+    if log.is_file() and log.stat().st_size > 0:
+        return True
+    looks = paths.looks_json(run_id)
+    if not looks.is_file() or looks.stat().st_size == 0:
+        return False
+    return any(row.get("engine") == "baseten" for row in json.loads(looks.read_text(encoding="utf-8")))
 
 
 # Rendering -----------------------------------------------------------------------------------------------------------

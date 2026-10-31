@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import math
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
@@ -535,11 +536,14 @@ _SERVED: dict[str, tuple[frozenset[int], tuple[str, ...]]] = {
     "keyframes": (frozenset({3}), (".jpg",)),
     "clips": (frozenset({3}), (".mp4",)),
     "chips": (frozenset({3}), (".m4a",)),
-    "claim": (frozenset({2}), (".jpg", ".jpeg", ".png")),
+    "claim": (frozenset({2}), (".blurred.jpg", ".json")),  # narrowed by _CLAIM_SERVED: never the upload or the answers
     "sheet": (frozenset({2, 3}), (".html", ".json", ".pdf", ".jpg", ".zip")),
     "bundle": (frozenset({2}), (".json", ".ots", ".tsq", ".tsr", ".md", ".pem", ".crt")),
 }
-_SERVED_RUN_FILES = ("deletions.json",)
+_SERVED_RUN_FILES = ("deletions.json", "open_weights.ndjson")  # the Baseten provenance log holds no pixels or keys
+# Under claim/ only the pixelated photo and the Claim itself: claim_<n>.jpg (the upload) and claim_<n>.answers.json
+# (model answers, mask payloads) are never served.
+_CLAIM_SERVED = re.compile(r"claim_[0-9]+\.(blurred\.jpg|json)")
 _NEVER_IN_NAME = (".part", ".tmp", ".orig", ".bak")
 # Cut from 4K frames (or the renter's own claim photo): blurred by design, still owner-only under keep_plate, so an
 # unblurred plate can never reach a browser other than the owner's whatever an upstream lane passed.
@@ -566,6 +570,8 @@ def served_file_allowed(run: RunManifest, rel_path: str, *, run_owner: bool) -> 
         return False
     if parts[0] == "sheet" and len(parts) == 3 and parts[1] != "frames":
         return False
+    if parts[0] == "claim" and not _CLAIM_SERVED.fullmatch(name):
+        return False
     if ".owner." in name and not run_owner:
         return False
     if run.keep_plate and not run_owner and parts[0] in OWNER_ONLY_UNDER_KEEP_PLATE:
@@ -573,9 +579,14 @@ def served_file_allowed(run: RunManifest, rel_path: str, *, run_owner: bool) -> 
     return True
 
 
-def privacy_line(run: RunManifest, plate_found: dict[str, bool], deletions: list[DeletionRecord] | None = None) -> str:
+BASETEN_CLAUSE = "For the second look, two blurred crops per look were sent to Muse Spark Open on Baseten, a company separate from Meta; no video went there."
+
+
+def privacy_line(run: RunManifest, plate_found: dict[str, bool], deletions: list[DeletionRecord] | None = None, *, baseten: bool = False) -> str:
     """The sentence of section 8 item 9 word for word, with the storage variant and the no-plate clause per walk.
-    Given the deletion rows, a Files API delete that failed says so (section 14 item 25) instead of claiming one."""
+    Given the deletion rows, a Files API delete that failed says so (section 14 item 25) instead of claiming one.
+    baseten: the run sent second looks to Muse Spark Open on Baseten, a company that is not Meta, so it says so
+    (the same clause as web/src/lib/privacy.ts)."""
     failed = [d for d in deletions or [] if d.kind == DeletionKind.FILES_API and d.api_response is None]
     if failed:
         uploads = "Uploads were set to expire after one hour; Walkaround's delete request failed, so that expiry applies. "
@@ -593,6 +604,8 @@ def privacy_line(run: RunManifest, plate_found: dict[str, bool], deletions: list
         "Meta's terms allow it to retain content for abuse review and legal reasons; Walkaround does not control that. "
         "SAM 3.1 saw the unblurred proxy for the length of one segmentation pass to find the plates and faces it then blurred."
     )
+    if baseten:
+        text += " " + BASETEN_CLAUSE
     for role in sorted(plate_found):
         if not plate_found[role]:
             text += f" {role.replace('_', ' ').capitalize()} walk: no plate detected; nothing was blurred for that reason."

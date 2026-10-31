@@ -327,6 +327,7 @@ DERIVED_FILES = (
     "verdicts.json",
     "coverage.json",
     "narration.json",
+    "narration_pieces.json",
     "claim.json",
     "calibration.json",
 )

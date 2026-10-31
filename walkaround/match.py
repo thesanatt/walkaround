@@ -28,6 +28,7 @@ from .contracts import (
     Mark,
     MarkGroup,
     MarkKind,
+    MarkSource,
     MarkTrack,
     MarksStatus,
     MatchCandidate,
@@ -50,7 +51,7 @@ from .contracts import (
 
 Point2 = list[float]
 ROLES = ("pickup", "return")
-CAP_IDS_FROM_MARK = ("K2", "K3", "K4", "K8", "K9", "K10", "K11", "K12")
+CAP_IDS_FROM_MARK = ("K2", "K3", "K4", "K8", "K9", "K10", "K11", "K12", "K14")
 LOWERABLE = (VerdictLabel.ALREADY_THERE, VerdictLabel.NEW_OR_UNSEEN, VerdictLabel.NOT_SEEN_AT_RETURN)
 
 
@@ -320,6 +321,21 @@ def mutual_nn(cands: list[MatchCandidate], th: dict, *, tau_pre: float | None = 
     return out
 
 
+def seeded_ids(*walks: list[Mark]) -> frozenset[str]:
+    """The narration_seed marks among these: marks Muse Spark boxed because the renter named them."""
+    return frozenset(m.mark_id for marks in walks for m in marks if m.source == MarkSource.NARRATION_SEED)
+
+
+def seeds_last_nn(cands: list[MatchCandidate], seeded: frozenset[str], th: dict, *, tau_pre: float | None = None) -> list[MatchCandidate]:
+    """mutual_nn over the box marks, then over the seed candidates among the marks still free: a seed (K14 caps it)
+    can lower a label but never unsettles a box pair through the ratio test (5 step 11). Without seeds: mutual_nn."""
+    box = [c for c in cands if c.pickup_mark not in seeded and c.return_mark not in seeded]
+    pairs = mutual_nn(box, th, tau_pre=tau_pre)
+    taken = {p.pickup_mark for p in pairs} | {p.return_mark for p in pairs}
+    rest = [c for c in cands if (c.pickup_mark in seeded or c.return_mark in seeded) and c.pickup_mark not in taken and c.return_mark not in taken]
+    return [*pairs, *mutual_nn(rest, th, tau_pre=tau_pre)] if rest else pairs
+
+
 # The single entry point ------------------------------------------------------------------------------------------------------
 
 
@@ -425,18 +441,18 @@ def _group_lines(members: Members, pairs: list[MatchCandidate]) -> list[MarkGrou
     return out
 
 
-def _group_pairs(cands: list[MatchCandidate], pairs: list[MatchCandidate], members: Members) -> list[MatchCandidate]:
+def _group_pairs(cands: list[MatchCandidate], pairs: list[MatchCandidate], members: Members, seeded: frozenset[str] = frozenset()) -> list[MatchCandidate]:
     """Inside a group every ratio is near 1 (5.8 item 9), so the ratio test is waived there: still-unmatched
     members of one type pair greedily by cost while d < tau_eye_r, and the band labels them (already_there, or
     needs_your_eye with K1) instead of a confident not seen plus new. A wrong pairing inside one cluster is the
     same cluster; two clusters apart stay unmatched. Group pairs keep mutual False (they did not pass the mutual
-    NN test), which is how matches.json and verdicts_for tell them apart."""
+    NN test), which is how matches.json and verdicts_for tell them apart. Box candidates go before seed candidates."""
     # TODO(contracts): the waiver is not in CONTRACTS.md or 5.8; it needs a rule id the trace can carry.
     pick = {i: kind for kind, (mp, _) in members.items() for i in mp}
     ret = {i: kind for kind, (_, mr) in members.items() for i in mr}
     matched = {p.pickup_mark for p in pairs} | {p.return_mark for p in pairs}
     extra: list[MatchCandidate] = []
-    for c in sorted(cands, key=lambda c: (c.d, c.pickup_mark, c.return_mark)):
+    for c in sorted(cands, key=lambda c: (c.pickup_mark in seeded or c.return_mark in seeded, c.d, c.pickup_mark, c.return_mark)):
         if c.pickup_mark in matched or c.return_mark in matched:
             continue
         kind = pick.get(c.pickup_mark)
@@ -500,9 +516,10 @@ def match_panel(
     w_pickup = {m.mark_id: whitened[m.mark_id] for m in marks_pickup if m.mark_id in whitened}
     w_return = _shift_return({m.mark_id: whitened[m.mark_id] for m in marks_return if m.mark_id in whitened}, residual)
     cands = [cost(a, b, w_pickup[a.mark_id], w_return[b.mark_id], calibration, th) for a in marks_pickup if a.mark_id in w_pickup for b in marks_return if b.mark_id in w_return]
-    pairs = mutual_nn(cands, th, tau_pre=calibration.tau_pre)
+    seeded = seeded_ids(marks_pickup, marks_return)
+    pairs = seeds_last_nn(cands, seeded, th, tau_pre=calibration.tau_pre)
     members = _group_members(marks_pickup, marks_return, _xy(w_pickup), _xy(w_return), dist=math.dist, th=th)
-    pairs = [*pairs, *_group_pairs(cands, pairs, members)]
+    pairs = [*pairs, *_group_pairs(cands, pairs, members, seeded=seeded)]
     matched = {p.pickup_mark for p in pairs} | {p.return_mark for p in pairs}
     return pm.model_copy(
         update={
@@ -539,8 +556,9 @@ def wheel_match(panel: Panel, marks_pickup: list[Mark], marks_return: list[Mark]
     pm = PanelMatch(panel_id=panel.panel_id, state=MatchState.COMPARABLE, frame_used=FrameUsed.WHEEL)
     w_p = {m.mark_id: whitened[m.mark_id] for m in marks_pickup if m.mark_id in whitened}
     w_r = {m.mark_id: whitened[m.mark_id] for m in marks_return if m.mark_id in whitened}
-    placed_p = [m for m in marks_pickup if m.mark_id in w_p]
-    placed_r = [m for m in marks_return if m.mark_id in w_r]
+    seeded = seeded_ids(marks_pickup, marks_return)  # seeds stay unmatched on a wheel (K14 caps them)
+    placed_p = [m for m in marks_pickup if m.mark_id in w_p and m.mark_id not in seeded]
+    placed_r = [m for m in marks_return if m.mark_id in w_r and m.mark_id not in seeded]
     pairs: list[MatchCandidate] = []
     reasons: list[str] = []
     pos_p = {k: (w.u, 0.0) for k, w in w_p.items()}
@@ -596,6 +614,12 @@ def _staysput_cap(mt: MarkTrack | None) -> bool:
     return mt is not None and (mt.verdict in (StaysPutVerdict.SLIDING, StaysPutVerdict.INCONCLUSIVE) or mt.curvature_cap or mt.highlight_cap)
 
 
+def staysput_caps(mark_tracks: dict[str, MarkTrack], th: dict) -> dict[str, MarkTrack]:
+    """The Stays Put rows K6 may read: all of them while thresholds staysput.cap_enabled is on, none while it is off
+    (docs/D1_MEMO.md note 2: not calibrated). Traces keep reading the full rows for their request ids."""
+    return mark_tracks if th["staysput"].get("cap_enabled", True) else {}
+
+
 def flags_for(
     pair: MatchCandidate | None,
     mark: Mark,
@@ -606,7 +630,7 @@ def flags_for(
     *,
     return_mark: bool,
 ) -> VerdictFlags:
-    """K1..K13 as booleans: K1 from the pair's band, K5 from the two types, K6 from Stays Put, K7 from the second
+    """K1..K14 as booleans: K1 from the pair's band, K5 from the two types, K6 from Stays Put, K7 from the second
     look, K13 from any truncated keyframe in kf_status, the rest from the caps of the mark and its partner."""
     caps = set(mark.caps) | (set(other.caps) if other is not None else set())
     values: dict[str, bool] = {k: k in caps for k in CAP_IDS_FROM_MARK}
@@ -674,6 +698,7 @@ def verdicts_for(
     cm_per_unit = float(th["matching"]["cm_per_unit_for_print"])
     panel_marks = [marks[i] for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in marks]
     kf_status = {kf.kf_id: kf.marks_status for kf in keyframes.values() if kf.panel_id == pm.panel_id}
+    caps = staysput_caps(mark_tracks, th)
     out: list[Verdict] = []
 
     def vid() -> str:
@@ -722,12 +747,12 @@ def verdicts_for(
             continue
         look = looks.get((pair.pickup_mark, pair.return_mark))
         if pair.d < pair.tau_eye_r:
-            flags = flags_for(pair, a, b, mark_tracks, look, kf_status, return_mark=False)
+            flags = flags_for(pair, a, b, caps, look, kf_status, return_mark=False)
             label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
             emit(label, ids, [a.mark_id, b.mark_id], pair.d_pos, pair)
         else:
             for mark, is_return in ((a, False), (b, True)):
-                flags = flags_for(pair, mark, None, mark_tracks, None, kf_status, return_mark=is_return)
+                flags = flags_for(pair, mark, None, caps, None, kf_status, return_mark=is_return)
                 label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
                 emit(label, ids, [mark.mark_id], None, pair)
     unmatched = set(pm.unmatched_pickup) | set(pm.unmatched_return)
@@ -739,7 +764,7 @@ def verdicts_for(
         r = mark.r if mark.r is not None else 0.0
         tau_pre_r = tau_r(calibration.tau_pre, r, th)
         tau_eye_r = tau_r(calibration.tau_eye, r, th)
-        flags = flags_for(None, mark, None, mark_tracks, None, kf_status, return_mark=is_return)
+        flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return)
         label, ids = verdict(None, tau_pre_r, tau_eye_r, flags)
         emit(label, ids, [mark.mark_id], None, None)
     return out
@@ -811,7 +836,7 @@ def _provisional_already_there(pair: MatchCandidate, a: Mark, b: Mark, mark_trac
     return label == VerdictLabel.ALREADY_THERE
 
 
-def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate], LookVerdict] | None = None) -> tuple[list[PanelMatch], list[Verdict], Calibration]:
+def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate], LookVerdict | None] | None = None) -> tuple[list[PanelMatch], list[Verdict], Calibration]:
     """Read panels, keyframes, marks, mark_tracks and calibration; gate, pair and match every panel with a keyframe
     in either walk; ask the optional second look on provisional already_there pairs (at most
     second_looks_per_pair_max); write matches.json and verdicts.json. Under a second without the second look."""
@@ -870,7 +895,7 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
                 a, b = marks_by_id.get(pair.pickup_mark), marks_by_id.get(pair.return_mark)
                 if a is None or b is None or looks_used >= looks_budget:
                     continue
-                if _provisional_already_there(pair, a, b, mark_tracks, kf_status):
+                if _provisional_already_there(pair, a, b, staysput_caps(mark_tracks, th), kf_status):
                     looks[(pair.pickup_mark, pair.return_mark)] = second_look(pair)
                     looks_used += 1
         matches.append(pm)

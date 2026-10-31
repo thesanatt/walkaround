@@ -280,14 +280,91 @@ decode on a synthetic clip under 0.02 units; the 20-degree synthetic residual bo
 Tests: identical mark sets -> all already_there; a 0.3-unit shift -> needs_your_eye; one candidate per side
 passes the ratio test by rule; a table test over every G and K id with its id in the trace; nothing raises a label.
 
-## staysput (M8), walkaround/staysput.py (backlog B2; contract given so M7 and M9 can code against it)
+## staysput (M8), walkaround/staysput.py (built 10/31; records and shows, caps nothing while cap_enabled is false)
 
 | Function | Behaviour |
 |---|---|
-| `windows_for(marks: list[contracts.Mark], kf: contracts.Keyframe, track: contracts.PanelTrack, pts: list[float], *, th: dict) -> list[tuple[list[str], list[Box4]]]` | square windows of 0.3 x panel width (min 400 px) per clip frame, panel box interpolated between proxy frames, overlapping marks share one window, up to 16 per clip |
-| `prompt_for(marks: list[contracts.Mark], window_frame45: Box4, clip_size: int, th: dict) -> str` | one PromptObject per mark, FramePrompt at frame 45, boxes through `sam_client.prompt_box` in clip pixels |
-| `analyse(track_frames: list[contracts.IndexFrame], mark_id: str, panel_boxes_clip: list[Box4], kf_moments: contracts.Moments, front_sign: int, direction: int | None, *, th: dict) -> contracts.MarkTrack` | b1, b2, b_pass, panned, drift_rms against carried moments, sign test, curvature and highlight caps, verdict fixed/sliding/inconclusive/no_track |
-| `async derive_staysput(run_id: str, role: str, *, th: dict) -> list[contracts.MarkTrack]` | clips via `video.cut_clip` (blurred, image checks on frame 45 first through `privacy.image_checks`), requests via `sam_client.segment_clip`, analysis, the reflection control; writes mark_tracks.json |
+| `windows_for(marks, kf, track, pts, *, th, src_size, proxy_size) -> list[tuple[list[str], list[Box4]]]` | square windows of 0.3 x panel width (min 400 px) per clip frame over a 3 s clip of 2 x round(1.5 x fps) + 1 source frames (at most 181); pts are the original's frame times; the panel box is interpolated between proxy frames; overlapping marks share one window (16 per clip); marks under min_bbox_px_at_4k are left out (section 14 item 17) |
+| `prompt_for(marks, window_frame45, clip_size, th, *, prompt_frame=None, src_size=None) -> str` | one PromptObject per mark at the prompt frame, boxes through `sam_client.prompt_box` in clip pixels |
+| `analyse(track_frames, mark_id, panel_boxes_src, kf_moments, front_sign, direction, *, th, object_id, windows_src, clip_size, kf_box_src, crop, src_size, proxy_size, role, fps=None, prompt_frame=None) -> contracts.MarkTrack` | panel boxes in SOURCE pixels (None where unknown); b1, b2, b_pass, panned, drift_rms against carried moments, the sign test on non-overlapping pairs scaled to fps, box share over the propagated frames; verdict fixed/sliding/inconclusive/no_track; the caps are set by the caller |
+| `async derive_staysput(run_id, role, *, th, stop=None) -> list[contracts.MarkTrack]` | LIVE. Plans a walk's clips (none when its plate or face lane did not complete; a prompt-frame check box the walk's tracks do not cover refuses the clip), cuts them with `video.cut_clip` (blurred, plate and face checks on the prompt frame first), asks `sam_client.segment_clip`, adds the reflection control when a hood glare blob passes the 5.9 item 6 test, writes clips/<role>/staysput.json (plans, no pixels) and derived/mark_tracks.json (keyframe caps on every row; a not_run row for every mark with no clip). A resumed walk asks nothing twice; a byte-identical walk reuses the other walk's check and lane. stop (the orchestrator's past_deadline) holds back clips not started |
+| `role_done(run_id, role) -> bool`, `planned_roles(run_id)`, `request_ids(run_id) -> list[str]` | the stage's done check per walk; every response id Stays Put asked (clip checks live only in staysput.json) |
+| `rebuild_staysput(run_id, *, th) -> list[contracts.MarkTrack]` | mark_tracks.json from the stored plans, clip lanes and keyframe crops; no network, no original; byte-identical; a run that never planned a clip and has no mark_tracks.json is left as it is |
+
+`tau_fix` reads staysput.sigma_frame (absent until E5 is recalibrated, so the 0.08 floor holds), never matching.sigma_frame.
+match ignores Stays Put for K6 while thresholds staysput.cap_enabled is false (`match.staysput_caps`); the sheet then
+prints the measured numbers with "recorded only: Stays Put is not calibrated yet and changes no label" and the web
+shows numbers only. Clip lanes are sam/<role>/sp_<clip_id>.* (served by the sam rule); clips/<role>/<clip_id>.mp4 is
+served; staysput.json and temp files are not.
+
+## narration (M10), walkaround/narration.py (built 10/31)
+
+| Function | Behaviour |
+|---|---|
+| `async derive_narration(run_id, *, th) -> contracts.Narration` | LIVE (seed_v1 only; Voice runs in the orchestrator). Cuts each Voice turn where the words name a new panel, pins each piece to the panel SAM shows most during it (side and position words from the text, else the side vote), "about" pins when SAM never shows the named panel; mode_applied false when a speech mode returned a transcript with no turns (the transcript is kept on NarrationRole.transcript). Every turn gets a chip, chips/<role>/<turn_id>.m4a holding the whole Voice turn (NarrationTurn.start_ms and end_ms are the Voice turn's span; the character-offset estimate only chooses the pin and is stored as est_ms). A pinned piece that names a mark word asks `spark_client.seed_mark` once on that walk's sharpest blurred crop of the panel; a found box on the panel becomes a narration_seed Mark (cap K14, confidence low) or links to the box-pass mark inside the match's tau_eye band |
+| `rebuild_narration(run_id, *, th) -> contracts.Narration` | narration.json, derived/narration_pieces.json, the chips and the seed rows of marks.json from voice.json, seeds.json and spark.json; no call; byte-identical |
+| `merge_seed_marks(run_id, *, th) -> list[contracts.Mark]` | the seed rows back into marks.json with no call (a helper; not wired) |
+| `seed_records(run_id) -> list[tuple[str, SparkRequestRecord]]` | (role, record) per seed answer, so the orchestrator chains spark.request and spark.response for them |
+| `split_turn(..., passenger=Side.RIGHT)`, `pin_piece(..., fallback="turn_start_panel")`, `side_words`, `seed_cap`, `role_states`, `seeds_json(run_id)`, `pieces_json(run_id)` | helpers |
+
+Files: seeds.json at the run root (every seed question, never rewritten, never served); derived/narration_pieces.json
+(per piece: estimated, est_ms, chip_ms, the seed outcome with status, reason, request id, mark id and box; type_from and
+size_from). Turn ids are t<n> for a whole Voice turn and t<n>_<k> for the k-th piece cut from it; seed mark ids are
+<kf_id>_seed_<turn_id>. match pairs box marks first and seeds only with what is left (`match.seeded_ids`,
+`match.seeds_last_nn`), so a seed can lower a label (K14) but never unsettle a box pair; wheels leave seeds unmatched.
+
+## claim (M11), walkaround/claim.py (built 10/31)
+
+| Function | Behaviour |
+|---|---|
+| `async derive_claim(run_id, *, image: Path, text: str, tire_code: str | None, th, panel_id: str | None = None, claim_id: str | None = None) -> contracts.Claim` | LIVE: 16 sam_image calls plus 1 to 3 Spark calls, billed under ledger run id '<run_id>.<claim_id>' (out of the run's spend and its rebuild ledger). Plate and face checks on the unblurred working copy (long edge 2048), then claim/<claim_id>.blurred.jpg, which every later call reads; the upload is deleted once the derive ends, success or refusal (when it sits inside the run). Exits E1 to E8 and E2b (both sides shown); no label when the pickup marks prove nothing (_pickup_unread). Writes claim/<claim_id>.json and claim/<claim_id>.answers.json, and derived/claim.json only while the run is open. The same photo bytes reuse every earlier answer |
+| `rebuild_claim(run_id, claim_id, *, th, write=True) -> Claim`, `rebuild_claims(run_id, *, th) -> dict[str, str]` | from the recorded answers and the pixelated photo, no call; derived/claim.json is rewritten from the claim it already holds |
+| `cut_windows(windows, mask, masks, th)` | the door's window subtraction, as panels does it |
+| `ClaimRefused` (ValueError), `ClaimRebuildError` | the app maps ClaimRefused to 400, 409 (no coverage yet) or 503 (the photo's checks did not complete) |
+
+Claim.roi.box is in working-copy pixels (long edge claim.WORK_EDGE = 2048, the frame of claim/<id>.blurred.jpg), not
+Claim.image.w and h; web/src/lib/claim.ts mirrors 2048. ClaimNaming.spark is the slot Spark itself named. The claim's
+second look still runs on hosted Muse Spark 1.3, not Spark Open. claim/<id>.answers.json is never served.
+
+## ruler (M11), walkaround/ruler.py (built 10/31)
+
+| Function | Behaviour |
+|---|---|
+| `plate_ruler(blur, *, th, source_kf=None) -> Ruler | str` | pixels per inch = long side / (12 in x cos tilt) from the BlurRecord; refuses over 30 degrees of tilt, under 60 px, c under 0.5 |
+| `wheel_ruler(...)`, `wheel_ruler_from_box(...)`, `wheel_scale(tire_code) -> (diameter, code) | str` | the wheel's major axis as the tire diameter from the typed code; no code gives "tire size not given", an unreadable one "the tire code typed could not be read" |
+| `extent_from_mask(...)`, `extent_from_track(mt)`, `size_estimate(...)`, `best_size(extent, rulers, *, mark_type, panel_id, frame_w, th, crop_flag=False, drawn_box_overlap=False) -> SizeEstimate` | callers pass only the rulers adjacent to the mark's panel; a mark with no Stays Put track is refused, never sized from a Spark box |
+| `size_marks(run_id, *, th, tire_code=None)`, `attach_sizes(...)`, `size_verdicts(run_id, *, th, tire_code=None) -> list[Verdict]` | Verdict.size on every mark verdict, written back to verdicts.json; deterministic, so the match stage and rebuild both call it right after match.derive_match |
+| `compare_hertz`, `threshold_type_for` (WHEEL_MARK for scratch and scuff only), `tire_diameter_in`, `normalize_tire_code` | |
+
+Refusal constants: NO_PLATE, TIRE_NOT_GIVEN, TIRE_UNREADABLE, NO_MARK_MASK, CROP_FLAG, DRAWN_BOX, PROXY_FRAME,
+NO_CAMERA_DISTANCE. There is no run-level tire code yet, so walk wheel marks print "size not stated: tire size not given".
+
+## second_look (B11), walkaround/second_look.py, and open_weights, walkaround/open_weights.py (built 10/31)
+
+| Function | Behaviour |
+|---|---|
+| `make_second_look(run_id, *, th, engine=None) -> Callable[[MatchCandidate], LookVerdict | None] | None` | None when thresholds spark.second_look_engine is "off" (or missing); "spark" is hosted Muse Spark 1.3 only; "spark_open" is Muse Spark Open on Baseten with hosted Spark answering when Baseten gives none (two Baseten failures in a row send the rest of the run to hosted Spark). Each call outlines the pair on both walks' blurred crops (crops/<role>/<pickup>__<return>.look.jpg, the JPEG as sent), asks, writes the row to derived/looks.json and returns same, different or unsure, or None when the look did not run (the deterministic label stands). Only different and unsure set K7 |
+| `replay_second_look(run_id, *, th=None)` | answers from looks.json, no call, no write; None when the run has no looks or th has the look off |
+| `stored_looks(run_id) -> list[LookRecord]` | looks.json rows (LookRecord: the binding Phase 2 fields plus fallback, outlines, input_refs, question_sha256, records) |
+| `open_weights.ask / ask_attempts / second_look / count_marks` | LIVE: OpenAI-compatible Chat Completions at https://inference.baseten.co/v1 with BASETEN_API_KEY; model id from GET /v1/models (meta-models/muse-spark-open answered every call); response_format json_schema stepping down to json_object then none on a format refusal; one ledger row of kind spark_open per HTTP request (Baseten list price, run on credits) and one open_weights.ndjson line per call with a run id. Inside pytest it refuses to build a real client unless LIVE=1. count_marks is ready and not wired |
+
+A looks.json row whose look did not run has verdict null, engine, model, request_id and latency_ms null, valid false,
+reason "not run: ...". Failed Baseten calls log reason "" and verdict null. Extra fields are allowed: looks.json
+fallback, outlines, input_refs, question_sha256, records; ndjson purpose, status, model_requested, http_status,
+baseten_request_id.
+
+## eval (M17), scripts/eval_run.py and scripts/pseudo_pair.py (built 10/31)
+
+- `eval_run.evaluate(label_paths, *, from_snapshots=False, overrides=None, th=None) -> (results, refused)`; results.json
+  schema walkaround_eval_v1 (pairs, method_lines, not_computed, inputs with the sha256 of each input after redaction). A
+  refused labels file means exit 1 and nothing written. `load_run`, `snapshot_run` (JSON and panel masks only,
+  redacted), `same_slot`, `method_lines`, `markdown(results, refused=None)`.
+- Labels: eval/labels/<pair_id>.json (walkaround_labels_v1, eval/README.md); pair_id equals the file stem; footage is
+  repo-relative and never under data/eval_internal/; reference marks sit at 15 fps proxy slots, matched by kf.pts.
+- `pseudo_pair`: list, cut, scenes, calibrate (refuses before_after pairs); `noise_floor`, `floor_line`, `pair_for_run`.
+- GET /eval/label.html serves dist/eval/label.html (web/public/eval/label.html) as a file; it reads only owner-served run
+  files and saves nothing. SheetMethod.eval_lines stays empty: results.json is not a frozen run file, so wiring it into
+  the sheet would break byte-identical rebuilds.
 
 ## privacy (M12), walkaround/privacy.py
 
@@ -398,10 +475,11 @@ lane_done; the spend ceiling aborts remaining nouns as not_run; the caps count f
 | `GET /api/runs/{id}/sheet` / `sheet.json` / `sheet.pdf` / `bundle.zip` | HTML / `contracts.SheetModel` / PDF / zip of bundle/ |
 | `GET /api/runs/{id}/files/{path}` | a stored blurred artifact (gz lanes, indexes, crops, clips, chips, proxy_blurred) after `privacy.served_file_allowed`; 404 for anything else |
 | `POST /api/runs/{id}/topup` | multipart video -> `contracts.Coverage` |
-| `POST /api/claims` | multipart {image, text, run_id, tire_code?} -> `contracts.Claim` |
+| `POST /api/claims` | multipart {image, text, run_id, tire_code?, panel_id?} -> `contracts.Claim`; the photo is held in memory (50 MB cap) and written to quarantine/tmp/claim_<n>.jpg, never a served folder; 409 while the run is still working or has no coverage, 400 for a photo or panel id the claim refuses, 503 when the photo's checks did not complete, 429 on the pause or the card ceiling, 403 on a public run; one claim at a time per run, numbered after the highest claim_<n> on disk |
 | `GET /api/status` | {paused: bool, pickup_left: int, pairs_left: int, queue_position: int | null, engine} |
 | `GET /healthz` | {ok: true, engine, probe_ok, free_bytes} |
-| `GET /`, `/run/{id}`, `/run/{id}/sheet`, `/claim`, `/kiosk/{id}`, `/verify`, `/eval/label.html` | the Vite build from `paths.web_dist_dir()`, same origin |
+| `GET /`, `/run/{id}`, `/run/{id}/sheet`, `/claim`, `/kiosk/{id}`, `/verify` | the Vite build from `paths.web_dist_dir()`, same origin |
+| `GET /eval/label.html` | dist/eval/label.html served as a file (the eval labeling page); 404 when the build lacks it |
 
 `create_app(orchestrator: Orchestrator) -> FastAPI` is the one factory; tests build it with a fake orchestrator.
 Tests: chunk assembly hashes equal on a 50 MB random file; 409 on mismatch; SSE resumes from Last-Event-ID.
@@ -618,3 +696,50 @@ Reviewers: check the lanes against this section. Integrator: reconcile any lane 
 - `RunManifest.footage_credit: str | None` (new, optional): a sample run's credit line, shown under the walk player.
 - Privacy allowlist (integrator): looks.json, open_weights.ndjson, claim/<claim_id>.json, claim/<claim_id>.blurred.jpg,
   the narration chips and the blurred Stays Put clips; never claim/<claim_id>.jpg.
+
+## Integration notes, phase 2 (2026-10-31 evening)
+
+The integrator wired the six phase 2 lanes (Stays Put, narration, claim and ruler, second look and open weights, eval,
+web). Accepted deviations are in each module's section above; what the integration itself changed:
+
+- Stage order: seal, media, files, lanes, panels, blur, marks, narration (pct 74), staysput (78), match, release,
+  sheet, close. Narration runs before Stays Put so a narration seed mark gets a clip. stage_done("staysput") needs
+  mark_tracks.json and staysput.role_done for every walk; the stage passes stop=past_deadline and records a gap when a
+  walk is left incomplete. The narration stage chains spark.request and spark.response for each new seed answer.
+- The match stage builds second_look.make_second_look(run_id, th=...) unless the run is past its spend ceiling or
+  deadline (the stage stays model=False so the free match always runs), passes it to match.derive_match, chains a
+  spark.request and spark.response (role "pair") for every model answer behind looks.json, then calls
+  ruler.size_verdicts. thresholds spark.second_look_engine is "spark_open" (source line in config/thresholds.json).
+- match.staysput_caps(mark_tracks, th): K6 reads the Stays Put rows only while staysput.cap_enabled is on (default on
+  for a run frozen before the key existed, so old rebuilds stay identical); traces still name the Stays Put request ids.
+  claim.judge uses the same gate. K14 "named by the renter" is a new cap (rules.py, VerdictFlags.K14, the web rules).
+- Rebuild order (no call): coverage, marks, narration (the seed rows come back into marks.json), Stays Put, match with
+  second_look.replay_second_look, ruler.size_verdicts, claim.rebuild_claims, the sheet. NOT_REBUILT is no longer
+  printed for mark_tracks.json, narration.json or claim.json. derived/narration_pieces.json joined paths.DERIVED_FILES,
+  so verify compares it; derived/looks.json stays out (a frozen model-era fact like spark.json).
+- _response_ids adds staysput.request_ids and the hosted Muse Spark ids behind looks.json; Baseten's chatcmpl- ids are
+  never sent to Meta's DELETE.
+- privacy: served at the run root deletions.json and open_weights.ndjson; under claim/ only claim_<n>.blurred.jpg and
+  claim_<n>.json (never claim_<n>.jpg or claim_<n>.answers.json); derived/looks.json, derived/narration_pieces.json,
+  crops/<role>/*.look.jpg, chips/<role>/*.m4a and clips/<role>/*.mp4 were already served; seeds.json, staysput.json,
+  spark.json and voice.json are not. privacy_line(..., baseten=True) adds BASETEN_CLAUSE (the same words as
+  web/src/lib/privacy.ts) when a run sent a look to Baseten.
+- sheet: staysput_line(mt, *, calibrated=True) prints the numbers plus STAYSPUT_UNCALIBRATED while cap_enabled is off;
+  the calibrated inconclusive line says which test it stopped at (the web's calibrated branch mirrors it); the claim
+  appendix prints the size line only when the claim has no paragraph (the paragraph already carries it).
+- Orchestrator.create_run(..., keep=False, footage_credit=None), pipeline.run_pair_async(..., keep=False,
+  footage_credit=None), and the CLI flags `walkaround run --keep --footage-credit TEXT`. A kept run is public: listed,
+  served without owner rights, no claim and no top-up.
+- contracts: LedgerKind.SPARK_OPEN, VerdictFlags.K14, NarrationRole.transcript; match.derive_match's second_look hint
+  is Callable[[MatchCandidate], LookVerdict | None].
+- thresholds (config hash changed): staysput min_drift_frames, max_clips_per_walk, window_mark_margin,
+  control_blob_min_px, control_blob_max_frac, check_box_covered_min, clip_frames_max; voice chip_min_ms,
+  seeds_per_walk_max and the pin_fallback source; spark.second_look_engine; orchestrator.baseten_rpm 30; claim
+  dark_v_max, on_panel_frac; ruler camera_hfov_deg; matching.sigma_spark 0.117 from D1 E6 (tau_pre0 0.4 at the cap,
+  tau_eye 0.8, calibrated false). matching.sigma_frame stays absent (it would print a Stays Put tau_fix of 0.507).
+  spark.max_output_tokens stays 4000: spark_client's marks path reads its own constants (4000, one retry at 8000), so
+  a cut answer already gets the 8000 budget lead note 3 asks for.
+
+Still open: the claim's second look runs on hosted Spark; SheetMethod.eval_lines is empty; there is no run-level tire
+code; Claim has no work_w/work_h and ClaimNaming no Spark noun, side and position (the web mirrors 2048 and offers the
+bill's slots only); count mode on Spark Open is not wired.

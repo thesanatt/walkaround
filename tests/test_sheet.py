@@ -50,7 +50,7 @@ def _model() -> c.SheetModel:
                            staysput_line=sheet.staysput_line(c.MarkTrack(mark_id="r_m1", role="return", verdict=c.StaysPutVerdict.FIXED, b1=0.2, b2=0.01, drift_rms=0.03)),
                            size_line=sheet.size_line(_size(inches=0.9, bound_lo=0.6, bound_hi=1.3, ruler=c.RulerKind.PLATE, threshold_type=c.ThresholdType.BODY_SCRATCH))),
         c.SheetVerdictLine(verdict_id="v2", label=c.VerdictLabel.NEEDS_YOUR_EYE, rule_ids=["L4", "K1", "K12"], mark_ids=["p_m3", "r_m2"], type=c.MarkKind.SCUFF, size_class=c.SizeClass.S, distance_units=0.33, distance_cm_est=11.6,
-                           staysput_line=sheet.staysput_line(c.MarkTrack(mark_id="p_m3", role="pickup", verdict=c.StaysPutVerdict.INCONCLUSIVE, panned=True)),
+                           staysput_line=sheet.staysput_line(c.MarkTrack(mark_id="p_m3", role="pickup", verdict=c.StaysPutVerdict.INCONCLUSIVE, panned=True, b_pass=True, b1=0.05, b2=0.2, drift_rms=0.12, sign_agreement=0.4, pairs_n=12)),
                            size_line=sheet.size_line(_size(refused_reason="any crop flag is set")), ordinary_wear_line=sheet.ordinary_wear_line(c.MarkKind.SCUFF, LFD)),
         c.SheetVerdictLine(verdict_id="v3", label=c.VerdictLabel.NOT_SEEN_AT_RETURN, rule_ids=["L1"], mark_ids=["p_m2"], type=c.MarkKind.DENT, size_class=c.SizeClass.L,
                            size_line=sheet.size_line(_size(inches=1.4, bound_lo=1.1, bound_hi=1.8, ruler=c.RulerKind.WHEEL, tire_code="225/60R16", threshold_type=c.ThresholdType.DENT))),
@@ -150,7 +150,12 @@ def test_staysput_line_variants() -> None:
     sliding = c.MarkTrack(mark_id="m", role="pickup", verdict=c.StaysPutVerdict.SLIDING, b1=0.3, b2=0.02, drift_rms=0.21, panned=False, curvature_cap=True, highlight_cap=True)
     assert sheet.staysput_line(sliding) == "drift 0.21, b1 0.30, b2 0.02, not panned; sliding; curvature cap; highlight cap"
     assert sheet.staysput_line(c.MarkTrack(mark_id="m", role="pickup", verdict=c.StaysPutVerdict.INCONCLUSIVE)) == "inconclusive (camera did not move enough)"
-    assert sheet.staysput_line(c.MarkTrack(mark_id="m", role="pickup", verdict=c.StaysPutVerdict.INCONCLUSIVE, panned=True)) == "inconclusive (the camera panned: b1 under its floor, b2 over)"
+    panned = c.MarkTrack(mark_id="m", role="pickup", verdict=c.StaysPutVerdict.INCONCLUSIVE, panned=True, b_pass=True, b1=0.05, b2=0.2, drift_rms=0.12, sign_agreement=0.4, pairs_n=12)
+    assert sheet.staysput_line(panned) == "drift 0.12, b1 0.05, b2 0.20, panned; inconclusive (between fixed and sliding; sign test 0.40 on 12 pairs)"
+    moved = c.MarkTrack(mark_id="m", role="pickup", verdict=c.StaysPutVerdict.INCONCLUSIVE, b_pass=True, b1=0.219, b2=0.238, drift_rms=0.157, sign_agreement=0.333, pairs_n=15)
+    assert sheet.staysput_line(moved) == "drift 0.16, b1 0.22, b2 0.24, not panned; inconclusive (between fixed and sliding; sign test 0.33 on 15 pairs)"
+    few = c.MarkTrack(mark_id="m", role="pickup", verdict=c.StaysPutVerdict.INCONCLUSIVE, b_pass=True, b1=0.2, b2=0.01)
+    assert sheet.staysput_line(few) == "inconclusive (the whole panel was in view on too few frames)"
     assert sheet.staysput_line(c.MarkTrack(mark_id="m", role="pickup", verdict=c.StaysPutVerdict.NO_TRACK)).startswith("no track")
     assert sheet.staysput_line(c.MarkTrack(mark_id="m", role="pickup")) is None and sheet.staysput_line(None) is None
 
@@ -211,7 +216,7 @@ def test_render_contains_every_required_string() -> None:
         "left front door: filmed, 3.2 s", "missing at pickup: left front wheel",  # the coverage list
         "video time 12.40 s", "wall clock 2026-10-27T14:37:12Z", "video time 9.10 s",
         "4 chips here at pickup, 5 at return, 1 new or unseen", "scratch on the driver door", "1200 to 3400 ms",
-        "0.12 units, about 4 cm", "drift 0.03, b1 0.20, b2 0.01, not panned; fixed", "inconclusive (the camera panned",
+        "0.12 units, about 4 cm", "drift 0.03, b1 0.20, b2 0.01, not panned; fixed", "panned; inconclusive (between fixed and sliding",
         "about 0.9 in, between 0.6 and 1.3 in (ruler: the license plate, 12 in)", "26.6 in from 225/60R16, typed by you",
         "size not stated: tire size not given", "size not stated: any crop flag is set", "size not stated: no ruler within 0.6 m of this mark",
         sheet.ORDINARY_WEAR_LINE, "REV 7.2025", "2026-10-26", "illustrative only", "2 in x 3.5 in",
@@ -256,7 +261,8 @@ def test_render_every_exit_and_refusal_reason() -> None:
                         size=c.SizeEstimate(refused_reason=f"refused for {exit_id.value}"), paragraph=f"paragraph for {exit_id.value}")
         text = sheet._claim_text(claim, TH)
         r = rules.rule(exit_id.value)
-        assert f"exit {r.id} {r.label}: {r.text}" in text and f"size not stated: refused for {exit_id.value}" in text and "paragraph for" in text
+        assert f"exit {r.id} {r.label}: {r.text}" in text and "paragraph for" in text
+        assert "size not stated" not in text  # the paragraph carries the size sentence once; it is never printed twice
     model = _model()
     model.appendices["D claim check"] = sheet._claim_text(c.Claim(image=c.ClaimImage(sha256="ef" * 32, received_at=NOW, w=800, h=600), exit=c.ClaimExit.E6, size=c.SizeEstimate(refused_reason="mark mask under 8 px")), TH)
     html = sheet.render_html(model)
@@ -433,7 +439,7 @@ def test_write_sheet_from_a_synthetic_run(runs: Path) -> None:
     assert [v.label for v in door.verdicts] == [c.VerdictLabel.ALREADY_THERE, c.VerdictLabel.NEEDS_YOUR_EYE, c.VerdictLabel.NOT_SEEN_AT_RETURN, c.VerdictLabel.NEW_OR_UNSEEN]
     assert door.verdicts[1].rule_ids == ["L4", "K1", "K12"] and door.verdicts[1].ordinary_wear_line == sheet.ORDINARY_WEAR_LINE
     assert door.verdicts[0].size_line.startswith("about 0.9 in, between 0.6 and 1.3 in (ruler: the license plate, 12 in); under Hertz")
-    assert door.verdicts[0].staysput_line == "drift 0.03, b1 0.20, b2 0.01, not panned; fixed"
+    assert door.verdicts[0].staysput_line == "drift 0.03, b1 0.20, b2 0.01, not panned; " + sheet.STAYSPUT_UNCALIBRATED  # cap_enabled is off
     assert door.verdicts[3].size_line == "size not stated: tire size not given"
     assert door.group_lines == ["4 chips here at pickup, 5 at return, 1 new or unseen"] and door.chips[0].text == "scratch on the driver door"
     assert door.odometer_path == "keyframes/pickup/odometer.jpg"

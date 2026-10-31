@@ -79,6 +79,8 @@ async def _start_or_resume(
     nouns: list[str] | None,
     container: str | None,
     keep_plate: bool,
+    keep: bool = False,
+    footage_credit: str | None = None,
 ) -> c.RunManifest:
     """A new run with its files sent, or an unfinished run of that id with whatever upload it still lacks."""
     if run_id is not None and orch.run_exists(run_id):
@@ -94,7 +96,7 @@ async def _start_or_resume(
     else:
         kind = c.RunKind.PAIR if "return" in walks else c.RunKind.PICKUP_CHECK
         lanes, prompts = stand_in_prompts(nouns, container=container) if nouns else (None, None)
-        run = await orch.create_run(mode=c.RunMode.CAR, kind=kind, keep_plate=keep_plate, run_id=run_id, noun_list=lanes, prompts=prompts)
+        run = await orch.create_run(mode=c.RunMode.CAR, kind=kind, keep_plate=keep_plate, run_id=run_id, noun_list=lanes, prompts=prompts, keep=keep, footage_credit=footage_credit)
     for role, src in walks.items():
         if not paths.quarantine_original(run.run_id, role).is_file():
             await stage_local_file(orch, run.run_id, role, src)
@@ -109,16 +111,19 @@ async def run_pair_async(
     *,
     container: str | None = None,
     keep_plate: bool = False,
+    keep: bool = False,
+    footage_credit: str | None = None,
     orch: Orchestrator | None = None,
     on_event: Callable[[c.Event], None] | None = None,
 ) -> c.RunManifest:
-    """The whole floor on local files; resumes an unfinished run of the same id. on_event sees every chained event."""
+    """The whole floor on local files; resumes an unfinished run of the same id. on_event sees every chained event.
+    keep and footage_credit apply to a new run only (see Orchestrator.create_run)."""
     orch = orch or make_orchestrator()
     walks = {"pickup": Path(pickup)} | ({"return": Path(return_)} if return_ is not None else {})
     for path in walks.values():
         if not path.is_file():
             raise FileNotFoundError(f"not a file: {path}")
-    run = await _start_or_resume(orch, walks, run_id, nouns, container, keep_plate)
+    run = await _start_or_resume(orch, walks, run_id, nouns, container, keep_plate, keep, footage_credit)
     printer = asyncio.create_task(_tail(orch, run.run_id, on_event)) if on_event is not None else None
     try:
         final = await orch.run_pipeline(run.run_id)

@@ -123,6 +123,7 @@ def offline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     th["coverage"]["filmed_area_frac_min"] = 0.0005  # and filmed at that size
     th["matching"]["sharpness_rel_min"] = 0.0  # G3 is tested in test_match; here any frame of the clip may pair
     th["panels"]["keyframe_top_k"] = 1  # one keyframe per walk: a near-round ball turns its axis between frames (G4)
+    th["spark"]["second_look_engine"] = "off"  # FakeSpark answers marks_v1 only; the look's wiring is tested in test_orchestrator
     orch = Orchestrator(
         th=th, engine=c.SamEngine.META_MODEL_API, max_concurrent_runs=1, media_workers=1, decode_workers=1,
         overrides={"seal.seal_run": functools.partial(seal.seal_run, stamp=False)},
@@ -155,21 +156,21 @@ async def test_run_pair_self_pair_end_to_end_then_rebuild_and_verify(offline: di
     assert run_id == "selfpair1" and final.kind == c.RunKind.PAIR
     assert final.prompts == {"car": "", "hood": "ping pong ball"}
     assert final.noun_list == [c.Noun.CAR, c.Noun.LICENSE_PLATE, c.Noun.FACE, c.Noun.HOOD]
-    # Stays Put and narration are not built yet: recorded gaps, the sheet still written
-    assert final.status == c.RunStatus.PARTIAL, final.errors
-    assert sorted(e.stage for e in final.errors) == ["narration", "staysput"], final.errors
+    assert final.status == c.RunStatus.DONE and final.errors == [], final.errors
     assert seen[0].kind == c.EventKind.RUN_CREATED and seen[-1].kind == c.EventKind.RUN_COMPLETED
 
     # only the pickup asked anything: 3 lanes (no car request), two image checks per distinct keyframe frame, one Spark
-    # call per distinct crop
-    assert sorted(calls["video"]) == sorted(["ping pong ball", "license plate", "face"])
+    # call per distinct crop, one Stays Put clip with its two prompt-frame checks (the return walk reuses all of it)
+    clips = [t for t in calls["video"] if t.startswith("<")]
+    assert sorted(t for t in calls["video"] if not t.startswith("<")) == sorted(["ping pong ball", "license plate", "face"])
+    assert len(clips) == 1
     car = c.read_json(paths.lane_summary_path(run_id, "pickup", c.Noun.CAR), c.LaneRecord)
     assert car.request_id is None and car.prompt_text == "" and car.diagnostics[0].code == "whole_frame_container"
     kfs = c.read_json_list(paths.keyframes_json(run_id), c.Keyframe)
     pickup_kfs = [k for k in kfs if k.role == "pickup"]
     return_kfs = [k for k in kfs if k.role == "return"]
     assert pickup_kfs and len(return_kfs) == len(pickup_kfs)
-    assert len(calls["image"]) == 2 * len({k.f_proxy for k in pickup_kfs})
+    assert len(calls["image"]) == 2 * len({k.f_proxy for k in pickup_kfs}) + 2 * len(clips)
     assert len(calls["spark"]) == len({k.crop.sha256 for k in pickup_kfs if k.crop})
     for kf in kfs:
         assert kf.crop is not None and (paths.run_dir(run_id) / kf.crop.path).is_file()
@@ -208,7 +209,7 @@ async def test_run_pair_self_pair_end_to_end_then_rebuild_and_verify(offline: di
     assert "stand-in prompts" in paths.sheet_html(run_id).read_text()
 
     # rebuild reproduces every derived file it regenerates, byte for byte, with no call
-    before = {name: sha(paths.derived_dir(run_id) / name) for name in ("marks.json", "calibration.json", "matches.json", "verdicts.json", "coverage.json")}
+    before = {name: sha(paths.derived_dir(run_id) / name) for name in ("marks.json", "calibration.json", "matches.json", "verdicts.json", "coverage.json", "mark_tracks.json")}
     counts = {k: len(v) for k, v in calls.items()}
     result, out = pipeline.rebuild(run_id, orch=orch)
     assert out == paths.runs_root() / "_rebuild"  # a closed run is rebuilt beside itself, never in place
@@ -219,6 +220,7 @@ async def test_run_pair_self_pair_end_to_end_then_rebuild_and_verify(offline: di
     assert {k: len(v) for k, v in calls.items()} == counts  # rebuild and verify asked nothing
 
     # a tampered marks file is caught
+    assert pipeline.verify(run_id, orch=orch) == []  # narration and the seed rows rebuild to the same bytes
     marks_path = paths.marks_json(run_id)
     rows = json.loads(marks_path.read_text())
     rows[0]["w"] = [9.0, 9.0]
@@ -231,8 +233,9 @@ async def test_run_pair_refuses_a_finished_run_id_and_resumes_an_unfinished_one(
     run = await orch.create_run(mode=c.RunMode.CAR, kind=c.RunKind.PICKUP_CHECK, keep_plate=False, run_id="resume1", noun_list=[c.Noun.HOOD], prompts={"hood": "ping pong ball", "car": "ping pong ball"})
     assert run.noun_list == [c.Noun.CAR, c.Noun.LICENSE_PLATE, c.Noun.FACE, c.Noun.HOOD]
     final = await pipeline.run_pair_async(CLIP, None, "resume1", orch=orch)  # nothing uploaded yet: sends the file
-    assert final.status == c.RunStatus.PARTIAL and final.kind == c.RunKind.PICKUP_CHECK
-    assert sorted(calls["video"]) == sorted(["ping pong ball", "license plate", "face", "ping pong ball"])
+    assert final.status == c.RunStatus.DONE and final.kind == c.RunKind.PICKUP_CHECK
+    assert sorted(t for t in calls["video"] if not t.startswith("<")) == sorted(["ping pong ball", "license plate", "face", "ping pong ball"])
+    assert len([t for t in calls["video"] if t.startswith("<")]) == 1  # the Stays Put clip
     with pytest.raises(FileExistsError):
         await pipeline.run_pair_async(CLIP, None, "resume1", orch=orch)
     with pytest.raises(ValueError):

@@ -480,3 +480,65 @@ def test_topup_route_streams_the_clip_into_the_run_and_reruns_the_missing_nouns(
     body, ctype = multipart({}, b"y", name="photo")
     assert client.post(f"/api/runs/{run_id}/topup", content=body, headers={"content-type": ctype}).status_code == 400
     assert client.post(f"/api/runs/{run_id}/topup", json={"video": "nope"}).status_code == 400
+
+
+# Claims and the eval page ---------------------------------------------------------------------------------------------
+
+
+def test_claim_route_passes_the_tap_keeps_the_photo_unserved_and_maps_refusals(client: TestClient, orch: Orchestrator, monkeypatch: pytest.MonkeyPatch) -> None:
+    import starlette.formparsers
+
+    from walkaround.claim import ClaimRefused
+
+    def no_spool(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("the claim photo must not be spooled to a temp file outside the run")
+
+    monkeypatch.setattr(starlette.formparsers, "SpooledTemporaryFile", no_spool)
+    seen: list[dict[str, Any]] = []
+
+    async def derive_claim(run_id: str, *, image: Path, text: str, tire_code: str | None, th: dict, panel_id: str | None = None, claim_id: str | None = None) -> c.Claim:
+        rel = paths.rel(run_id, image)
+        seen.append({"image": rel, "bytes": image.read_bytes(), "served": orch.dep("privacy.served_file_allowed")(orch.load_run(run_id), rel, run_owner=True), "tire": tire_code, "panel": panel_id, "claim_id": claim_id})
+        if text == "bad panel":
+            raise ClaimRefused(f"{panel_id!r} is not a panel id")
+        if text == "too early":
+            raise ClaimRefused("the pickup run has no coverage yet; send the claim once the run has finished")
+        claim = c.Claim(claim_id=claim_id, image=c.ClaimImage(sha256=sha(image.read_bytes()), received_at=TODAY[:19] + "Z", w=4, h=3), text=text)
+        c.write_json(paths.claim_record_path(run_id, claim_id), claim)
+        image.unlink()
+        return claim
+
+    orch.overrides["claim.derive_claim"] = derive_claim
+    run_id = create(client, "pickup_check")
+    post = lambda fields, photo=b"a claim photo": client.post("/api/claims", content=(m := multipart({"run_id": run_id, **fields}, photo, name="image", filename="bill.jpg"))[0], headers={"content-type": m[1]})  # noqa: E731
+    assert post({"text": "scratch"}).status_code == 409 and seen == []  # the run has not finished
+    assert upload(client, run_id, "pickup", b"pickup walk " * 400).status_code == 200
+    wait_done(client, run_id)
+    first = post({"text": "scratch on the passenger door", "tire_code": "225/60R16", "panel_id": "right_front_door"})
+    assert first.status_code == 200, first.text
+    assert c.Claim.model_validate_json(first.text).claim_id == "claim_1"
+    assert seen[-1] == {"image": "quarantine/tmp/claim_1.jpg", "bytes": b"a claim photo", "served": False, "tire": "225/60R16", "panel": "right_front_door", "claim_id": "claim_1"}
+    (paths.claim_dir(run_id) / "claim_7.blurred.jpg").write_bytes(b"x")  # numbering follows the highest claim on disk
+    assert post({"text": "again"}).status_code == 200 and seen[-1]["claim_id"] == "claim_8" and seen[-1]["panel"] is None
+    bad = post({"text": "bad panel", "panel_id": "roof_x"})
+    assert bad.status_code == 400 and "not a panel id" in bad.json()["detail"]
+    assert post({"text": "too early"}).status_code == 409
+    assert not [p for p in paths.quarantine_dir(run_id).rglob("claim_*") if p.is_file()]  # no refused photo is left behind
+    assert client.post("/api/claims", content=multipart({"run_id": run_id}, b"x" * 10, name="video")[0], headers={"content-type": multipart({}, b"")[1]}).status_code == 400
+    orch.paused = True
+    assert post({"text": "paused"}).status_code == 429
+    orch.paused = False
+    orch.update_run(run_id, lambda r: setattr(r, "keep", True))
+    assert post({"text": "public"}).status_code == 403
+
+
+def test_the_eval_label_page_is_served_as_a_static_file(runs_dir: Path, th: dict[str, Any], fakes: Fakes, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    dist = tmp_path / "dist"
+    (dist / "eval").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><title>Walkaround</title><div id=root></div>", encoding="utf-8")
+    monkeypatch.setattr(paths, "web_dist_dir", lambda: dist)
+    with TestClient(create_app(make_orch(th, fakes), background=False)) as client:
+        assert client.get("/eval/label.html").status_code == 404  # not in this build: no SPA page in its place
+        (dist / "eval" / "label.html").write_text("<!doctype html><title>Label pairs</title>", encoding="utf-8")
+        page = client.get("/eval/label.html")
+        assert page.status_code == 200 and "Label pairs" in page.text and page.headers["content-type"].startswith("text/html")

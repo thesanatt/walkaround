@@ -65,7 +65,12 @@ ROLES = ("pickup", "return")
 
 @pytest.fixture
 def th() -> dict[str, Any]:
-    return load_thresholds()
+    """The thresholds without the measured sigma leaves, so the band starts at its floor in these unit tests (the
+    D1 value is checked in test_tau_r_and_measured_sigmas)."""
+    values = load_thresholds()
+    for leaf in ("sigma_frame", "sigma_spark"):
+        values["matching"].pop(leaf, None)
+    return values
 
 
 @pytest.fixture
@@ -235,6 +240,10 @@ def test_tau_r_and_measured_sigmas(th: dict) -> None:
     assert match.measured_sigmas(th) == (None, None)
     th2 = {"matching": {**th["matching"], "sigma_frame": 0.04, "sigma_spark": 0.07}}
     assert match.measured_sigmas(th2) == (0.04, 0.07)
+    shipped = load_thresholds()  # D1 E6's sigma_spark: the band sits at the cap, tau_pre 0.4 and tau_eye 0.8
+    assert match.measured_sigmas(shipped) == (None, 0.117)
+    band = match.calibrate(sigma_frame=None, sigma_spark=0.117, sigma_view=None, pseudo_pair_d=None, th=shipped)
+    assert band.tau_pre == 0.4 and band.tau_eye == pytest.approx(0.8) and band.tau_fix == 0.08
 
 
 # Keyframe pairing and the handle ----------------------------------------------------------------------------------------
@@ -428,6 +437,28 @@ def run_panel(cal: Calibration, th: dict, pickup: list[Mark], ret: list[Mark], *
     return pm, verdicts
 
 
+def seed_mark(mark_id: str, *, u: float, v: float = 0.0) -> Mark:
+    return mark(mark_id, "pickup", u=u, v=v, source=MarkSource.NARRATION_SEED, confidence=Confidence.LOW, caps=("K14",))
+
+
+def test_a_narration_seed_never_unsettles_a_box_pair(cal: Calibration, th: dict) -> None:
+    """5 step 11: box marks pair first and a seed (K14) only with what is left, so it can lower a label but never break
+    a box pair through the ratio test or take its partner."""
+    a, r = mark("p1", "pickup", u=0.0, v=0.0), mark("r1", "return", u=0.1, v=0.0)
+    seed = seed_mark("p1_seed", u=0.23)
+    assert match.mutual_nn(cands(cal, th, [a, seed], [r]), th) == []  # as a plain competitor it fails r1's ratio test
+    out = match.seeds_last_nn(cands(cal, th, [a, seed], [r]), match.seeded_ids([seed]), th, tau_pre=cal.tau_pre)
+    assert [(c.pickup_mark, c.return_mark) for c in out] == [("p1", "r1")]
+    _, verdicts = run_panel(cal, th, [a, seed], [r])
+    assert [(v.label, v.mark_ids) for v in verdicts] == [(VerdictLabel.ALREADY_THERE, ["p1", "r1"]), (VerdictLabel.NEEDS_YOUR_EYE, ["p1_seed"])]
+    assert "K14" in verdicts[1].trace.rule_ids
+    _, verdicts = run_panel(cal, th, [a, seed_mark("p1_seed", u=0.09)], [r])  # nearer r1 than p1 is: still p1's
+    assert (verdicts[0].label, verdicts[0].mark_ids) == (VerdictLabel.ALREADY_THERE, ["p1", "r1"])
+    r2 = mark("r2", "return", u=1.5, v=0.0)  # a return mark no box mark takes: the seed pairs with it, capped
+    _, verdicts = run_panel(cal, th, [a, seed_mark("p2_seed", u=1.52)], [r, r2])
+    assert (VerdictLabel.NEEDS_YOUR_EYE, ["p2_seed", "r2"]) in [(v.label, v.mark_ids) for v in verdicts]
+
+
 def test_identical_mark_sets_are_all_already_there(cal: Calibration, th: dict) -> None:
     pickup = [mark(f"p{i}", "pickup", u=u, v=v) for i, (u, v) in enumerate([(0.0, 0.0), (1.0, 0.5), (-1.2, -0.8), (0.3, 1.1)])]
     ret = [mark(f"r{i}", "return", u=u, v=v) for i, (u, v) in enumerate([(0.0, 0.0), (1.0, 0.5), (-1.2, -0.8), (0.3, 1.1)])]
@@ -586,6 +617,7 @@ K_CASES: dict[str, Any] = {
 @pytest.mark.parametrize("cap", sorted(K_CASES, key=lambda k: int(k[1:])))
 def test_each_k_cap_lowers_an_already_there_pair_with_its_id_in_the_trace(cap: str, cal: Calibration, th: dict) -> None:
     case = K_CASES[cap]
+    th = {**th, "staysput": {**th["staysput"], "cap_enabled": True}}  # K6 as a rule; thresholds keep it off until E5
     a = mark("p0", "pickup", u=0.0, v=0.0, kind=case.get("a_kind", MarkKind.SCRATCH), caps=case.get("a_caps", ()))
     b = mark("r0", "return", u=0.0, v=0.0, kind=case.get("b_kind", MarkKind.SCRATCH), caps=case.get("b_caps", ()))
     pair = match.cost(a, b, wm(a), wm(b), cal, th)
@@ -608,6 +640,19 @@ def test_each_k_cap_lowers_an_already_there_pair_with_its_id_in_the_trace(cap: s
     clean_pm = PanelMatch(panel_id=DOOR, state=MatchState.COMPARABLE, kf_pair=["pickup_kf1", "return_kf1"], pairs=[match.cost(ca, cb, wm(ca), wm(cb), cal, th)])
     clean = match.verdicts_for(clean_pm, {"p0": ca, "r0": cb}, {}, {}, {k: kf(k, r) for k, r in (("pickup_kf1", "pickup"), ("return_kf1", "return"))}, cal, Trace(), th)
     assert clean[0].label == VerdictLabel.ALREADY_THERE and clean[0].trace.rule_ids == ["L3"]
+
+
+def test_stays_put_caps_nothing_while_cap_enabled_is_off(cal: Calibration, th: dict) -> None:
+    a, b = mark("p0", "pickup", u=0.0, v=0.0), mark("r0", "return", u=0.0, v=0.0)
+    pm = PanelMatch(panel_id=DOOR, state=MatchState.COMPARABLE, kf_pair=["pickup_kf1", "return_kf1"], pairs=[match.cost(a, b, wm(a), wm(b), cal, th)])
+    tracks = {"p0": MarkTrack(mark_id="p0", role="pickup", verdict=StaysPutVerdict.INCONCLUSIVE, highlight_cap=True, request_id="resp_sp")}
+    kfs = {k: kf(k, r) for k, r in (("pickup_kf1", "pickup"), ("return_kf1", "return"))}
+    off = {**th, "staysput": {**th["staysput"], "cap_enabled": False}}
+    v = match.verdicts_for(pm, {"p0": a, "r0": b}, tracks, {}, kfs, cal, Trace(), off)[0]
+    assert v.label == VerdictLabel.ALREADY_THERE and "K6" not in v.trace.rule_ids
+    assert v.trace.sam_request_ids == ["resp_sp"]  # the trace still names the Stays Put request
+    on = {**th, "staysput": {**th["staysput"], "cap_enabled": True}}
+    assert match.verdicts_for(pm, {"p0": a, "r0": b}, tracks, {}, kfs, cal, Trace(), on)[0].label == VerdictLabel.NEEDS_YOUR_EYE
 
 
 def test_second_look_can_only_lower(cal: Calibration, th: dict) -> None:

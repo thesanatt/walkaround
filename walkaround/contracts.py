@@ -551,12 +551,14 @@ class DeletionKind(str, Enum):
 
 
 class LedgerKind(str, Enum):
-    """ledger.record kinds; cost_for in ledger.py prices the first four."""
+    """ledger.record kinds; cost_for in ledger.py prices the first four and spark_open (Muse Spark Open on Baseten, at
+    Baseten's list price: the calls run on Baseten credits, not Meta API spend)."""
 
     SAM_VIDEO = "sam_video"
     SAM_IMAGE = "sam_image"
     SPARK = "spark"
     VOICE = "voice"
+    SPARK_OPEN = "spark_open"
     BASETEN = "baseten"
     FAL = "fal"
 
@@ -1309,6 +1311,7 @@ class VerdictFlags(Contract):
     K11: bool = False
     K12: bool = False
     K13: bool = False
+    K14: bool = False
 
     def set_caps(self) -> list[str]:
         return [name for name in sorted(type(self).model_fields) if name.startswith("K") and getattr(self, name)]
@@ -1405,6 +1408,7 @@ class NarrationTurn(Contract):
 
 class NarrationRole(Contract):
     turns: list[NarrationTurn] = Field(default_factory=list)
+    transcript: str | None = None  # Voice's words as heard when they came back with no turns (section 14 item 16b)
 
 
 class Narration(Contract):

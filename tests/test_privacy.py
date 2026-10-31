@@ -449,6 +449,8 @@ def test_served_file_allowed_is_an_allowlist() -> None:
         "sam/pickup/images/f000003.face.resp_1.ndjson", "sam/pickup/car.ndjson",
         "crops/pickup/.k.jpg.tmp", "crops/pickup/k.jpg.part", "crops/k.jpg", "derived/sub/x.json", "sheet/other/x.jpg", "bundle/manifest.json.ots.bak",
         "crops/pickup/./../../quarantine/pickup.orig", "crops\\pickup\\k.jpg",
+        "claim/claim_1.jpg", "claim/claim_1.answers.json", "claim/notes.json", "claim/claim_1.png", "seeds.json",  # the upload, answers
+        "clips/pickup/staysput.json", "chips/pickup/t1.part.m4a",
     )
     for rel in denied:
         assert privacy.served_file_allowed(run, rel, run_owner=True) is False, rel
@@ -456,14 +458,15 @@ def test_served_file_allowed_is_an_allowlist() -> None:
         "deletions.json", "videos/pickup.json", "media/pickup.proxy_blurred.mp4", "media/pickup.pts.json",
         "sam/pickup/car.ndjson.gz", "sam/pickup/car.index.json", "sam/pickup/license_plate.summary.json",
         "crops/pickup/k.jpg", "crops/pickup/k.mask.png", "keyframes/pickup/k.frame.jpg", "keyframes/pickup/odometer.jpg",
-        "clips/return/m1.mp4", "chips/pickup/t1.m4a", "claim/claim_1.jpg", "derived/verdicts.json",
+        "clips/return/m1.mp4", "chips/pickup/t1.m4a", "claim/claim_1.blurred.jpg", "claim/claim_12.json", "derived/verdicts.json",
+        "derived/looks.json", "derived/narration_pieces.json", "crops/pickup/p_m1__r_m1.look.jpg", "open_weights.ndjson",
         "sheet/sheet.html", "sheet/sheet.json", "sheet/evidence.pdf", "sheet/frames/k.jpg",
         "bundle/manifest.json", "bundle/manifest_run.json", "bundle/manifest.json.ots", "bundle/manifest.json.tsr", "bundle/verify.md",
         "Crops/pickup/k.jpg",  # the same blurred crop on a case-insensitive disk
     )
     for rel in allowed:
         assert privacy.served_file_allowed(run, rel, run_owner=False) is True, rel
-    for rel in ("sheet/frames/k.jpg", "sheet/evidence.pdf", "crops/pickup/k.jpg", "keyframes/pickup/k.frame.jpg", "clips/return/m1.mp4", "claim/claim_1.jpg", "SHEET/frames/k.jpg"):
+    for rel in ("sheet/frames/k.jpg", "sheet/evidence.pdf", "crops/pickup/k.jpg", "keyframes/pickup/k.frame.jpg", "clips/return/m1.mp4", "claim/claim_1.blurred.jpg", "SHEET/frames/k.jpg"):
         assert privacy.served_file_allowed(kept, rel, run_owner=True) is True, rel
         assert privacy.served_file_allowed(kept, rel, run_owner=False) is False, rel
     for owner_frame in ("sheet/frames/k.owner.jpg", "sheet/frames/K.OWNER.jpg"):
@@ -523,3 +526,11 @@ async def test_live_image_checks_on_the_pingpong_clip(tmp_path: Path, monkeypatc
     saved = sorted(paths.image_requests_dir(run_id, "pickup").glob("live.*.ndjson"))
     assert len(saved) == 2
     print(f"LIVE image checks: {len(plates)} plates, {len(faces)} faces, ruler px {record.plate_ruler_px}, requests {record.request_ids}")
+
+
+def test_privacy_line_names_baseten_only_when_a_second_look_went_there() -> None:
+    run = c.RunManifest(run_id="r1", created_at=NOW)
+    plain = privacy.privacy_line(run, {"pickup": True})
+    told = privacy.privacy_line(run, {"pickup": True}, baseten=True)
+    assert "Baseten" not in plain and told == plain + " " + privacy.BASETEN_CLAUSE
+    assert told.isascii() and "Muse Spark Open on Baseten, a company separate from Meta" in told

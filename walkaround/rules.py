@@ -45,6 +45,7 @@ CAPS: tuple[Rule, ...] = (
     Rule("K11", "claim region", "claim ROI is a region (E7) or the claim crop carries a condition flag (E8)", "6; 5.11"),
     Rule("K12", "low confidence", "Spark confidence low on either mark", "6; marks_v1"),
     Rule("K13", "other walk truncated", "one of the two keyframes has marks_status truncated", "6; 5 step 8"),
+    Rule("K14", "named by the renter", "Muse Spark boxed the mark only because the renter named it; seed_v1 gives no confidence or size, so its type or size may be the renter's words", "6; 5 step 11"),
 )
 
 LABELS: tuple[Rule, ...] = (

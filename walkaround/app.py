@@ -36,6 +36,7 @@ from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 
 from . import contracts as c
 from . import paths
+from .config import redact
 from .orchestrator import (
     CREATABLE_KINDS,
     PENDING_EVENTS_NAME,
@@ -53,7 +54,7 @@ from .orchestrator import (
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 ROLE = re.compile(r"^(pickup|return|topup_[0-9]+|claim_[0-9]+)$")
-SPA_ROUTES = ("/", "/run/{run_id}", "/run/{run_id}/sheet", "/claim", "/kiosk/{run_id}", "/verify", "/eval/label.html")
+SPA_ROUTES = ("/", "/run/{run_id}", "/run/{run_id}/sheet", "/claim", "/kiosk/{run_id}", "/verify")
 EXEMPT_PATHS = re.compile(r"^/api/(uploads/[^/]+/chunks/[^/]+|runs/[^/]+/topup|claims)$")
 NEVER_SERVED_TOPS = ("quarantine", "uploads")
 NEVER_SERVED_SUFFIXES = (".orig", ".part", ".tmp", ".proxy.mp4")
@@ -171,7 +172,27 @@ class _ChunkSink:
             self.buffer.clear()
 
 
-async def read_multipart(request: Request, *, file_field: str, sink: _ChunkSink, max_bytes: int) -> tuple[dict[str, str], str | None]:
+class _MemorySink:
+    """A small upload held in memory (a claim photo); read_multipart's max_bytes caps it."""
+
+    def __init__(self) -> None:
+        self.data = bytearray()
+
+    def write(self, data: bytes) -> None:
+        self.data += data
+
+    def close(self) -> None:
+        pass
+
+
+def next_claim_number(run_id: str) -> int:
+    """1 + the highest n among the run's claim_<n> files (claim_3.json, claim_3.blurred.jpg, claim_3.answers.json)."""
+    folder = paths.runs_root() / run_id / "claim"
+    names = [p.name for p in folder.iterdir()] if folder.is_dir() else []
+    return 1 + max((int(m.group(1)) for name in names if (m := re.match(r"claim_([0-9]+)\.", name))), default=0)
+
+
+async def read_multipart(request: Request, *, file_field: str, sink: _ChunkSink | _MemorySink, max_bytes: int, too_big: str = "over 1 GiB; refused") -> tuple[dict[str, str], str | None]:
     """Stream a multipart body: the file field goes to sink as it arrives, small text fields come back in a dict."""
     ctype, params = parse_options_header(request.headers.get("content-type", ""))
     boundary = params.get(b"boundary")
@@ -233,7 +254,7 @@ async def read_multipart(request: Request, *, file_field: str, sink: _ChunkSink,
         async for block in request.stream():
             received += len(block)
             if received > max_bytes:
-                raise HTTPException(413, "over 1 GiB; refused")
+                raise HTTPException(413, too_big)
             parser.write(block)
         parser.finalize()
     except ValueError as exc:
@@ -281,6 +302,8 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
             return False
         owner = request.query_params.get("view") != "kiosk" and not orch.is_public(run)
         return bool(orch.dep("privacy.served_file_allowed")(run, rel_path, run_owner=owner))
+
+    claim_locks: dict[str, asyncio.Lock] = {}  # one claim at a time per run: claim_<n> numbering and its files
 
     def refused(exc: CapsExceeded) -> JSONResponse:
         return JSONResponse({"reason": exc.reason, "pickup_left": exc.pickup_left, "pairs_left": exc.pairs_left}, status_code=429)
@@ -504,26 +527,42 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
 
     @app.post("/api/claims")
     async def claims(request: Request) -> Response:
+        """One claim photo against a finished run (multipart 'image', 'run_id', 'text', optional 'tire_code' and
+        'panel_id', the renter's one tap after E2 or E2b). It spends model calls (about $0.05), so the pause and the
+        card ceiling apply before the body is read. The photo is held in memory under the 50 MB cap and written to the
+        run's quarantine, which is never served; claim.derive_claim deletes it once the pixelated copy exists. Claims
+        on one run go one at a time, numbered after the highest claim_<n> on disk."""
         if not orch.has_dep("claim.derive_claim"):
             raise HTTPException(501, "claim-first is not wired yet")
         length = request.headers.get("content-length", "")
         if length.isdigit() and int(length) > CLAIM_MAX_BYTES:
             raise HTTPException(413, "the claim photo is over 50 MB")
-        # TODO(claim lane): stream the photo into the run like the top-up does; request.form() spools a chunked body
-        # with no Content-Length to a temp file outside the run, uncapped.
-        form = await request.form()
-        run_id = str(form.get("run_id") or "")
-        run = run_or_404(run_id)
+        if orch.paused or orch.card_ceiling_reached(et_day_of(orch.now())):
+            left = orch.caps_remaining(et_day=et_day_of(orch.now()))
+            reason = "live runs paused; the sample pair is precomputed" if orch.paused else "live runs paused for today; the sample pair is precomputed"
+            return refused(CapsExceeded(reason, pickup_left=left["pickup"], pairs_left=left["pair"]))
+        sink = _MemorySink()
+        fields, _filename = await read_multipart(request, file_field="image", sink=sink, max_bytes=CLAIM_MAX_BYTES, too_big="the claim photo is over 50 MB")
+        run = run_or_404(fields.get("run_id", "").strip())
+        run_id = run.run_id
         if orch.is_public(run):
             raise HTTPException(403, "the sample pair and kept runs take no claim")
-        image = form.get("image")
-        if image is None or not hasattr(image, "read"):
-            raise HTTPException(400, "send the photo as the 'image' file field")
-        n = 1 + len(list((paths.runs_root() / run_id / "claim").glob("claim_*.jpg")))
-        target = paths.claim_image_path(run_id, f"claim_{n}")
-        target.write_bytes(await image.read())
-        tire_code = form.get("tire_code")
-        claim = await orch.dep("claim.derive_claim")(run_id, image=target, text=str(form.get("text") or ""), tire_code=str(tire_code) if tire_code else None, th=orch.run_th(run))
+        if run.status not in TERMINAL_STATUSES:
+            raise HTTPException(409, "the run is still working; send the claim once it has finished")
+        tire_code = fields.get("tire_code", "").strip() or None
+        panel_id = fields.get("panel_id", "").strip() or None
+        async with claim_locks.setdefault(run_id, asyncio.Lock()):
+            claim_id = f"claim_{next_claim_number(run_id)}"
+            target = paths.quarantine_temp(run_id, f"{claim_id}.jpg")
+            target.write_bytes(bytes(sink.data))
+            try:
+                claim = await orch.dep("claim.derive_claim")(run_id, image=target, text=fields.get("text", ""), tire_code=tire_code, th=orch.run_th(run), panel_id=panel_id, claim_id=claim_id)
+            except ValueError as exc:  # claim.ClaimRefused: a photo, panel id or run the claim cannot use
+                text = redact(str(exc))
+                status = 409 if "coverage" in text else 503 if "did not complete" in text else 400
+                return JSONResponse({"detail": text}, status_code=status)
+            finally:
+                target.unlink(missing_ok=True)  # derive_claim removes it; a failure before that must not leave it
         return canonical(claim)
 
     # Status ----------------------------------------------------------------------------------------------------------
@@ -565,6 +604,16 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
             return HTMLResponse(index.read_text(encoding="utf-8"))
         return HTMLResponse(FALLBACK_HOME)
 
+    label_page = dist / "eval" / "label.html"
+
+    async def eval_label_page() -> FileResponse:
+        """The eval labeling page (web/public/eval/label.html), a static file outside the SPA; it reads only run files
+        the allowlist already serves and saves nothing."""
+        if not label_page.is_file():
+            raise HTTPException(404, "the labeling page is not in this build; run npm run build in web/")
+        return FileResponse(label_page, media_type="text/html")
+
+    app.add_api_route("/eval/label.html", eval_label_page, methods=["GET", "HEAD"], include_in_schema=False)
     for route in SPA_ROUTES:
         app.add_api_route(route, spa, methods=["GET", "HEAD"], include_in_schema=False)
 

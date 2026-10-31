@@ -44,6 +44,8 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--run-id", help="name the run (letters, digits, _ and -); an unfinished run of that id resumes")
     run.add_argument("--nouns", nargs="+", metavar="NOUN", help="stand-in prompts for a test clip with no car: each stands in for one single-slot panel")
     run.add_argument("--container", metavar="NOUN", help="with --nouns: the prompt sent as the car lane (default the last of --nouns)")
+    run.add_argument("--keep", action="store_true", help="keep this run past the retention sweep (sample and eval runs); a kept run is public and takes no claim or top-up")
+    run.add_argument("--footage-credit", metavar="TEXT", help="the footage credit line shown under the walk player (licensed sample footage)")
 
     rebuild = sub.add_parser("rebuild", help="regenerate the derived files from the frozen facts, no network")
     rebuild.add_argument("run_id")
@@ -82,6 +84,8 @@ async def _run_local(orch: Orchestrator, args: argparse.Namespace) -> int:
         args.nouns,
         container=args.container,
         keep_plate=args.keep_plate,
+        keep=args.keep,
+        footage_credit=args.footage_credit,
         orch=orch,
         on_event=None if args.quiet else _print_event,
     )
