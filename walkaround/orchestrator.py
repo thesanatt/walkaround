@@ -2012,11 +2012,18 @@ class Orchestrator:
     # Health, sweep, stamps, samples ------------------------------------------------------------------------------------
 
     async def health_probe(self) -> bool:
-        """GET /v1/models; three failures in a row pause live runs, one pass clears the pause."""
-        try:
-            from .config import api_key
+        """GET /v1/models; three failures in a row pause live runs, one pass clears the pause. With no MODEL_API_KEY
+        live runs pause at once (a clone with no key only replays), since a missing key never passes a later probe."""
+        from .config import api_key
 
-            status = await self.http_get(f"{BASE_URL}/models", {"Authorization": f"Bearer {api_key()}"})
+        try:
+            key = api_key()
+        except RuntimeError:
+            self.probe_ok = False
+            self.paused = True
+            return False
+        try:
+            status = await self.http_get(f"{BASE_URL}/models", {"Authorization": f"Bearer {key}"})
             ok = 200 <= status < 300
         except Exception:
             ok = False

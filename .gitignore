@@ -8,5 +8,5 @@ __pycache__/
 node_modules/
 .DS_Store
 *.egg-info/
-# web build output (web/.gitignore has it too)
-web/dist/
+# web/dist/ is committed on purpose: a clone serves the app without Node. Rebuild it (cd web && npm run build) with
+# every web change.

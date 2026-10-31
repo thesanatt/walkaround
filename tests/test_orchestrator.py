@@ -344,6 +344,9 @@ def runs_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setenv("APP_COMMIT", "abc1234")
     for name in ("WALKAROUND_SAMPLE_RUN", "PICKUP_RUNS_PER_DAY", "PAIR_RUNS_PER_DAY", "RUN_SPEND_CEILING_CENTS", "RUN_RETENTION_HOURS", "SAM_ENGINE"):
         monkeypatch.delenv(name, raising=False)
+    import walkaround.orchestrator as orchestrator_module
+
+    monkeypatch.setattr(orchestrator_module, "REPO_DIR", tmp_path / "repo")  # no samples/: the repo's own sample pair stays out
     return root
 
 
@@ -1114,6 +1117,22 @@ async def test_health_probe_pauses_after_three_failures_and_clears_on_a_pass(run
     assert [await orch.health_probe() for _ in range(2)] == [False, False] and orch.paused is False
     assert await orch.health_probe() is False and orch.paused is True
     assert await orch.health_probe() is True and orch.paused is False and orch.probe_ok is True
+
+
+async def test_health_probe_pauses_at_once_without_a_key(runs_dir: Path, th: dict, monkeypatch: pytest.MonkeyPatch) -> None:
+    import walkaround.config as config_module
+
+    monkeypatch.delenv("MODEL_API_KEY", raising=False)
+    monkeypatch.setattr(config_module, "load_env", lambda: None)  # no .env and no ~/meta2026/.keys, like a fresh clone
+    orch = make_orch(th)
+
+    async def no_call(url: str, headers: dict[str, str]) -> int:
+        raise AssertionError("no request without a key")
+
+    orch.http_get = no_call
+    assert await orch.health_probe() is False and orch.paused is True and orch.probe_ok is False
+    with pytest.raises(CapsExceeded, match="paused"):
+        orch.check_can_start(c.RunKind.PAIR)
 
 
 # Replay driver -------------------------------------------------------------------------------------------------------

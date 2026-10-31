@@ -11,7 +11,8 @@ type Kind = 'pickup_check' | 'pair';
 
 function counterText(status: StatusResponse | null): string {
   if (!status) return 'Checking how many live runs are left today.';
-  if (status.paused || (status.pickup_left <= 0 && status.pairs_left <= 0)) return 'Live runs are paused for today. The sample pair is precomputed and always opens.';
+  if (status.paused) return 'Live runs are off on this server right now (no API key, or the model API is not answering). The sample pair is precomputed and always opens.';
+  if (status.pickup_left <= 0 && status.pairs_left <= 0) return 'No live runs are left today. The sample pair is precomputed and always opens.';
   return `${status.pickup_left} pickup ${status.pickup_left === 1 ? 'check' : 'checks'} and ${status.pairs_left} full ${status.pairs_left === 1 ? 'pair' : 'pairs'} left today.`;
 }
 
