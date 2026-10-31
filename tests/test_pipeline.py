@@ -121,6 +121,8 @@ def offline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     th["panels"]["area_floor_default"] = 0.0001  # a ping pong ball is small for a car panel
     th["panels"]["area_floor_small"] = 0.0001
     th["coverage"]["filmed_area_frac_min"] = 0.0005  # and filmed at that size
+    th["matching"]["sharpness_rel_min"] = 0.0  # G3 is tested in test_match; here any frame of the clip may pair
+    th["panels"]["keyframe_top_k"] = 1  # one keyframe per walk: a near-round ball turns its axis between frames (G4)
     orch = Orchestrator(
         th=th, engine=c.SamEngine.META_MODEL_API, max_concurrent_runs=1, media_workers=1, decode_workers=1,
         overrides={"seal.seal_run": functools.partial(seal.seal_run, stamp=False)},
