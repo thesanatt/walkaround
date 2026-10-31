@@ -2,17 +2,25 @@
 
 build_sheet reads the run's files and fills contracts.SheetModel; render_html turns it into plain HTML with Jinja2;
 render_pdf prints it with Playwright Chromium when that is installed. Nothing here recomputes a verdict or calls a
-model. The only pixels this module writes are the blurred crops with the marks drawn on them (sheet/frames/) and,
-for a keep_plate run when the quarantine original is still present, the run owner's variant with the plate kept.
+model. The only pixels this module writes are the blurred crops with the marks drawn on them (sheet/frames/<kf>.jpg)
+and, for a keep_plate run, the run owner's variant with the rented car's plate kept (sheet/frames/<kf>.owner.jpg),
+made from the quarantined original while it exists and left alone once it is gone.
+
+sheet.json must rebuild byte for byte after the run ends, so it reads only state that is frozen when it is first
+written: the event log up to run.json's events_head_hash (frozen right before the sheet stage), deletion rows already
+announced on that chain or timestamped before its head, and checks that do not depend on the quarantine still being
+there. bundle/manifest_run.json is written after the sheet and is never read here.
 """
 
 from __future__ import annotations
 
+import base64
 import concurrent.futures
 import hashlib
 import re
 import unicodedata
-from datetime import timedelta
+from collections.abc import Callable
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +40,10 @@ from .contracts import (
     Crop,
     DeletionClocks,
     DeletionKind,
+    DeletionRecord,
     Deletions,
+    Event,
+    EventKind,
     Keyframe,
     Mark,
     MarkKind,
@@ -99,6 +110,22 @@ _LABEL_BGR = {
     VerdictLabel.NOT_COMPARABLE: (102, 102, 102),
 }
 _TIRE_CODE = re.compile(r"^\s*(\d{3})\s*/\s*(\d{2})\s*[A-Za-z]*\s*(\d{2}(?:\.\d)?)\s*$")
+RUN_END_NOTE = (
+    "Steps marked not yet happen at run end, after this sheet was written; deletions.json and "
+    "bundle/manifest_run.json record them."
+)
+_TSA_VERIFY = {
+    "freetsa": (
+        "freetsa's certificates (download https://freetsa.org/files/cacert.pem and https://freetsa.org/files/tsa.crt)",
+        "openssl ts -verify -data bundle/manifest.json -in bundle/manifest.json.tsr -CAfile cacert.pem -untrusted tsa.crt",
+    ),
+    # TODO(D1 E12): confirm a DigiCert token verifies against the system bundle alone (no -untrusted intermediate).
+    "DigiCert": (
+        "DigiCert's root from your system's CA bundle (the token carries DigiCert's signing certificate)",
+        "openssl ts -verify -data bundle/manifest.json -in bundle/manifest.json.tsr -CAfile /etc/ssl/cert.pem",
+    ),
+}
+_MIME = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png"}
 
 
 # Small helpers -------------------------------------------------------------------------------------------------------
@@ -150,6 +177,41 @@ def _block_of(ots_status: str | None) -> int | None:
         except ValueError:
             return None
     return None
+
+
+def _best_ots(*statuses: str | None) -> str | None:
+    """The strongest OTS status: confirmed (lowest block) over pending over failed over none. The manifest's proof
+    counts for each original because manifest.json holds the original's sha256."""
+    confirmed = [s for s in statuses if _block_of(s) is not None]
+    if confirmed:
+        return min(confirmed, key=lambda s: _block_of(s) or 0)
+    rank = {"pending": 2, "failed": 1}
+    present = [s for s in statuses if s]
+    return max(present, key=lambda s: rank.get(s.split(":", 1)[0], 0), default=None)
+
+
+def ots_note(status: str | None) -> str:
+    """Page 1's words for one OpenTimestamps status, with a short reason instead of the raw error."""
+    block = _block_of(status)
+    if block is not None:
+        return f"Bitcoin block {block}"
+    if not status:
+        return "OpenTimestamps not stamped"
+    if status.startswith("pending"):
+        return "OpenTimestamps pending at the calendars (ots upgrade adds the Bitcoin block after a few hours)"
+    if status.startswith("failed:"):
+        reason = re.sub(r"^[A-Za-z]+(Error|Exception|Expired): ", "", status.removeprefix("failed:"))
+        if "not installed" in reason:
+            reason = "the OpenTimestamps client is not installed on the server"
+        return f"OpenTimestamps not stamped ({reason[:120]})"
+    return f"OpenTimestamps {status}"
+
+
+def _before(ts: str, limit: datetime) -> bool:
+    try:
+        return seal._parse_iso(ts) < limit
+    except ValueError:
+        return False
 
 
 def tire_diameter_in(code: str | None) -> float | None:
@@ -286,23 +348,43 @@ def letter_md(sheet: SheetModel) -> str:
     )
 
 
+def sheet_stamps(sheet: SheetModel) -> Stamps:
+    """The seal's stamps as this sheet read them (method.thresholds["stamps"]); for a model built without that block,
+    what page 1 carries."""
+    raw = sheet.method.thresholds.get("stamps")
+    if isinstance(raw, dict):
+        try:
+            return Stamps.model_validate(raw)
+        except ValueError:
+            pass
+    tsr = next((o.tsr_time for o in sheet.originals if o.tsr_time), None)
+    return Stamps(manifest_ots=_best_ots(*(o.ots_status for o in sheet.originals)), tsr_time=tsr)
+
+
 def verify_md(sheet: SheetModel) -> str:
-    expected = "\n".join(f"   {o.role}: {o.sha256}" for o in sheet.originals) or "   (no originals recorded)"
-    return (
-        "Verify it yourself (five commands; none needs Walkaround's server)\n"
-        "\n"
-        "1. Hash the video file on your phone or computer and compare it with page 1:\n"
-        "   shasum -a 256 <your video file>     (Linux: sha256sum <your video file>)\n"
-        f"{expected}\n"
-        "2. Read the OpenTimestamps proof (pip install opentimestamps-client):\n"
-        "   ots info bundle/manifest.json.ots\n"
-        "3. Verify it against the Bitcoin block, or drop the .ots file on https://opentimestamps.org :\n"
-        "   ots verify bundle/manifest.json.ots\n"
-        "4. Verify the RFC 3161 token from the time stamping authority:\n"
-        "   openssl ts -verify -data bundle/manifest.json -in bundle/manifest.json.tsr -CAfile bundle/cacert.pem -untrusted bundle/tsa.crt\n"
-        "5. Re-hash every file in the bundle and rebuild the derived files from the stored model answers:\n"
-        f"   walkaround verify {sheet.run_id}\n"
-    )
+    """Appendix C: only the commands whose files this run has (no OTS step without a proof, no openssl step without
+    a token), with the token's issuer named."""
+    stamps = sheet_stamps(sheet)
+    expected = [f"   {o.role}: {o.sha256}" for o in sheet.originals] or ["   (no originals recorded)"]
+    steps: list[tuple[str, list[str]]] = [
+        ("Hash the video file on your phone or computer and compare it with page 1:",
+         ["   shasum -a 256 <your video file>     (Linux: sha256sum <your video file>)", *expected]),
+    ]
+    if (stamps.manifest_ots or "").startswith(("pending", "confirmed")):
+        steps.append(("Read the OpenTimestamps proof (pip install opentimestamps-client):", ["   ots info bundle/manifest.json.ots"]))
+        steps.append(("Verify it against the Bitcoin block, or drop the .ots file on https://opentimestamps.org :", ["   ots verify bundle/manifest.json.ots"]))
+    if stamps.tsr_time:
+        issuer = stamps.tsa_issuer or "the time stamping authority"
+        certs, cmd = _TSA_VERIFY.get(stamps.tsa_issuer or "", (
+            "that authority's CA certificate and TSA certificate",
+            "openssl ts -verify -data bundle/manifest.json -in bundle/manifest.json.tsr -CAfile cacert.pem -untrusted tsa.crt",
+        ))
+        steps.append((f"Verify the RFC 3161 token from {issuer} ({stamps.tsr_time}) with {certs}:", [f"   {cmd}"]))
+    steps.append(("Re-hash every file in the bundle and rebuild the derived files from the stored model answers:", [f"   walkaround verify {sheet.run_id}"]))
+    lines = [f"Verify it yourself ({len(steps)} steps; none needs Walkaround's server)", ""]
+    for n, (title, body) in enumerate(steps, 1):
+        lines += [f"{n}. {title}", *body]
+    return "\n".join(lines) + "\n"
 
 
 def certification_md(sheet: SheetModel) -> str:
@@ -415,9 +497,16 @@ def _cut_crop(rgb: np.ndarray, crop: Crop) -> np.ndarray:
     return cv2.resize(rgb[y1:y2, x1:x2], (crop.w, crop.h), interpolation=cv2.INTER_AREA)
 
 
-def _owner_crop(run_id: str, kf: Keyframe, run: RunManifest, video: VideoRecord | None, tracks: list[PanelTrack], th: dict[str, Any]) -> np.ndarray | None:
-    """The keep_plate variant of one crop: the 4K frame from quarantine with faces pixelated and the plate kept.
-    None when the original is gone, the media lane cannot decode, or the keyframe has no crop geometry."""
+def _centre_inside(box: list[float], outer: list[float]) -> bool:
+    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+    return outer[0] <= cx < outer[2] and outer[1] <= cy < outer[3]
+
+
+def _owner_crop(run_id: str, kf: Keyframe, video: VideoRecord | None, tracks: list[PanelTrack], th: dict[str, Any]) -> np.ndarray | None:
+    """The keep_plate variant of one crop: the 4K frame from quarantine with every face pixelated and only the rented
+    car's plate kept, meaning a plate centred on this keyframe's own panel; a plate elsewhere in the crop belongs to
+    a neighbour's car and is pixelated. tracks are this walk's. None when the original is gone, the media lane
+    cannot decode, or the keyframe has no crop geometry."""
     if kf.crop is None:
         return None
     original = paths.quarantine_original(run_id, kf.role)
@@ -427,45 +516,64 @@ def _owner_crop(run_id: str, kf: Keyframe, run: RunManifest, video: VideoRecord 
         from . import video as video_mod
 
         frame = video_mod.read_frame_at(original, kf.pts)
-    except Exception:  # noqa: BLE001 - a stub or a decode failure falls back to the blurred crop
+    except Exception:  # noqa: BLE001 - a stub or a decode failure: no owner frame from this original
         return None
     face_boxes = [list(b) for b in kf.blur.face_boxes]
+    plate_boxes = [list(b) for b in kf.blur.plate_boxes]
     if tracks and video is not None and video.proxy is not None:
-        face_boxes += privacy.track_boxes_at(
-            kf.f_proxy,
-            tracks,
+        common: dict[str, Any] = dict(
             fps=video.proxy.fps,
             media_size_proxy=(video.proxy.width, video.proxy.height),
             media_size_src=(int(frame.shape[1]), int(frame.shape[0])),
             th=th,
-            nouns=(Noun.FACE,),
         )
-    blurred = privacy.blur_frame(frame, track_boxes_src=face_boxes, detections=[], keep_plate_region=True, th=th)
+        face_boxes += privacy.track_boxes_at(kf.f_proxy, tracks, nouns=(Noun.FACE,), **common)
+        plate_boxes += privacy.track_boxes_at(kf.f_proxy, tracks, nouns=(Noun.LICENSE_PLATE,), **common)
+    # TODO(D1): on the real keep_plate walk, check the rented car's plate is centred in its bumper or trunk box and
+    # a neighbour's plate in a door crop is not; widen the test to the car box if a mounted plate gets pixelated.
+    neighbours = [b for b in plate_boxes if not _centre_inside(b, list(kf.box_src))]
+    blurred = privacy.blur_frame(frame, track_boxes_src=face_boxes + neighbours, detections=[], keep_plate_region=True, th=th)
     return _cut_crop(blurred, kf.crop)
 
 
-def _write_frame(run_id: str, kf: Keyframe, marks: list[Mark], label_by_mark: dict[str, VerdictLabel], owner_rgb: np.ndarray | None) -> str | None:
-    """sheet/frames/<kf_id>.jpg: the blurred crop (or the owner's variant) with the marks drawn; None without pixels."""
+def _write_frame(run_id: str, kf: Keyframe, marks: list[Mark], label_by_mark: dict[str, VerdictLabel]) -> str | None:
+    """sheet/frames/<kf_id>.jpg: the blurred crop with the marks drawn (the blurred car-box frame, undrawn, when the
+    crop is missing); None without pixels."""
     root = paths.run_dir(run_id)
-    if owner_rgb is not None:
-        bgr = cv2.cvtColor(np.ascontiguousarray(owner_rgb), cv2.COLOR_RGB2BGR)
-        draw = True
-    else:
-        src = root / kf.crop.path if kf.crop and kf.crop.path else None
-        draw = src is not None and src.is_file()
-        if not draw:
-            src = paths.keyframe_frame_path(run_id, kf.role, kf.kf_id)
-            if not src.is_file():
-                return None
-        bgr = cv2.imread(str(src), cv2.IMREAD_COLOR)
-        if bgr is None:
+    src = root / kf.crop.path if kf.crop and kf.crop.path else None
+    draw = src is not None and src.is_file()
+    if not draw:
+        src = paths.keyframe_frame_path(run_id, kf.role, kf.kf_id)
+        if not src.is_file():
             return None
+    bgr = cv2.imread(str(src), cv2.IMREAD_COLOR)
+    if bgr is None:
+        return None
     if draw:
         _draw_marks(bgr, kf, marks, label_by_mark)
     dst = paths.sheet_dir(run_id) / "frames" / f"{kf.kf_id}.jpg"
     dst.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(dst), bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
     return paths.rel(run_id, dst)
+
+
+def owner_frame_file(run_id: str, kf_id: str) -> Path:
+    """The keep_plate frame of one keyframe; served to the run owner only (privacy.served_file_allowed)."""
+    return paths.sheet_dir(run_id) / "frames" / f"{kf_id}.owner.jpg"
+
+
+def _write_owner_frame(run_id: str, kf: Keyframe, marks: list[Mark], label_by_mark: dict[str, VerdictLabel], video: VideoRecord | None, tracks: list[PanelTrack], th: dict[str, Any]) -> str | None:
+    """sheet/frames/<kf_id>.owner.jpg with the marks drawn: written while the quarantined original exists and kept as
+    it is once the original is deleted at run end, so a rebuild or a resumed sheet prints the same frames. None when
+    no owner frame could ever be made."""
+    dst = owner_frame_file(run_id, kf.kf_id)
+    rgb = _owner_crop(run_id, kf, video, tracks, th)
+    if rgb is not None:
+        bgr = cv2.cvtColor(np.ascontiguousarray(rgb), cv2.COLOR_RGB2BGR)
+        _draw_marks(bgr, kf, marks, label_by_mark)
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(dst), bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    return paths.rel(run_id, dst) if dst.is_file() else None
 
 
 def _coverage_lines(role: str, states: dict[PanelId, Any]) -> list[str]:
@@ -489,21 +597,54 @@ def _storage_line(run: RunManifest, clocks: DeletionClocks) -> str:
     else:
         text = "Model requests were sent with storage off; whether every model honoured it was not confirmed for this run."
     text += f" Files API upload deleted: {clocks.files_deleted_at or 'not yet'}; quarantine deleted: {clocks.quarantine_deleted_at or 'not yet'}."
+    if not (clocks.files_deleted_at and clocks.quarantine_deleted_at):
+        text += " " + RUN_END_NOTE
     return text
 
 
+def _deletions_at_sheet_time(rows: list[DeletionRecord], events: list[Event], head_hash: str | None) -> list[DeletionRecord]:
+    """The deletion rows this sheet prints: announced on the chain up to the frozen head (blur.done for the unblurred
+    proxy, files.deleted, responses.deleted, quarantine.deleted) or timestamped before the head event. Rows written
+    after the sheet (a keep_plate original deleted at close, a late top-up) stay in deletions.json and
+    manifest_run.json, so a rebuild after close prints the same sheet. Without a frozen head every row counts."""
+    head = events[-1] if events and head_hash and events[-1].hash == head_hash else None
+    if head is None:
+        return list(rows)
+    announced: set[str] = set()
+    for event in events:
+        payload = event.payload
+        if event.kind == EventKind.FILES_DELETED and isinstance(payload.get("file_id"), str):
+            announced.add(payload["file_id"])
+        elif event.kind == EventKind.RESPONSES_DELETED and isinstance(payload.get("request_id"), str):
+            announced.add(payload["request_id"])
+        elif event.kind == EventKind.QUARANTINE_DELETED and isinstance(payload.get("files"), list):
+            announced.update(str(f) for f in payload["files"])
+        elif event.kind == EventKind.BLUR_DONE and isinstance(payload.get("role"), str):
+            announced.add(f"media/{payload['role']}.proxy.mp4")  # paths.proxy_path, deleted at blur.done
+    head_at = seal._parse_iso(head.ts)
+    return [r for r in rows if r.target in announced or _before(r.deleted_at, head_at)]
+
+
+def _sheet_time_problems(run_id: str, run: RunManifest) -> list[str]:
+    """What the sheet can check about its own inputs without depending on later state: every file manifest.json
+    lists that is still present re-hashes to its entry, and the chain verifies from seq 0 to the head this sheet
+    prints. An original deleted at run end (or left out of a rebuild copy) is skipped here; walkaround verify checks
+    it against manifest_run.json's deletions."""
+    manifest_path = paths.manifest_json(run_id)
+    if not manifest_path.is_file():
+        return ["bundle/manifest.json missing"]
+    manifest = read_json(manifest_path, SealManifest)
+    present = seal.verify_manifest(manifest, paths.run_dir(run_id), expected_missing={e.path for e in manifest.files})
+    return present + seal.chain_problems_through(run_id, seal.sha256_file(manifest_path), head_hash=run.events_head_hash)
+
+
 def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
-    """Fill SheetModel from run.json, videos/*.json, bundle/manifest*.json, derived/*.json, deletions.json and the
-    run's ledger rows. Never recomputes a verdict."""
-    root = paths.run_dir(run_id)
+    """Fill SheetModel from run.json, videos/*.json, bundle/manifest.json, derived/*.json, deletions.json, the event
+    log up to the frozen head and the run's ledger rows. Never recomputes a verdict."""
     run = read_json(paths.run_json(run_id), RunManifest)
     videos = _videos(run_id)
-    manifest = _read_opt(paths.manifest_json(run_id), SealManifest)
-    manifest_run = _read_opt(paths.manifest_run_json(run_id), SealManifest)
-    stamps = Stamps()
-    for source in (manifest, manifest_run):
-        if source is not None and source.stamps != Stamps():
-            stamps = source.stamps
+    events = seal.events_through(run_id, run.events_head_hash)
+    stamps = seal.stamps_from_events(events)
     panels: list[Panel] = _read_list_opt(paths.panels_json(run_id), Panel)
     keyframes: list[Keyframe] = _read_list_opt(paths.keyframes_json(run_id), Keyframe)
     marks: list[Mark] = _read_list_opt(paths.marks_json(run_id), Mark)
@@ -527,7 +668,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
         camera_by_role[role] = v.ffprobe.creation_time if v.ffprobe else seal.NOT_PRESENT
         if sha is None:
             continue
-        ots = {"pickup": stamps.pickup_ots, "return": stamps.return_ots}.get(role)
+        ots = _best_ots({"pickup": stamps.pickup_ots, "return": stamps.return_ots}.get(role), stamps.manifest_ots)
         originals.append(
             SheetOriginal(
                 role=role, name=v.original_filename, bytes=v.bytes, sha256=sha, camera_time=camera_by_role[role],
@@ -535,7 +676,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
                 bitcoin_block=_block_of(ots),
             )
         )
-    deletion_rows = deletions.rows if deletions else []
+    deletion_rows = _deletions_at_sheet_time(deletions.rows if deletions else [], events, run.events_head_hash)
     clocks = DeletionClocks(
         files_deleted_at=max((d.deleted_at for d in deletion_rows if d.kind == DeletionKind.FILES_API and d.api_response is not None), default=None),
         responses_deleted_at=max((d.deleted_at for d in deletion_rows if d.kind == DeletionKind.RESPONSE), default=None),
@@ -566,10 +707,13 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
         if kf is None:
             return None
         panel_marks = [m for m in marks if m.panel_id == panel_id and _side(m.role) == side]
-        owner_rgb = _owner_crop(run_id, kf, run, videos.get(kf.role), tracks, th) if run.keep_plate else None
-        if owner_rgb is not None:
-            owner_frames += 1
-        path = _write_frame(run_id, kf, panel_marks, label_by_mark, owner_rgb) or ""
+        path = _write_frame(run_id, kf, panel_marks, label_by_mark) or ""
+        if run.keep_plate:
+            walk_tracks = [t for t in tracks if t.role == kf.role]
+            owner = _write_owner_frame(run_id, kf, panel_marks, label_by_mark, videos.get(kf.role), walk_tracks, th)
+            if owner:
+                path = owner
+                owner_frames += 1
         return SheetFrame(
             kf_id=kf.kf_id, path=path, video_time_s=kf.pts,
             wall_clock=_wall_clock(camera_by_role.get(kf.role, seal.NOT_PRESENT), kf.pts),
@@ -672,14 +816,17 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     thresholds = dict(run.thresholds or th)
     thresholds["calibration"] = calibration.model_dump(mode="json") if calibration else None
     thresholds["ledger_totals"] = _ledger_totals(rows)
-    problems = seal.verify_run(run_id)
+    thresholds["stamps"] = stamps.model_dump(mode="json")  # carried here until SheetModel has a stamps field
+    problems = _sheet_time_problems(run_id, run)
     method = SheetMethod(
         config_hash=run.config_hash, thresholds=thresholds, eval_lines=[], blurred=blurred_lines, deletions=list(deletion_rows),
         storage_line=_storage_line(run, clocks),
-        # The rebuild comparison runs after this sheet exists (walkaround verify); at sheet time only the hashes and
-        # the chain can be checked. The wording stays honest about that.
+        # The rebuild comparison runs after this sheet exists (walkaround verify). At sheet time the chain up to the
+        # frozen head can be checked, plus whichever originals are still in quarantine (none, once run end has
+        # deleted them), and the wording claims no more than that, the same way before and after run end.
         rebuild_status=(
-            "hashes and event chain verified at sheet time; run walkaround verify to compare a rebuild"
+            "event chain verified to the head on page 1 and any original still in quarantine re-hashed at sheet time; "
+            "run walkaround verify to compare a rebuild"
             if not problems
             else f"verify at sheet time: {problems[0]}"
         ),
@@ -689,7 +836,8 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     sheet = SheetModel(
         run_id=run_id, app_commit=run.app_commit, config_hash=run.config_hash, events_head_hash=run.events_head_hash,
         clocks=run.clocks, deletion_clocks=clocks, originals=originals, plate_line=plate_line,
-        privacy_line=privacy.privacy_line(run, plate_found), coverage_summary=coverage_summary, panels=blocks,
+        privacy_line=privacy.privacy_line(run, plate_found, deletion_rows), coverage_summary=coverage_summary, panels=blocks,
+        stand_in_line=stand_in_line(run),
         not_comparable=not_comparable, method=method, footer_hash_prefixes=[o.sha256[:12] for o in originals],
     )
     sheet.note_lines = note_lines(sheet)
@@ -699,6 +847,14 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     sheet.appendices = appendices
     sheet.letter_md = letter_md(sheet)
     return sheet
+
+
+def stand_in_line(run: RunManifest) -> str:
+    """Page 1 says so when the lanes were sent with stand-in prompts: a test clip, not a car walk."""
+    if not run.prompts:
+        return ""
+    sent = "; ".join(f"{noun} sent as '{text}'" if text else f"{noun}: no request, the whole frame stands in" for noun, text in sorted(run.prompts.items()))
+    return f"Test run on a clip with no car: lanes were sent with stand-in prompts ({sent}). Panel names below are slots, not car parts."
 
 
 def _claim_text(claim: Claim, th: dict[str, Any]) -> str:
@@ -736,12 +892,34 @@ def _has_page_content(block: SheetPanelBlock) -> bool:
     return bool(block.pickup or block.return_ or block.verdicts or block.group_lines or block.chips)
 
 
-def render_html(sheet: SheetModel, *, template_dir: Path = TEMPLATE_DIR) -> str:
-    """Jinja2 to one self-contained HTML page set: no external assets, ASCII only, footer on every page."""
+def _asset_src(inline_root: Path | None) -> Callable[[str], str]:
+    """img src for a run-relative path: the file inlined as a data URL when it sits under inline_root, so the page
+    works wherever it is opened (served at /api/runs/<id>/sheet, saved alone, printed); else ../<path>, which
+    resolves from sheet/sheet.html on disk."""
+    base = Path(inline_root).resolve() if inline_root is not None else None
+
+    def src(rel: str) -> str:
+        if base is not None and rel:
+            path = (base / rel).resolve()
+            if path.is_relative_to(base) and path.is_file() and path.suffix.lower() in _MIME:
+                return f"data:{_MIME[path.suffix.lower()]};base64,{base64.b64encode(path.read_bytes()).decode('ascii')}"
+        return f"../{rel}"
+
+    return src
+
+
+def render_html(sheet: SheetModel, *, template_dir: Path = TEMPLATE_DIR, inline_root: Path | None = None) -> str:
+    """Jinja2 to one self-contained HTML page set: no external assets, ASCII only, footer on every page. With
+    inline_root (the run dir) the frames are embedded as data URLs."""
     env = Environment(loader=FileSystemLoader(str(template_dir)), autoescape=select_autoescape(["html"]), undefined=StrictUndefined)
-    thresholds = {k: v for k, v in sheet.method.thresholds.items() if k not in ("calibration", "ledger_totals")}
+    thresholds = {k: v for k, v in sheet.method.thresholds.items() if k not in ("calibration", "ledger_totals", "stamps")}
+    clocks = sheet.deletion_clocks
     context = {
         "sheet": sheet,
+        "asset_src": _asset_src(inline_root),
+        "ots_note": ots_note,
+        "tsa_issuer": sheet_stamps(sheet).tsa_issuer,
+        "run_end_note": "" if clocks.files_deleted_at and clocks.quarantine_deleted_at else RUN_END_NOTE,
         "panel_pages": [b for b in sheet.panels if _has_page_content(b)],
         "frameless_blocks": [b for b in sheet.panels if not _has_page_content(b)],
         "label_text": LABEL_TEXT,
@@ -793,7 +971,7 @@ def write_sheet(run_id: str, *, th: dict[str, Any]) -> tuple[SheetModel, dict[st
     sheet = build_sheet(run_id, th=th)
     hashes = {"sheet/sheet.json": write_json(paths.sheet_json(run_id), sheet)}
     html_path = paths.sheet_html(run_id)
-    hashes["sheet/sheet.html"] = _write_text(html_path, render_html(sheet))
+    hashes["sheet/sheet.html"] = _write_text(html_path, render_html(sheet, inline_root=paths.run_dir(run_id)))
     hashes["bundle/letter.md"] = _write_text(paths.bundle_file(run_id, "letter.md"), sheet.letter_md)
     hashes["bundle/verify.md"] = _write_text(paths.bundle_file(run_id, "verify.md"), sheet.appendices.get("C verify it yourself", ""))
     hashes["bundle/note.md"] = _write_text(paths.bundle_file(run_id, "note.md"), "\n".join(f"{i}. {line}" for i, line in enumerate(sheet.note_lines, 1)) + "\n")

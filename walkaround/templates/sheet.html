@@ -67,7 +67,7 @@
 {% macro frame_block(frame, role_name) -%}
 <div class="frame">
   {% if frame and frame.path %}
-  <img src="../{{ frame.path }}" alt="{{ role_name }} frame {{ frame.kf_id }}, marks drawn">
+  <img src="{{ asset_src(frame.path) }}" alt="{{ role_name }} frame {{ frame.kf_id }}, marks drawn">
   <div class="cap">{{ role_name }}: video time {{ "%.2f"|format(frame.video_time_s) }} s{% if frame.wall_clock %}; wall clock {{ frame.wall_clock }}{% endif %}{% if frame.mark_ids %}; marks {{ frame.mark_ids|join(", ") }}{% endif %}</div>
   {% elif frame %}
   <div class="missing">{{ role_name }} frame {{ frame.kf_id }} not available</div>
@@ -78,10 +78,16 @@
 </div>
 {%- endmacro %}
 
+{% macro proof(o) -%}
+{% if o.tsr_time %}{{ o.tsr_time }} (RFC 3161 token{% if tsa_issuer %} from {{ tsa_issuer }}{% endif %}){% else %}no RFC 3161 token{% endif %};
+{% if o.bitcoin_block %}Bitcoin block {{ o.bitcoin_block }}{% else %}{{ ots_note(o.ots_status) }}{% endif %}
+{%- endmacro %}
+
 <section class="page" id="page-1">
   <h1>{{ sheet.product }} evidence sheet</h1>
   <p class="lede">Two walkaround videos of one rental car, compared panel by panel. Code decides every verdict; a model answer can only lower one.</p>
   <p><span class="disclaimer">{{ sheet.disclaimer }}</span></p>
+  {% if sheet.stand_in_line %}<p><span class="disclaimer">{{ sheet.stand_in_line }}</span></p>{% endif %}
 
   <table class="kv">
     <tr><th>run id</th><td class="mono">{{ sheet.run_id }}</td></tr>
@@ -111,7 +117,7 @@
       <td>{{ o.camera_time }}</td>
       <td>{{ o.received_at or "not recorded" }}</td>
       <td>{% if o.hash_match is none %}not checked{% elif o.hash_match %}match{% else %}MISMATCH{% endif %}</td>
-      <td>{% if o.tsr_time %}{{ o.tsr_time }} (RFC 3161 token){% else %}no RFC 3161 token{% endif %}; {% if o.bitcoin_block %}Bitcoin block {{ o.bitcoin_block }}{% elif o.ots_status %}OpenTimestamps {{ o.ots_status }}{% else %}OpenTimestamps not stamped{% endif %}</td>
+      <td>{{ proof(o) }}</td>
     </tr>
     {% else %}
     <tr><td colspan="8">no originals recorded</td></tr>
@@ -120,7 +126,10 @@
 
   <h3>Privacy</h3>
   <p>{{ sheet.privacy_line }}</p>
-  <p class="sub">Files API upload deleted: {{ sheet.deletion_clocks.files_deleted_at or "not yet" }}. Stored responses deleted: {{ sheet.deletion_clocks.responses_deleted_at or "none stored or not yet" }}. Quarantine (unblurred originals) deleted: {{ sheet.deletion_clocks.quarantine_deleted_at or "not yet" }}.</p>
+  <p class="sub">Files API upload deleted: {{ sheet.deletion_clocks.files_deleted_at or "not yet" }}. Stored responses deleted: {{ sheet.deletion_clocks.responses_deleted_at or "none stored or not yet" }}. Quarantine (unblurred originals) deleted: {{ sheet.deletion_clocks.quarantine_deleted_at or "not yet" }}.{% if run_end_note %} {{ run_end_note }}{% endif %}</p>
+  {% for d in sheet.method.deletions if d.kind.value == "files_api" and d.api_response is none %}
+  <p class="sub">Files API upload {{ d.target }}: {{ d.reason }}.</p>
+  {% endfor %}
 
   <h3>What to do with this sheet</h3>
   <ol class="note">
@@ -185,7 +194,7 @@
 
   {% if block.odometer_path %}
   <h3>Odometer</h3>
-  <div class="frames"><div class="frame"><img src="../{{ block.odometer_path }}" alt="odometer frame"></div><div class="frame"></div></div>
+  <div class="frames"><div class="frame"><img src="{{ asset_src(block.odometer_path) }}" alt="odometer frame"></div><div class="frame"></div></div>
   {% endif %}
   {{ footer() }}
 </section>

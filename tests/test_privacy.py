@@ -1,6 +1,7 @@
 """privacy (M12): pixelation, the plate extent, the image checks through a fake sam_client, the step-7 order, the
-keep_plate rule, track boxes, deletions with their receipts, the quarantine, the sweeper, the serving rule and the
-privacy line. LIVE=1 adds one real pair of image checks on the ping pong clip (two sam_image rows, about $0.005)."""
+plate always pixelated in stored frames, track boxes, deletions with their receipts, the quarantine, the sweeper,
+the serving allowlist and the privacy line. LIVE=1 adds one real pair of image checks on the ping pong clip (two
+sam_image rows, about $0.005)."""
 
 from __future__ import annotations
 
@@ -9,6 +10,7 @@ import math
 import os
 import shutil
 import subprocess
+import tracemalloc
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -152,6 +154,33 @@ def test_pixelate_dilation_grows_the_region_and_keeps_the_rest() -> None:
         privacy.pixelate(rgb, [[0.0, 0.0, 10.0, 10.0]], block_px=0)
 
 
+def test_pixelate_far_apart_regions_one_box_each() -> None:
+    frame = _noise(2160, 3840, seed=9)
+    where = np.zeros((2160, 3840), dtype=bool)
+    where[10:200, 10:200] = True  # a face in one corner
+    where[1900:2150, 3500:3830] = True  # a plate in the other
+    out = frame.copy()
+    tracemalloc.start()
+    privacy._pixelate_where(out, where, 20)
+    _, peak = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    assert peak < 100e6  # one union box over the whole 4K frame peaked at about 800 MB
+    assert _changed(out[10:200, 10:200], frame[10:200, 10:200]) > 0.95
+    assert _changed(out[1900:2150, 3500:3830], frame[1900:2150, 3500:3830]) > 0.95
+    assert np.array_equal(out[~where], frame[~where])
+
+
+def test_dilate_mask_covers_the_elliptical_kernel() -> None:
+    mask = _rotated_rect_mask((400, 600), (300, 200), (120, 60), 20)
+    grown = privacy._dilate_mask(mask, dilate_frac=0.1, dilate_px=6)
+    r = int(math.ceil(max(_bbox(mask)[2] - _bbox(mask)[0], _bbox(mask)[3] - _bbox(mask)[1]) * 0.1 + 6))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+    ellipse = cv2.dilate(mask.astype(np.uint8), kernel) > 0
+    assert not (ellipse & ~grown).any()  # every pixel the kernel reaches is covered
+    assert (grown & ~ellipse).sum() < 0.01 * ellipse.sum()  # and barely more
+    assert np.array_equal(privacy._dilate_mask(np.zeros((10, 10), dtype=bool), dilate_frac=0.1, dilate_px=6), np.zeros((10, 10), dtype=bool))
+
+
 # Plate extent -----------------------------------------------------------------------------------------------------------
 
 
@@ -215,7 +244,7 @@ async def test_image_checks_ruler_refuses_low_c_and_border_plates(monkeypatch: p
     assert record.plate_ruler_px is None and record.plate_ruler_c is None and record.plate_tilt_hw is None
 
 
-async def test_blur_keyframe_checks_first_then_pixelates_and_honours_keep_plate(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_blur_keyframe_checks_first_then_pixelates_the_plate_even_under_keep_plate(monkeypatch: pytest.MonkeyPatch) -> None:
     frame = _noise(720, 1280, seed=6)
     plate_mask = _rect_mask((720, 1280), (500, 350, 700, 450))
     face_mask = _rect_mask((720, 1280), (100, 100, 160, 180))
@@ -230,10 +259,14 @@ async def test_blur_keyframe_checks_first_then_pixelates_and_honours_keep_plate(
     assert _changed(blurred[350:450, 500:700], before[350:450, 500:700]) > 0.9  # the plate mask is pixelated
     assert _changed(blurred[100:180, 100:160], before[100:180, 100:160]) > 0.9  # so is the face
     assert np.array_equal(blurred[600:720, 900:1280], before[600:720, 900:1280])  # far from both masks
+    # keep_plate never reaches a stored crop or a Spark input: only the sheet writer's blur_frame call keeps it
     kept, record2 = await privacy.blur_keyframe("r1", "pickup", frame, f_proxy=3, tracks=[], fps=15.0, sizes=sizes, keep_plate=True, th=TH)
-    assert np.array_equal(kept[350:450, 500:700], before[350:450, 500:700])  # the plate stays for the owner's sheet
-    assert _changed(kept[100:180, 100:160], before[100:180, 100:160]) > 0.9  # faces are always pixelated
+    assert np.array_equal(kept, blurred)
+    assert _changed(kept[350:450, 500:700], before[350:450, 500:700]) > 0.9
     assert record2.plate_ruler_px == record.plate_ruler_px
+    owner = privacy.blur_frame(before, track_boxes_src=[], detections=fake.faces, keep_plate_region=True, th=TH, plate_detections=fake.plates)
+    assert np.array_equal(owner[350:450, 500:700], before[350:450, 500:700])  # the owner's variant keeps it
+    assert _changed(owner[100:180, 100:160], before[100:180, 100:160]) > 0.9  # faces are always pixelated
     with pytest.raises(ValueError):
         await privacy.blur_keyframe("r1", "pickup", frame, f_proxy=3, tracks=[], fps=15.0, sizes=((640, 360), (1920, 1080)), keep_plate=False, th=TH)
 
@@ -325,7 +358,8 @@ async def test_delete_remote_records_receipts_and_failures(runs: Path, monkeypat
     assert ok.kind == c.DeletionKind.FILES_API and ok.api_response == {"id": "file_ok", "object": "file", "deleted": True}
     assert ok.sha256 == "ab" * 32 and ok.deleted_at == NOW
     bad = by_target["file_bad"]
-    assert bad.api_response is None and "failed after 3 tries" in bad.reason and "expiry at 2026-10-27T12:00:00Z" in bad.reason
+    assert bad.api_response is None and bad.reason.startswith(f"delete request failed at {NOW}; expiry at 2026-10-27T12:00:00Z applies")
+    assert "3 tries" in bad.reason and "boom" in bad.reason
     assert calls.count("file_bad") == 3 and "file_done" not in calls
     resp = by_target["resp_1"]
     assert resp.kind == c.DeletionKind.RESPONSE and resp.api_response["deleted"] is True
@@ -403,16 +437,39 @@ def test_sweep_deletes_old_runs_and_stale_temps_but_keeps_keep_runs(runs: Path) 
 # Serving rule and the privacy line ------------------------------------------------------------------------------------------
 
 
-def test_served_file_allowed() -> None:
+def test_served_file_allowed_is_an_allowlist() -> None:
     run = c.RunManifest(run_id="r1", created_at=NOW)
     kept = c.RunManifest(run_id="r2", created_at=NOW, keep_plate=True)
-    for rel in ("quarantine/pickup.orig", "quarantine/tmp/x.jpg", "uploads/u1/chunks/000000", "media/pickup.proxy.mp4", "../other/run.json", "/etc/passwd", ""):
+    denied = (
+        "quarantine/pickup.orig", "quarantine/tmp/x.jpg", "uploads/u1/chunks/000000", "media/pickup.proxy.mp4", "../other/run.json", "/etc/passwd", "",
+        "media/.pickup.proxy.mp4.part.mp4",  # the encoder's temp of the unblurred proxy (video._tmp_for)
+        "media/pickup.wav", "media/pickup.overlay.mp4", "run.json", "spark.json", "voice.json", "events.ndjson", "events.pending.ndjson",
+        "QUARANTINE/pickup.orig", "Quarantine/tmp/x.jpg", "Uploads/u1/chunks/000000",  # APFS resolves these to the real files
+        "Media/pickup.proxy.mp4", "media/pickup.PROXY.mp4",
+        "sam/pickup/images/f000003.face.resp_1.ndjson", "sam/pickup/car.ndjson",
+        "crops/pickup/.k.jpg.tmp", "crops/pickup/k.jpg.part", "crops/k.jpg", "derived/sub/x.json", "sheet/other/x.jpg", "bundle/manifest.json.ots.bak",
+        "crops/pickup/./../../quarantine/pickup.orig", "crops\\pickup\\k.jpg",
+    )
+    for rel in denied:
         assert privacy.served_file_allowed(run, rel, run_owner=True) is False, rel
-    for rel in ("media/pickup.proxy_blurred.mp4", "sam/pickup/car.ndjson.gz", "crops/pickup/k.jpg", "derived/verdicts.json", "sheet/frames/k.jpg"):
+    allowed = (
+        "deletions.json", "videos/pickup.json", "media/pickup.proxy_blurred.mp4", "media/pickup.pts.json",
+        "sam/pickup/car.ndjson.gz", "sam/pickup/car.index.json", "sam/pickup/license_plate.summary.json",
+        "crops/pickup/k.jpg", "crops/pickup/k.mask.png", "keyframes/pickup/k.frame.jpg", "keyframes/pickup/odometer.jpg",
+        "clips/return/m1.mp4", "chips/pickup/t1.m4a", "claim/claim_1.jpg", "derived/verdicts.json",
+        "sheet/sheet.html", "sheet/sheet.json", "sheet/evidence.pdf", "sheet/frames/k.jpg",
+        "bundle/manifest.json", "bundle/manifest_run.json", "bundle/manifest.json.ots", "bundle/manifest.json.tsr", "bundle/verify.md",
+        "Crops/pickup/k.jpg",  # the same blurred crop on a case-insensitive disk
+    )
+    for rel in allowed:
         assert privacy.served_file_allowed(run, rel, run_owner=False) is True, rel
-    for rel in ("sheet/frames/k.jpg", "sheet/evidence.pdf", "crops/pickup/k.jpg", "keyframes/pickup/k.frame.jpg", "clips/return/m1.mp4"):
+    for rel in ("sheet/frames/k.jpg", "sheet/evidence.pdf", "crops/pickup/k.jpg", "keyframes/pickup/k.frame.jpg", "clips/return/m1.mp4", "claim/claim_1.jpg", "SHEET/frames/k.jpg"):
         assert privacy.served_file_allowed(kept, rel, run_owner=True) is True, rel
         assert privacy.served_file_allowed(kept, rel, run_owner=False) is False, rel
+    for owner_frame in ("sheet/frames/k.owner.jpg", "sheet/frames/K.OWNER.jpg"):
+        assert privacy.served_file_allowed(kept, owner_frame, run_owner=True) is True
+        assert privacy.served_file_allowed(kept, owner_frame, run_owner=False) is False
+        assert privacy.served_file_allowed(run, owner_frame, run_owner=False) is False  # owner-only on any run
     assert privacy.served_file_allowed(kept, "media/pickup.proxy_blurred.mp4", run_owner=False) is True
     assert privacy.served_file_allowed(kept, "derived/verdicts.json", run_owner=False) is True
     assert privacy.served_file_allowed(kept, "quarantine/pickup.orig", run_owner=True) is False
@@ -436,6 +493,11 @@ def test_privacy_line_word_for_word() -> None:
     assert "Model requests were sent with storage off and every stored model response was deleted by Walkaround when the run ended." in line2
     assert line2.endswith("Return walk: no plate detected; nothing was blurred for that reason.")
     assert line.isascii() and line2.isascii()
+    failed = c.DeletionRecord(target="file-1", kind=c.DeletionKind.FILES_API, deleted_at=NOW, reason="failed after 3 tries: 500")
+    line3 = privacy.privacy_line(run, {"pickup": True}, [failed])
+    assert "Walkaround's delete request failed, so that expiry applies." in line3 and "were deleted by Walkaround" not in line3
+    done = failed.model_copy(update={"api_response": {"id": "file-1", "deleted": True}, "reason": "run end"})
+    assert privacy.privacy_line(run, {"pickup": True}, [done]) == privacy.privacy_line(run, {"pickup": True})
 
 
 # LIVE -----------------------------------------------------------------------------------------------------------------------

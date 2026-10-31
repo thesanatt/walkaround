@@ -2,9 +2,10 @@
 
 Order of operations for every unblurred frame: the SAM image checks run on the unblurred pixels FIRST and the plate
 extent is recorded for the ruler; only then is the frame pixelated. Nothing unblurred is written outside
-paths.quarantine_dir. Faces are always pixelated. The plate is pixelated unless keep_plate, and that flag is honoured
-only for the renter's own sheet frames (served_file_allowed). Every SAM call here goes through sam_client, which
-writes the ledger row; nothing in this module prices a call itself.
+paths.quarantine_dir. Faces are always pixelated, and so is the plate in every frame this module hands back for
+storage or for Spark. keep_plate only reaches the run owner's sheet frames, which the sheet writer makes with
+blur_frame(keep_plate_region=True); served_file_allowed keeps those owner-only. Every SAM call here goes through
+sam_client, which writes the ledger row; nothing in this module prices a call itself.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import math
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
-from typing import Any, Iterable
+from typing import Any, Awaitable, Callable, Iterable
 
 import cv2
 import numpy as np
@@ -103,16 +104,18 @@ def _block_mean(sub: np.ndarray, block: int) -> np.ndarray:
 
 
 def _pixelate_where(out: np.ndarray, where: np.ndarray, block: int) -> None:
-    """In place: block means over the bounding box of `where`, composited only where it is true."""
-    ys, xs = np.nonzero(where)
-    if ys.size == 0:
+    """In place: block means over each connected region's bounding box, composited only where `where` is true.
+    One box per region keeps a face in one corner and a plate in the other from averaging the whole 4K frame
+    (about 800 MB of float64 in one go)."""
+    if not where.any():
         return
-    y1, y2 = int(ys.min()), int(ys.max()) + 1
-    x1, x2 = int(xs.min()), int(xs.max()) + 1
-    sub = out[y1:y2, x1:x2]
-    pix = _block_mean(sub, block)
-    m = where[y1:y2, x1:x2]
-    sub[m] = pix[m]
+    count, _labels, stats, _ = cv2.connectedComponentsWithStats(where.astype(np.uint8), connectivity=8)
+    for i in range(1, count):
+        x, y, w, h = (int(v) for v in stats[i, :4])
+        sub = out[y : y + h, x : x + w]
+        m = where[y : y + h, x : x + w]
+        pix = _block_mean(sub, block)
+        sub[m] = pix[m]
 
 
 def pixelate(rgb: np.ndarray, regions: list[Box4], *, block_px: int, dilate_frac: float = 0.0, dilate_px: int = 0) -> np.ndarray:
@@ -132,7 +135,9 @@ def pixelate(rgb: np.ndarray, regions: list[Box4], *, block_px: int, dilate_frac
 
 
 def _dilate_mask(mask: np.ndarray, *, dilate_frac: float, dilate_px: float) -> np.ndarray:
-    """Grow a boolean mask by dilate_frac of its bounding box plus dilate_px, inside its own neighbourhood."""
+    """Grow a boolean mask by dilate_frac of its bounding box plus dilate_px, inside its own neighbourhood. A distance
+    transform does it in one pass whatever the radius; it covers every pixel an elliptical kernel of that radius
+    would."""
     ys, xs = np.nonzero(mask)
     if ys.size == 0:
         return mask
@@ -143,10 +148,10 @@ def _dilate_mask(mask: np.ndarray, *, dilate_frac: float, dilate_px: float) -> n
     h, w = mask.shape
     y1, y2 = max(0, int(ys.min()) - r), min(h, int(ys.max()) + 1 + r)
     x1, x2 = max(0, int(xs.min()) - r), min(w, int(xs.max()) + 1 + r)
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
-    grown = cv2.dilate(mask[y1:y2, x1:x2].astype(np.uint8), kernel) > 0
+    outside = (~mask[y1:y2, x1:x2]).astype(np.uint8)
+    dist = cv2.distanceTransform(outside, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
     out = mask.copy()
-    out[y1:y2, x1:x2] |= grown
+    out[y1:y2, x1:x2] |= dist <= r + 0.5
     return out
 
 
@@ -327,22 +332,28 @@ async def blur_keyframe(
     sizes: tuple[tuple[int, int], tuple[int, int]],
     keep_plate: bool,
     th: dict[str, Any],
+    checks: Callable[..., Awaitable[tuple[list[sam_client.Detection], list[sam_client.Detection], BlurRecord]]] | None = None,
 ) -> tuple[np.ndarray, BlurRecord]:
     """Step 7 order: image checks FIRST on the unblurred frame (plate extent recorded), THEN pixelation. Writes
-    nothing. sizes is (proxy size, source size). With keep_plate the plate stays; the pipeline passes False for every
-    stored crop and only the sheet writer passes True for the run owner's frames."""
+    nothing; sizes is (proxy size, source size). Every frame returned here becomes a stored crop, a keyframe frame or
+    a Spark input, so the plate is pixelated whatever keep_plate says (section 8 items 5 and 6). The run owner's
+    plate-kept variant is a separate blur_frame(keep_plate_region=True) call made only by the sheet writer;
+    keep_plate stays in the signature because the contract names it. checks replaces image_checks (the orchestrator
+    passes one that asks once per distinct frame of a run)."""
+    del keep_plate
     proxy_size, src_size = sizes
     if (int(frame_rgb.shape[1]), int(frame_rgb.shape[0])) != tuple(src_size):
         raise ValueError(f"frame is {frame_rgb.shape[1]}x{frame_rgb.shape[0]} but sizes says source {src_size[0]}x{src_size[1]}")
-    plates, faces, record = await image_checks(frame_rgb, run_id=run_id, role=role, tag=f"f{f_proxy:06d}", th=th)
+    plates, faces, record = await (checks or image_checks)(frame_rgb, run_id=run_id, role=role, tag=f"f{f_proxy:06d}", th=th)
     common = dict(fps=fps, media_size_proxy=proxy_size, media_size_src=src_size, th=th)
     face_boxes = track_boxes_at(f_proxy, tracks, nouns=(Noun.FACE,), **common)
     plate_boxes = track_boxes_at(f_proxy, tracks, nouns=(Noun.LICENSE_PLATE,), **common)
-    blurred = blur_frame(
+    blurred = await asyncio.to_thread(  # a few hundred ms of numpy on a 4K frame; keep it off the event loop
+        blur_frame,
         frame_rgb,
         track_boxes_src=face_boxes,
         detections=faces,
-        keep_plate_region=keep_plate,
+        keep_plate_region=False,
         th=th,
         plate_track_boxes_src=plate_boxes,
         plate_detections=plates,
@@ -372,21 +383,25 @@ async def render_blurred_proxy(
     proxy = paths.run_dir(run_id) / record.proxy.path
     dst = paths.proxy_blurred_path(run_id, role)
     size = (record.proxy.width, record.proxy.height)
-    boxes_by_frame: dict[int, list[Box4]] = {}
-    for f in range(record.proxy.frames):
-        boxes = track_boxes_at(f, tracks, fps=fps, media_size_proxy=size, media_size_src=size, th=th)
-        if boxes:
-            boxes_by_frame[f] = boxes
+    frames = record.proxy.frames
     scale = max(size) / SRC_REFERENCE_EDGE
-    await asyncio.to_thread(
-        video.render_blurred_proxy,
-        proxy,
-        dst,
-        boxes_by_frame,
-        block_px=max(2, int(round(th["privacy"]["pixel_block_px_at_4k"] * scale))),
-        dilate_frac=th["privacy"]["track_box_dilation_frac"],
-        dilate_px=int(round(th["privacy"]["track_box_dilation_px"] * scale)),
-    )
+
+    def render() -> None:
+        boxes_by_frame: dict[int, list[Box4]] = {}
+        for f in range(frames):
+            boxes = track_boxes_at(f, tracks, fps=fps, media_size_proxy=size, media_size_src=size, th=th)
+            if boxes:
+                boxes_by_frame[f] = boxes
+        video.render_blurred_proxy(
+            proxy,
+            dst,
+            boxes_by_frame,
+            block_px=max(2, int(round(th["privacy"]["pixel_block_px_at_4k"] * scale))),
+            dilate_frac=th["privacy"]["track_box_dilation_frac"],
+            dilate_px=int(round(th["privacy"]["track_box_dilation_px"] * scale)),
+        )
+
+    await asyncio.to_thread(render)
     blurred = BlurredProxyRecord(path=paths.rel(run_id, dst), sha256=_sha256_file(dst))
     deletion = _delete_file(run_id, proxy, kind=DeletionKind.FILE, reason="unblurred proxy deleted at blur.done", now=_utc_now())
     return blurred, deletion
@@ -425,9 +440,9 @@ def delete_quarantine(run_id: str, *, now: str) -> list[DeletionRecord]:
 async def delete_remote(
     run_id: str, videos: list[VideoRecord], *, response_ids: list[str] | None, now: str, retries: int | None = None
 ) -> list[DeletionRecord]:
-    """LIVE: DELETE /v1/files per upload (files_delete_retries tries; a failure is recorded with its reason) and
-    DELETE /v1/responses per id only when response_ids is given (store false was refused). The receipt body is
-    stored verbatim on the row (deleted true on 10/26)."""
+    """LIVE: DELETE /v1/files per upload (files_delete_retries tries; a failure is recorded with the section 14
+    item 25 sentence as its reason) and DELETE /v1/responses per id only when response_ids is given (store false was
+    refused). The receipt body is stored verbatim on the row (deleted true on 10/26)."""
     if retries is None:
         from .contracts import load_thresholds
 
@@ -449,8 +464,10 @@ async def delete_remote(
                 if attempt < retries:
                     await asyncio.sleep(_RETRY_SLEEP_S * attempt)
         else:
-            expiry = video.files_api.expires_at or "the one-hour upload expiry"
-            rows.append(DeletionRecord(target=video.files_api.file_id, kind=DeletionKind.FILES_API, sha256=sha, deleted_at=now, reason=f"delete request failed after {retries} tries ({error}); expiry at {expiry} applies"))
+            expires_at = video.files_api.expires_at
+            expiry = f"expiry at {expires_at} applies" if expires_at else "the one-hour upload expiry applies"
+            reason = f"delete request failed at {now}; {expiry} ({retries} tries, last error {error})"
+            rows.append(DeletionRecord(target=video.files_api.file_id, kind=DeletionKind.FILES_API, sha256=sha, deleted_at=now, reason=reason))
     for rid in response_ids or []:
         try:
             body = await sam_client.delete_response(rid)
@@ -505,32 +522,67 @@ def sweep(*, now: str, retention_hours: int, temp_minutes: int, keep_run_ids: se
 # Serving rule and the privacy line ------------------------------------------------------------------------------
 
 
-OWNER_ONLY_UNDER_KEEP_PLATE = ("sheet", "crops", "keyframes", "clips")  # every directory cut from a 4K frame
+# What a browser may fetch from a run dir (section 8 items 5 and 6; the app's file route): per top directory, the
+# depths a file may sit at and the endings allowed there. Everything else is refused: quarantine, upload chunks, the
+# unblurred proxy, the WAV, raw image-check events, spark.json, voice.json, and any temp or dot file.
+_SERVED: dict[str, tuple[frozenset[int], tuple[str, ...]]] = {
+    "videos": (frozenset({2}), (".json",)),
+    "media": (frozenset({2}), (".proxy_blurred.mp4", ".pts.json")),
+    "sam": (frozenset({3}), (".ndjson.gz", ".index.json", ".summary.json")),
+    "derived": (frozenset({2}), (".json",)),
+    "crops": (frozenset({3}), (".jpg", ".png")),
+    "keyframes": (frozenset({3}), (".jpg",)),
+    "clips": (frozenset({3}), (".mp4",)),
+    "chips": (frozenset({3}), (".m4a",)),
+    "claim": (frozenset({2}), (".jpg", ".jpeg", ".png")),
+    "sheet": (frozenset({2, 3}), (".html", ".json", ".pdf", ".jpg", ".zip")),
+    "bundle": (frozenset({2}), (".json", ".ots", ".tsq", ".tsr", ".md", ".pem", ".crt")),
+}
+_SERVED_RUN_FILES = ("deletions.json",)
+_NEVER_IN_NAME = (".part", ".tmp", ".orig", ".bak")
+# Cut from 4K frames (or the renter's own claim photo): blurred by design, still owner-only under keep_plate, so an
+# unblurred plate can never reach a browser other than the owner's whatever an upstream lane passed.
+OWNER_ONLY_UNDER_KEEP_PLATE = ("sheet", "crops", "keyframes", "clips", "claim")
 
 
 def served_file_allowed(run: RunManifest, rel_path: str, *, run_owner: bool) -> bool:
-    """Section 8 item 5: nothing from quarantine or the upload chunks ever; the unblurred proxy never; with
-    keep_plate the sheet directory (frames, HTML, PDF) only for the run owner. The crops, keyframes and clips are
-    blurred by design even under keep_plate, but they are cut from the same 4K frames, so they are owner-only too:
-    an unblurred plate must never reach any browser but the owner's, whatever an upstream lane passed."""
+    """Section 8 items 5 and 6 as an allowlist. Parts are compared casefolded because APFS (the Mac that runs the
+    demos) resolves QUARANTINE/ to quarantine/. With keep_plate the sheet, crops, keyframes, clips and claim photos
+    are for the run owner only; an owner frame (sheet/frames/*.owner.jpg) is owner-only on any run."""
     p = PurePosixPath(rel_path)
-    if not p.parts or p.is_absolute() or any(part in ("..", "") for part in p.parts):
+    if not p.parts or p.is_absolute():
         return False
-    top = p.parts[0]
-    if top in ("quarantine", "uploads"):
+    parts = tuple(part.casefold() for part in p.parts)
+    if any(part in ("", ".", "..") or part.startswith(".") or "\\" in part for part in parts):
         return False
-    if top == "media" and p.name.endswith(".proxy.mp4"):
+    name = parts[-1]
+    if any(bad in name for bad in _NEVER_IN_NAME):
         return False
-    if run.keep_plate and not run_owner and top in OWNER_ONLY_UNDER_KEEP_PLATE:
+    if len(parts) == 1:
+        return name in _SERVED_RUN_FILES
+    rule = _SERVED.get(parts[0])
+    if rule is None or len(parts) not in rule[0] or not name.endswith(rule[1]):
+        return False
+    if parts[0] == "sheet" and len(parts) == 3 and parts[1] != "frames":
+        return False
+    if ".owner." in name and not run_owner:
+        return False
+    if run.keep_plate and not run_owner and parts[0] in OWNER_ONLY_UNDER_KEEP_PLATE:
         return False
     return True
 
 
-def privacy_line(run: RunManifest, plate_found: dict[str, bool]) -> str:
-    """The sentence of section 8 item 9 word for word, with the storage variant and the no-plate clause per walk."""
+def privacy_line(run: RunManifest, plate_found: dict[str, bool], deletions: list[DeletionRecord] | None = None) -> str:
+    """The sentence of section 8 item 9 word for word, with the storage variant and the no-plate clause per walk.
+    Given the deletion rows, a Files API delete that failed says so (section 14 item 25) instead of claiming one."""
+    failed = [d for d in deletions or [] if d.kind == DeletionKind.FILES_API and d.api_response is None]
+    if failed:
+        uploads = "Uploads were set to expire after one hour; Walkaround's delete request failed, so that expiry applies. "
+    else:
+        uploads = "Uploads were set to expire after one hour and were deleted by Walkaround when the run ended. "
     text = (
         "Processed with Meta's Model API in Standard mode, which Meta's documentation says is not used to train Meta "
-        "models. Uploads were set to expire after one hour and were deleted by Walkaround when the run ended. "
+        "models. " + uploads
     )
     if run.responses_store == ResponsesStore.DELETED_PER_REQUEST:
         text += "Model requests were sent with storage off and every stored model response was deleted by Walkaround when the run ended. "

@@ -1,6 +1,7 @@
 """sheet (M13): the sentences of section 7, a render from a synthetic SheetModel that must carry every required
 string, every label, exit and refusal reason, the footer on every page, and write_sheet on a synthetic run dir
-(including the keep_plate owner frames)."""
+(the keep_plate owner frames, the stamps read from the chain, and a rebuild after run end that prints the same
+sheet.json)."""
 
 from __future__ import annotations
 
@@ -109,6 +110,14 @@ def test_size_line_variants() -> None:
         assert sheet.size_line(_size(refused_reason=reason)) == f"size not stated: {reason}"
 
 
+def test_ots_note_words() -> None:
+    assert sheet.ots_note("confirmed:921003") == "Bitcoin block 921003"
+    assert sheet.ots_note("pending").startswith("OpenTimestamps pending at the calendars")
+    assert sheet.ots_note(None) == "OpenTimestamps not stamped"
+    assert sheet.ots_note("failed:FileNotFoundError: the OpenTimestamps client is not installed; pip install x") == "OpenTimestamps not stamped (the OpenTimestamps client is not installed on the server)"
+    assert sheet.ots_note("failed:RuntimeError: Failed to create timestamp: all calendars unreachable") == "OpenTimestamps not stamped (Failed to create timestamp: all calendars unreachable)"
+
+
 def test_tire_diameter_in() -> None:
     assert abs(sheet.tire_diameter_in("225/60R16") - 26.63) < 0.02
     assert abs(sheet.tire_diameter_in(" 205/55 R 16 ") - 24.88) < 0.02
@@ -154,6 +163,22 @@ def test_note_lines_follow_the_section_7_order() -> None:
     assert "executive" in lines[3] and "state consumer" in lines[3]
     assert "card dispute" in lines[4] and "60 days" in lines[4] and "120 days" in lines[4] and "$50" in lines[4] and "collections" in lines[4]
     assert all(line.isascii() for line in lines)
+
+
+def test_verify_md_lists_only_what_the_run_has() -> None:
+    bare = c.SheetModel(run_id="01JBARE", originals=[c.SheetOriginal(role="pickup", name="a.mov", bytes=1, sha256=SHA_P)])
+    text = sheet.verify_md(bare)
+    assert "ots info" not in text and "openssl ts -verify" not in text  # no proof, no token: no command for them
+    assert text.startswith("Verify it yourself (2 steps;") and "1. Hash the video file" in text and "2. Re-hash every file" in text
+    failed = bare.model_copy(deep=True)
+    failed.method.thresholds["stamps"] = c.Stamps(manifest_ots="failed:FileNotFoundError: no client", tsr_time="2026-10-27T15:00:02Z", tsa_issuer="DigiCert").model_dump(mode="json")
+    text = sheet.verify_md(failed)
+    assert "ots info" not in text and "DigiCert" in text and "-CAfile /etc/ssl/cert.pem" in text and "(3 steps;" in text
+    freetsa = bare.model_copy(deep=True)
+    freetsa.method.thresholds["stamps"] = c.Stamps(manifest_ots="pending", tsr_time="2026-10-27T15:00:02Z", tsa_issuer="freetsa").model_dump(mode="json")
+    text = sheet.verify_md(freetsa)
+    assert "ots verify bundle/manifest.json.ots" in text and "https://freetsa.org/files/cacert.pem" in text and "(5 steps;" in text
+    assert text.isascii()
 
 
 def test_appendix_texts() -> None:
@@ -406,14 +431,18 @@ def test_write_sheet_from_a_synthetic_run(runs: Path) -> None:
     assert totals["calls"] == 3 and set(totals["by_kind"]) == {"sam_image", "sam_video", "spark"} and totals["by_kind"]["spark"]["quantity"] == "2000 tokens"
     assert abs(totals["usd"] - (round(141 * 0.0002, 6) + 0.0025 + round(1400 * 1.25e-6 + 600 * 4.25e-6, 6))) < 1e-4
     assert model.method.deletions[0].api_response == {"id": "file_abc", "deleted": True}
-    assert model.method.rebuild_status.startswith("hashes and event chain verified")
+    assert model.method.rebuild_status.startswith("event chain verified to the head on page 1")
     assert "the models accepted it" in model.method.storage_line and model.method.hertz_threshold_note == sheet.HERTZ_NOTE
     assert model.method.blurred[0].startswith("pickup: SAM image checks on 1 keyframes found a plate on 1 and faces on 0")
     assert "D claim check" in model.appendices and "exit E6" in model.appendices["D claim check"]
 
+    assert model.method.storage_line.endswith(sheet.RUN_END_NOTE)  # the quarantine is not deleted yet
+    assert model.method.thresholds["stamps"] == c.Stamps().model_dump(mode="json")  # no chain, no stamps
     html = paths.sheet_html(run_id).read_text(encoding="ascii")
-    for text in (run_id, sha_p, sha_r, "sealed 23 minutes after the camera time", "evidence support, not legal advice", "REV 7.2025", "2026-10-26", sheet.ORDINARY_WEAR_LINE, "G1 not filmed", "sam_video"):
+    for text in (run_id, sha_p, sha_r, "sealed 23 minutes after the camera time", "evidence support, not legal advice", "REV 7.2025", "2026-10-26", sheet.ORDINARY_WEAR_LINE, "G1 not filmed", "sam_video", sheet.RUN_END_NOTE):
         assert str(escape(text)) in html, text
+    # frames are embedded, so the page shows them when served at /api/runs/<id>/sheet, where ../ paths break
+    assert 'src="../' not in html and html.count('src="data:image/jpeg;base64,') == 3  # two door frames and the odometer
     note = paths.bundle_file(run_id, "note.md").read_text(encoding="ascii")
     assert note.startswith("1. ") and note.count("\n") == 5
 
@@ -427,16 +456,186 @@ def test_write_sheet_keep_plate_serves_the_owner_variant_only(runs: Path) -> Non
     assert model.plate_line == "plate kept on this sheet at the renter's request at upload"
     assert any("keep_plate was chosen at upload" in line for line in model.method.blurred)
     door = next(b for b in model.panels if b.panel_id == LFD)
+    assert door.pickup.path == f"sheet/frames/{door.pickup.kf_id}.owner.jpg"
+    assert door.return_.path == f"sheet/frames/{door.return_.kf_id}.jpg"  # the return original is not a decodable video
     owner = cv2.imread(str(paths.run_dir(run_id) / door.pickup.path))
     assert owner is not None and owner.shape == (240, 240, 3)
     public_crop = cv2.imread(str(paths.crop_path(run_id, "pickup", door.pickup.kf_id)))
     assert not np.array_equal(owner, public_crop)  # the owner's frame came from the original, not the public crop
+    public_frame = paths.sheet_dir(run_id) / "frames" / f"{door.pickup.kf_id}.jpg"
+    assert public_frame.is_file()  # the blurred frame with the marks is still written beside it
     run = c.read_json(paths.run_json(run_id), c.RunManifest)
     crop_path = paths.rel(run_id, paths.crop_path(run_id, "pickup", door.pickup.kf_id))
-    for rel in (door.pickup.path, crop_path):
+    for rel in (door.pickup.path, crop_path, paths.rel(run_id, public_frame)):
         assert privacy.served_file_allowed(run, rel, run_owner=True)
         assert not privacy.served_file_allowed(run, rel, run_owner=False)
     assert privacy.served_file_allowed(run, "media/pickup.proxy_blurred.mp4", run_owner=False)
+
+
+def test_owner_frame_keeps_only_the_plate_on_its_own_panel(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not on PATH")
+    run_id = "01JNEIGH"
+    _synthetic_run(run_id, keep_plate=True)
+    keyframes = c.read_json_list(paths.keyframes_json(run_id), c.Keyframe)
+    on_panel, neighbour = [110.0, 60.0, 150.0, 80.0], [250.0, 100.0, 300.0, 130.0]  # the door's box is 100, 50, 220, 170
+    keyframes[0].blur.plate_boxes = [on_panel, neighbour]
+    keyframes[0].blur.face_boxes = [[230.0, 20.0, 260.0, 60.0]]
+    c.write_json(paths.keyframes_json(run_id), keyframes)
+    calls: list[dict] = []
+    real = privacy.blur_frame
+
+    def spy(frame, **kwargs):
+        calls.append(kwargs)
+        return real(frame, **kwargs)
+
+    monkeypatch.setattr(sheet.privacy, "blur_frame", spy)
+    sheet.write_sheet(run_id, th=TH)
+    assert len(calls) == 1 and calls[0]["keep_plate_region"] is True
+    boxes = calls[0]["track_boxes_src"]
+    assert neighbour in boxes and [230.0, 20.0, 260.0, 60.0] in boxes  # a neighbour's plate and every face are pixelated
+    assert on_panel not in boxes  # the rented car's own plate stays for the owner
+
+
+def _append_event(run_id: str, kind: c.EventKind, payload: dict, ts: str) -> c.Event:
+    """One chained events.ndjson line the way the orchestrator writes it (prev of seq 0 is manifest.json's sha256)."""
+    path = paths.events_path(run_id)
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()] if path.is_file() else []
+    if lines:
+        last = c.Event.model_validate_json(lines[-1])
+        seq, prev = last.seq + 1, last.hash
+    else:
+        seq, prev = 0, seal.sha256_file(paths.manifest_json(run_id))
+    line = {"seq": seq, "ts": ts, "run_id": run_id, "kind": kind.value, "payload": payload, "prev": prev}
+    event = c.Event(**line, hash=c.chain_hash(prev, line))
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(event.to_json() + "\n")
+    return event
+
+
+def _freeze_head(run_id: str, head: c.Event) -> None:
+    run = c.read_json(paths.run_json(run_id), c.RunManifest)
+    c.write_json(paths.run_json(run_id), run.model_copy(update={"events_head_hash": head.hash}))
+
+
+def _pipeline_until_sheet(run_id: str, *, issuer: str = "freetsa", return_ots: str = "pending") -> c.Event:
+    """The events a run has when the sheet stage starts, the blur-stage deletion row, and the frozen head."""
+    blur_row = c.DeletionRecord(target="media/pickup.proxy.mp4", kind=c.DeletionKind.FILE, sha256="cd" * 32, bytes=1000, deleted_at="2026-10-27T15:02:00Z", reason="unblurred proxy deleted at blur.done")
+    # privacy stamps this row with the wall clock; blur.done announces it, so a skewed clock cannot drop it
+    late_clock = c.DeletionRecord(target="media/return.proxy.mp4", kind=c.DeletionKind.FILE, sha256="ce" * 32, bytes=900, deleted_at="2026-10-31T09:00:00Z", reason="unblurred proxy deleted at blur.done")
+    c.write_json(paths.deletions_json(run_id), c.Deletions(run_id=run_id, rows=[blur_row, late_clock]))
+    _append_event(run_id, c.EventKind.RUN_CREATED, {}, "2026-10-27T14:59:00.100Z")
+    _append_event(run_id, c.EventKind.SEAL_MANIFEST, {"sha256": seal.sha256_file(paths.manifest_json(run_id))}, "2026-10-27T15:00:00.200Z")
+    _append_event(run_id, c.EventKind.SEAL_TSR, {"tsr_time": "2026-10-27T15:00:02Z", "serial": "0x1f", "issuer": issuer}, "2026-10-27T15:00:02.300Z")
+    _append_event(run_id, c.EventKind.SEAL_OTS, {"status": "pending", "pickup": "pending", "return": return_ots}, "2026-10-27T15:00:03.400Z")
+    _append_event(run_id, c.EventKind.BLUR_DONE, {"role": "pickup", "sha256": "ef" * 32, "path": "media/pickup.proxy_blurred.mp4"}, "2026-10-27T15:02:00.500Z")
+    _append_event(run_id, c.EventKind.BLUR_DONE, {"role": "return", "sha256": "ee" * 32, "path": "media/return.proxy_blurred.mp4"}, "2026-10-27T15:02:01.500Z")
+    head = _append_event(run_id, c.EventKind.STAGE, {"name": "sheet", "pct": 95}, "2026-10-27T15:06:00.000Z")
+    _freeze_head(run_id, head)
+    return head
+
+
+def _close_the_run(run_id: str, *, keep_plate: bool) -> list[c.DeletionRecord]:
+    """The orchestrator's close stage after the sheet: receipts, the quarantine, deletions.json, manifest_run.json,
+    run.completed, then an hourly ots upgrade."""
+    _append_event(run_id, c.EventKind.SHEET_WRITTEN, {}, "2026-10-27T15:06:05.000Z")
+    now = "2026-10-27T15:06:06.000Z"
+    receipt = c.DeletionRecord(target="file_abc", kind=c.DeletionKind.FILES_API, sha256="ab" * 32, deleted_at=now, reason="run end (pickup proxy)", api_response={"id": "file_abc", "deleted": True})
+    local = privacy.delete_quarantine(run_id, now=now)
+    _append_event(run_id, c.EventKind.FILES_DELETED, {"file_id": "file_abc", "response": receipt.api_response}, "2026-10-27T15:06:06.100Z")
+    _append_event(run_id, c.EventKind.QUARANTINE_DELETED, {"files": sorted(r.target for r in local)}, "2026-10-27T15:06:06.200Z")
+    rows = c.read_json(paths.deletions_json(run_id), c.Deletions).rows + [receipt, *local]
+    privacy.close_deletions(run_id, rows, keep_plate=keep_plate, chosen_by="renter at upload" if keep_plate else None)
+    head = seal.events_through(run_id, None)[-1]
+    seal.write_manifest_run(run_id, deletions=rows, events_head_hash=head.hash, config_hash=c.config_hash(TH), app_commit="abc1234", pdf_sha256=None)
+    _append_event(run_id, c.EventKind.RUN_COMPLETED, {"status": "done"}, "2026-10-27T15:06:07.000Z")
+    _append_event(run_id, c.EventKind.SEAL_OTS, {"status": "confirmed:921003"}, "2026-10-27T18:00:00.000Z")
+    return rows
+
+
+@pytest.mark.parametrize("keep_plate", [False, True])
+def test_a_rebuild_after_run_end_prints_the_same_sheet(runs: Path, keep_plate: bool) -> None:
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not on PATH")
+    run_id = f"01JREB{int(keep_plate)}"
+    _synthetic_run(run_id, keep_plate=keep_plate)
+    _pipeline_until_sheet(run_id)
+    model, _ = sheet.write_sheet(run_id, th=TH)
+    written = paths.sheet_json(run_id).read_bytes()
+    frames = {p.name: p.read_bytes() for p in (paths.sheet_dir(run_id) / "frames").glob("*.jpg")}
+    assert model.deletion_clocks == c.DeletionClocks()  # the run-end deletions come after this sheet
+    assert [d.target for d in model.method.deletions] == ["media/pickup.proxy.mp4", "media/return.proxy.mp4"]
+    assert model.method.storage_line.endswith(sheet.RUN_END_NOTE)
+    assert model.method.rebuild_status.startswith("event chain verified to the head on page 1")
+    assert model.originals[0].ots_status == "pending" and model.originals[0].tsr_time == "2026-10-27T15:00:02Z"
+    if keep_plate:
+        assert model.plate_line.startswith("plate kept") and any(name.endswith(".owner.jpg") for name in frames)
+
+    _close_the_run(run_id, keep_plate=keep_plate)
+    assert not [p for p in paths.quarantine_dir(run_id).rglob("*") if p.is_file()]
+    rebuilt, _ = sheet.write_sheet(run_id, th=TH)  # walkaround rebuild in place, or a resumed sheet stage
+    assert paths.sheet_json(run_id).read_bytes() == written
+    assert rebuilt.plate_line == model.plate_line and rebuilt.originals[0].ots_status == "pending"  # the upgrade came after the head
+    assert {p.name: p.read_bytes() for p in (paths.sheet_dir(run_id) / "frames").glob("*.jpg")} == frames  # owner frames kept
+    assert seal.verify_run(run_id) == []
+
+    # Written after close instead (the order section 8 item 7 wants), the sheet carries the receipts and still rebuilds.
+    _freeze_head(run_id, seal.events_through(run_id, None)[-1])
+    after, _ = sheet.write_sheet(run_id, th=TH)
+    assert after.deletion_clocks.files_deleted_at == "2026-10-27T15:06:06.000Z" and after.deletion_clocks.quarantine_deleted_at == "2026-10-27T15:06:06.000Z"
+    assert not after.method.storage_line.endswith(sheet.RUN_END_NOTE) and after.originals[0].bitcoin_block == 921003
+    again = paths.sheet_json(run_id).read_bytes()
+    _append_event(run_id, c.EventKind.SEAL_OTS, {"status": "confirmed:921002"}, "2026-10-27T19:00:00.000Z")
+    assert c.json_bytes(sheet.build_sheet(run_id, th=TH)) == again
+
+
+def test_sheet_time_check_names_a_tampered_original_or_a_broken_chain(runs: Path) -> None:
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not on PATH")
+    run_id = "01JTAMP"
+    _synthetic_run(run_id, keep_plate=False)
+    head = _pipeline_until_sheet(run_id)
+    original = paths.quarantine_original(run_id, "return")
+    data = bytearray(original.read_bytes())
+    data[5] ^= 0x01
+    original.write_bytes(bytes(data))
+    assert sheet.build_sheet(run_id, th=TH).method.rebuild_status == "verify at sheet time: hash differs: quarantine/return.orig"
+    original.unlink()  # deleted at run end: skipped here, checked by walkaround verify against manifest_run.json
+    assert sheet.build_sheet(run_id, th=TH).method.rebuild_status.startswith("event chain verified to the head on page 1")
+    lines = paths.events_path(run_id).read_text(encoding="utf-8").splitlines()
+    lines[2] = lines[2].replace('"freetsa"', '"DigiCert"')
+    paths.events_path(run_id).write_text("\n".join(lines) + "\n", encoding="utf-8")
+    assert sheet.build_sheet(run_id, th=TH).method.rebuild_status == "verify at sheet time: event chain broken at seq 2"
+    assert head.seq == 6
+
+
+def test_page_1_reads_the_stamps_from_the_chain_and_names_the_issuer(runs: Path) -> None:
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not on PATH")
+    run_id = "01JSTAMP"
+    _synthetic_run(run_id, keep_plate=False)
+    _pipeline_until_sheet(run_id, issuer="DigiCert", return_ots="failed:FileNotFoundError: no client")
+    _append_event(run_id, c.EventKind.SEAL_OTS, {"status": "confirmed:921003"}, "2026-10-27T18:00:00.000Z")  # after the head
+    model, _ = sheet.write_sheet(run_id, th=TH)
+    pickup, ret = model.originals
+    assert (pickup.ots_status, pickup.tsr_time, pickup.bitcoin_block) == ("pending", "2026-10-27T15:00:02Z", None)
+    assert ret.ots_status == "pending"  # its own stamp failed; the manifest's proof holds its sha256
+    assert model.method.thresholds["stamps"]["tsa_issuer"] == "DigiCert"
+    html = paths.sheet_html(run_id).read_text(encoding="ascii")
+    assert "2026-10-27T15:00:02Z (RFC 3161 token from DigiCert)" in html and "OpenTimestamps pending at the calendars" in html
+    verify = model.appendices["C verify it yourself"]
+    assert "from DigiCert" in verify and "ots info bundle/manifest.json.ots" in verify
+    assert paths.bundle_file(run_id, "verify.md").read_text(encoding="ascii") == verify
+
+
+def test_asset_src_inlines_only_files_inside_the_run(tmp_path: Path) -> None:
+    (tmp_path / "sheet" / "frames").mkdir(parents=True)
+    (tmp_path / "sheet" / "frames" / "k.jpg").write_bytes(b"\xff\xd8jpeg")
+    (tmp_path.parent / "outside.jpg").write_bytes(b"\xff\xd8secret")
+    src = sheet._asset_src(tmp_path)
+    assert src("sheet/frames/k.jpg") == "data:image/jpeg;base64," + __import__("base64").b64encode(b"\xff\xd8jpeg").decode("ascii")
+    assert src("../outside.jpg") == "../../outside.jpg" and src("sheet/frames/missing.jpg") == "../sheet/frames/missing.jpg"
+    assert sheet._asset_src(None)("sheet/frames/k.jpg") == "../sheet/frames/k.jpg"
 
 
 def test_build_sheet_on_a_bare_run(runs: Path) -> None:
