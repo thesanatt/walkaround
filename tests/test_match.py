@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import itertools
+import json
 import math
 from pathlib import Path
 from typing import Any
@@ -880,3 +881,232 @@ def test_derive_match_without_masks_gates_on_g4_and_a_shift_lands_in_the_band(ru
     # near the centre (r 0.15) the 0.3 shift sits in the band; at r 1.26 the band has widened to 0.45 and it is already_there
     assert paired[("p0", "r0")].label == VerdictLabel.NEEDS_YOUR_EYE and paired[("p0", "r0")].trace.rule_ids == ["L4", "K1"]
     assert paired[("p1", "r1")].label == VerdictLabel.ALREADY_THERE and paired[("p1", "r1")].trace.thresholds["tau_pre_r"] > 0.4
+
+
+# Review fixes (10/31) ----------------------------------------------------------------------------------------------
+
+WHEEL_MASK = np.zeros((500, 500), dtype=np.uint8)
+cv2.circle(WHEEL_MASK, (250, 250), 200, 255, -1)
+WHEEL_MASK = WHEEL_MASK > 0
+
+
+def wheel_kf(kf_id: str, role: str = "pickup") -> Keyframe:
+    return Keyframe(
+        kf_id=kf_id,
+        role=role,
+        panel_id=PanelId.LEFT_FRONT_WHEEL,
+        track_id=f"{role}_left_front_wheel_t1",
+        f_proxy=10,
+        pts=0.5,
+        score=KeyframeScore(area=0.1, completeness=1.0, sharpness=1.0, glare=0.0, frontality=1.0, total=0.1),
+        aspect_ratio=1.0,
+        box_src=[0.0, 0.0, 500.0, 500.0],
+        crop=Crop(path=f"crops/{role}/{kf_id}.jpg", w=500, h=500, scale=1.0, dx=0.0, dy=0.0),
+        moments=geometry.moments_from_mask(WHEEL_MASK),
+        front_sign=1,
+        marks_status=MarksStatus.COMPLETE,
+    )
+
+
+def box_mark(mark_id: str, k: Keyframe, box: list[float], kind: MarkKind = MarkKind.SCUFF) -> Mark:
+    cx, cy = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+    return Mark(
+        mark_id=mark_id, role=k.role, panel_id=k.panel_id, kf_id=k.kf_id, source=MarkSource.SPARK_BOX, type=kind, confidence=Confidence.HIGH,
+        size_class=SizeClass.M, bbox_crop=list(box), point_crop=[cx, cy], bbox_src=list(box), point_src=[cx, cy], size_px_src=max(box[2] - box[0], box[3] - box[1]),
+    )
+
+
+def test_margin_uses_the_calibrated_tau_pre_not_the_band_at_the_corner(cal: Calibration, th: dict) -> None:
+    """An old scratch near a door corner (r 1.7) jittered by 0.05, a new chip 0.3 below it: ratio 6 and margin 0.25
+    clear 5.8 item 5 (0.5 x tau_pre = 0.125). The band at the corner (0.5 x tau_pre_r = 0.31) used to reject the
+    pair and print the old scratch as not seen plus new."""
+    p = mark("p0", "pickup", u=1.5, v=0.8)
+    same, chip = mark("r0", "return", u=1.55, v=0.8), mark("r1", "return", u=1.5, v=1.1)
+    found = match.mutual_nn(cands(cal, th, [p], [same, chip]), th, tau_pre=cal.tau_pre)
+    assert [(c.pickup_mark, c.return_mark) for c in found] == [("p0", "r0")] and found[0].margin == pytest.approx(0.25)
+    assert match.mutual_nn(cands(cal, th, [p], [same, chip]), th) == found  # tau_pre read back from the pair
+    _, verdicts = run_panel(cal, th, [p], [same, chip])
+    assert {tuple(v.mark_ids): v.label for v in verdicts} == {("p0", "r0"): VerdictLabel.ALREADY_THERE, ("r1",): VerdictLabel.NEW_OR_UNSEEN}
+
+
+def test_the_band_is_taken_at_the_shifted_radius(cal: Calibration, th: dict) -> None:
+    """The handle residual (0.25 along u) moves the return mark from u 1.85 to 1.60: r_mean is 1.45, not 1.575, so a
+    d in [0.513, 0.560) prints needs_your_eye rather than already_there."""
+    shift_px = 0.25 * math.sqrt(RECT_MOMENTS.mu20)
+    pm, _ = run_panel(cal, th, [mark("p0", "pickup", u=1.30, v=0.0)], [mark("r0", "return", u=1.85, v=0.0)], handle_p=[200.0, 150.0], handle_r=[200.0 + shift_px, 150.0])
+    pair = pm.pairs[0]
+    assert pair.d == pytest.approx(0.3, abs=1e-6) and pair.r_mean == pytest.approx(1.45, abs=1e-6)
+    assert pair.tau_pre_r == pytest.approx(match.tau_r(cal.tau_pre, 1.45, th), abs=1e-6)
+
+
+def test_a_group_on_one_walk_takes_in_the_other_walks_nearby_marks(cal: Calibration, th: dict) -> None:
+    """Three chips grouped at pickup, two of them found at return (not a group there): they pair inside the group
+    rather than printing three not seen and two new, the line counts them, and the trace says group pairing."""
+    pickup = [mark(f"p{i}", "pickup", u=0.15 * i, v=0.0, kind=MarkKind.CHIP, cluster_id="pickup_left_front_door_chip_g1") for i in range(3)]
+    ret = [mark("r0", "return", u=0.02, v=0.0, kind=MarkKind.CHIP), mark("r1", "return", u=0.17, v=0.0, kind=MarkKind.CHIP)]
+    pm, verdicts = run_panel(cal, th, pickup, ret)
+    assert {(p.pickup_mark, p.return_mark) for p in pm.pairs} == {("p0", "r0"), ("p1", "r1")}
+    assert all(not p.mutual and p.ratio is None and p.margin is None for p in pm.pairs)
+    assert [g.text for g in pm.groups] == ["3 chips here at pickup, 2 at return, 0 new or unseen"]
+    labels = {tuple(v.mark_ids): v.label for v in verdicts}
+    assert labels == {("p0", "r0"): VerdictLabel.ALREADY_THERE, ("p1", "r1"): VerdictLabel.ALREADY_THERE, ("p2",): VerdictLabel.NOT_SEEN_AT_RETURN}
+    assert all(v.trace.thresholds.get("group_pairing") is True for v in verdicts if len(v.mark_ids) == 2)
+    far = mark("r5", "return", u=1.5, v=1.0, kind=MarkKind.CHIP)  # beyond group_radius_units of every member
+    pm, _ = run_panel(cal, th, pickup, [*ret, far])
+    assert [g.text for g in pm.groups] == ["3 chips here at pickup, 2 at return, 0 new or unseen"] and "r5" in pm.unmatched_return
+
+
+def test_group_pairs_reach_into_the_band_and_the_line_counts_what_prints_new(cal: Calibration, th: dict) -> None:
+    """Both walks group three chips, the return set shifted by 0.3: p2-r0 pass mutual NN, p1-r1 (0.3, in the band)
+    pair inside the group and read needs_your_eye with K1 instead of not seen plus new, p0 and r2 are too far."""
+    pickup = [mark(f"p{i}", "pickup", u=0.15 * i, v=0.0, kind=MarkKind.CHIP, cluster_id="g1") for i in range(3)]
+    ret = [mark(f"r{i}", "return", u=0.15 * i + 0.3, v=0.0, kind=MarkKind.CHIP, cluster_id="g1") for i in range(3)]
+    pm, verdicts = run_panel(cal, th, pickup, ret)
+    by_pair = {(p.pickup_mark, p.return_mark): p for p in pm.pairs}
+    assert set(by_pair) == {("p2", "r0"), ("p1", "r1")} and by_pair[("p2", "r0")].mutual and not by_pair[("p1", "r1")].mutual
+    labels = {tuple(v.mark_ids): (v.label, v.trace.rule_ids) for v in verdicts}
+    assert labels[("p1", "r1")] == (VerdictLabel.NEEDS_YOUR_EYE, ["L4", "K1"]) and labels[("p2", "r0")][0] == VerdictLabel.ALREADY_THERE
+    assert pm.groups[0].text == "3 chips here at pickup, 3 at return, 1 new or unseen"
+    beyond = MatchCandidate(pickup_mark="p0", return_mark="r2", d=0.9, d_pos=0.9, type_cost=0.0, size_cost=0.0, r_mean=0.3, tau_pre_r=0.26, tau_eye_r=0.52, mutual=True)
+    line = match._group_lines({MarkKind.CHIP: (["p0"], ["r2"])}, [beyond])
+    assert line[0].text == "1 chip here at pickup, 1 at return, 1 new or unseen"  # an L5 pair prints the return mark new
+
+
+def test_a_zero_aspect_keyframe_gives_no_aspect_diff_and_no_crash(runs_dir: Path, th: dict) -> None:
+    run_id = "01TESTRUNMATCH000000000003"
+    seed_run(run_id)
+    kfs = [k.model_copy(update={"aspect_ratio": 0.0}) if k.kf_id == "return_kf1" else k for k in read_json_list(paths.keyframes_json(run_id), Keyframe)]
+    write_json(paths.keyframes_json(run_id), kfs)
+    matches, _, _ = match.derive_match(run_id, th=th)
+    door = next(pm for pm in matches if pm.panel_id == DOOR)
+    assert door.aspect_diff is None and door.kf_pair == ["pickup_kf1", "return_kf1"]
+
+
+def test_derive_match_gates_a_panel_whose_keyframes_disagree_on_axis_one(runs_dir: Path, th: dict) -> None:
+    """A second return keyframe whose frame took axis 1 40 degrees away (past 2 tau_pre sqrt(k), about 20 degrees)
+    holds a mark: its (u, v) cannot be compared and the IoU of the paired masks cannot see it, so the panel is G4
+    with no IoU. A keyframe that holds no compared mark does not count."""
+    run_id = "01TESTRUNMATCH000000000004"
+    seed_run(run_id)
+    ys, xs = np.nonzero(RECT_MASK)
+    a = math.radians(40.0)
+    rot = np.array([[math.cos(a), -math.sin(a)], [math.sin(a), math.cos(a)]])
+    turned = geometry.moments_from_points((np.stack([xs, ys], axis=1) - [200.0, 150.0]) @ rot.T + [200.0, 150.0])
+    kf2 = kf("return_kf2", "return", aspect=2.0).model_copy(update={"moments": turned})
+    write_json(paths.keyframes_json(run_id), [*read_json_list(paths.keyframes_json(run_id), Keyframe), kf2])
+    door = next(pm for pm in match.derive_match(run_id, th=th)[0] if pm.panel_id == DOOR)
+    assert door.state == MatchState.COMPARABLE and door.mask_iou == pytest.approx(1.0)  # return_kf2 holds no mark yet
+    stored = read_json_list(paths.marks_json(run_id), Mark)
+    write_json(paths.marks_json(run_id), [*stored, mark("r7", "return", u=0.5, v=0.5, kf_id="return_kf2")])
+    door = next(pm for pm in match.derive_match(run_id, th=th)[0] if pm.panel_id == DOOR)
+    assert door.state == MatchState.NOT_COMPARABLE and door.reasons == ["G4"] and door.mask_iou is None
+
+
+def test_wheel_dedup_wraps_the_angle_and_scales_it_by_the_radius(th: dict) -> None:
+    """One chip seen in three keyframes at 9 o'clock on a 200 px wheel: its angles straddle -pi/pi (-3.126, +3.126,
+    -3.137). Plain distance on (radius, angle) split it and left a phantom single_frame; the wrapped polar distance
+    keeps one mark. Three views 10 px from the hub at 0, 90 and 180 degrees are one mark too."""
+    kfs = [wheel_kf(f"pickup_lfw_kf{i}") for i in (1, 2, 3)]
+    cases = (([(52.0, 247.0), (52.0, 253.0), (53.0, 249.0)], MarkKind.CHIP, 0.02), ([(260.0, 250.0), (250.0, 260.0), (240.0, 250.0)], MarkKind.SCUFF, 0.1))
+    for points, kind, spread_max in cases:
+        placed: list[Mark] = []
+        whitened: dict[str, WhitenedMark] = {}
+        for k, (x, y) in zip(kfs, points):
+            out, w = marks.whiten_marks([box_mark(f"{k.kf_id}_m1", k, [x - 6, y - 6, x + 6, y + 6], kind)], k, th=th, mask=WHEEL_MASK)
+            placed += out
+            whitened.update(w)
+        out, sigma_view = marks.dedup_within_walk(placed, whitened, kfs, th=th)
+        assert len(out) == 1 and len(out[0].merged_from) == 2 and not out[0].single_frame and "K2" not in out[0].caps
+        assert sigma_view is not None and sigma_view < spread_max
+
+
+def test_wheel_collinear_merge_stays_in_the_wheel_frame(th: dict) -> None:
+    """A radial scratch at 3 o'clock and curb rash on the rim lip, each split by Spark into two boxes. Merged with
+    the wheel mask they land on the wheel coordinates of the merged centre (radius 0.56 and 0.97) with the size over
+    the inscribed radius; the moment frame used to put them at radius 1.13 and 1.94. Without the mask the pieces
+    are left alone, and a wheel keyframe without its mask places nothing."""
+    k = wheel_kf("pickup_lfw_kf1")
+    radius_px = geometry.inscribed_radius(WHEEL_MASK)
+    for boxes, kind, centre in ((([330, 245, 360, 255], [365, 245, 395, 255]), MarkKind.SCRATCH, [362.5, 250.0]), (([438, 200, 450, 240], [438, 245, 450, 285]), MarkKind.SCUFF, [444.0, 242.5])):
+        pieces = [box_mark(f"pickup_lfw_kf1_m{i + 1}", k, list(map(float, b)), kind) for i, b in enumerate(boxes)]
+        placed, whitened = marks.whiten_marks(pieces, k, th=th, mask=WHEEL_MASK)
+        out, _ = marks.dedup_within_walk(placed, whitened, [k], th=th, masks={k.kf_id: WHEEL_MASK})
+        assert len(out) == 1 and out[0].merged_from == ["pickup_lfw_kf1_m2"]
+        assert out[0].w == pytest.approx(list(geometry.wheel_coords(centre, WHEEL_MASK))) and out[0].r == out[0].w[0]
+        b = out[0].bbox_crop
+        assert out[0].size_units == pytest.approx(max(b[2] - b[0], b[3] - b[1]) / radius_px)
+        rebuilt = marks.whitened_from_marks(out)[out[0].mark_id]
+        assert rebuilt.frame_used == FrameUsed.WHEEL and rebuilt.u == out[0].w[0]
+        alone, _ = marks.dedup_within_walk(placed, whitened, [k], th=th)
+        assert sorted(m.w for m in alone) == sorted(m.w for m in placed)
+        unplaced, rows = marks.whiten_marks(pieces, k, th=th)
+        assert rows == {} and all(m.w is None for m in unplaced)
+
+
+def test_count_union_leaves_wheel_marks_to_the_wheel_frame(th: dict) -> None:
+    k = wheel_kf("pickup_lfw_kf1")
+    answer = SparkMarksAnswer(marks=[spark_mark(500, 500)])
+    result = marks_result(answer, sent=(500, 500), orig=(500, 500))
+    box_marks, whitened = marks.whiten_marks(marks.marks_from_answer(answer, result, k, k.crop, th=th), k, th=th, mask=WHEEL_MASK)
+    count = spark_client.CountResult(points=[GridPoint(x=900, y=500)], count=1, truncated=False, record=spark_record("req_count"))
+    extra = marks.count_union(box_marks, count, result, k, k.crop, whitened, th=th)
+    assert len(extra) == 1 and extra[0].w is None and extra[0].r is None
+    placed, rows = marks.whiten_marks(extra, k, th=th, mask=WHEEL_MASK)
+    assert rows[extra[0].mark_id].frame_used == FrameUsed.WHEEL and placed[0].w == pytest.approx(list(geometry.wheel_coords(placed[0].point_crop, WHEEL_MASK)))
+
+
+def test_sigma_view_is_the_spread_about_the_cluster_mean(th: dict) -> None:
+    """Two views 0.1 apart give a per-axis sigma of 0.05 (the spread about the medoid read 0.071). On 200 synthetic
+    marks with per-axis jitter 0.03, seen in three views or two, sigma_view lands within 10% of 0.03; about the
+    medoid it read 1.15 x and 1.46 x."""
+    kfs = three_keyframes()
+    a = mark("pickup_kf1_m1", "pickup", u=0.0, v=0.0, kf_id="pickup_kf1")
+    b = mark("pickup_kf2_m1", "pickup", u=0.1, v=0.0, kf_id="pickup_kf2")
+    assert marks.dedup_within_walk([a, b], whitened_of(a, b), kfs, th=th)[1] == pytest.approx(0.05)
+    rng = np.random.default_rng(3)
+    for views in (3, 2):
+        ms = []
+        for j in range(200):
+            for k in kfs[:views]:
+                u, v = rng.normal(0.0, 0.03, size=2)
+                ms.append(mark(f"{k.kf_id}_m{j}", "pickup", u=10.0 * j + float(u), v=float(v), kf_id=k.kf_id))
+        assert marks.dedup_within_walk(ms, whitened_of(*ms), kfs, th=th)[1] == pytest.approx(0.03, rel=0.1)
+
+
+async def test_rerunning_the_marks_stage_writes_the_same_calibration(runs_dir: Path, th: dict, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The orchestrator retries a failed stage and re-runs every role on resume. The same marks must give the same
+    calibration.json bytes in any role order (the stored sigma_view used to be pooled with itself on every call),
+    and a tau_pre a pseudo pair raised survives as a floor instead of being recomputed away."""
+    run_id = "01TESTRUNMARKS000000000001"
+    paths.ensure_run_layout(run_id)
+    pick, ret = three_keyframes(), three_keyframes("return")
+    for i, k in enumerate([*pick, *ret]):
+        crop_file = paths.run_dir(run_id) / k.crop.path
+        crop_file.parent.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(str(crop_file), np.full((CROP_H, CROP_W, 3), 60 + 30 * i, dtype=np.uint8))
+    write_json(paths.keyframes_json(run_id), [*pick, *ret])
+
+    def fake_find_marks(crop_rgb: np.ndarray, panel_id: PanelId, **_: Any) -> spark_client.MarksResult:
+        n = round((int(crop_rgb[0, 0, 0]) - 60) / 30)  # which keyframe this crop is
+        return marks_result(SparkMarksAnswer(marks=[spark_mark(500 + 3 * n, 500), spark_mark(200, 300 + 2 * n)]))
+
+    monkeypatch.setattr(spark_client, "find_marks", fake_find_marks)
+    await marks.derive_marks(run_id, "pickup", pick, th=th)
+    await marks.derive_marks(run_id, "return", ret, th=th)
+    first = paths.calibration_json(run_id).read_bytes()
+    cal1 = Calibration.model_validate_json(first)
+    assert cal1.sigma_view is not None and cal1.sigma_view > 0
+    await marks.derive_marks(run_id, "pickup", pick, th=th)
+    await marks.derive_marks(run_id, "return", ret, th=th)
+    assert paths.calibration_json(run_id).read_bytes() == first
+    await marks.derive_marks(run_id, "return", ret, th=th)
+    await marks.derive_marks(run_id, "pickup", pick, th=th)
+    assert paths.calibration_json(run_id).read_bytes() == first
+    stats = json.loads(marks._sigma_view_path(run_id).read_text())
+    assert set(stats) == {"pickup", "return"} and all(s["dof"] > 0 for s in stats.values())
+    write_json(paths.calibration_json(run_id), match.calibrate(sigma_frame=None, sigma_spark=None, sigma_view=None, pseudo_pair_d=[(0.35, 0.0)] * 10, th=th))
+    await marks.derive_marks(run_id, "pickup", pick, th=th)
+    kept = Calibration.model_validate_json(paths.calibration_json(run_id).read_text())
+    assert kept.tau_pre == pytest.approx(0.35) and kept.tau_eye == pytest.approx(0.7) and kept.sigma_view == cal1.sigma_view
+    await marks.derive_marks(run_id, "pickup", pick, th=th)
+    assert Calibration.model_validate_json(paths.calibration_json(run_id).read_text()) == kept

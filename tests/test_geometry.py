@@ -423,3 +423,42 @@ def test_boundary_distance_units() -> None:
     edge = geometry.boundary_distance_units([102.0, 250.0], panel, mom, 1)
     assert edge < 0.05
     assert centre > float(TH["staysput"]["curvature_boundary_units"]) > edge
+
+
+# Review fixes (10/31) ----------------------------------------------------------------------------------------------
+
+
+def arch_door(width: float, arch_r: float) -> list[tuple[float, float]]:
+    """A door with its wheel-arch cutout at the bottom rear corner, 1 m tall, centred at the origin."""
+    hw = width / 2
+    pts = [(x, -0.5) for x in np.linspace(-hw, hw, 60)] + [(hw, y) for y in np.linspace(-0.5, 0.5 - arch_r, 40)]
+    pts += [(hw - arch_r * math.sin(t), 0.5 - arch_r * math.cos(t)) for t in np.linspace(0, math.pi / 2, 30)]
+    pts += [(x, 0.5) for x in np.linspace(hw - arch_r, -hw, 40)] + [(-hw, y) for y in np.linspace(0.5, -0.5, 60)]
+    return pts
+
+
+def test_wheel_distance_wraps_the_angle_and_scales_it_by_the_radius() -> None:
+    """The one wheel metric of dedup and match: across the -pi/pi seam two views 0.031 rad apart are 0.031 x r
+    apart, and near the hub half a radian is only 0.025 units."""
+    assert geometry.wheel_distance((0.99, -3.126), (0.99, 3.126)) == pytest.approx(0.99 * (2 * math.pi - 6.252))
+    assert geometry.wheel_distance((0.05, 0.0), (0.05, 0.5)) == pytest.approx(0.025)
+    assert geometry.wheel_distance((0.8, 0.1), (0.9, 0.1)) == pytest.approx(0.1)
+    assert geometry.wheel_offset((0.9, -3.1), (0.9, 3.1)) == pytest.approx((0.0, 0.9 * (2 * math.pi - 6.2)))
+
+
+def test_axis_angle_jumps_when_the_principal_axes_sit_near_45_degrees() -> None:
+    """A near-square rear door (1.0 x 1.0 m, arch radius 0.45) has its principal axes at 45 degrees. Measured: 5
+    degrees of yaw moves theta from -45.0 to -46.5, the nearest-horizontal rule then takes the other axis (axis 1
+    from -45.0 to +43.5 degrees) and a planted mark goes from (-1.37, 0.35) to (0.34, 1.36). match.derive_match
+    gates this (G4). The front door and a plain rectangle keep axis 1 on the horizontal."""
+    views = {}
+    for yaw in (0.0, 5.0):
+        mask = fill(project(arch_door(1.0, 0.45), yaw), (H, W))
+        mom = geometry.moments_from_mask(mask)
+        views[yaw] = (geometry.axis_angle(mom), geometry.whiten(tuple(project([(-0.3, 0.3)], yaw)[0]), mom, 1))
+    assert abs(views[0.0][0] - views[5.0][0]) > math.radians(80)
+    assert dist(views[0.0][1], views[5.0][1]) > 1.5
+    front = [geometry.axis_angle(door_view(yaw)[1]) for yaw in (0.0, 20.0)]
+    assert all(abs(a) < math.radians(1) for a in front)
+    tall = geometry.moments_from_mask(rect_mask((600, 400), (100, 50, 300, 550)))
+    assert geometry.axis_angle(tall) == pytest.approx(0.0, abs=1e-9)

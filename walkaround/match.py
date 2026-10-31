@@ -249,8 +249,7 @@ def _wrap_angle(a: float) -> float:
 
 def _d_pos(wa: WhitenedMark, wb: WhitenedMark) -> float:
     if wa.frame_used == FrameUsed.WHEEL and wb.frame_used == FrameUsed.WHEEL:
-        r_mean = 0.5 * (wa.u + wb.u)
-        return math.hypot(wa.u - wb.u, r_mean * _wrap_angle(wa.v - wb.v))
+        return geometry.wheel_distance((wa.u, wa.v), (wb.u, wb.v))  # the metric marks' dedup uses on wheels
     return math.hypot(wa.u - wb.u, wa.v - wb.v)
 
 
@@ -280,13 +279,17 @@ def cost(a: Mark, b: Mark, wa: WhitenedMark, wb: WhitenedMark, calibration: Cali
     )
 
 
-def mutual_nn(cands: list[MatchCandidate], th: dict) -> list[MatchCandidate]:
+def mutual_nn(cands: list[MatchCandidate], th: dict, *, tau_pre: float | None = None) -> list[MatchCandidate]:
     """Mutual nearest neighbours by d. On a side with two or more candidates the Lowe ratio (second / nearest >=
-    ratio_test_min) and the margin (second - nearest >= margin_min_tau_pre_factor x tau_pre_r) must hold; a side
-    with one candidate passes by rule. Returned pairs carry mutual=True and the binding ratio and margin."""
+    ratio_test_min) and the margin (second - nearest >= margin_min_tau_pre_factor x tau_pre) must hold, tau_pre
+    being the calibrated value of 5.8 item 5, not the band at the pair's radius (that rejected clear matches near
+    the corners and printed an old mark as new). Without tau_pre it is read back from the pair as tau_pre_r / (1
+    + band_radius_factor r_mean^2), which keeps the 1.5 fallback factor on a lower bumper. A side with one
+    candidate passes by rule. Returned pairs carry mutual=True and the binding ratio and margin."""
     m = th["matching"]
     ratio_min = float(m["ratio_test_min"])
     margin_factor = float(m["margin_min_tau_pre_factor"])
+    band = float(m["band_radius_factor"])
     by_pickup: dict[str, list[MatchCandidate]] = {}
     by_return: dict[str, list[MatchCandidate]] = {}
     for c in cands:
@@ -302,13 +305,14 @@ def mutual_nn(cands: list[MatchCandidate], th: dict) -> list[MatchCandidate]:
         ratio: float | None = None
         margin: float | None = None
         passes = True
+        base = tau_pre if tau_pre is not None else best.tau_pre_r / (1.0 + band * best.r_mean * best.r_mean)
         for side in (by_pickup[pickup_id], by_return[best.return_mark]):
             if len(side) < 2:
                 continue
             first, second = side[0].d, side[1].d
             side_ratio = second / max(first, 1e-9)
             side_margin = second - first
-            passes = passes and side_ratio >= ratio_min and side_margin >= margin_factor * best.tau_pre_r
+            passes = passes and side_ratio >= ratio_min and side_margin >= margin_factor * base
             ratio = side_ratio if ratio is None else min(ratio, side_ratio)
             margin = side_margin if margin is None else min(margin, side_margin)
         if passes:
@@ -350,10 +354,20 @@ def verdict(d: float | None, tau_pre_r: float, tau_eye_r: float, flags: VerdictF
 
 
 def _shift_return(whitened: dict[str, WhitenedMark], residual: Point2 | None) -> dict[str, WhitenedMark]:
+    """The return marks with the handle residual subtracted; r follows the shift so the band is taken where the
+    comparison happens."""
     if residual is None:
         return dict(whitened)
     du, dv = float(residual[0]), float(residual[1])
-    return {k: w.model_copy(update={"u": w.u - du, "v": w.v - dv, "residual_applied": [du, dv]}) for k, w in whitened.items()}
+    return {k: w.model_copy(update={"u": w.u - du, "v": w.v - dv, "r": math.hypot(w.u - du, w.v - dv), "residual_applied": [du, dv]}) for k, w in whitened.items()}
+
+
+def _xy(whitened: dict[str, WhitenedMark]) -> dict[str, tuple[float, float]]:
+    return {k: (w.u, w.v) for k, w in whitened.items()}
+
+
+def _finite(x: float) -> float | None:
+    return x if math.isfinite(x) else None
 
 
 def _plural(kind: MarkKind, n: int) -> str:
@@ -365,40 +379,78 @@ def _plural(kind: MarkKind, n: int) -> str:
     return name + "es" if name.endswith("ch") else name + "s"
 
 
-def _groups(marks_pickup: list[Mark], marks_return: list[Mark], pairs: list[MatchCandidate]) -> list[MarkGroup]:
-    """One line per type that has a group (5.6) on either walk, counting the group members only."""
-    grouped_p = [m for m in marks_pickup if m.cluster_id is not None]
-    grouped_r = [m for m in marks_return if m.cluster_id is not None]
-    matched_return = {p.return_mark for p in pairs}
-    out: list[MarkGroup] = []
-    for kind in sorted({m.type for m in (*grouped_p, *grouped_r)}, key=lambda k: k.value):
-        n_p = sum(1 for m in grouped_p if m.type == kind)
-        n_r = sum(1 for m in grouped_r if m.type == kind)
-        new = sum(1 for m in grouped_r if m.type == kind and m.mark_id not in matched_return)
-        text = f"{n_p} {_plural(kind, n_p)} here at pickup, {n_r} at return, {new} new or unseen"
-        out.append(MarkGroup(type=kind, n_pickup=n_p, n_return=n_r, text=text))
+Members = dict[MarkKind, tuple[list[str], list[str]]]
+
+
+def _group_members(
+    marks_pickup: list[Mark],
+    marks_return: list[Mark],
+    pos_pickup: dict[str, tuple[float, float]],
+    pos_return: dict[str, tuple[float, float]],
+    *,
+    dist: Callable[[tuple[float, float], tuple[float, float]], float],
+    th: dict,
+) -> Members:
+    """Per type with a group (5.6) on either walk, the member ids of each walk in mark order: a walk's grouped
+    marks, plus the same-type marks of the other walk within group_radius_units of one of them. Each walk forms
+    its groups alone and Spark's mark set swings between runs (10/26 probe), so three chips grouped at pickup and
+    two of them found at return are one group, not three gone and two new. Positions are the compared ones (the
+    return side shifted by the handle residual, or by the wheel's circular shift)."""
+    radius_units = float(th["dedup"]["group_radius_units"])
+
+    def near(mark_id: str, pos: dict[str, tuple[float, float]], seeds: list[Mark], seed_pos: dict[str, tuple[float, float]]) -> bool:
+        p = pos.get(mark_id)
+        return p is not None and any(s.mark_id in seed_pos and dist(p, seed_pos[s.mark_id]) <= radius_units for s in seeds)
+
+    out: Members = {}
+    for kind in sorted({m.type for m in (*marks_pickup, *marks_return) if m.cluster_id is not None}, key=lambda k: k.value):
+        seeds_p = [m for m in marks_pickup if m.type == kind and m.cluster_id is not None]
+        seeds_r = [m for m in marks_return if m.type == kind and m.cluster_id is not None]
+        members_p = [m.mark_id for m in marks_pickup if m.type == kind and (m.cluster_id is not None or near(m.mark_id, pos_pickup, seeds_r, pos_return))]
+        members_r = [m.mark_id for m in marks_return if m.type == kind and (m.cluster_id is not None or near(m.mark_id, pos_return, seeds_p, pos_pickup))]
+        out[kind] = (members_p, members_r)
     return out
 
 
-def _group_pairs(cands: list[MatchCandidate], pairs: list[MatchCandidate], marks_pickup: list[Mark], marks_return: list[Mark]) -> list[MatchCandidate]:
-    """Inside a group the ratio test is waived (every ratio in a cluster is near 1, 5.8 item 9): still-unmatched
-    group members of one type pair greedily by cost under tau_pre_r, so the per-mark labels add up to the group
-    line. A wrong pairing inside one cluster is the same cluster; two clusters apart stay unmatched."""
+def _group_lines(members: Members, pairs: list[MatchCandidate]) -> list[MarkGroup]:
+    """One line per type with a group on either walk ("4 chips here at pickup, 5 at return, 1 new or unseen").
+    New or unseen counts the return members with no pair inside tau_eye_r, the ones verdicts_for labels new or
+    unseen before any cap, so the line adds up with the per-mark labels."""
+    paired_return = {p.return_mark for p in pairs if p.d < p.tau_eye_r}
+    out: list[MarkGroup] = []
+    for kind, (mp, mr) in members.items():
+        new = sum(1 for i in mr if i not in paired_return)
+        text = f"{len(mp)} {_plural(kind, len(mp))} here at pickup, {len(mr)} at return, {new} new or unseen"
+        out.append(MarkGroup(type=kind, n_pickup=len(mp), n_return=len(mr), text=text))
+    return out
+
+
+def _group_pairs(cands: list[MatchCandidate], pairs: list[MatchCandidate], members: Members) -> list[MatchCandidate]:
+    """Inside a group every ratio is near 1 (5.8 item 9), so the ratio test is waived there: still-unmatched
+    members of one type pair greedily by cost while d < tau_eye_r, and the band labels them (already_there, or
+    needs_your_eye with K1) instead of a confident not seen plus new. A wrong pairing inside one cluster is the
+    same cluster; two clusters apart stay unmatched. Group pairs keep mutual False (they did not pass the mutual
+    NN test), which is how matches.json and verdicts_for tell them apart."""
+    # TODO(contracts): the waiver is not in CONTRACTS.md or 5.8; it needs a rule id the trace can carry.
+    pick = {i: kind for kind, (mp, _) in members.items() for i in mp}
+    ret = {i: kind for kind, (_, mr) in members.items() for i in mr}
     matched = {p.pickup_mark for p in pairs} | {p.return_mark for p in pairs}
-    grouped = {m.mark_id: m for m in (*marks_pickup, *marks_return) if m.cluster_id is not None}
     extra: list[MatchCandidate] = []
     for c in sorted(cands, key=lambda c: (c.d, c.pickup_mark, c.return_mark)):
         if c.pickup_mark in matched or c.return_mark in matched:
             continue
-        a, b = grouped.get(c.pickup_mark), grouped.get(c.return_mark)
-        if a is None or b is None or a.type != b.type or c.d >= c.tau_pre_r:
+        kind = pick.get(c.pickup_mark)
+        if kind is None or kind != ret.get(c.return_mark) or c.d >= c.tau_eye_r:
             continue
-        extra.append(c.model_copy(update={"mutual": True}))
+        extra.append(c.model_copy(update={"mutual": False, "ratio": None, "margin": None}))
         matched |= {c.pickup_mark, c.return_mark}
     return extra
 
 
 def _unmatched(marks: list[Mark], matched: set[str]) -> list[str]:
+    # TODO(contracts): a mark with no whitened position (its keyframe had no moments, or a wheel keyframe lost its
+    # mask) lands here and prints L1 or L2 with no cap when its keyframe is not the paired one; no K id says
+    # "could not be placed" yet.
     return [m.mark_id for m in marks if m.mark_id not in matched]
 
 
@@ -412,24 +464,34 @@ def match_panel(
     calibration: Calibration,
     th: dict,
 ) -> PanelMatch:
-    """One PanelMatch: state and reasons from the gates, the keyframe pair and aspect_diff, the handle residual
-    subtracted from the return marks, pairs by cost and mutual_nn (pairs beyond tau_eye_r stay listed so verdicts_for
-    can print L5), the unmatched lists and the group lines. mask_iou is filled by the caller that saw the masks."""
+    """One PanelMatch: state and reasons from the gates, the keyframe pair and aspect_diff (None when not finite),
+    the handle residual subtracted from the return marks, pairs by cost and mutual_nn (pairs beyond tau_eye_r stay
+    listed so verdicts_for can print L5) plus the group pairs, the unmatched lists and the group lines. mask_iou
+    is filled by the caller that saw the masks."""
     kf_p, kf_r = kf_pair
+    aspect_diff = _finite(_aspect_diff(kf_p, kf_r))
     if panel.panel_id in WHEEL_PANELS:
         pm = wheel_match(panel, marks_pickup, marks_return, whitened, th=th, calibration=calibration)
         state = MatchState.NOT_COMPARABLE if gates else MatchState.COMPARABLE
-        update: dict[str, Any] = {"state": state, "reasons": [*gates, *pm.reasons], "kf_pair": [kf_p.kf_id, kf_r.kf_id], "aspect_diff": _aspect_diff(kf_p, kf_r)}
+        update: dict[str, Any] = {"state": state, "reasons": [*gates, *pm.reasons], "kf_pair": [kf_p.kf_id, kf_r.kf_id], "aspect_diff": aspect_diff}
         if gates:
             update.update({"pairs": [], "unmatched_pickup": [m.mark_id for m in marks_pickup], "unmatched_return": [m.mark_id for m in marks_return], "groups": []})
         return pm.model_copy(update=update)
     residual = handle_residual(kf_p, kf_r)
+    # TODO(5.5): hoods are matched in the plain moment frame and geometry.hood_coords (lateral axis plus depth
+    # thirds) is not wired. A synthetic grazing-view hood kept every residual under tau_pre_r up to a 0.75 m / 3 m
+    # stance change and 20 degrees of yaw, where mark_matching.md expects 0.5 to 0.8 units along depth. D1 must
+    # measure the depth residual on a real hood pair; switch hoods to FrameUsed.HOOD_AXIS only if it is that large.
+    # TODO(D1): medoids come from any of the 3 keyframes of a walk while the handle residual is measured on the
+    # aspect-paired keyframes. The cross-keyframe part is the within-walk view spread that sigma_view puts into
+    # tau_pre (5.10); D1 (E8) must confirm that the handle residual between keyframes of one walk stays near
+    # sigma_view, or the residual has to be taken per keyframe.
     pm = PanelMatch(
         panel_id=panel.panel_id,
         state=MatchState.NOT_COMPARABLE if gates else MatchState.COMPARABLE,
         reasons=list(gates),
         kf_pair=[kf_p.kf_id, kf_r.kf_id],
-        aspect_diff=_aspect_diff(kf_p, kf_r),
+        aspect_diff=aspect_diff,
         handle_residual=residual,
         frame_used=FrameUsed.MOMENT,
     )
@@ -438,15 +500,16 @@ def match_panel(
     w_pickup = {m.mark_id: whitened[m.mark_id] for m in marks_pickup if m.mark_id in whitened}
     w_return = _shift_return({m.mark_id: whitened[m.mark_id] for m in marks_return if m.mark_id in whitened}, residual)
     cands = [cost(a, b, w_pickup[a.mark_id], w_return[b.mark_id], calibration, th) for a in marks_pickup if a.mark_id in w_pickup for b in marks_return if b.mark_id in w_return]
-    pairs = mutual_nn(cands, th)
-    pairs = [*pairs, *_group_pairs(cands, pairs, marks_pickup, marks_return)]
+    pairs = mutual_nn(cands, th, tau_pre=calibration.tau_pre)
+    members = _group_members(marks_pickup, marks_return, _xy(w_pickup), _xy(w_return), dist=math.dist, th=th)
+    pairs = [*pairs, *_group_pairs(cands, pairs, members)]
     matched = {p.pickup_mark for p in pairs} | {p.return_mark for p in pairs}
     return pm.model_copy(
         update={
             "pairs": pairs,
             "unmatched_pickup": _unmatched(marks_pickup, matched),
             "unmatched_return": _unmatched(marks_return, matched),
-            "groups": _groups(marks_pickup, marks_return, pairs),
+            "groups": _group_lines(members, pairs),
         }
     )
 
@@ -468,9 +531,10 @@ def _wheel_rule_ok(a: Mark, b: Mark, wa: WhitenedMark, wb: WhitenedMark, th: dic
 
 def wheel_match(panel: Panel, marks_pickup: list[Mark], marks_return: list[Mark], whitened: dict[str, WhitenedMark], *, th: dict, calibration: Calibration | None = None) -> PanelMatch:
     """5.8 item 8. With >= 2 marks on both walks the return angles take the circular shift that pairs the most
-    marks at the lowest cost, then cost and mutual_nn run as usual. With exactly one mark on a side, that mark
-    pairs only with the single candidate passing the type, radius and size rule; otherwise the wheel's unmatched
-    marks carry K10 (listed in reasons) and verdicts_for caps them. Angles alone never match."""
+    marks at the lowest cost, then cost and mutual_nn run as usual, plus the group pairs at that shift. With
+    exactly one mark on a side, that mark pairs only with the single candidate passing the type, radius and size
+    rule; otherwise the wheel's unmatched marks carry K10 (listed in reasons) and verdicts_for caps them. Angles
+    alone never match: without a shift the group lines compare radii only."""
     cal = calibration or calibrate(sigma_frame=None, sigma_spark=None, sigma_view=None, pseudo_pair_d=None, th=th)
     pm = PanelMatch(panel_id=panel.panel_id, state=MatchState.COMPARABLE, frame_used=FrameUsed.WHEEL)
     w_p = {m.mark_id: whitened[m.mark_id] for m in marks_pickup if m.mark_id in whitened}
@@ -479,20 +543,25 @@ def wheel_match(panel: Panel, marks_pickup: list[Mark], marks_return: list[Mark]
     placed_r = [m for m in marks_return if m.mark_id in w_r]
     pairs: list[MatchCandidate] = []
     reasons: list[str] = []
+    pos_p = {k: (w.u, 0.0) for k, w in w_p.items()}
+    pos_r = {k: (w.u, 0.0) for k, w in w_r.items()}
+    shift_cands: list[MatchCandidate] = []
     min_for_shift = int(th["matching"]["wheel_min_marks_for_shift"])
     if len(placed_p) >= min_for_shift and len(placed_r) >= min_for_shift:
-        best: tuple[int, float, list[MatchCandidate]] | None = None
+        best: tuple[tuple[int, float], list[MatchCandidate], dict[str, WhitenedMark], list[MatchCandidate]] | None = None
         for a in placed_p:
             for b in placed_r:
                 shift = w_p[a.mark_id].v - w_r[b.mark_id].v
                 shifted = {k: w.model_copy(update={"v": _wrap_angle(w.v + shift)}) for k, w in w_r.items()}
                 cands = [cost(x, y, w_p[x.mark_id], shifted[y.mark_id], cal, th) for x in placed_p for y in placed_r]
-                found = mutual_nn(cands, th)
+                found = mutual_nn(cands, th, tau_pre=cal.tau_pre)
                 in_band = [c for c in found if c.d < c.tau_eye_r]
                 score = (len(in_band), -sum(c.d for c in in_band))
-                if best is None or score > (best[0], best[1]):
-                    best = (score[0], score[1], found)
-        pairs = best[2] if best is not None else []
+                if best is None or score > best[0]:
+                    best = (score, found, shifted, cands)
+        assert best is not None
+        _, pairs, shifted, shift_cands = best
+        pos_p, pos_r = _xy(w_p), _xy(shifted)
     elif placed_p and placed_r:
         singles = ([(a, placed_r) for a in placed_p] if len(placed_p) == 1 else []) + ([(b, placed_p) for b in placed_r] if len(placed_r) == 1 else [])
         for single, others in singles:
@@ -505,6 +574,9 @@ def wheel_match(panel: Panel, marks_pickup: list[Mark], marks_return: list[Mark]
                 pairs = [cost(a, b, wa, wb, cal, th).model_copy(update={"mutual": True})]
         if len(pairs) < max(len(placed_p), len(placed_r)):
             reasons.append("K10")
+    members = _group_members(marks_pickup, marks_return, pos_p, pos_r, dist=geometry.wheel_distance, th=th)
+    if shift_cands:
+        pairs = [*pairs, *_group_pairs(shift_cands, pairs, members)]
     matched = {p.pickup_mark for p in pairs} | {p.return_mark for p in pairs}
     return pm.model_copy(
         update={
@@ -512,7 +584,7 @@ def wheel_match(panel: Panel, marks_pickup: list[Mark], marks_return: list[Mark]
             "pairs": pairs,
             "unmatched_pickup": _unmatched(marks_pickup, matched),
             "unmatched_return": _unmatched(marks_return, matched),
-            "groups": _groups(marks_pickup, marks_return, pairs),
+            "groups": _group_lines(members, pairs),
         }
     )
 
@@ -628,6 +700,8 @@ def verdicts_for(
         thresholds = _thresholds_used(calibration, th, tau_pre_r=pair.tau_pre_r if pair else None, tau_eye_r=pair.tau_eye_r if pair else None)
         if pair is not None:
             thresholds.update({"d": pair.d, "d_pos": pair.d_pos, "type_cost": pair.type_cost, "size_cost": pair.size_cost, "r_mean": pair.r_mean})
+            if not pair.mutual:
+                thresholds["group_pairing"] = True  # paired inside a group with the ratio test waived
         out.append(
             Verdict(
                 verdict_id=vid(),
@@ -699,6 +773,25 @@ def _mask_iou(run_id: str, kf_p: Keyframe, kf_r: Keyframe) -> float | None:
         return None
 
 
+def _frames_agree(kf_ref: Keyframe, kfs: list[Keyframe], calibration: Calibration, th: dict) -> bool:
+    """Every keyframe whose marks are compared took axis 1 within the rotation the band absorbs of the paired
+    pickup keyframe's. A frame turned by dtheta moves a mark at radius r by about r dtheta, and r dtheta <=
+    tau_pre (1 + k r^2) holds at every r only while dtheta <= 2 tau_pre sqrt(k) (k = band_radius_factor). The
+    90-degree jump of the nearest-horizontal axis rule (principal axes near 45 degrees) and a noise-driven theta on
+    a near-isotropic mask both fail it, while the whitened IoU of a symmetric shape stays high through either."""
+    if kf_ref.moments is None:
+        return True
+    limit = 2.0 * calibration.tau_pre * math.sqrt(float(th["matching"]["band_radius_factor"]))
+    ref = geometry.axis_angle(kf_ref.moments)
+    return all(abs(geometry.axis_angle(kf.moments) - ref) <= limit for kf in kfs if kf.moments is not None)
+
+
+def _compared_keyframes(kf_p: Keyframe, kf_r: Keyframe, kfs: dict[str, list[Keyframe]], panel_marks: dict[str, list[Mark]]) -> list[Keyframe]:
+    """The paired keyframes plus every keyframe a placed mark of the panel was whitened in (medoids come from any)."""
+    used = {kf_p.kf_id, kf_r.kf_id} | {m.kf_id for role in ROLES for m in panel_marks[role] if m.w is not None}
+    return [kf for role in ROLES for kf in kfs[role] if kf.kf_id in used]
+
+
 def _lane_status(run_id: str) -> dict[str, dict[Noun, LaneStatus]]:
     """Lane statuses from sam/<role>/<lane>.summary.json where present; a missing summary is not a failure."""
     out: dict[str, dict[Noun, LaneStatus]] = {}
@@ -753,6 +846,10 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
         if kfs["pickup"] and kfs["return"]:
             kf_p, kf_r, _ = pair_keyframes(kfs["pickup"], kfs["return"])
             mask_iou = _mask_iou(run_id, kf_p, kf_r)
+            if panel.panel_id not in WHEEL_PANELS and not _frames_agree(kf_p, _compared_keyframes(kf_p, kf_r, kfs, panel_marks), calibration, th):
+                # TODO(contracts): G4 stands in for "the whitened frames disagree" until that gate has its own id;
+                # the IoU is dropped because it cannot vouch for frames that picked different axes.
+                mask_iou = None
             residual = handle_residual(kf_p, kf_r)
             gates = panel_gates(panel, kf_p, kf_r, mask_iou=mask_iou, residual=residual, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
             pm = match_panel(panel, panel_marks["pickup"], panel_marks["return"], whitened, (kf_p, kf_r), gates, calibration, th)

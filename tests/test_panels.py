@@ -4,8 +4,10 @@ side vote in both walk directions, the keyframe passes, the coverage states, the
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import shutil
+import time
 from pathlib import Path
 from typing import Any
 
@@ -14,7 +16,7 @@ import pytest
 from meta_sam_parser import build_object_prompt
 
 from walkaround import contracts as c
-from walkaround import panels, paths, sam_wire, video
+from walkaround import panels, paths, privacy, sam_wire, video
 from walkaround.contracts import LANE_NOUNS, CoverageState, LaneStatus, MergeRule, Noun, PanelId, Position, Side, StateBasis
 
 ROOT = Path(__file__).resolve().parent
@@ -133,15 +135,16 @@ def scripted_walk(
 
 
 def tracks_for_walk(role: str, lanes: dict[Noun, list[c.IndexFrame]], pts: list[float], th: dict[str, Any] = TH) -> list[c.PanelTrack]:
-    """filter -> fragments -> merge -> tracks for every noun of one walk, as derive() does it."""
-    car_boxes = panels.car_boxes_by_frame(lanes[Noun.CAR])
-    out: list[c.PanelTrack] = []
-    for noun in LANE_NOUNS:
-        kept = lanes[noun] if noun in c.PRIVACY_NOUNS else panels.filter_objects(lanes[noun], noun, car_boxes, (W, H), th)
-        frags = panels.build_fragments(kept, fps=FPS, th=th)
-        groups = panels.merge_fragments(frags, kept, fps=FPS, th=th)
-        out.extend(panels.build_tracks(role, noun, groups, kept, pts, car_boxes, (W, H), th=th))
-    return out
+    """Every lane of one walk to tracks, through the same build_role_tracks derive() calls."""
+    tracks, _kept = panels.build_role_tracks(role, lanes, pts=pts, media_size=(W, H), fps=FPS, th=th)
+    return tracks
+
+
+def _filed(track: c.PanelTrack, pid: PanelId) -> c.PanelTrack:
+    """A hand-made track filed into a slot with the side and position a decided vote gives it."""
+    side, position = panels._panel_side_position(pid)
+    track.panel_id, track.side, track.position = pid, side, position
+    return track
 
 
 def track_of(tracks: list[c.PanelTrack], role: str, noun: Noun, object_id: str) -> c.PanelTrack:
@@ -331,6 +334,56 @@ def test_walk_tracks_are_pure_and_deterministic(pickup_walk) -> None:
         assert [t.per_frame[0].frame for t in mine] == sorted(t.per_frame[0].frame for t in mine)
 
 
+def test_short_plate_and_face_runs_reach_tracks_and_the_blur_boxes() -> None:
+    frames_by_noun: dict[Noun, list[c.IndexFrame]] = {noun: [] for noun in LANE_NOUNS}
+    for f in range(60):
+        frames_by_noun[Noun.CAR].append(c.IndexFrame(frame=f, objects=[c.IndexObject(id="0", box=[100, 100, 900, 500], c=0.9)]))
+        faces = []
+        if 20 <= f < 27:  # a passer-by outside the car box for 7 frames, under the 8-frame fragment minimum
+            faces.append(c.IndexObject(id="3", box=[10, 10, 60, 70], c=0.8))
+        if 40 <= f < 43:  # three frames
+            faces.append(c.IndexObject(id="4", box=[700, 20, 740, 70], c=0.8))
+        if faces:
+            frames_by_noun[Noun.FACE].append(c.IndexFrame(frame=f, objects=faces))
+        plate_id = "1" if 30 <= f < 50 else "2" if 50 <= f < 55 else None  # a 5-frame id after an id switch
+        if plate_id:
+            frames_by_noun[Noun.LICENSE_PLATE].append(c.IndexFrame(frame=f, objects=[c.IndexObject(id=plate_id, box=[400, 400, 480, 430], c=0.8)]))
+    pts = [i / FPS for i in range(60)]
+    tracks, kept = panels.build_role_tracks("pickup", frames_by_noun, pts=pts, media_size=(W, H), fps=FPS, th=TH)
+    faces = [t for t in tracks if t.noun is Noun.FACE]
+    plates = [t for t in tracks if t.noun is Noun.LICENSE_PLATE]
+    assert [(t.sam_object_ids, [r.frame for r in t.per_frame]) for t in faces] == [(["3"], list(range(20, 27))), (["4"], [40, 41, 42])]
+    assert [(t.sam_object_ids, len(t.per_frame)) for t in plates] == [(["1"], 20), (["2"], 5)]
+    assert not any(t.merges for t in faces + plates) and kept[Noun.FACE] == frames_by_noun[Noun.FACE]
+    for f in (20, 23, 26, 40, 42, 52, 54):
+        assert privacy.track_boxes_at(f, tracks, fps=FPS, media_size_proxy=(W, H), media_size_src=(W, H), th=TH), f
+    # fragments still record where an id dropped out for longer than the 5.1 gap
+    gap = {Noun.FACE: [c.IndexFrame(frame=f, objects=[c.IndexObject(id="5", box=[10, 10, 60, 70])]) for f in (1, 2, 30)]}
+    split = panels.build_role_tracks("pickup", gap, pts=[i / FPS for i in range(40)], media_size=(W, H), fps=FPS, th=TH)[0]
+    assert [(fr.first_frame, fr.last_frame) for fr in split[0].fragments] == [(1, 2), (30, 30)]
+
+
+def test_a_duplicate_sam_id_on_one_door_is_suppressed() -> None:
+    lanes, ids, pts = scripted_walk()
+    front = ids[(Noun.CAR_DOOR, "left_front")]
+    n = 0
+    for fr in lanes[Noun.CAR_DOOR]:
+        o = next((o for o in fr.objects if o.id == front), None)
+        if o is not None and o.box[0] > 200 and n < 20:  # a second id on the same door, box IoU about 0.8
+            x1, y1, x2, y2 = o.box
+            fr.objects.append(c.IndexObject(id="99", box=[x1 + 12, y1 + 6, x2 + 12, y2 + 6], c=0.8))
+            n += 1
+    assert n == 20
+    tracks = tracks_for_walk("pickup", lanes, pts)
+    doors = [t for t in tracks if t.noun is Noun.CAR_DOOR]
+    assert len(doors) == 4 and not any("99" in t.sam_object_ids for t in doors)
+    _, voted_tracks = panels.vote_sides(tracks, -1, TH, fps=FPS)
+    rear = [t.sam_object_ids for t in voted_tracks if t.panel_id is PanelId.LEFT_REAR_DOOR]
+    assert rear == [[ids[(Noun.CAR_DOOR, "left_rear_a")], ids[(Noun.CAR_DOOR, "left_rear_b")]]]
+    touching = [c.IndexFrame(frame=0, objects=[c.IndexObject(id="1", box=[0, 0, 100, 100]), c.IndexObject(id="2", box=[100, 0, 200, 100])])]
+    assert len(panels.suppress_duplicates(touching, TH)[0].objects) == 2
+
+
 def test_walk_direction_follows_the_scene_drift(pickup_tracks) -> None:
     assert panels.walk_direction(pickup_tracks, TH) == -1
     lanes, _ids, pts = scripted_walk(reverse=True)
@@ -434,7 +487,10 @@ def test_vote_sides_uses_each_roles_own_direction(pickup_tracks) -> None:
 def test_side_vote_tie_prints_side_uncertain() -> None:
     lone = [_moving("pickup", Noun.CAR_DOOR, range(0, 40), 700.0, -6.0)]
     voted_panels, tracks = panels.vote_sides(lone, -1, TH, fps=FPS)
-    assert tracks[0].panel_id is PanelId.LEFT_FRONT_DOOR
+    assert tracks[0].panel_id is PanelId.LEFT_FRONT_DOOR  # a placeholder: left and front first
+    assert tracks[0].side is Side.NONE and tracks[0].position is Position.NONE and panels.undecided(tracks[0])
+    doors = [PanelId.LEFT_FRONT_DOOR, PanelId.LEFT_REAR_DOOR, PanelId.RIGHT_FRONT_DOOR, PanelId.RIGHT_REAR_DOOR]
+    assert panels.candidate_slots(tracks[0]) == doors
     panel = next(p for p in voted_panels if p.panel_id is PanelId.LEFT_FRONT_DOOR)
     assert panel.side_uncertain and panel.front_sign is None
     assert panel.votes == c.SideVotes()
@@ -453,8 +509,32 @@ def test_bumper_goes_front_or_rear_by_the_light_it_shares_frames_with() -> None:
     _, tracks = panels.vote_sides([rear, head, tail], -1, TH, fps=FPS)
     assert tracks[0].panel_id is PanelId.REAR_BUMPER and tracks[0].position is Position.REAR
     alone, tracks = panels.vote_sides([bumper], -1, TH, fps=FPS)
-    assert tracks[0].panel_id is PanelId.FRONT_BUMPER
-    assert next(p for p in alone if p.panel_id is PanelId.FRONT_BUMPER).side_uncertain
+    assert tracks[0].panel_id is PanelId.FRONT_BUMPER and tracks[0].position is Position.NONE
+    assert panels.candidate_slots(tracks[0]) == [PanelId.FRONT_BUMPER, PanelId.REAR_BUMPER]
+    placeholder = next(p for p in alone if p.panel_id is PanelId.FRONT_BUMPER)
+    assert placeholder.side_uncertain and placeholder.front_sign is None
+
+
+def test_a_tie_in_one_walk_prints_every_candidate_slot_as_side_uncertain(pickup_tracks) -> None:
+    door = _moving("return", Noun.CAR_DOOR, range(0, 60), 300.0, 0.5)  # 4 s of the right front door, no mirror, no drift
+    door.track_id = "return_car_door_00"
+    dirs = {"pickup": -1, "return": panels.walk_direction([door], TH)}
+    assert dirs["return"] is None
+    voted_panels, tracks = panels.vote_sides(pickup_tracks + [door], None, TH, fps=FPS, direction_by_role=dirs)
+    rt = next(t for t in tracks if t.role == "return")
+    assert rt.panel_id is PanelId.LEFT_FRONT_DOOR and rt.side is Side.NONE and rt.position is Position.NONE
+    doors = [PanelId.LEFT_FRONT_DOOR, PanelId.LEFT_REAR_DOOR, PanelId.RIGHT_FRONT_DOOR, PanelId.RIGHT_REAR_DOOR]
+    ret = panels.coverage_for_role(voted_panels, tracks, [], role="return", fps=FPS, lane_status=_lane_status(), th=TH)
+    for pid in doors:
+        assert ret[pid].state is CoverageState.GLIMPSED, pid  # never not_filmed while the undecided door may be it
+        assert "side uncertain" in ret[pid].reason and "return_car_door_00" in ret[pid].reason
+        assert ret[pid].seconds == pytest.approx(60 / FPS)
+    assert "frames filed under left front door" in ret[PanelId.RIGHT_FRONT_DOOR].reason
+    pick = panels.coverage_for_role(voted_panels, tracks, [], role="pickup", fps=FPS, lane_status=_lane_status(), th=TH)
+    assert pick[PanelId.LEFT_FRONT_DOOR].state is CoverageState.GLIMPSED
+    assert "side uncertain" not in pick[PanelId.LEFT_FRONT_DOOR].reason  # the pickup's own door is decided
+    pickup_door = next(t for t in tracks if t.role == "pickup" and t.panel_id is PanelId.LEFT_FRONT_DOOR)
+    assert pickup_door.side is Side.LEFT and pickup_door.position is Position.FRONT
 
 
 def test_coupe_keeps_its_three_doors_named() -> None:
@@ -514,6 +594,13 @@ def test_needs_anchor_pass_and_absorb_bridge_a_long_gap() -> None:
     other = track_of(tracks, "pickup", Noun.CAR_DOOR, ids[(Noun.CAR_DOOR, "right_front")])
     out = panels.absorb_anchor([a, b, other], anchor_frames, frame_offset=offset, th=TH, media_size=(W, H), pts=pts, fps=FPS)
     assert len(out) == 2 and any(t.track_id == other.track_id and not t.merges for t in out)
+    # with car boxes the anchor rows outside the car say so; without media_size the call refuses to guess a frame
+    car_boxes = {f + offset: [0, 0, 10, 10] for f in range(0, 400)}
+    outside = panels.absorb_anchor([a, b], anchor_frames, frame_offset=offset, th=TH, media_size=(W, H), pts=pts, fps=FPS, car_boxes=car_boxes)
+    gap_rows = [r for r in outside[0].per_frame if a.per_frame[-1].frame < r.frame < b.per_frame[0].frame]
+    assert gap_rows and not any(r.in_car_box for r in gap_rows)
+    with pytest.raises(TypeError):
+        panels.absorb_anchor([a, b], anchor_frames, frame_offset=offset, th=TH)  # type: ignore[call-arg]
 
 
 def test_anchor_prompts_build_a_valid_object_prompt(pickup_tracks) -> None:
@@ -698,31 +785,49 @@ def test_coverage_not_seen_is_a_slot_with_no_track_in_either_walk() -> None:
     assert missing[PanelId.LEFT_FRONT_DOOR].state is CoverageState.NOT_RUN
 
 
-def test_coverage_with_a_failed_car_lane_is_not_run_everywhere(pickup_tracks) -> None:
+def test_car_lane_states_reach_only_the_slots_without_a_track(pickup_tracks) -> None:
+    empty_panels, _ = panels.vote_sides([], None, TH)
+    for car in (LaneStatus.FAILED, LaneStatus.INCOMPLETE, None):
+        status = _lane_status()
+        if car is None:
+            del status[Noun.CAR]  # no car summary, or one that could not be read
+        else:
+            status[Noun.CAR] = car
+        cov = panels.coverage_for_role(empty_panels, [], [], role="pickup", fps=FPS, lane_status=status, th=TH)
+        assert {v.state for v in cov.values()} == {CoverageState.NOT_RUN}, car
+        assert all(v.reason.startswith(f"car lane {car.value if car else 'not run'}") for v in cov.values())
+    # an incomplete car lane still let these tracks through on the frames it returned: they keep their states
     voted_panels, tracks = panels.vote_sides(pickup_tracks, -1, TH, fps=FPS)
-    cov = panels.coverage_for_role(voted_panels, tracks, [], role="pickup", fps=FPS, lane_status=_lane_status(car=LaneStatus.FAILED), th=TH)
-    assert {v.state for v in cov.values()} == {CoverageState.NOT_RUN}
-    assert all("car lane failed" in v.reason for v in cov.values())
+    door = next(t for t in tracks if t.panel_id is PanelId.LEFT_FRONT_DOOR)
+    kf = _keyframe("pickup", PanelId.LEFT_FRONT_DOOR, door.track_id, door.per_frame[10].frame, kf_id="kf1")
+    no_wheels = [t for t in tracks if t.noun is not Noun.WHEEL]
+    cov = panels.coverage_for_role(voted_panels, no_wheels, [kf], role="pickup", fps=FPS, lane_status=_lane_status(car=LaneStatus.INCOMPLETE), th=TH)
+    assert cov[PanelId.LEFT_FRONT_DOOR].state is CoverageState.FILMED and cov[PanelId.LEFT_FRONT_DOOR].best_kf == "kf1"
+    assert cov[PanelId.HOOD].state is CoverageState.GLIMPSED
+    assert cov[PanelId.LEFT_FRONT_WHEEL].state is CoverageState.NOT_RUN and "car lane incomplete" in cov[PanelId.LEFT_FRONT_WHEEL].reason
 
 
-def test_glimpsed_compares_the_median_c_with_the_nouns_25th_percentile() -> None:
-    doors = [_moving("pickup", Noun.CAR_DOOR, range(k * 100, k * 100 + 40), 700.0, -6.0, conf=conf) for k, conf in enumerate((0.5, 0.6, 0.7, 0.8))]
-    for k, t in enumerate(doors):
-        t.panel_id = [PanelId.LEFT_FRONT_DOOR, PanelId.LEFT_REAR_DOOR, PanelId.RIGHT_FRONT_DOOR, PanelId.RIGHT_REAR_DOOR][k]
+def test_a_tracked_slot_is_glimpsed_whatever_its_detector_score() -> None:
+    slots = [PanelId.LEFT_FRONT_DOOR, PanelId.LEFT_REAR_DOOR, PanelId.RIGHT_FRONT_DOOR, PanelId.RIGHT_REAR_DOOR]
+    doors = [
+        _filed(_moving("pickup", Noun.CAR_DOOR, range(k * 100, k * 100 + 40), 700.0, -6.0, conf=conf), slots[k])
+        for k, conf in enumerate((0.5, 0.6, 0.7, 0.8))
+    ]
     voted_panels, _ = panels.vote_sides([], None, TH)
     cov = panels.coverage_for_role(voted_panels, doors, [], role="pickup", fps=FPS, lane_status=_lane_status(), th=TH)
-    assert cov[PanelId.LEFT_FRONT_DOOR].state is CoverageState.NOT_FILMED  # 0.5 sits under the 25th percentile (0.575)
-    assert cov[PanelId.LEFT_FRONT_DOOR].state_basis is StateBasis.C
-    for pid in (PanelId.LEFT_REAR_DOOR, PanelId.RIGHT_FRONT_DOOR, PanelId.RIGHT_REAR_DOOR):
-        assert cov[pid].state is CoverageState.GLIMPSED
-    # one track with a constant c (the text-lane case of 10/26) is at its own percentile, so it is glimpsed
+    for pid in slots:
+        assert cov[pid].state is CoverageState.GLIMPSED and cov[pid].state_basis is StateBasis.C  # 5.4: not_filmed means no track
+        assert "percentile" not in cov[pid].reason and "median c" not in cov[pid].reason  # c is relative, never printed
+    assert "under this run's lower quartile for car door" in cov[PanelId.LEFT_FRONT_DOOR].reason  # 0.5 sits under 0.575
+    assert "at or above this run's lower quartile" in cov[PanelId.RIGHT_REAR_DOOR].reason
+    # one track with a constant c (the text-lane case of 10/26) is at its own percentile
     single = panels.coverage_for_role(voted_panels, doors[:1], [], role="pickup", fps=FPS, lane_status=_lane_status(), th=TH)
-    assert single[PanelId.LEFT_FRONT_DOOR].state is CoverageState.GLIMPSED
-    # under the area floor with c absent the area-only basis says not_filmed
-    tiny = _moving("pickup", Noun.CAR_DOOR, range(0, 40), 700.0, -6.0, w=60, h=60, conf=None)
-    tiny.panel_id = PanelId.LEFT_FRONT_DOOR
+    assert single[PanelId.LEFT_FRONT_DOOR].state is CoverageState.GLIMPSED and "at or above" in single[PanelId.LEFT_FRONT_DOOR].reason
+    # c absent on every frame: the area-only basis, and a box under its floor still leaves the slot glimpsed
+    tiny = _filed(_moving("pickup", Noun.CAR_DOOR, range(0, 40), 700.0, -6.0, w=60, h=60, conf=None), PanelId.LEFT_FRONT_DOOR)
     low = panels.coverage_for_role(voted_panels, [tiny], [], role="pickup", fps=FPS, lane_status=_lane_status(), th=TH)
-    assert low[PanelId.LEFT_FRONT_DOOR].state is CoverageState.NOT_FILMED and low[PanelId.LEFT_FRONT_DOOR].state_basis is StateBasis.AREA_ONLY
+    assert low[PanelId.LEFT_FRONT_DOOR].state is CoverageState.GLIMPSED and low[PanelId.LEFT_FRONT_DOOR].state_basis is StateBasis.AREA_ONLY
+    assert "area-only basis: box area stays under 1% of the frame" in low[PanelId.LEFT_FRONT_DOOR].reason
 
 
 def test_plan_topup_orders_wheels_then_lower_bumpers_then_the_rest() -> None:
@@ -734,8 +839,11 @@ def test_plan_topup_orders_wheels_then_lower_bumpers_then_the_rest() -> None:
     states[PanelId.TAIL_LIGHTS] = c.PanelCoverage(state=CoverageState.NOT_SEEN)
     cov = panels.plan_topup(c.Coverage(per_role={"pickup": states}), TH)
     assert cov.missing == [PanelId.LEFT_REAR_WHEEL, PanelId.RIGHT_FRONT_WHEEL, PanelId.REAR_BUMPER, PanelId.HOOD, PanelId.TAIL_LIGHTS]
-    assert cov.nouns_to_rerun == [Noun.WHEEL, Noun.BUMPER, Noun.HOOD, Noun.TAIL_LIGHT, Noun.CAR, Noun.LICENSE_PLATE, Noun.FACE]
-    assert "rear bumper (glimpsed, 0.8 s)" in cov.topup_text and "7 of 16 nouns" in cov.topup_text
+    # a missing wheel brings the side anchors along so the top-up track can be voted a side
+    assert cov.nouns_to_rerun == [
+        Noun.WHEEL, Noun.BUMPER, Noun.HOOD, Noun.TAIL_LIGHT, Noun.HEADLIGHT, Noun.SIDE_MIRROR, Noun.CAR, Noun.LICENSE_PLATE, Noun.FACE,
+    ]
+    assert "rear bumper (glimpsed, 0.8 s)" in cov.topup_text and "9 of 16 nouns" in cov.topup_text
     assert cov.odometer.asked and "odometer" in cov.topup_text
     again = panels.plan_topup(cov, TH)
     assert again.odometer.asked and again.missing == cov.missing
@@ -743,9 +851,103 @@ def test_plan_topup_orders_wheels_then_lower_bumpers_then_the_rest() -> None:
     assert full.missing == [] and full.nouns_to_rerun == [Noun.CAR, Noun.LICENSE_PLATE, Noun.FACE]
     empty = panels.plan_topup(c.Coverage(), TH)
     assert empty.missing == [] and empty.nouns_to_rerun == [Noun.CAR, Noun.LICENSE_PLATE, Noun.FACE]
-    # the latest role decides: a top-up that filmed the hood clears it
+    # a top-up that filmed everything clears the list
     cov.per_role["topup_1"] = {pid: c.PanelCoverage(state=CoverageState.FILMED) for pid in PanelId}
     assert panels.plan_topup(cov, TH).missing == []
+
+
+def test_plan_topup_reads_the_walk_and_every_topup_in_number_order() -> None:
+    pickup = {pid: c.PanelCoverage(state=CoverageState.FILMED) for pid in PanelId}
+    pickup[PanelId.RIGHT_REAR_WHEEL] = c.PanelCoverage(state=CoverageState.GLIMPSED, seconds=0.8)
+    pickup[PanelId.HOOD] = c.PanelCoverage(state=CoverageState.NOT_FILMED)
+    # a top-up re-runs only some nouns, so every other slot is not_run there and must not come back as missing
+    t2 = {pid: c.PanelCoverage(state=CoverageState.NOT_RUN) for pid in PanelId}
+    t2[PanelId.RIGHT_REAR_WHEEL] = c.PanelCoverage(state=CoverageState.GLIMPSED, seconds=1.5)
+    t10 = {pid: c.PanelCoverage(state=CoverageState.NOT_RUN) for pid in PanelId}
+    t10[PanelId.HOOD] = c.PanelCoverage(state=CoverageState.FILMED)
+    cov = panels.plan_topup(c.Coverage(per_role={"pickup": pickup, "topup_2": t2, "topup_10": t10}), TH)
+    assert cov.missing == [PanelId.RIGHT_REAR_WHEEL]
+    assert "right rear wheel (glimpsed, 1.5 s)" in cov.topup_text  # the latest role whose wheel lane ran
+    assert panels.coverage_roles(["topup_10", "pickup", "topup_2", "claim_1"]) == ["pickup", "topup_2", "topup_10"]
+    assert panels.coverage_roles(["pickup", "return", "topup_1"]) == ["return", "topup_1"]
+    roles = ["claim_1", "topup_10", "return", "topup_2", "pickup"]
+    assert sorted(roles, key=panels._role_order) == ["pickup", "return", "topup_2", "topup_10", "claim_1"]
+
+
+def test_plan_topup_is_idempotent_and_a_rebuild_matches_what_derive_wrote() -> None:
+    states = {pid: c.PanelCoverage(state=CoverageState.FILMED) for pid in PanelId}
+    states[PanelId.HOOD] = c.PanelCoverage(state=CoverageState.NOT_FILMED)
+    written = panels.plan_topup(c.Coverage(per_role={"pickup": states}), TH)  # what derive writes on a fresh run
+    assert written.topup_text.endswith("Also film the odometer once.") and written.odometer.asked
+    assert c.json_bytes(panels.plan_topup(written, TH)) == c.json_bytes(written)
+    for asked in (True, False):  # the rebuild may hand back either flag; the text depends only on filmed
+        rebuilt = panels.plan_topup(c.Coverage(per_role={"pickup": states}, odometer=c.Odometer(asked=asked), rerun_seconds=written.rerun_seconds), TH)
+        assert c.json_bytes(rebuilt) == c.json_bytes(written)
+    done = panels.plan_topup(c.Coverage(per_role={"pickup": states}, odometer=c.Odometer(asked=True, filmed=True)), TH)
+    assert "odometer" not in done.topup_text
+
+
+def test_plan_topup_keeps_a_coupes_absent_rear_door_off_the_missing_list() -> None:
+    lanes, _ids, pts = scripted_walk(coupe=True)
+    voted_panels, tracks = panels.vote_sides(tracks_for_walk("pickup", lanes, pts), -1, TH, fps=FPS)
+    cov = panels.coverage_for_role(voted_panels, tracks, [], role="pickup", fps=FPS, lane_status=_lane_status(), th=TH)
+    assert cov[PanelId.RIGHT_REAR_DOOR].state is CoverageState.NOT_SEEN
+    plan = panels.plan_topup(c.Coverage(per_role={"pickup": cov}), TH)
+    assert PanelId.RIGHT_REAR_DOOR not in plan.missing and PanelId.RIGHT_FRONT_DOOR in plan.missing
+    assert "If this car has them, also film: right rear door." in plan.topup_text
+    assert "right rear door (" not in plan.topup_text
+    # a whole side never seen stays on the list: the renter may simply have skipped it
+    states = {pid: c.PanelCoverage(state=CoverageState.FILMED) for pid in PanelId}
+    for pid in PanelId:
+        if panels._panel_side_position(pid)[0] is Side.RIGHT:
+            states[pid] = c.PanelCoverage(state=CoverageState.NOT_SEEN)
+    skipped = panels.plan_topup(c.Coverage(per_role={"pickup": states}), TH)
+    assert PanelId.RIGHT_REAR_DOOR in skipped.missing and "If this car has" not in skipped.topup_text
+
+
+def test_a_topup_track_takes_the_one_slot_it_was_asked_for_and_the_loop_converges() -> None:
+    pickup = {pid: c.PanelCoverage(state=CoverageState.FILMED) for pid in PanelId}
+    pickup[PanelId.RIGHT_REAR_WHEEL] = c.PanelCoverage(state=CoverageState.NOT_FILMED)
+    plan0 = panels.plan_topup(c.Coverage(per_role={"pickup": pickup}), TH)
+    assert plan0.missing == [PanelId.RIGHT_REAR_WHEEL]
+    assert plan0.nouns_to_rerun == [Noun.WHEEL, Noun.HEADLIGHT, Noun.TAIL_LIGHT, Noun.SIDE_MIRROR, Noun.CAR, Noun.LICENSE_PLATE, Noun.FACE]
+    wheel = _moving("topup_1", Noun.WHEEL, range(0, 60), 700.0, -6.0, w=140, y0=350, h=140)  # a close-up, no light in frame
+    wheel.track_id = "topup_1_wheel_00"
+    _, plain = panels.vote_sides([wheel], -1, TH, fps=FPS)
+    assert plain[0].panel_id is PanelId.LEFT_FRONT_WHEEL and panels.undecided(plain[0])  # the vote alone cannot tell
+    voted_panels, tracks = panels.vote_sides([wheel], -1, TH, fps=FPS, expected_by_role={"topup_1": plan0.missing})
+    t = tracks[0]
+    assert t.panel_id is PanelId.RIGHT_REAR_WHEEL and t.side is Side.RIGHT and t.position is Position.REAR and not panels.undecided(t)
+    assert not next(p for p in voted_panels if p.panel_id is PanelId.RIGHT_REAR_WHEEL).side_uncertain
+    _, again = panels.vote_sides(tracks, -1, TH, fps=FPS, frozen_roles={"topup_1"})  # a later derive keeps the vote
+    assert again[0].panel_id is PanelId.RIGHT_REAR_WHEEL
+    # two undecided wheels on the one asked slot could be two different wheels: neither takes it
+    other = _moving("topup_1", Noun.WHEEL, range(0, 60), 300.0, -6.0, w=140, y0=350, h=140)
+    other.track_id = "topup_1_wheel_01"
+    _, two = panels.vote_sides([wheel, other], -1, TH, fps=FPS, expected_by_role={"topup_1": plan0.missing})
+    assert all(panels.undecided(t) and t.panel_id is PanelId.RIGHT_REAR_WHEEL for t in two)  # filed under the asked slot
+    status = {Noun.WHEEL: LaneStatus.COMPLETED, Noun.CAR: LaneStatus.COMPLETED, Noun.LICENSE_PLATE: LaneStatus.COMPLETED, Noun.FACE: LaneStatus.COMPLETED}
+    kf = _keyframe("topup_1", PanelId.RIGHT_REAR_WHEEL, t.track_id, 30, kf_id="topup_1_right_rear_wheel_kf1")
+    top = panels.coverage_for_role(voted_panels, tracks, [kf], role="topup_1", fps=FPS, lane_status=status, th=TH)
+    assert top[PanelId.RIGHT_REAR_WHEEL].state is CoverageState.FILMED
+    assert top[PanelId.HOOD].state is CoverageState.NOT_RUN  # the hood lane did not run on the top-up clip
+    plan1 = panels.plan_topup(c.Coverage(per_role={"pickup": pickup, "topup_1": top}, odometer=plan0.odometer), TH)
+    assert plan1.missing == [] and plan1.topup_text.startswith("Every panel is filmed in the pickup walk.")
+
+
+def test_expected_slots_are_the_missing_list_of_the_walk_before_a_topup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, voted) -> None:
+    monkeypatch.setattr(paths, "RUNS_DIR", tmp_path / "runs")
+    run_id = "01TESTEXPECTED"
+    for noun in LANE_NOUNS:
+        c.write_json(paths.lane_summary_path(run_id, "pickup", noun), _lane_record(noun, LaneStatus.COMPLETED))
+    _panels, tracks, _direction = voted
+    kfs = [
+        _keyframe("pickup", t.panel_id, t.track_id, t.per_frame[len(t.per_frame) // 2].frame, kf_id=f"{t.track_id}_kf1")
+        for t in tracks
+        if t.panel_id is not None and t.panel_id is not PanelId.RIGHT_REAR_WHEEL
+    ]
+    assert panels._expected_slots(run_id, "topup_1", tracks, kfs, FPS, TH) == [PanelId.RIGHT_REAR_WHEEL]
+    assert panels._expected_slots(run_id, "return", tracks, kfs, FPS, TH) == []
 
 
 def test_panel_timeline_prints_windows_and_merged_fragment_counts(pickup_walk, voted) -> None:
@@ -770,19 +972,19 @@ def test_panel_timeline_prints_windows_and_merged_fragment_counts(pickup_walk, v
 # ----------------------------------------------------------------------------------------------------------------
 
 
+def _lane_record(noun: Noun, status: LaneStatus) -> c.LaneRecord:
+    return c.LaneRecord(lane_id=c.noun_slug(noun), role="pickup", noun=noun, prompt_text=noun.value, media_size=[1280, 720], status=status, frames_sent=141)
+
+
 def _fixture_lanes() -> dict[str, tuple[c.LaneRecord, list[c.IndexFrame]]]:
     car_frames, car_out = sam_wire.index_from_events(sam_wire.read_events(BOX_FIXTURE), media="video")
     door_frames, door_out = sam_wire.index_from_events(sam_wire.read_events(TEXT_FIXTURE), media="video")
     assert car_out.status is LaneStatus.COMPLETED and door_out.status is LaneStatus.COMPLETED
-
-    def record(noun: Noun, status: LaneStatus) -> c.LaneRecord:
-        return c.LaneRecord(lane_id=c.noun_slug(noun), role="pickup", noun=noun, prompt_text=noun.value, media_size=[1280, 720], status=status, frames_sent=141)
-
     return {
-        "car": (record(Noun.CAR, LaneStatus.COMPLETED), car_frames),
-        "car_door": (record(Noun.CAR_DOOR, LaneStatus.COMPLETED), door_frames),
-        "fender": (record(Noun.FENDER, LaneStatus.ZERO_MATCHES), []),
-        "wheel": (record(Noun.WHEEL, LaneStatus.FAILED), []),
+        "car": (_lane_record(Noun.CAR, LaneStatus.COMPLETED), car_frames),
+        "car_door": (_lane_record(Noun.CAR_DOOR, LaneStatus.COMPLETED), door_frames),
+        "fender": (_lane_record(Noun.FENDER, LaneStatus.ZERO_MATCHES), []),
+        "wheel": (_lane_record(Noun.WHEEL, LaneStatus.FAILED), []),
     }
 
 
@@ -827,19 +1029,31 @@ def test_fixture_replay_builds_one_track_with_a_constant_c(fixture_th) -> None:
     }
 
 
-async def test_derive_on_the_fixture_pair_writes_the_four_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
+def _fixture_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run_id: str, role: str = "pickup") -> tuple[dict[str, Any], list[float]]:
+    """A run dir with the clip as the original and the two 10/26 lanes on disk; the lanes and the pts map."""
     monkeypatch.setattr(paths, "RUNS_DIR", tmp_path / "runs")
-    run_id, role = "01TESTPANELS", "pickup"
     shutil.copy(CLIP, paths.quarantine_original(run_id, role))
     shutil.copy(BOX_FIXTURE, paths.lane_events_path(run_id, role, Noun.CAR))
     shutil.copy(TEXT_FIXTURE, paths.lane_events_path(run_id, role, Noun.CAR_DOOR))
-    lanes = _fixture_lanes()
     pts = video.pts_map(CLIP)
     assert len(pts) == 141
+    return _fixture_lanes(), pts
+
+
+async def _passthrough_blur(run_id_: str, role_: str, rgb: np.ndarray, *, f_proxy: int, tracks: list[c.PanelTrack], fps: float, sizes, keep_plate: bool, th) -> tuple[np.ndarray, c.BlurRecord]:
+    assert not keep_plate
+    return rgb, c.BlurRecord(request_ids=[f"img_{f_proxy}"])
+
+
+async def test_derive_on_the_fixture_pair_writes_the_four_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
+    run_id, role = "01TESTPANELS", "pickup"
+    lanes, pts = _fixture_run(tmp_path, monkeypatch, run_id, role)
+    # the renter chose keep_plate: stored crops and frames must still get a blurred plate
+    c.write_json(paths.run_json(run_id), c.RunManifest(run_id=run_id, created_at="2026-10-27T15:04:05Z", keep_plate=True))
     blurred_calls: list[int] = []
 
     async def fake_blur(run_id_: str, role_: str, rgb: np.ndarray, *, f_proxy: int, tracks: list[c.PanelTrack], fps: float, sizes, keep_plate: bool, th) -> tuple[np.ndarray, c.BlurRecord]:
-        assert run_id_ == run_id and role_ == role and rgb.shape == (720, 1280, 3) and not keep_plate
+        assert run_id_ == run_id and role_ == role and rgb.shape == (720, 1280, 3) and keep_plate is False
         assert sizes == ((1280, 720), (1280, 720)) and fps == 24.0
         blurred_calls.append(f_proxy)
         return rgb, c.BlurRecord(request_ids=[f"img_{f_proxy}"])
@@ -851,7 +1065,8 @@ async def test_derive_on_the_fixture_pair_writes_the_four_files(tmp_path: Path, 
         decoded, cpu_s = pool.stats()
     assert decoded >= 9 and cpu_s >= 0.0
     door = next(t for t in tracks if t.noun is Noun.CAR_DOOR)
-    assert door.panel_id is PanelId.LEFT_FRONT_DOOR  # a lone door with no mirror, anchor or wheel: side uncertain
+    assert door.panel_id is PanelId.LEFT_FRONT_DOOR  # a lone door with no mirror, anchor or wheel: a placeholder slot
+    assert door.side is Side.NONE and door.position is Position.NONE
     assert next(p for p in voted_panels if p.panel_id is PanelId.LEFT_FRONT_DOOR).side_uncertain
     assert sum(1 for r in door.per_frame if r.mask_decoded) == 9
     assert all(r.area_frac is not None and r.complete is not None for r in door.per_frame if r.mask_decoded)
@@ -871,20 +1086,23 @@ async def test_derive_on_the_fixture_pair_writes_the_four_files(tmp_path: Path, 
     assert best.front_sign is None and best.blur.request_ids == [f"img_{best.f_proxy}"]
     assert best.window_subtracted is False
     assert paths.keyframe_frame_path(run_id, role, best.kf_id).is_file()
-    assert coverage[PanelId.LEFT_FRONT_DOOR].state is CoverageState.GLIMPSED  # the ball is far under 3% of the frame
-    assert coverage[PanelId.LEFT_FRONT_DOOR].state_basis is StateBasis.C and coverage[PanelId.LEFT_FRONT_DOOR].best_kf == best.kf_id
-    assert coverage[PanelId.LEFT_FRONT_DOOR].seconds == pytest.approx(134 / 24.0)
+    door_cov = coverage[PanelId.LEFT_FRONT_DOOR]
+    assert door_cov.state is CoverageState.GLIMPSED and "side uncertain" in door_cov.reason  # the ball is far under 3%
+    assert door_cov.state_basis is StateBasis.C and door_cov.best_kf == best.kf_id
+    assert door_cov.seconds == pytest.approx(134 / 24.0)
     for pid in (PanelId.LEFT_FRONT_FENDER, PanelId.RIGHT_REAR_FENDER):
         assert coverage[pid].state is CoverageState.NOT_FILMED  # a zero-match lane
     assert coverage[PanelId.LEFT_FRONT_WHEEL].state is CoverageState.NOT_RUN  # a failed lane
     assert coverage[PanelId.HOOD].state is CoverageState.NOT_RUN  # a lane that never ran
-    assert coverage[PanelId.RIGHT_FRONT_DOOR].state is CoverageState.NOT_SEEN  # the door noun was seen, this slot never
-    # the four files parse back through the contracts and rebuild byte for byte
+    other_door = coverage[PanelId.RIGHT_FRONT_DOOR]  # the undecided door may be any door: never not_seen or not_filmed
+    assert other_door.state is CoverageState.GLIMPSED and other_door.best_kf == best.kf_id
+    # the four files parse back through the contracts, sorted by role and id
     read_tracks = c.read_json_list(paths.tracks_json(run_id), c.PanelTrack)
     read_panels = c.read_json_list(paths.panels_json(run_id), c.Panel)
     read_kfs = c.read_json_list(paths.keyframes_json(run_id), c.Keyframe)
     read_cov = c.read_json(paths.coverage_json(run_id), c.Coverage)
     assert c.canonical_json(read_tracks) == c.canonical_json(tracks)
+    assert [t.track_id for t in read_tracks] == sorted(t.track_id for t in read_tracks)
     assert c.canonical_json(read_panels) == c.canonical_json(voted_panels)
     assert c.canonical_json(read_kfs) == c.canonical_json(keyframes)
     assert read_cov.per_role["pickup"][PanelId.LEFT_FRONT_DOOR].state is CoverageState.GLIMPSED
@@ -893,9 +1111,172 @@ async def test_derive_on_the_fixture_pair_writes_the_four_files(tmp_path: Path, 
     door_panel = next(p for p in read_panels if p.panel_id is PanelId.LEFT_FRONT_DOOR)
     assert door_panel.per_role["pickup"].keyframe_ids == [k.kf_id for k in kfs]
     assert door_panel.per_role["pickup"].state is CoverageState.GLIMPSED
-    # a second derive of the same role rebuilds the same tracks and panels
+    # a second derive of the same role (a resume or the stage retry) rewrites all four files byte for byte
+    before = {p: p.read_bytes() for p in (paths.tracks_json(run_id), paths.panels_json(run_id), paths.keyframes_json(run_id), paths.coverage_json(run_id))}
     with sam_wire.DecodePool(1) as pool:
-        tracks2, panels2, _k2, _c2 = await panels.derive(
-            run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=pool, blur_keyframe=fake_blur, th=fixture_th
+        await panels.derive(run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=pool, blur_keyframe=fake_blur, th=fixture_th)
+    assert {p: p.read_bytes() for p in before} == before
+
+
+async def test_derive_keeps_the_event_loop_free_and_reads_each_candidate_frame_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
+    run_id, role = "01TESTLOOP", "pickup"
+    lanes, pts = _fixture_run(tmp_path, monkeypatch, run_id, role)
+    requested: list[float] = []
+    singles: list[float] = []
+    real_iter, real_read = video.iter_frames_at, video.read_frame_at
+
+    def counting_iter(path: Path, times: list[float]):
+        requested.extend(times)
+        yield from real_iter(path, times)
+
+    def counting_read(path: Path, t: float) -> np.ndarray:
+        singles.append(t)
+        return real_read(path, t)
+
+    monkeypatch.setattr(video, "iter_frames_at", counting_iter)
+    monkeypatch.setattr(video, "read_frame_at", counting_read)
+    lags: list[float] = []
+
+    async def ticker() -> None:
+        last = time.perf_counter()
+        while True:
+            await asyncio.sleep(0.005)
+            now = time.perf_counter()
+            lags.append(now - last - 0.005)
+            last = now
+
+    with sam_wire.DecodePool(1) as pool:
+        task = asyncio.create_task(ticker())
+        await asyncio.sleep(0.02)
+        _tracks, _panels, keyframes, _cov = await panels.derive(
+            run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=pool, blur_keyframe=_passthrough_blur, th=fixture_th
         )
-    assert c.canonical_json(tracks2) == c.canonical_json(tracks) and c.canonical_json(panels2) == c.canonical_json(voted_panels)
+        task.cancel()
+    assert keyframes
+    assert len(requested) == len(set(requested)) == 9 and singles == []  # each candidate read once, reused for its crop
+    assert lags and max(lags) < 0.3, max(lags)
+
+
+async def test_derive_decodes_each_lane_once_and_keeps_two_keyframes_over_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
+    run_id, role = "01TESTBUDGET", "pickup"
+    lanes, pts = _fixture_run(tmp_path, monkeypatch, run_id, role)
+    shutil.copy(TEXT_FIXTURE, paths.lane_events_path(run_id, role, Noun.BUMPER))  # a second panel on the same frames
+    lanes["bumper"] = (_lane_record(Noun.BUMPER, LaneStatus.COMPLETED), lanes["car_door"][1])
+    th = copy.deepcopy(fixture_th)
+    th["panels"]["keyframe_decode_budget_s_per_video"] = -1.0  # always over budget
+    calls: list[tuple[str, int]] = []
+
+    class CountingPool:
+        def __init__(self, pool: sam_wire.DecodePool) -> None:
+            self.pool = pool
+
+        def decode(self, lane_path: Path, refs: list[c.MaskRef]) -> list[np.ndarray]:
+            calls.append((Path(lane_path).name, len(refs)))
+            return self.pool.decode(lane_path, refs)
+
+        def stats(self) -> tuple[int, float]:
+            return self.pool.stats()
+
+    with sam_wire.DecodePool(1) as pool:
+        _tracks, _panels, keyframes, _cov = await panels.derive(
+            run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=CountingPool(pool), blur_keyframe=_passthrough_blur, th=th
+        )
+    assert sorted(name for name, _ in calls) == ["bumper.ndjson", "car.ndjson", "car_door.ndjson"]  # one call per lane
+    assert dict(calls)["car.ndjson"] == 9  # the car masks the two panels share are decoded once
+    by_panel: dict[PanelId, int] = {}
+    for k in keyframes:
+        by_panel[k.panel_id] = by_panel.get(k.panel_id, 0) + 1
+    assert set(by_panel) == {PanelId.LEFT_FRONT_DOOR, PanelId.FRONT_BUMPER} and all(1 <= n <= 2 for n in by_panel.values())
+
+
+async def test_a_failing_blur_still_leaves_the_plate_and_face_tracks_on_disk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
+    run_id, role = "01TESTFAILCLOSED", "pickup"
+    lanes, pts = _fixture_run(tmp_path, monkeypatch, run_id, role)
+    lanes["face"] = (
+        _lane_record(Noun.FACE, LaneStatus.COMPLETED),
+        [c.IndexFrame(frame=f, objects=[c.IndexObject(id="0", box=[10, 10, 50, 60], c=0.8)]) for f in range(30, 33)],
+    )
+
+    async def broken_blur(*args: Any, **kwargs: Any) -> tuple[np.ndarray, c.BlurRecord]:
+        raise RuntimeError("the image check request failed")
+
+    with sam_wire.DecodePool(1) as pool:
+        with pytest.raises(panels.KeyframeError, match="image check"):
+            await panels.derive(run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=pool, blur_keyframe=broken_blur, th=fixture_th)
+    on_disk = c.read_json_list(paths.tracks_json(run_id), c.PanelTrack)
+    assert [[r.frame for r in t.per_frame] for t in on_disk if t.noun is Noun.FACE] == [[30, 31, 32]]
+    assert not paths.keyframes_json(run_id).is_file() and not paths.coverage_json(run_id).is_file()
+    assert not list(paths.run_dir(run_id).glob("**/*.jpg"))  # nothing unblurred was written
+
+
+async def test_one_failed_blur_hands_its_slot_to_the_next_candidate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
+    run_id, role = "01TESTFLAKY", "pickup"
+    lanes, pts = _fixture_run(tmp_path, monkeypatch, run_id, role)
+    calls: list[int] = []
+
+    async def flaky_blur(run_id_: str, role_: str, rgb: np.ndarray, **kwargs: Any) -> tuple[np.ndarray, c.BlurRecord]:
+        calls.append(kwargs["f_proxy"])
+        if len(calls) == 1:
+            raise RuntimeError("one image check timed out")
+        return rgb, c.BlurRecord()
+
+    with sam_wire.DecodePool(1) as pool:
+        _tracks, _panels, keyframes, coverage = await panels.derive(
+            run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=pool, blur_keyframe=flaky_blur, th=fixture_th
+        )
+    frames = [k.f_proxy for k in keyframes]
+    assert keyframes and calls[0] not in frames and frames == calls[1:]
+    assert keyframes[0].kf_id == "pickup_left_front_door_kf1" and coverage[PanelId.LEFT_FRONT_DOOR].best_kf is not None
+
+
+async def test_derive_hands_a_topup_its_request_and_freezes_the_walk_it_tops_up(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(paths, "RUNS_DIR", tmp_path / "runs")
+    run_id = "01TESTTOPUP"
+
+    async def filmed_keyframes(run_id_: str, role: str, panels_: list[c.Panel], role_tracks: list[c.PanelTrack], *rest: Any) -> list[c.Keyframe]:
+        return [_keyframe(role, t.panel_id, t.track_id, t.per_frame[0].frame, kf_id=f"{t.track_id}_kf1") for t in role_tracks if t.panel_id is not None]
+
+    monkeypatch.setattr(panels, "_derive_keyframes", filmed_keyframes)  # this test is about the vote wiring, not masks
+    walk, ids, pts = scripted_walk()
+    missing_id = ids[(Noun.WHEEL, "right_rear")]
+    walk[Noun.WHEEL] = [c.IndexFrame(frame=fr.frame, objects=[o for o in fr.objects if o.id != missing_id]) for fr in walk[Noun.WHEEL]]
+    walk[Noun.WHEEL] = [fr for fr in walk[Noun.WHEEL] if fr.objects]
+    for noun in LANE_NOUNS:
+        c.write_json(paths.lane_summary_path(run_id, "pickup", noun), _lane_record(noun, LaneStatus.COMPLETED))
+    lanes = {c.noun_slug(n): (_lane_record(n, LaneStatus.COMPLETED), walk[n]) for n in LANE_NOUNS}
+    common = dict(pts=pts, media_size=(W, H), fps=FPS, decode=None, blur_keyframe=_passthrough_blur, th=TH)
+    pickup_tracks, _p, _k, _cov = await panels.derive(run_id, "pickup", lanes=lanes, **common)
+    assert c.read_json(paths.coverage_json(run_id), c.Coverage).missing == [PanelId.RIGHT_REAR_WHEEL]
+    # the top-up clip: one wheel close-up with no light in frame, and only the nouns the plan re-runs
+    frames = range(0, 60)
+    wheel = [c.IndexFrame(frame=f, objects=[c.IndexObject(id="0", box=[700 - 6 * f, 350, 840 - 6 * f, 490], c=0.8)]) for f in frames]
+    car = [c.IndexFrame(frame=f, objects=[c.IndexObject(id="0", box=[0, 100, W, H], c=0.9)]) for f in frames]
+    top_lanes = {
+        "wheel": (_lane_record(Noun.WHEEL, LaneStatus.COMPLETED), wheel),
+        "car": (_lane_record(Noun.CAR, LaneStatus.COMPLETED), car),
+        "license_plate": (_lane_record(Noun.LICENSE_PLATE, LaneStatus.ZERO_MATCHES), []),
+        "face": (_lane_record(Noun.FACE, LaneStatus.ZERO_MATCHES), []),
+    }
+    tracks, _p, _k, top_cov = await panels.derive(run_id, "topup_1", lanes=top_lanes, **{**common, "pts": [f / FPS for f in frames]})
+    top_wheel = next(t for t in tracks if t.role == "topup_1" and t.noun is Noun.WHEEL)
+    assert top_wheel.panel_id is PanelId.RIGHT_REAR_WHEEL and not panels.undecided(top_wheel)
+    assert top_cov[PanelId.RIGHT_REAR_WHEEL].state is CoverageState.FILMED and top_cov[PanelId.HOOD].state is CoverageState.NOT_RUN
+    final = c.read_json(paths.coverage_json(run_id), c.Coverage)
+    assert final.missing == [] and set(final.per_role) == {"pickup", "topup_1"}
+    frozen = {t.track_id: t.panel_id for t in tracks if t.role == "pickup"}
+    assert frozen == {t.track_id: t.panel_id for t in pickup_tracks}
+
+
+async def test_a_crash_in_the_panel_path_still_leaves_the_face_track_on_disk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
+    run_id, role = "01TESTCRASH", "pickup"
+    lanes, pts = _fixture_run(tmp_path, monkeypatch, run_id, role)
+    lanes["face"] = (_lane_record(Noun.FACE, LaneStatus.COMPLETED), [c.IndexFrame(frame=7, objects=[c.IndexObject(id="0", box=[10, 10, 50, 60])])])
+
+    def broken(*args: Any, **kwargs: Any) -> Any:
+        raise ValueError("a bug in the panel path")
+
+    monkeypatch.setattr(panels, "_role_panel_tracks", broken)
+    with pytest.raises(ValueError):
+        await panels.derive(run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=None, blur_keyframe=_passthrough_blur, th=fixture_th)
+    on_disk = c.read_json_list(paths.tracks_json(run_id), c.PanelTrack)
+    assert [(t.noun, [r.frame for r in t.per_frame]) for t in on_disk] == [(Noun.FACE, [7])]

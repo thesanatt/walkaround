@@ -5,15 +5,17 @@ Mapping chain: grid (0..1000 over the sent image) -> sent pixels (spark_client.g
 (geometry.sent_to_crop) -> source pixels (geometry.crop_to_src) -> whitened units (geometry.whiten with the
 keyframe's own moments). Caps set here are booleans for match.verdict(): K2 single frame, K3 tiny, K4 uncertain
 type, K8 count mode only, K9 droplets or spray, K12 low confidence. No verdict is decided here and no mark of the
-other walk is ever read; the only model calls are through spark_client, which writes the ledger rows.
+other walk is ever read; the only model calls are through spark_client, which writes the ledger rows. Each role's
+view spread is kept in derived/sigma_view.json and the pooled sigma_view goes to calibration.json.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 import cv2
 import numpy as np
@@ -38,6 +40,7 @@ from .contracts import (
     SizeClass,
     SparkMark,
     SparkMarksAnswer,
+    SparkPurpose,
     SparkRequestRecord,
     WhitenedMark,
     read_json,
@@ -50,6 +53,9 @@ if TYPE_CHECKING:
 
 Box4 = list[float]
 Point2 = list[float]
+Pos = tuple[float, float]
+
+PSEUDO_RAISE_TOL = 1e-5  # above the 6-place rounding of write_json: a smaller tau_pre gap is no pseudo-pair raise
 
 OUTLINE_RGB = (255, 0, 255)  # magenta: not a car paint colour
 
@@ -183,12 +189,15 @@ def _size_units_moment(bbox_crop: Box4 | None, kf: Keyframe) -> float | None:
 
 
 def whiten_marks(marks: list[Mark], kf: Keyframe, *, th: dict, mask: np.ndarray | None = None) -> tuple[list[Mark], dict[str, WhitenedMark]]:
-    """Fill w, r and size_units with the keyframe's own moments (wheel coordinates when a wheel mask is given) and
-    set K3 by units. Marks whose keyframe has no moments or front_sign come back unchanged with no whitened row."""
-    if kf.moments is None or kf.front_sign is None:
+    """Fill w, r and size_units with the keyframe's own moments (wheel coordinates on a wheel panel) and set K3 by
+    units. Marks whose keyframe has no moments or front_sign come back unchanged with no whitened row, and so do
+    the marks of a wheel keyframe without its mask: match reads every wheel w as (radius, angle), so a wheel mark
+    is never placed in the moment frame."""
+    wheel = kf.panel_id in WHEEL_PANELS
+    if kf.moments is None or kf.front_sign is None or (wheel and (mask is None or not np.asarray(mask).any())):
         return list(marks), {}
     small_units = float(th["dedup"]["small_mark_units"])
-    wheel = kf.panel_id in WHEEL_PANELS and mask is not None
+    radius_px = geometry.inscribed_radius(mask) if wheel else 0.0
     out: list[Mark] = []
     whitened: dict[str, WhitenedMark] = {}
     for m in marks:
@@ -198,7 +207,7 @@ def whiten_marks(marks: list[Mark], kf: Keyframe, *, th: dict, mask: np.ndarray 
         if wheel:
             u, v = geometry.wheel_coords(m.point_crop, mask)
             r = u
-            size_units = None if m.bbox_crop is None else _long_side(m.bbox_crop) / geometry.inscribed_radius(mask)
+            size_units = None if m.bbox_crop is None else _long_side(m.bbox_crop) / radius_px
             frame = FrameUsed.WHEEL
         else:
             u, v = geometry.whiten((m.point_crop[0], m.point_crop[1]), kf.moments, kf.front_sign)
@@ -230,9 +239,11 @@ def whitened_from_marks(marks: list[Mark]) -> dict[str, WhitenedMark]:
 
 def count_union(box_marks: list[Mark], count: "CountResult", result: Any, kf: Keyframe, crop: Crop, whitened: dict[str, WhitenedMark], *, th: dict) -> list[Mark]:
     """Count points farther than count_mode_new_point_min_units from every box mark become spark_count marks with
-    K8 (type unsure and confidence low, so K4 and K12 follow). Positions are compared in the moment frame."""
+    K8 (type unsure and confidence low, so K4 and K12 follow). Positions are compared in the moment frame; on a
+    wheel panel the new marks carry no w, so whiten_marks places them in the wheel frame."""
     if kf.moments is None or kf.front_sign is None:
         return []
+    wheel = kf.panel_id in WHEEL_PANELS
     min_units = float(th["dedup"]["count_mode_new_point_min_units"])
     existing: list[tuple[float, float]] = []
     for m in box_marks:
@@ -261,8 +272,8 @@ def count_union(box_marks: list[Mark], count: "CountResult", result: Any, kf: Ke
                 grid_point=GridPoint(x=gp.x, y=gp.y),
                 point_crop=point_crop,
                 point_src=geometry.crop_to_src(point_crop, crop),
-                w=[u, v],
-                r=geometry.radius((u, v)),
+                w=None if wheel else [u, v],
+                r=None if wheel else geometry.radius((u, v)),
                 spark_request_id=_request_id(count),
                 caps=["K4", "K8", "K12"],
             )
@@ -273,7 +284,7 @@ def count_union(box_marks: list[Mark], count: "CountResult", result: Any, kf: Ke
 # Within-walk dedup ------------------------------------------------------------------------------------------------
 
 
-def _pos(m: Mark, whitened: dict[str, WhitenedMark]) -> tuple[float, float] | None:
+def _pos(m: Mark, whitened: dict[str, WhitenedMark]) -> Pos | None:
     wm = whitened.get(m.mark_id)
     if wm is not None:
         return wm.u, wm.v
@@ -282,15 +293,28 @@ def _pos(m: Mark, whitened: dict[str, WhitenedMark]) -> tuple[float, float] | No
     return None
 
 
-def _dist(a: tuple[float, float], b: tuple[float, float]) -> float:
+def _dist(a: Pos, b: Pos) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
+def _plain_offset(p: Pos, ref: Pos) -> tuple[float, float]:
+    return p[0] - ref[0], p[1] - ref[1]
+
+
+def _metric(panel_id: PanelId) -> Callable[[Pos, Pos], float]:
+    """The panel's distance: plain on (u, v), the wrapped polar distance of match on a wheel's (radius, angle)."""
+    return geometry.wheel_distance if panel_id in WHEEL_PANELS else _dist
+
+
+def _offset(panel_id: PanelId) -> Callable[[Pos, Pos], tuple[float, float]]:
+    return geometry.wheel_offset if panel_id in WHEEL_PANELS else _plain_offset
 
 
 def _kf_quality(kf: Keyframe | None) -> float:
     return kf.score.total if kf is not None else 0.0
 
 
-def _cluster_across_keyframes(marks: list[Mark], pos: dict[str, tuple[float, float]], radius_units: float) -> list[list[Mark]]:
+def _cluster_across_keyframes(marks: list[Mark], pos: dict[str, Pos], radius_units: float, dist: Callable[[Pos, Pos], float] = _dist) -> list[list[Mark]]:
     """Single linkage under radius_units with at most one mark per keyframe in a cluster; input order kept."""
     parent = list(range(len(marks)))
 
@@ -306,7 +330,7 @@ def _cluster_across_keyframes(marks: list[Mark], pos: dict[str, tuple[float, flo
         for j in range(i + 1, len(marks)):
             if marks[i].kf_id == marks[j].kf_id:
                 continue
-            d = _dist(pos[marks[i].mark_id], pos[marks[j].mark_id])
+            d = dist(pos[marks[i].mark_id], pos[marks[j].mark_id])
             if d <= radius_units:
                 pairs.append((d, i, j))
     for _, i, j in sorted(pairs):
@@ -321,12 +345,21 @@ def _cluster_across_keyframes(marks: list[Mark], pos: dict[str, tuple[float, flo
     return [groups[k] for k in sorted(groups, key=lambda k: min(marks.index(m) for m in groups[k]))]
 
 
-def _medoid(cluster: list[Mark], pos: dict[str, tuple[float, float]], kf_by_id: dict[str, Keyframe]) -> Mark:
+def _medoid(cluster: list[Mark], pos: dict[str, Pos], kf_by_id: dict[str, Keyframe], dist: Callable[[Pos, Pos], float] = _dist) -> Mark:
     def key(m: Mark) -> tuple[float, float, str]:
-        total = sum(_dist(pos[m.mark_id], pos[o.mark_id]) for o in cluster if o is not m)
+        total = sum(dist(pos[m.mark_id], pos[o.mark_id]) for o in cluster if o is not m)
         return (total, -_kf_quality(kf_by_id.get(m.kf_id)), m.mark_id)
 
     return min(cluster, key=key)
+
+
+def _spread(cluster: list[Mark], medoid: Mark, pos: dict[str, Pos], offset: Callable[[Pos, Pos], tuple[float, float]]) -> tuple[float, int]:
+    """(sum of squared distances to the cluster mean, k - 1). Taken about the mean, not the medoid: the medoid is
+    one of the noisy views, so the spread about it reads about 1.4 x the per-view sigma with two views and 1.15 x
+    with three, and 5.10's 2.5 sqrt(2) factor assumes the per-view sigma."""
+    offsets = np.array([offset(pos[m.mark_id], pos[medoid.mark_id]) for m in cluster], dtype=np.float64)
+    centred = offsets - offsets.mean(axis=0)
+    return float((centred**2).sum()), len(cluster) - 1
 
 
 def _keyframe_complete_and_sharp(kf: Keyframe, th: dict) -> bool:
@@ -337,19 +370,35 @@ def _keyframe_complete_and_sharp(kf: Keyframe, th: dict) -> bool:
     )
 
 
-def _axis(m: Mark, kf: Keyframe) -> tuple[np.ndarray, float, float] | None:
-    """(unit direction of the bbox long axis in whitened coordinates, half length, aspect) or None."""
-    if m.bbox_crop is None or kf.moments is None or kf.front_sign is None:
+def _units_map(kf: Keyframe, masks: dict[str, np.ndarray] | None) -> tuple[np.ndarray, float | None] | None:
+    """(2x2 map from crop pixels to panel units, the wheel's inscribed radius in px or None) for the collinear
+    rule: the whitening matrix on a moment-frame panel, 1 / inscribed radius on a wheel (the unit of wheel
+    size_units). None when the frame is not available (no moments, or a wheel without its mask)."""
+    if kf.panel_id in WHEEL_PANELS:
+        mask = (masks or {}).get(kf.kf_id)
+        if mask is None or not np.asarray(mask).any():
+            return None
+        radius_px = geometry.inscribed_radius(mask)
+        return np.eye(2) / radius_px, radius_px
+    if kf.moments is None or kf.front_sign is None:
         return None
-    w = geometry.whitening_matrix(kf.moments, kf.front_sign)
-    e1 = w @ np.array([float(m.bbox_crop[2]) - float(m.bbox_crop[0]), 0.0])
-    e2 = w @ np.array([0.0, float(m.bbox_crop[3]) - float(m.bbox_crop[1])])
+    return geometry.whitening_matrix(kf.moments, kf.front_sign), None
+
+
+def _axis(m: Mark, lin: np.ndarray) -> tuple[np.ndarray, np.ndarray, float, float] | None:
+    """(bbox centre, unit direction of the bbox long axis, half length, aspect) in panel units, or None."""
+    if m.bbox_crop is None:
+        return None
+    x1, y1, x2, y2 = (float(v) for v in m.bbox_crop)
+    e1 = lin @ np.array([x2 - x1, 0.0])
+    e2 = lin @ np.array([0.0, y2 - y1])
     n1, n2 = float(np.linalg.norm(e1)), float(np.linalg.norm(e2))
     long_, short = (e1, n2) if n1 >= n2 else (e2, n1)
     length = max(n1, n2)
     if length <= 0.0:
         return None
-    return long_ / length, length / 2.0, (length / short if short > 0 else math.inf)
+    centre = lin @ np.array([(x1 + x2) / 2.0, (y1 + y2) / 2.0])
+    return centre, long_ / length, length / 2.0, (length / short if short > 0 else math.inf)
 
 
 def _segment_distance(p0: np.ndarray, p1: np.ndarray, q0: np.ndarray, q1: np.ndarray) -> float:
@@ -371,17 +420,27 @@ def _segment_distance(p0: np.ndarray, p1: np.ndarray, q0: np.ndarray, q1: np.nda
     return min(point_seg(p0, q0, q1), point_seg(p1, q0, q1), point_seg(q0, p0, p1), point_seg(q1, p0, p1))
 
 
-def _merge_collinear_pair(a: Mark, b: Mark, kf: Keyframe, th: dict) -> Mark:
-    """One mark from two pieces of the same keyframe: the union bbox, re-whitened with the keyframe's moments."""
+def _merge_collinear_pair(a: Mark, b: Mark, kf: Keyframe, th: dict, *, mask: np.ndarray | None = None, radius_px: float | None = None) -> Mark:
+    """One mark from two pieces of the same keyframe: the union bbox, placed again in the panel's own frame (wheel
+    coordinates when the wheel mask and its inscribed radius are given, else the keyframe's moments)."""
     bbox = [min(a.bbox_crop[0], b.bbox_crop[0]), min(a.bbox_crop[1], b.bbox_crop[1]), max(a.bbox_crop[2], b.bbox_crop[2]), max(a.bbox_crop[3], b.bbox_crop[3])]
     point = [(bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0]
     crop = kf.crop
     bbox_src = geometry.box_crop_to_src(bbox, crop) if crop is not None else None
     point_src = geometry.crop_to_src(point, crop) if crop is not None else None
-    u, v = geometry.whiten((point[0], point[1]), kf.moments, kf.front_sign)
+    if mask is not None and radius_px:
+        u, v = geometry.wheel_coords(point, mask)
+        r = u
+        size_units: float | None = _long_side(bbox) / radius_px
+    else:
+        u, v = geometry.whiten((point[0], point[1]), kf.moments, kf.front_sign)
+        r = geometry.radius((u, v))
+        size_units = _size_units_moment(bbox, kf)
     keep, other = (a, b) if (a.size_units or 0.0) >= (b.size_units or 0.0) else (b, a)
     size_px = _long_side(bbox_src) if bbox_src is not None else None
-    merged = keep.model_copy(
+    tiny = (size_units is not None and size_units < float(th["dedup"]["small_mark_units"])) or (size_px is not None and size_px < float(th["dedup"]["small_mark_px"]))
+    caps = _with_cap(sorted({*keep.caps, *other.caps} - {"K3"}), "K3", tiny)
+    return keep.model_copy(
         update={
             "bbox_crop": bbox,
             "point_crop": point,
@@ -390,22 +449,24 @@ def _merge_collinear_pair(a: Mark, b: Mark, kf: Keyframe, th: dict) -> Mark:
             "grid_point": None,
             "grid_bbox": None,
             "w": [u, v],
-            "r": geometry.radius((u, v)),
+            "r": r,
+            "size_units": size_units,
             "size_px_src": size_px,
             "merged_from": sorted({*keep.merged_from, *other.merged_from, other.mark_id}),
-            "caps": sorted({*keep.caps, *other.caps} - {"K3"}),
+            "caps": caps,
+            "single_frame": "K2" in caps,
         }
     )
-    size_units = _size_units_moment(bbox, kf)
-    tiny = (size_units is not None and size_units < float(th["dedup"]["small_mark_units"])) or (size_px is not None and size_px < float(th["dedup"]["small_mark_px"]))
-    return merged.model_copy(update={"size_units": size_units, "caps": _with_cap(merged.caps, "K3", tiny)})
 
 
-def collinear_merge(marks: list[Mark], kf_by_id: dict[str, Keyframe], *, th: dict) -> list[Mark]:
+def collinear_merge(marks: list[Mark], kf_by_id: dict[str, Keyframe], *, th: dict, masks: dict[str, np.ndarray] | None = None) -> list[Mark]:
     """5.6: two elongated boxes of one type on one keyframe whose long axes are within collinear_angle_deg and whose
-    gap is under collinear_gap_units become one mark (a scratch Spark split in two)."""
+    gap is under collinear_gap_units become one mark (a scratch Spark split in two). Gap and axes are measured in
+    the panel's own units: whitened on a moment-frame panel, crop pixels over the inscribed radius on a wheel
+    (masks maps kf_id to the wheel mask; a wheel keyframe without one is left alone)."""
     angle_max = math.radians(float(th["dedup"]["collinear_angle_deg"]))
     gap_max = float(th["dedup"]["collinear_gap_units"])
+    frames: dict[str, tuple[np.ndarray, float | None] | None] = {}
     out = list(marks)
     changed = True
     while changed:
@@ -416,17 +477,22 @@ def collinear_merge(marks: list[Mark], kf_by_id: dict[str, Keyframe], *, th: dic
                 kf = kf_by_id.get(a.kf_id)
                 if kf is None or a.kf_id != b.kf_id or a.type != b.type or a.w is None or b.w is None:
                     continue
-                aa, ab = _axis(a, kf), _axis(b, kf)
-                if aa is None or ab is None or aa[2] < 1.5 or ab[2] < 1.5:
+                if kf.kf_id not in frames:
+                    frames[kf.kf_id] = _units_map(kf, masks)
+                frame = frames[kf.kf_id]
+                if frame is None:
                     continue
-                cosang = abs(float(aa[0] @ ab[0]))
-                if math.acos(min(cosang, 1.0)) > angle_max:
+                lin, radius_px = frame
+                aa, ab = _axis(a, lin), _axis(b, lin)
+                if aa is None or ab is None or aa[3] < 1.5 or ab[3] < 1.5:
                     continue
-                pa, pb = np.array(a.w, dtype=np.float64), np.array(b.w, dtype=np.float64)
-                gap = _segment_distance(pa - aa[0] * aa[1], pa + aa[0] * aa[1], pb - ab[0] * ab[1], pb + ab[0] * ab[1])
+                if math.acos(min(abs(float(aa[1] @ ab[1])), 1.0)) > angle_max:
+                    continue
+                gap = _segment_distance(aa[0] - aa[1] * aa[2], aa[0] + aa[1] * aa[2], ab[0] - ab[1] * ab[2], ab[0] + ab[1] * ab[2])
                 if gap > gap_max:
                     continue
-                merged = _merge_collinear_pair(a, b, kf, th)
+                mask = (masks or {}).get(kf.kf_id) if radius_px is not None else None
+                merged = _merge_collinear_pair(a, b, kf, th, mask=mask, radius_px=radius_px)
                 out = [m for k, m in enumerate(out) if k not in (i, j)]
                 out.insert(i, merged)
                 changed = True
@@ -436,7 +502,7 @@ def collinear_merge(marks: list[Mark], kf_by_id: dict[str, Keyframe], *, th: dic
     return out
 
 
-def _groups(marks: list[Mark], pos: dict[str, tuple[float, float]], *, role: str, panel_id: PanelId, th: dict) -> list[Mark]:
+def _groups(marks: list[Mark], pos: dict[str, Pos], *, role: str, panel_id: PanelId, th: dict, dist: Callable[[Pos, Pos], float] = _dist) -> list[Mark]:
     """>= group_min_marks marks of one type within group_radius_units (single linkage) share a cluster_id."""
     radius_units = float(th["dedup"]["group_radius_units"])
     min_marks = int(th["dedup"]["group_min_marks"])
@@ -455,7 +521,7 @@ def _groups(marks: list[Mark], pos: dict[str, tuple[float, float]], *, role: str
         for x in range(len(idx)):
             for y in range(x + 1, len(idx)):
                 i, j = idx[x], idx[y]
-                if _dist(pos[out[i].mark_id], pos[out[j].mark_id]) <= radius_units:
+                if dist(pos[out[i].mark_id], pos[out[j].mark_id]) <= radius_units:
                     parent[find(j)] = find(i)
         comps: dict[int, list[int]] = {}
         for i in idx:
@@ -471,7 +537,7 @@ def _groups(marks: list[Mark], pos: dict[str, tuple[float, float]], *, role: str
     return out
 
 
-def _panel_caps_k9(marks: list[Mark], pos: dict[str, tuple[float, float]], *, panel_id: PanelId, th: dict) -> bool:
+def _panel_caps_k9(marks: list[Mark], pos: dict[str, Pos], *, panel_id: PanelId, th: dict) -> bool:
     """Droplet-like (many tiny marks) or road-spray-like (same-type marks in the bottom band of a door or bumper)."""
     d = th["dedup"]
     tiny = [m for m in marks if m.size_units is not None and m.size_units < float(d["droplet_max_size_units"])]
@@ -490,34 +556,32 @@ def _panel_caps_k9(marks: list[Mark], pos: dict[str, tuple[float, float]], *, pa
     return any(n >= int(d["road_spray_min_marks"]) for n in by_type.values())
 
 
-def dedup_within_walk(marks: list[Mark], whitened: dict[str, WhitenedMark], keyframes: list[Keyframe], *, th: dict) -> tuple[list[Mark], float | None]:
-    """5.6 per (role, panel): clusters across keyframes within cluster_radius_units keep the medoid (merged_from),
-    sigma_view is the per-axis spread of the members about their medoids, K2 marks a mark seen in 1 of 3
-    keyframes while the others were complete and sharp, the collinear merge joins split boxes, groups get a
-    cluster_id, droplet-like or road-spray-like panels get K9. Marks without a whitened position pass through."""
+def _dedup(marks: list[Mark], whitened: dict[str, WhitenedMark], keyframes: list[Keyframe], *, th: dict, masks: dict[str, np.ndarray] | None = None) -> tuple[list[Mark], float, int]:
+    """dedup_within_walk plus the raw spread: (marks, sum of squared distances to the cluster means, sum of k - 1)."""
     kf_by_id = {kf.kf_id: kf for kf in keyframes}
-    pos: dict[str, tuple[float, float]] = {}
+    pos: dict[str, Pos] = {}
     for m in marks:
         p = _pos(m, whitened)
         if p is not None:
             pos[m.mark_id] = p
     sq_sum = 0.0
-    n_members = 0
+    dof = 0
     out: list[Mark] = []
     panels: dict[tuple[str, PanelId], list[Mark]] = {}
     for m in marks:
         panels.setdefault((m.role, m.panel_id), []).append(m)
     for (role, panel_id), group in panels.items():
+        dist, offset = _metric(panel_id), _offset(panel_id)
         placed = [m for m in group if m.mark_id in pos]
         out.extend(m for m in group if m.mark_id not in pos)
         panel_kfs = [kf for kf in keyframes if kf.role == role and kf.panel_id == panel_id]
         kept: list[Mark] = []
-        for cluster in _cluster_across_keyframes(placed, pos, float(th["dedup"]["cluster_radius_units"])):
-            medoid = _medoid(cluster, pos, kf_by_id)
+        for cluster in _cluster_across_keyframes(placed, pos, float(th["dedup"]["cluster_radius_units"]), dist):
+            medoid = _medoid(cluster, pos, kf_by_id, dist)
             others = [m for m in cluster if m is not medoid]
-            for o in others:
-                sq_sum += _dist(pos[medoid.mark_id], pos[o.mark_id]) ** 2
-                n_members += 1
+            sq, k = _spread(cluster, medoid, pos, offset)
+            sq_sum += sq
+            dof += k
             update: dict[str, Any] = {}
             if others:
                 update["merged_from"] = sorted({*medoid.merged_from, *(o.mark_id for o in others), *(x for o in others for x in o.merged_from)})
@@ -525,16 +589,31 @@ def dedup_within_walk(marks: list[Mark], whitened: dict[str, WhitenedMark], keyf
                 update["single_frame"] = True
                 update["caps"] = _with_cap(medoid.caps, "K2", True)
             kept.append(medoid.model_copy(update=update) if update else medoid)
-        kept = collinear_merge(kept, kf_by_id, th=th)
+        kept = collinear_merge(kept, kf_by_id, th=th, masks=masks)
         for m in kept:
             if m.w is not None:
                 pos[m.mark_id] = (float(m.w[0]), float(m.w[1]))
-        kept = _groups(kept, pos, role=role, panel_id=panel_id, th=th)
+        kept = _groups(kept, pos, role=role, panel_id=panel_id, th=th, dist=dist)
         if _panel_caps_k9(kept, pos, panel_id=panel_id, th=th):
             kept = [m.model_copy(update={"caps": _with_cap(m.caps, "K9", True)}) for m in kept]
         out.extend(kept)
-    sigma_view = math.sqrt(sq_sum / (2.0 * n_members)) if n_members else None
-    return out, sigma_view
+    return out, sq_sum, dof
+
+
+def _sigma_from(sq_sum: float, dof: int) -> float | None:
+    """Per-axis sigma from a pooled 2-D sum of squares: each cluster gives 2 (k - 1) degrees of freedom."""
+    return math.sqrt(sq_sum / (2.0 * dof)) if dof else None
+
+
+def dedup_within_walk(marks: list[Mark], whitened: dict[str, WhitenedMark], keyframes: list[Keyframe], *, th: dict, masks: dict[str, np.ndarray] | None = None) -> tuple[list[Mark], float | None]:
+    """5.6 per (role, panel): clusters across keyframes within cluster_radius_units keep the medoid (merged_from),
+    sigma_view is the pooled per-axis spread of the members about their cluster means, K2 marks a mark seen in 1
+    of 3 keyframes while the others were complete and sharp, the collinear merge joins split boxes, groups get a
+    cluster_id, droplet-like or road-spray-like panels get K9. Wheel panels use match's wrapped polar distance
+    throughout; masks (kf_id to wheel mask) lets the collinear merge run on wheels. Marks without a whitened
+    position pass through."""
+    out, sq_sum, dof = _dedup(marks, whitened, keyframes, th=th, masks=masks)
+    return out, _sigma_from(sq_sum, dof)
 
 
 # Crop helper and the derive entry ----------------------------------------------------------------------------------
@@ -562,61 +641,79 @@ def _read_list(path: Path, model: Any) -> list[Any]:
     return read_json_list(path, model) if path.is_file() and path.stat().st_size > 0 else []
 
 
-def _merge_sigma_view(run_id: str, sigma_view: float | None, *, th: dict) -> None:
-    """Fold this walk's sigma_view into derived/calibration.json so match.derive_match can read it."""
+def _sigma_view_path(run_id: str) -> Path:
+    """derived/sigma_view.json: each role's own view spread {role: {dof, sigma_view}}, replaced when the role reruns."""
+    return paths.derived_dir(run_id) / "sigma_view.json"
+
+
+def _read_stats(path: Path) -> dict[str, dict[str, Any]]:
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() and path.stat().st_size > 0 else {}
+
+
+def _pooled_sigma_view(stats: dict[str, dict[str, Any]]) -> float | None:
+    """Every role's sigma_view pooled by its degrees of freedom; the order of the roles does not matter."""
+    rows = [(int(s["dof"]), float(s["sigma_view"])) for _, s in sorted(stats.items()) if s.get("dof") and s.get("sigma_view") is not None]
+    dof = sum(k for k, _ in rows)
+    return math.sqrt(sum(k * sv * sv for k, sv in rows) / dof) if dof else None
+
+
+def _refresh_calibration(run_id: str, sigma_view: float | None, *, th: dict) -> Calibration:
+    """calibration.json with the pooled sigma_view. sigma_frame and sigma_spark keep their stored values, else the
+    measured thresholds leaves. A tau_pre that a pseudo pair raised above what the stored sigmas give is kept as a
+    floor: the rows that raised it are not stored here, and calibrate(pseudo_pair_d=None) would drop the raise."""
     from . import match
 
     path = paths.calibration_json(run_id)
     existing = read_json(path, Calibration) if path.is_file() and path.stat().st_size > 0 else None
-    pooled = sigma_view
-    if existing is not None and existing.sigma_view is not None and sigma_view is not None:
-        pooled = math.sqrt((existing.sigma_view ** 2 + sigma_view ** 2) / 2.0)
-    elif existing is not None and sigma_view is None:
-        pooled = existing.sigma_view
     measured_frame, measured_spark = match.measured_sigmas(th)
     sigma_frame = existing.sigma_frame if existing is not None and existing.sigma_frame is not None else measured_frame
     sigma_spark = existing.sigma_spark if existing is not None and existing.sigma_spark is not None else measured_spark
-    cal = match.calibrate(sigma_frame=sigma_frame, sigma_spark=sigma_spark, sigma_view=pooled, pseudo_pair_d=None, th=th)
+    cal = match.calibrate(sigma_frame=sigma_frame, sigma_spark=sigma_spark, sigma_view=sigma_view, pseudo_pair_d=None, th=th)
+    if existing is not None:
+        own = match.calibrate(sigma_frame=existing.sigma_frame, sigma_spark=existing.sigma_spark, sigma_view=existing.sigma_view, pseudo_pair_d=None, th=th)
+        if existing.tau_pre > own.tau_pre + PSEUDO_RAISE_TOL and existing.tau_pre > cal.tau_pre:
+            tau_pre = existing.tau_pre
+            cal = cal.model_copy(update={"tau_pre": tau_pre, "tau_eye": float(th["matching"]["tau_eye_factor"]) * tau_pre, "calibrated": cal.calibrated and existing.calibrated})
     write_json(path, cal)
+    return cal
 
 
-async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th: dict, count_mode: bool = False) -> tuple[list[Mark], list[Keyframe], list[SparkRequestRecord]]:
-    """Per keyframe of the role: Spark marks on the blurred crop (and count mode when asked), conditions and
-    marks_status on the keyframe, mapping, caps, whitening, dedup; writes marks.json (this role's rows replaced),
-    appends to spark.json, refreshes keyframes.json rows and the sigma_view in calibration.json."""
-    from . import spark_client
+def _record_sigma_view(run_id: str, role: str, sq_sum: float, dof: int, *, th: dict) -> Calibration:
+    """Store this role's spread (replacing an earlier run of the role, never pooling it with itself), pool every
+    role from the rounded values on disk and refresh calibration.json, so the same marks write the same bytes."""
+    path = _sigma_view_path(run_id)
+    stats = _read_stats(path)
+    stats[role] = {"dof": int(dof), "sigma_view": _sigma_from(sq_sum, dof)}
+    write_json(path, stats)
+    return _refresh_calibration(run_id, _pooled_sigma_view(_read_stats(path)), th=th)
 
-    root = paths.run_dir(run_id)
-    effort = str(th["spark"]["effort"])
-    semaphore = asyncio.Semaphore(int(th["orchestrator"]["spark_semaphore"]))
-    kfs = [kf for kf in keyframes if kf.role == role]
 
-    async def one(kf: Keyframe) -> tuple[Keyframe, Any, Any]:
-        if kf.crop is None:
-            return kf, None, None
-        crop_rgb = _read_rgb(root / kf.crop.path)
-        input_ref = InputRef(path=kf.crop.path, sha256=kf.crop.sha256) if kf.crop.sha256 else None
-        async with semaphore:
-            result = await asyncio.to_thread(
-                spark_client.find_marks, crop_rgb, kf.panel_id, landmarks=landmarks_for(kf.panel_id, th), effort=effort, run_id=run_id, input_ref=input_ref
-            )
-            count = None
-            if count_mode:
-                count = await asyncio.to_thread(spark_client.count_marks, crop_rgb, kf.panel_id, effort=effort, run_id=run_id, input_ref=input_ref)
-        return kf, result, count
+def _reusable_records(records: list[SparkRequestRecord], keyframes: list[Keyframe]) -> dict[tuple[str, PanelId], SparkRequestRecord]:
+    """Valid marks_v1 answers keyed by (crop sha256, panel): the question is the panel's prompt about those crop bytes,
+    so a run asks it once (a later record of the same key wins). The panel is that of the keyframe whose crop the
+    record names in input_refs."""
+    panel_by_crop = {kf.crop.path: kf.panel_id for kf in keyframes if kf.crop is not None}
+    out: dict[tuple[str, PanelId], SparkRequestRecord] = {}
+    for rec in records:
+        if rec.purpose != SparkPurpose.MARKS or not rec.valid or not rec.input_refs:
+            continue
+        panel = panel_by_crop.get(rec.input_refs[0].path)
+        if panel is not None:
+            out[(rec.input_refs[0].sha256, panel)] = rec
+    return out
 
-    results = await asyncio.gather(*(one(kf) for kf in kfs))
+
+def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict) -> tuple[list[Mark], list[Keyframe], float, int]:
+    """One role's marks from its keyframes' Spark results (None when Spark never saw the keyframe): marks_status and
+    conditions on each keyframe, mapping, caps, whitening, the count union, then the within-walk dedup."""
     marks: list[Mark] = []
     whitened: dict[str, WhitenedMark] = {}
+    masks: dict[str, np.ndarray] = {}
     updated: list[Keyframe] = []
-    records: list[SparkRequestRecord] = []
     for kf, result, count in results:
         if result is None:
             updated.append(kf.model_copy(update={"marks_status": MarksStatus.NOT_RUN}))
             continue
-        records.append(result.record)
-        if count is not None:
-            records.append(count.record)
         answer = result.answer
         status = MarksStatus.TRUNCATED if answer is None or getattr(result, "truncated", False) else MarksStatus.COMPLETE
         kf_new = kf.model_copy(update={"marks_status": status, "conditions": answer.conditions if answer is not None else kf.conditions})
@@ -624,6 +721,8 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
         if answer is None:
             continue
         mask = _read_mask(root / kf.mask_png) if kf.panel_id in WHEEL_PANELS and kf.mask_png else None
+        if mask is not None:
+            masks[kf.kf_id] = mask
         kf_marks = marks_from_answer(answer, result, kf_new, kf.crop, th=th)
         kf_marks, kf_whitened = whiten_marks(kf_marks, kf_new, th=th, mask=mask)
         if count is not None and not getattr(count, "truncated", False):
@@ -634,17 +733,117 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
                 kf_whitened.update(extra_whitened)
         marks.extend(kf_marks)
         whitened.update(kf_whitened)
-    marks, sigma_view = dedup_within_walk(marks, whitened, updated, th=th)
+    marks, sq_sum, dof = _dedup(marks, whitened, updated, th=th, masks=masks)
+    return marks, updated, sq_sum, dof
 
+
+def _write_role_marks(run_id: str, role: str, marks: list[Mark]) -> None:
     marks_path = paths.marks_json(run_id)
     others = [m for m in _read_list(marks_path, Mark) if m.role != role]
     write_json(marks_path, [*others, *marks])
+
+
+async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th: dict, count_mode: bool = False) -> tuple[list[Mark], list[Keyframe], list[SparkRequestRecord]]:
+    """Per keyframe of the role: Spark marks on the blurred crop (and count mode when asked), conditions and
+    marks_status on the keyframe, mapping, caps, whitening, dedup; writes marks.json (this role's rows replaced),
+    appends to spark.json, refreshes keyframes.json rows, this role's row of sigma_view.json and the pooled
+    sigma_view in calibration.json.
+
+    The same question about the same crop bytes is asked once per run: a keyframe whose crop sha256 and panel match a
+    valid answer already in spark.json reads that answer back (no call, no new record), and two keyframes of this call
+    with the same crop bytes share one call. Only a walk byte-identical to another (a self-pair) or a resumed run ever
+    meets this; rebuild_marks applies the same rule. Count mode always asks."""
+    from . import spark_client
+
+    root = paths.run_dir(run_id)
+    effort = str(th["spark"]["effort"])
+    semaphore = asyncio.Semaphore(int(th["orchestrator"]["spark_semaphore"]))
+    kfs = [kf for kf in keyframes if kf.role == role]
     spark_path = paths.spark_json(run_id)
+    known = _read_list(spark_path, SparkRequestRecord)
+    reuse = {} if count_mode else _reusable_records(known, [*_read_list(paths.keyframes_json(run_id), Keyframe), *kfs])
+    asked: dict[tuple[str, PanelId], asyncio.Future[Any]] = {}
+
+    async def ask(kf: Keyframe, crop_rgb: np.ndarray, input_ref: InputRef | None) -> tuple[Any, Any]:
+        async with semaphore:
+            result = await asyncio.to_thread(
+                spark_client.find_marks, crop_rgb, kf.panel_id, landmarks=landmarks_for(kf.panel_id, th), effort=effort, run_id=run_id, input_ref=input_ref
+            )
+            count = None
+            if count_mode:
+                count = await asyncio.to_thread(spark_client.count_marks, crop_rgb, kf.panel_id, effort=effort, run_id=run_id, input_ref=input_ref)
+        return result, count
+
+    async def one(kf: Keyframe) -> tuple[Keyframe, Any, Any, bool]:
+        if kf.crop is None:
+            return kf, None, None, False
+        crop_rgb = _read_rgb(root / kf.crop.path)
+        input_ref = InputRef(path=kf.crop.path, sha256=kf.crop.sha256) if kf.crop.sha256 else None
+        key = (kf.crop.sha256, kf.panel_id) if kf.crop.sha256 and not count_mode else None
+        if key is not None and key in reuse:
+            h, w = crop_rgb.shape[:2]
+            return kf, spark_client.marks_result_from_record(reuse[key], orig_width=w, orig_height=h, landmarks=landmarks_for(kf.panel_id, th)), None, True
+        if key is not None and key in asked:
+            result, count = await asked[key]
+            return kf, result, count, True
+        shared = asyncio.get_running_loop().create_future() if key is not None else None
+        if key is not None:
+            asked[key] = shared
+        try:
+            result, count = await ask(kf, crop_rgb, input_ref)
+        except BaseException as exc:
+            if shared is not None:
+                shared.set_exception(exc)
+                shared.exception()  # retrieved here; a twin awaiting it raises the same error
+            raise
+        if shared is not None:
+            shared.set_result((result, count))
+        return kf, result, count, False
+
+    results = await asyncio.gather(*(one(kf) for kf in kfs))
+    records: list[SparkRequestRecord] = []
+    for _kf, result, count, reused in results:
+        if result is not None and not reused:
+            records.append(result.record)
+            if count is not None:
+                records.append(count.record)
+    marks, updated, sq_sum, dof = _marks_of(root, [(kf, result, count) for kf, result, count, _ in results], th=th)
+
+    _write_role_marks(run_id, role, marks)
     write_json(spark_path, [*_read_list(spark_path, SparkRequestRecord), *records])
     kf_path = paths.keyframes_json(run_id)
     by_id = {kf.kf_id: kf for kf in updated}
     stored = _read_list(kf_path, Keyframe)
     if stored:
         write_json(kf_path, [by_id.get(kf.kf_id, kf) for kf in stored])
-    _merge_sigma_view(run_id, sigma_view, th=th)
+    _record_sigma_view(run_id, role, sq_sum, dof, th=th)
     return marks, updated, records
+
+
+def rebuild_marks(run_id: str, role: str, *, th: dict) -> list[Mark]:
+    """This role's marks.json rows, its sigma_view row and calibration.json recomputed from spark.json and keyframes.json
+    with no model call (section 7 item 3). Each keyframe Spark answered for reads back the answer derive_marks used: the
+    valid answer for its (crop sha256, panel), else the last record asked for its crop. keyframes.json and spark.json
+    are frozen facts and are not written. Box mode only: count-mode points are not replayed."""
+    from . import spark_client
+
+    root = paths.run_dir(run_id)
+    stored = _read_list(paths.keyframes_json(run_id), Keyframe)
+    records = _read_list(paths.spark_json(run_id), SparkRequestRecord)
+    valid = _reusable_records(records, stored)
+    last_by_crop = {rec.input_refs[0].path: rec for rec in records if rec.purpose == SparkPurpose.MARKS and rec.input_refs}
+    results: list[tuple[Keyframe, Any, Any]] = []
+    for kf in (k for k in stored if k.role == role):
+        record = None
+        if kf.crop is not None and kf.marks_status != MarksStatus.NOT_RUN:
+            record = valid.get((kf.crop.sha256, kf.panel_id)) if kf.crop.sha256 else None
+            record = record or last_by_crop.get(kf.crop.path)
+        if record is None:
+            results.append((kf, None, None))
+            continue
+        h, w = _read_rgb(root / kf.crop.path).shape[:2]
+        results.append((kf, spark_client.marks_result_from_record(record, orig_width=w, orig_height=h, landmarks=landmarks_for(kf.panel_id, th)), None))
+    marks, _updated, sq_sum, dof = _marks_of(root, results, th=th)
+    _write_role_marks(run_id, role, marks)
+    _record_sigma_view(run_id, role, sq_sum, dof, th=th)
+    return marks

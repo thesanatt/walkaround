@@ -77,13 +77,25 @@ def moments_from_mask(mask: np.ndarray) -> Moments:
     return moments_from_points(np.stack([xs, ys], axis=1))
 
 
-def _frame(moments: Moments) -> tuple[float, float, float, float]:
-    """(cos, sin, var_u, var_v): axis 1 is the principal axis nearest the image horizontal."""
+def axis_angle(moments: Moments) -> float:
+    """Image angle of axis 1 in radians, in (-pi/4, pi/4]: the principal axis nearest the image horizontal."""
     t = moments.theta
     if t > math.pi / 4.0:
         t -= math.pi / 2.0
     elif t <= -math.pi / 4.0:
         t += math.pi / 2.0
+    return t
+
+
+def _frame(moments: Moments) -> tuple[float, float, float, float]:
+    """(cos, sin, var_u, var_v): axis 1 is the principal axis nearest the image horizontal."""
+    # TODO(D1): the nearest-horizontal rule jumps by 90 degrees when mu20 crosses mu02 while mu11 is not zero (a
+    # near-square rear door with its wheel-arch cutout puts the principal axes near 45 degrees), and theta is noise
+    # when the mask is near-isotropic. match.derive_match gates a panel whose keyframes disagree on axis 1 (G4), but
+    # D1 must measure axis_angle across the 3 keyframes of real rear doors and fenders in both walks. If they spread
+    # past the gate often, switch to the image-anchored lower-triangular whitening (axis 1 = image horizontal): it
+    # never jumps and is exact under per-axis image scaling, at the cost of camera roll.
+    t = axis_angle(moments)
     c, s = math.cos(t), math.sin(t)
     var_u = moments.mu20 * c * c + 2.0 * moments.mu11 * s * c + moments.mu02 * s * s
     var_v = moments.mu20 * s * s - 2.0 * moments.mu11 * s * c + moments.mu02 * c * c
@@ -271,6 +283,21 @@ def wheel_coords(point_crop: Point2, mask: np.ndarray) -> tuple[float, float]:
     ys, xs = np.nonzero(m)
     angle = math.atan2(float(point_crop[1]) - float(ys.mean()), float(point_crop[0]) - float(xs.mean()))
     return rad, angle
+
+
+def _wrap_angle(a: float) -> float:
+    return math.atan2(math.sin(a), math.cos(a))
+
+
+def wheel_offset(p: Point2, ref: Point2) -> tuple[float, float]:
+    """Local offset of wheel position p = (radius, angle) from ref: (radial, mean radius x wrapped angle)."""
+    r_mean = 0.5 * (float(p[0]) + float(ref[0]))
+    return float(p[0]) - float(ref[0]), r_mean * _wrap_angle(float(p[1]) - float(ref[1]))
+
+
+def wheel_distance(a: Point2, b: Point2) -> float:
+    """Distance between two wheel positions; the one metric used by within-walk dedup and the cross-walk cost."""
+    return math.hypot(*wheel_offset(a, b))
 
 
 def bumper_arc(point_crop: Point2, anchors: tuple[Point2, Point2] | None, mask: np.ndarray) -> tuple[float, float] | None:
