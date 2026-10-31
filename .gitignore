@@ -8,3 +8,5 @@ __pycache__/
 node_modules/
 .DS_Store
 *.egg-info/
+# web build output (web/.gitignore has it too)
+web/dist/

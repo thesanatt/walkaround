@@ -663,6 +663,9 @@ class RunManifest(Contract):
     thresholds: dict[str, Any] = Field(default_factory=dict)  # the whole plain dict, frozen at creation
     fps: float | None = None
     noun_list: list[Noun] = Field(default_factory=lambda: list(LANE_NOUNS))
+    # Test clips only: the text a lane is sent with instead of its noun ({"hood": "person"}); the lane keeps its
+    # noun's slot, file names and rules. Empty for every real walk.
+    prompts: dict[str, str] = Field(default_factory=dict)
     retention_deadline: Timestamp | None = None
     api_spend_cents: int = 0
     spend_ceiling_cents: int = 800
@@ -1546,6 +1549,7 @@ class SheetModel(Contract):
     config_hash: str | None = None
     events_head_hash: str | None = None
     disclaimer: str = "evidence support, not legal advice"
+    stand_in_line: str = ""  # page 1, when the lanes were sent with stand-in prompts (a test clip, not a car)
     clocks: ThreeClocks = Field(default_factory=ThreeClocks)
     deletion_clocks: DeletionClocks = Field(default_factory=DeletionClocks)
     originals: list[SheetOriginal] = Field(default_factory=list)
