@@ -25,7 +25,14 @@ def cost_for(
     cached_tokens: int | None = None,
     audio_seconds: float | None = None,
 ) -> float:
-    """Dollars for one call, from the price table. kind is sam_video, sam_image, spark or voice."""
+    """Dollars for one call, from the price table. kind is sam_video, sam_image, spark, spark_open or voice."""
+    if kind == "spark_open":
+        # Muse Spark Open on Baseten Model APIs: $1.25 input, $0.15 cached input, $4.25 output per 1M tokens
+        # (https://www.baseten.co/pricing and https://www.baseten.co/library/muse-spark-open , read 2026-10-31).
+        # The calls run on Baseten credits, so this is the list price, not Meta API spend.
+        cached = cached_tokens or 0
+        uncached = max((input_tokens or 0) - cached, 0)
+        return uncached * 1.25 / 1e6 + cached * 0.15 / 1e6 + (output_tokens or 0) * 4.25 / 1e6
     if kind == "sam_video":
         billed = max(int(frames or 0), PRICES["sam_video_min_frames"])
         return billed * PRICES["sam_video_frame"]
