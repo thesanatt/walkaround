@@ -76,15 +76,18 @@ def write_wav_header_only(path: Path, *, rate: int, seconds: int) -> Path:
 
 
 class FakeServer:
-    """httpx.MockTransport handler that records requests and answers from a queue."""
+    """httpx.MockTransport handler that records requests and answers from a queue (an exception in it is raised)."""
 
-    def __init__(self, *responses: httpx.Response) -> None:
+    def __init__(self, *responses: httpx.Response | Exception) -> None:
         self.responses = list(responses)
         self.requests: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
-        return self.responses.pop(0)
+        reply = self.responses.pop(0)
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
 
 
 def multipart_parts(request: httpx.Request) -> dict[str, tuple[str | None, str, bytes]]:
@@ -105,7 +108,7 @@ def request_json(request: httpx.Request) -> dict:
     return json.loads(multipart_parts(request)["request"][2])
 
 
-def serve(monkeypatch, *responses: httpx.Response) -> FakeServer:
+def serve(monkeypatch, *responses: httpx.Response | Exception) -> FakeServer:
     server = FakeServer(*responses)
     monkeypatch.setattr(voice_client, "TRANSPORT", httpx.MockTransport(server))
     return server
@@ -202,6 +205,15 @@ def test_default_keywords_are_the_21_of_thresholds():
     assert voice_client.DEFAULT_MODE == th["voice"]["mode"] == "ENDPOINTING"
 
 
+def test_constants_mirror_thresholds():
+    th = load_thresholds()
+    assert voice_client.TIMEOUT_S == th["orchestrator"]["request_timeout_s"]
+    assert voice_client.MAX_AUDIO_SECONDS == th["voice"]["max_audio_s"]
+    assert voice_client.MAX_BYTES == th["voice"]["max_body_bytes"]
+    assert VOICE_MODEL == th["voice"]["model"]
+    assert th["media"]["wav_rate"] in voice_client.SAMPLE_RATES
+
+
 # transcribe_wav ----------------------------------------------------------------------------------------------------
 
 
@@ -230,6 +242,8 @@ def test_transcribe_turns_record_and_ledger_row(monkeypatch, ledger_path, good_w
 
 
 def test_whole_seconds_are_billed(monkeypatch, ledger_path, good_wav):
+    # ledger.cost_for floors to whole seconds; the price page only says "metered in whole seconds". TODO(D1): check one
+    # voice row against the billing page; if Meta rounds up, ledger.py moves to math.ceil and this test with it.
     serve(monkeypatch, httpx.Response(200, json={**TURNS_RESPONSE, "audioDurationMs": 80900}))
     result = transcribe_wav(good_wav)
     assert result.usd == pytest.approx(80 * 0.18 / 3600, abs=1e-6)
@@ -297,6 +311,46 @@ def test_other_errors_carry_status_and_body(monkeypatch, ledger_path, good_wav):
     serve(monkeypatch, httpx.Response(401, text="bad token"))
     with pytest.raises(TranscribeError, match=r"\[401\] the credential was not accepted: bad token"):
         transcribe_wav(good_wav)
+
+
+def test_error_bodies_never_carry_the_key(monkeypatch, ledger_path, good_wav):
+    """A 401 that echoes the bearer key, or any key-shaped token, never reaches the exception text."""
+    body = f"invalid credential {FAKE_KEY}; header was Bearer {FAKE_KEY}; also LLM_123_SECRETSECRET"
+    serve(monkeypatch, httpx.Response(401, text=body), httpx.Response(200, text=f"<html>{FAKE_KEY}</html>"))
+    for expected in (r"\[401\] the credential was not accepted: invalid credential \[redacted\]", r"\[200\] response was not JSON: <html>\[redacted\]"):
+        with pytest.raises(TranscribeError, match=expected) as info:
+            transcribe_wav(good_wav)
+        assert FAKE_KEY not in str(info.value) and "secret" not in str(info.value).lower()
+
+
+@pytest.mark.parametrize("error", [httpx.ConnectError("connection refused"), httpx.ReadTimeout("timed out")])
+def test_transport_error_retries_once_then_succeeds(monkeypatch, ledger_path, good_wav, error):
+    waits = []
+    monkeypatch.setattr(voice_client, "_sleep", waits.append)
+    server = serve(monkeypatch, error, httpx.Response(200, json=TURNS_RESPONSE))
+    result = transcribe_wav(good_wav)
+    assert len(result.turns) == 2 and len(server.requests) == 2 and waits == [voice_client.TRANSPORT_RETRY_WAIT_S]
+    assert ledger.rows(ledger_path)[0]["retries"] == 1
+
+
+def test_transport_error_twice_is_a_transcribe_error(monkeypatch, ledger_path, good_wav):
+    monkeypatch.setattr(voice_client, "_sleep", lambda seconds: None)
+    server = serve(monkeypatch, httpx.ConnectError("connection refused"), httpx.ReadTimeout("timed out"))
+    with pytest.raises(TranscribeError, match="no response after one retry: ReadTimeout: timed out") as info:
+        transcribe_wav(good_wav)
+    assert isinstance(info.value, RuntimeError) and isinstance(info.value.__cause__, httpx.ReadTimeout)
+    assert len(server.requests) == 2 and ledger.rows(ledger_path) == []
+
+
+def test_missing_key_is_a_transcribe_error(monkeypatch, ledger_path, good_wav):
+    def no_key() -> str:
+        raise RuntimeError("MODEL_API_KEY is not set.")
+
+    monkeypatch.setattr(voice_client, "api_key", no_key)
+    server = serve(monkeypatch)
+    with pytest.raises(TranscribeError, match="MODEL_API_KEY is not set"):
+        transcribe_wav(good_wav)
+    assert server.requests == [] and ledger.rows(ledger_path) == []
 
 
 def test_non_json_200_raises(monkeypatch, ledger_path, good_wav):
@@ -400,6 +454,25 @@ def test_voice_record_is_verbatim_and_canonical(monkeypatch, ledger_path, good_w
     assert record.response.model_dump()["extraServerField"] == {"k": 1}  # verbatim keeps what the server added
     text = canonical_json(record)
     assert text.isascii() and VoiceRecord.from_json(text).digest() == record.digest()
+
+
+def test_numeric_speaker_is_kept_as_its_string(monkeypatch, ledger_path, good_wav):
+    """contracts.VoiceTurn holds speaker as a string; the real DIARIZATION type is unmeasured until E10."""
+    body = {
+        "sessionId": "D2",
+        "transcript": "Hi. Hello.",
+        "audioDurationMs": 2000,
+        "turns": [
+            {"turnId": 0, "startMs": 0, "endMs": 900, "transcript": "Hi.", "speaker": 0},
+            {"turnId": 1, "startMs": 1000, "endMs": 1900, "transcript": None, "speaker": 1},
+        ],
+    }
+    serve(monkeypatch, httpx.Response(200, json=body))
+    result = transcribe_wav(good_wav, mode="DIARIZATION")
+    assert [t.speaker for t in result.turns] == ["0", "1"] and result.turns[1].text == ""
+    record = voice_record(result, role="pickup", wav_sha256="f" * 64)
+    assert [t.speaker for t in record.response.turns] == ["0", "1"] and record.response.turns[1].transcript == ""
+    assert result.raw["turns"][0]["speaker"] == 0  # the response in memory stays as it came
 
 
 def test_voice_record_mode_not_applied(monkeypatch, ledger_path, good_wav):

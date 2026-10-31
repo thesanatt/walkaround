@@ -9,10 +9,15 @@ Request shape (docs/API_NOTES.md; cookbook 07_sam/01_api_basics/python/sam_api.p
   {"include_confidence":"true","propagation_direction":"both"} on a box or point prompt (sam_metadata builds both).
 The live API emits response.content_part.done and may or may not emit response.output_text.done; stream_events (the
 cookbook shim, verbatim) synthesizes the latter only when the API did not send one. Every raw event is appended to the
-lane's events.ndjson as it arrives; sam_wire reads the index from those events and never decodes a mask. A lane is
-never an exception: 429 past the backoff, a broken stream or a refused request end in the LaneRecord's status and
-error, so coverage can print not_run. Every answered request writes one ledger row (sam_video bills from
-usage.video_frames_processed when the API reports it, else frames_sent, with the API's 50-frame minimum).
+lane's events.ndjson as it arrives; sam_wire reads the index from those events and never decodes a mask.
+One more try (section 14 item 3) follows an attempt that broke, ended before response.completed or carried a
+diagnostic of severity error; the lane file keeps only the attempt that was kept. A video lane is never an exception:
+429 past the backoff, a broken stream or a refused request end in the LaneRecord's status and error, so coverage can
+print not_run. An image check is: segment_image raises SamRequestError when the check did not complete, because
+section 8 item 4 writes no frame from a check that did not happen. Every attempt the API answered writes one ledger
+row: the kept attempt with its status, a retried one as "discarded" (it completed, so it was processed) or
+"abandoned" (it did not); sam_video bills from usage.video_frames_processed when the API reports it, else
+frames_sent, with the API's 50-frame minimum.
 """
 
 from __future__ import annotations
@@ -29,6 +34,7 @@ import numbers
 import random
 import re
 import subprocess
+import tempfile
 import time
 from contextlib import aclosing
 from dataclasses import dataclass, field, replace
@@ -88,7 +94,7 @@ TIMEOUT_S = 240.0  # thresholds orchestrator.request_timeout_s
 RATE_LIMIT_TRIES = 6  # thresholds orchestrator.rate_limit_retries
 BACKOFF_BASE_S = 0.5  # thresholds orchestrator.rate_limit_backoff_base_s
 BACKOFF_CAP_S = 30.0
-STREAM_RETRIES = 1  # thresholds orchestrator.request_retries: one more try for a stream that broke or 5xx
+STREAM_RETRIES = 1  # thresholds orchestrator.request_retries: one more try (section 14 items 3 and 10)
 FILES_DELETE_RETRIES = 3  # thresholds privacy.files_delete_retries
 INLINE_MAX_BYTES = 50 * 1024 * 1024  # thresholds media.inline_data_url_max_bytes
 FILES_EXPIRES_AFTER_S = 3600  # thresholds media.files_expires_after_s, the API minimum
@@ -98,7 +104,11 @@ _sleep = asyncio.sleep  # tests replace it
 
 
 class SamRequestError(RuntimeError):
-    """An image request got no answer from the API after the retries."""
+    """An image check that did not complete; run holds what came back when the API answered at all."""
+
+    def __init__(self, message: str, run: SegmentationRun | None = None) -> None:
+        super().__init__(message)
+        self.run = run
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -148,7 +158,7 @@ class SegmentationRun:
     usd: float = 0.0
     events_path: Path | None = None
     diagnostics: list[str] = field(default_factory=list)
-    outcome: str = "completed"  # completed | incomplete | failed (the parser's outcome or a stream failure)
+    outcome: str = "completed"  # completed | incomplete | failed (parser outcome; an error diagnostic is incomplete)
     response_id: str | None = None
 
     @property
@@ -296,12 +306,17 @@ def _retry_after(error: APIStatusError) -> str | None:
         return None
 
 
-def _mentions_store(error: APIStatusError) -> bool:
-    """True when a 400 names the store parameter (param store, or the word store; never 'restore' or 'stored')."""
+def _names_param(error: APIStatusError, name: str) -> bool:
+    """True when a 4xx names one request parameter: its param field, or the name as a whole word in the message."""
     body = error.body if isinstance(error.body, dict) else {}
     inner = body.get("error") if isinstance(body.get("error"), dict) else body
     param = inner.get("param") if isinstance(inner, dict) else None
-    return param == "store" or re.search(r"\bstore\b", str(error).lower()) is not None
+    return param == name or re.search(rf"\b{re.escape(name)}\b", str(error).lower()) is not None
+
+
+def _mentions_store(error: APIStatusError) -> bool:
+    """True when a 400 names the store parameter (param store, or the word store; never 'restore' or 'stored')."""
+    return _names_param(error, "store")
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -310,7 +325,7 @@ def _mentions_store(error: APIStatusError) -> bool:
 
 
 class _Sink:
-    """Receives each raw event as it arrives; reset() forgets a failed attempt."""
+    """Receives each raw event as it arrives; reset() forgets a failed attempt. The base keeps nothing."""
 
     def __init__(self, on_event: Callable[[dict[str, Any]], None] | None = None) -> None:
         self.on_event = on_event
@@ -349,26 +364,50 @@ class _LaneSink(_Sink):
 
 @dataclass
 class _StreamResult:
-    events: list[dict[str, Any]]
+    events: list[dict[str, Any]]  # the kept attempt only
     first_delta_s: float | None
     elapsed_s: float
     retries: int
     store_sent: bool  # False when the API rejected store false and the field was dropped
     error: str | None
+    dropped: list[list[dict[str, Any]]] = field(default_factory=list)  # attempts the API answered, then retried
 
 
-def _has_terminal(events: list[dict[str, Any]]) -> bool:
-    return any(e.get("type") in ("response.completed", "response.incomplete", "response.failed", "error") for e in events)
+def _completed(events: list[dict[str, Any]]) -> bool:
+    return any(e.get("type") == "response.completed" for e in events)
 
 
-async def _run_stream(request: dict[str, Any], sink: _Sink, *, max_tries: int) -> _StreamResult:
-    """POST /v1/responses with stream=True: 429 backoff, the store-false fallback, one retry for a broken stream."""
+class _Check:
+    """Section 14 item 3: one more try after an attempt that ended before response.completed or with an error diagnostic."""
+
+    def __init__(self, media: sam_wire.Media) -> None:
+        self.media = media
+        # The last read, so the kept attempt is parsed once.
+        self._last: tuple[list[dict[str, Any]], list[IndexFrame], sam_wire.LaneOutcome, float] | None = None
+
+    def read(self, events: list[dict[str, Any]]) -> tuple[list[IndexFrame], sam_wire.LaneOutcome, float]:
+        """(index, outcome, parse CPU seconds) of one attempt's events."""
+        if self._last is None or self._last[0] is not events:
+            cpu0 = time.process_time()
+            frames, outcome = sam_wire.index_from_events(events, media=self.media)
+            self._last = (events, frames, outcome, time.process_time() - cpu0)
+        return self._last[1], self._last[2], self._last[3]
+
+    def retry(self, events: list[dict[str, Any]]) -> bool:
+        _, outcome, _ = self.read(events)
+        return not _completed(events) or any(d.severity == "error" for d in outcome.diagnostics)
+
+
+async def _run_stream(request: dict[str, Any], sink: _Sink, check: _Check, *, max_tries: int) -> _StreamResult:
+    """POST /v1/responses with stream=True: 429 backoff, the store-false fallback, one more try (broken stream, 5xx, check)."""
     rate_tries = 0
     stream_tries = 0
     retries = 0
     store_sent = "store" in request
+    dropped: list[list[dict[str, Any]]] = []
     while True:
         events: list[dict[str, Any]] = []
+        answered = False  # the API took the request and started streaming, so it may bill it
         first: float | None = None
         t0 = time.monotonic()
         body = dict(request)
@@ -377,6 +416,7 @@ async def _run_stream(request: dict[str, Any], sink: _Sink, *, max_tries: int) -
         try:
             async with client() as api:
                 stream = await api.responses.create(**body)
+                answered = True
                 # The parser returns on the terminal event, so stream_events is still suspended over the response
                 # body. Close it here, before the response, or the loop's asyncgen finalizer aclose()s a generator
                 # that is running (cookbook sam_api.py).
@@ -390,7 +430,7 @@ async def _run_stream(request: dict[str, Any], sink: _Sink, *, max_tries: int) -
             rate_tries += 1
             retries += 1
             if rate_tries >= max_tries:
-                return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, f"429 after {rate_tries} tries: {error}")
+                return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, f"429 after {rate_tries} tries: {error}", dropped)
             sink.reset()
             await _sleep(_backoff_delay(rate_tries, _retry_after(error)))
             continue
@@ -403,22 +443,82 @@ async def _run_stream(request: dict[str, Any], sink: _Sink, *, max_tries: int) -
             if error.status_code >= 500 and stream_tries < STREAM_RETRIES:
                 stream_tries += 1
                 retries += 1
+                if answered:
+                    dropped.append(events)
                 sink.reset()
                 continue
-            return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, f"{error.status_code}: {error}")
+            return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, f"{error.status_code}: {error}", dropped)
         except (APIError, httpx.HTTPError, OSError) as error:
-            if stream_tries < STREAM_RETRIES and not _has_terminal(events):
+            if stream_tries < STREAM_RETRIES and not _completed(events):
                 stream_tries += 1
                 retries += 1
+                if answered:
+                    dropped.append(events)
                 sink.reset()
                 continue
-            return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, f"{type(error).__name__}: {error}")
-        if not _has_terminal(events) and stream_tries < STREAM_RETRIES:
+            return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, f"{type(error).__name__}: {error}", dropped)
+        if stream_tries < STREAM_RETRIES and check.retry(events):
             stream_tries += 1
             retries += 1
+            dropped.append(events)
             sink.reset()
             continue
-        return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, None)
+        return _StreamResult(events, first, time.monotonic() - t0, retries, store_sent, None, dropped)
+
+
+def _bill_dropped(
+    result: _StreamResult,
+    *,
+    kind: Literal["sam_video", "sam_image"],
+    note: str,
+    run_id: str | None,
+    role: str | None,
+    frames_sent: int = 0,
+) -> tuple[float, list[Diagnostic]]:
+    """A ledger row and a warning per attempt the API answered before the retry: discarded if it completed, else abandoned."""
+    # A discarded attempt reached response.completed, so it was processed. An abandoned one is billed like a kept
+    # attempt that never completes (frames_sent), so the spend ceiling errs high rather than low.
+    # TODO(D1): force one mid-stream break, then compare these rows with the dev.meta.ai usage page. If Meta does not
+    # bill a stream the client dropped, stop writing the "abandoned" rows; the "discarded" rows stay either way.
+    usd = 0.0
+    notes: list[Diagnostic] = []
+    media: sam_wire.Media = "video" if kind == "sam_video" else "image"
+    for n, events in enumerate(result.dropped, start=1):
+        _, outcome = sam_wire.index_from_events(events, media=media)
+        done = _completed(events)
+        if kind == "sam_video":
+            billed = outcome.video_frames_processed if outcome.video_frames_processed is not None else frames_sent
+            usage: dict[str, Any] = {
+                "frames": billed,
+                "unit": "frames",
+                "quantity": billed,
+                "video_frames_processed": outcome.video_frames_processed,
+                "frames_sent": frames_sent,
+            }
+        else:
+            usage = {"images": 1, "unit": "images", "quantity": 1}
+        row = ledger.record(
+            kind,
+            SAM_MODEL,
+            note=note,
+            run_id=run_id,
+            engine=ENGINE,
+            request_id=outcome.response_id,
+            status="discarded" if done else "abandoned",
+            role=role,
+            **usage,
+        )
+        usd += float(row["usd"])
+        codes = sorted({d.code for d in outcome.diagnostics if d.severity == "error"})
+        why = f"completed with {', '.join(codes)}" if done else f"ended after {len(events)} events without response.completed"
+        notes.append(
+            Diagnostic(
+                severity="warning",
+                code="attempt_retried",
+                message=f"Attempt {n} ({outcome.response_id or 'no response id'}) {why}; the request was sent once more.",
+            )
+        )
+    return usd, notes
 
 
 def _ms(seconds: float | None) -> int | None:
@@ -456,21 +556,21 @@ def _cache_fresh(entry: dict[str, Any]) -> bool:
     return deadline - timedelta(seconds=60) > datetime.now(timezone.utc)
 
 
-def _remux_faststart(src: Path) -> Path:
-    """ffmpeg -c copy into an MP4 with faststart next to the source (section 14 item 7)."""
-    dst = src.with_name(src.stem + ".remux.mp4")
+def _remux_faststart(src: Path, dst: Path) -> None:
+    """ffmpeg -c copy into an MP4 with faststart (section 14 item 7)."""
     subprocess.run(
         ["ffmpeg", "-y", "-v", "error", "-i", str(src), "-c", "copy", "-movflags", "+faststart", str(dst)],
         check=True,
         capture_output=True,
     )
-    return dst
 
 
-async def _files_create(path: Path, expires_after_s: int | None) -> Any:
-    kwargs: dict[str, Any] = {"file": (path.name, path.read_bytes(), "video/mp4"), "purpose": "user_data"}
-    if expires_after_s is not None:
-        kwargs["expires_after"] = {"anchor": "created_at", "seconds": int(expires_after_s)}
+async def _files_create(path: Path, expires_after_s: int) -> Any:
+    kwargs: dict[str, Any] = {
+        "file": (path.name, path.read_bytes(), "video/mp4"),
+        "purpose": "user_data",
+        "expires_after": {"anchor": "created_at", "seconds": int(expires_after_s)},
+    }
     attempt = 0
     while True:
         try:
@@ -483,39 +583,76 @@ async def _files_create(path: Path, expires_after_s: int | None) -> Any:
             await _sleep(_backoff_delay(attempt, _retry_after(error)))
 
 
+async def _upload_remuxed(path: Path, run_id: str | None, expires_after_s: int) -> tuple[Any, str]:
+    """Section 14 item 7: remux to MP4 faststart and upload once more; returns the answer and the remux sha256."""
+    # The remux is an unblurred copy (section 8 item 3): it is made in quarantine/tmp, which the sweeper watches, or a
+    # temp dir without a run, and removed as soon as the upload returns or fails.
+    name = f"{path.stem}.remux.mp4"
+    scratch = None if run_id else tempfile.TemporaryDirectory(prefix="walkaround-remux-")
+    dst = paths.quarantine_temp(run_id, name) if run_id else Path(scratch.name) / name  # type: ignore[union-attr]
+    try:
+        _remux_faststart(path, dst)
+        digest = _sha256_file(dst)
+        return await _files_create(dst, expires_after_s), digest
+    finally:
+        dst.unlink(missing_ok=True)
+        if scratch is not None:
+            scratch.cleanup()
+
+
+def _expiry(uploaded: Any, uploaded_at: str, seconds: int) -> tuple[str, str]:
+    """(expires_at, source): the API's expires_at, else its created_at plus the seconds sent, else uploaded_at plus them."""
+    granted = _iso(getattr(uploaded, "expires_at", None))
+    if granted is not None:
+        return granted, "api"
+    created = _iso(getattr(uploaded, "created_at", None))
+    if created is not None:
+        return _plus_seconds(created, int(seconds)), "created_at"
+    return _plus_seconds(uploaded_at, int(seconds)), "uploaded_at"  # stamped after the upload returned, so never early
+
+
 async def upload_file(path: Path, *, run_id: str | None = None, expires_after_s: int = FILES_EXPIRES_AFTER_S) -> FilesApiRecord:
-    """POST /v1/files purpose user_data with expires_after; cached by sha256 in runs/uploads.json."""
+    """POST /v1/files purpose user_data with expires_after; cached by sha256 in runs/uploads.json; a 4xx gets one remux.
+    A cached upload is reused only by the run that made it: another run's run end deletes its own file, which would
+    pull it out from under a second run of the same bytes."""
     path = Path(path)
     digest = _sha256_file(path)
     cache = _load_cache()
     hit = cache.get(digest)
-    if isinstance(hit, dict) and _cache_fresh(hit) and isinstance(hit.get("file_id"), str):
+    same_run = run_id is None or (isinstance(hit, dict) and hit.get("run_id") == run_id)
+    if isinstance(hit, dict) and same_run and _cache_fresh(hit) and isinstance(hit.get("file_id"), str):
         return FilesApiRecord(file_id=hit["file_id"], uploaded_at=hit["uploaded_at"], expires_at=hit.get("expires_at"))
     t0 = time.monotonic()
+    remux_sha256: str | None = None
     try:
         uploaded = await _files_create(path, expires_after_s)
     except APIStatusError as error:
-        if error.status_code == 429 or error.status_code >= 500:
+        # A refused expires_after raises rather than uploading without it: the sheet's privacy line says uploads expire
+        # after one hour (section 8 items 2 and 9), and a remux would not change the parameter.
+        # TODO(D1 E12): confirm the Files API accepts expires_after and returns expires_at on the file object (the
+        # cache entry's expires_from says "api" when it does).
+        if error.status_code == 429 or error.status_code >= 500 or _names_param(error, "expires_after"):
             raise
-        if error.status_code == 400 and "expires_after" in str(error):
-            uploaded = await _files_create(path, None)
-        else:
-            uploaded = await _files_create(_remux_faststart(path), expires_after_s)
+        uploaded, remux_sha256 = await _upload_remuxed(path, run_id, expires_after_s)
     file_id = getattr(uploaded, "id", None)
     if not isinstance(file_id, str) or not file_id.startswith("file-"):
         raise ValueError("The Files API returned an invalid file ID.")
     uploaded_at = _now()
-    expires_at = _iso(getattr(uploaded, "expires_at", None)) or _plus_seconds(uploaded_at, expires_after_s)
+    expires_at, expires_from = _expiry(uploaded, uploaded_at, expires_after_s)
     record = FilesApiRecord(file_id=file_id, uploaded_at=uploaded_at, expires_at=expires_at)
-    cache[digest] = {
+    entry: dict[str, Any] = {
         "file_id": file_id,
         "uploaded_at": uploaded_at,
         "expires_at": expires_at,
+        "expires_from": expires_from,
         "seconds": round(time.monotonic() - t0, 3),
         "bytes": path.stat().st_size,
         "name": path.name,
         "run_id": run_id,
     }
+    if remux_sha256 is not None:
+        entry["remux_sha256"] = remux_sha256
+    cache[digest] = entry
     _save_cache(cache)
     return record
 
@@ -629,16 +766,16 @@ async def _segment_lane(
     lane_id = paths.lane_id(lane)
     request = _request(prompt_text, media, metadata)
     events_path = paths.lane_events_path(run_id, role, lane_id)
+    check = _Check("video")
     sink = _LaneSink(events_path, on_event)
     try:
-        result = await _run_stream(request, sink, max_tries=max_tries)
+        result = await _run_stream(request, sink, check, max_tries=max_tries)
     finally:
         sink.close()
-    cpu0 = time.process_time()
-    frames, outcome = sam_wire.index_from_events(result.events, media="video")
-    parse_cpu_s = time.process_time() - cpu0
+    frames, outcome, parse_cpu_s = check.read(result.events)
     status = _lane_status(result, outcome)
-    diagnostics = list(outcome.diagnostics)
+    dropped_usd, retried = _bill_dropped(result, kind="sam_video", note=lane_id, run_id=run_id, role=role, frames_sent=frames_sent)
+    diagnostics = list(outcome.diagnostics) + retried
     if not result.store_sent:
         diagnostics.append(
             Diagnostic(severity="warning", code="store_false_rejected", message="The API rejected store false; the request was retried without the field.")
@@ -668,6 +805,7 @@ async def _segment_lane(
         retries=result.retries,
         diagnostics=diagnostics,
         error=result.error or outcome.error,
+        dollars=dropped_usd,
     )
     if result.events:
         gz_path = paths.lane_events_gz_path(run_id, role, lane_id)
@@ -697,7 +835,7 @@ async def _segment_lane(
             frames_sent=frames_sent,
             role=role,
         )
-        record.dollars = float(row["usd"])
+        record.dollars = dropped_usd + float(row["usd"])
     else:
         events_path.unlink(missing_ok=True)
     contracts.write_json(paths.lane_summary_path(run_id, role, lane_id), record)
@@ -930,6 +1068,8 @@ def _run_from_result(result: Any, *, media: str, media_size: tuple[int, int], co
     for item in result.diagnostics:
         run.diagnostics.append(f"{item.severity} {item.code} line {item.line}: {item.message}")
     run.outcome = result.outcome.status
+    if run.outcome == "completed" and any(item.severity == "error" for item in result.diagnostics):
+        run.outcome = "incomplete"  # the same rule as a video lane: an error diagnostic is never a complete answer
     if result.outcome.status == "incomplete":
         detail = getattr(result.outcome, "detail", None)
         run.diagnostics.append(f"incomplete: {getattr(result.outcome, 'reason', 'unknown')}" + (f" ({detail})" if detail else ""))
@@ -975,30 +1115,31 @@ async def segment_image(
     tag: str = "",
     include_confidence: bool = True,
 ) -> SegmentationRun:
-    """One SAM image request (data URL input, store false), parsed with meta_sam_parser. Ledger: sam_image."""
+    """One SAM image check (data URL, store false) parsed with meta_sam_parser; raises SamRequestError unless it completed."""
     data_url, media_size = _image_data_url(image)
     metadata = sam_metadata(include_confidence=include_confidence, mask_encoding=None)
     request = _request(concept, {"type": "input_image", "image_url": data_url}, metadata)
-    events: list[dict[str, Any]] = []
-    result = await _run_stream(request, _Sink(events.append), max_tries=RATE_LIMIT_TRIES)
-    if result.error is not None and not events:
-        raise SamRequestError(result.error)
+    result = await _run_stream(request, _Sink(), _Check("image"), max_tries=RATE_LIMIT_TRIES)
+    note = f"{concept} {tag}".strip()
+    dropped_usd, retried = _bill_dropped(result, kind="sam_image", note=note, run_id=run_id, role=role)
+    if not result.events:
+        raise SamRequestError(result.error or "The API answered with no events.")
     cpu0 = time.process_time()
-    run = await _run_from_events(events, media="image", media_size=media_size, concept=concept)
+    run = await _run_from_events(result.events, media="image", media_size=media_size, concept=concept)
     parse_cpu_s = time.process_time() - cpu0
+    run.diagnostics.extend(f"{d.severity} {d.code}: {d.message}" for d in retried)
     if result.error is not None:
-        run.outcome = "incomplete" if run.outcome == "completed" else run.outcome
         run.diagnostics.append(result.error)
     if not result.store_sent:
         run.diagnostics.append("store_false_rejected: the request was retried without the field")
     if run_id is not None and role is not None:
         name = f"{tag or 'image'}.{run.response_id or 'no_id'}.ndjson"
         run.events_path = paths.image_requests_dir(run_id, role) / name
-        run.events_path.write_text("".join(json.dumps(e, ensure_ascii=True, default=str) + "\n" for e in events), encoding="utf-8")
+        run.events_path.write_text("".join(json.dumps(e, ensure_ascii=True, default=str) + "\n" for e in result.events), encoding="utf-8")
     row = ledger.record(
         "sam_image",
         SAM_MODEL,
-        note=f"{concept} {tag}".strip(),
+        note=note,
         run_id=run_id,
         images=1,
         engine=ENGINE,
@@ -1011,7 +1152,12 @@ async def segment_image(
         retries=result.retries,
         role=role,
     )
-    run.usd = float(row["usd"])
+    run.usd = dropped_usd + float(row["usd"])
+    if run.outcome != "completed":
+        # Never a quiet empty run: privacy.image_checks reads detections only, and section 8 item 4 writes no frame
+        # from a check that did not happen. The run rides on the error for callers that want what came back.
+        detail = "; ".join(run.diagnostics)[:400] or "no detail"
+        raise SamRequestError(f"The {concept!r} image check ended {run.outcome}: {detail}", run)
     return run
 
 

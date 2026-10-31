@@ -4,6 +4,7 @@ client. One live smoke runs only with LIVE=1 (about $0.06)."""
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import os
 import subprocess
@@ -388,7 +389,7 @@ class FakeFiles:
         self.server.uploads.append(kwargs)
         if self.server.upload_errors:
             raise self.server.upload_errors.pop(0)
-        return FakeFile(f"file-{len(self.server.uploads):04d}", expires_at=1793064343)
+        return FakeFile(f"file-{len(self.server.uploads):04d}", **self.server.file_fields)
 
     async def delete(self, file_id: str) -> Any:
         self.server.deleted_files.append(file_id)
@@ -400,6 +401,7 @@ class FakeFile:
         self.id = file_id
         self.bytes = 123
         self.expires_at = fields.get("expires_at")
+        self.created_at = fields.get("created_at")
         self.deleted = fields.get("deleted")
 
     def model_dump(self) -> dict[str, Any]:
@@ -416,6 +418,7 @@ class FakeServer:
         self.streams: list[FakeStream] = []
         self.uploads: list[dict[str, Any]] = []
         self.upload_errors: list[BaseException] = []
+        self.file_fields: dict[str, Any] = {"expires_at": 1793064343}
         self.deleted_files: list[str] = []
         self.deleted_responses: list[str] = []
 
@@ -593,8 +596,13 @@ async def test_broken_stream_retries_once_then_incomplete(server: FakeServer) ->
     assert record.error is None and record.lane_path is not None
     saved = list(sam_wire.read_events(paths.run_dir("r7") / record.lane_path))
     assert len(saved) == 60  # the lane file holds only the attempt that was kept
-    row = ledger.rows(ledger.LEDGER_PATH)[0]
-    assert row["status"] == "incomplete" and row["frames"] == 141  # billed from frames_sent when usage never came
+    rows = ledger.rows(ledger.LEDGER_PATH)
+    # The API answered both requests: the dropped one is "abandoned", the kept one "incomplete"; both bill
+    # frames_sent because usage never came.
+    assert [r["status"] for r in rows] == ["abandoned", "incomplete"] and [r["frames"] for r in rows] == [141, 141]
+    assert rows[0]["request_id"] == "resp_6adfef8768a71da59fd247f8" and rows[0]["note"] == "fender"
+    assert record.dollars == pytest.approx(2 * 141 * 0.0002)
+    assert [d.code for d in record.diagnostics] == ["attempt_retried"] and "ended after 40 events" in record.diagnostics[0].message
 
 
 async def test_connection_error_mid_stream_retries_once(server: FakeServer) -> None:
@@ -608,6 +616,42 @@ async def test_connection_error_mid_stream_retries_once(server: FakeServer) -> N
     server.script = [BrokenStream(events_of(TEXT_FIXTURE))]
     record, frames = await sam_client.segment_video("file-abc", "car", run_id="r8", role="pickup", lane="car", frames_sent=141, media_size=SIZE, metadata=sam_client.sam_metadata(), noun=Noun.CAR)
     assert record.status is LaneStatus.COMPLETED and record.retries == 1 and len(frames) == 134 and len(server.requests) == 2
+    assert [r["status"] for r in ledger.rows(ledger.LEDGER_PATH)] == ["abandoned", "completed"]
+    assert len(list(sam_wire.read_events(paths.run_dir("r8") / record.lane_path))) == 142
+
+
+async def test_error_diagnostic_lane_is_retried_once_and_both_attempts_are_billed(server: FakeServer) -> None:
+    events = events_of(TEXT_FIXTURE)
+    conflicting = [dict(e, text=e["text"] + "x") if e["type"] == "response.output_text.done" else e for e in events]
+    server.script = [conflicting]
+    record, frames = await sam_client.segment_video("file-abc", "car door", run_id="r9", role="pickup", lane="car door", frames_sent=141, media_size=SIZE, metadata=sam_client.sam_metadata(), noun=Noun.CAR_DOOR)
+    assert len(server.requests) == 2 and record.status is LaneStatus.COMPLETED and record.retries == 1 and len(frames) == 134
+    assert [d.code for d in record.diagnostics] == ["attempt_retried"] and "completed with finalizer_conflict" in record.diagnostics[0].message
+    rows = ledger.rows(ledger.LEDGER_PATH)
+    assert [r["status"] for r in rows] == ["discarded", "completed"]
+    assert [r["video_frames_processed"] for r in rows] == [141, 141] and record.dollars == pytest.approx(2 * 141 * 0.0002)
+    saved = list(sam_wire.read_events(paths.run_dir("r9") / record.lane_path))
+    assert sam_wire.index_from_events(saved, media="video")[1].diagnostics == []  # the clean retry is what was kept
+
+
+async def test_error_diagnostics_twice_end_incomplete_after_one_retry(server: FakeServer) -> None:
+    events = events_of(TEXT_FIXTURE)
+    conflicting = [dict(e, text=e["text"] + "x") if e["type"] == "response.output_text.done" else e for e in events]
+    server.script = [conflicting, conflicting]
+    record, frames = await sam_client.segment_video("file-abc", "hood", run_id="r9b", role="pickup", lane="hood", frames_sent=141, media_size=SIZE, metadata=sam_client.sam_metadata(), noun=Noun.HOOD)
+    assert len(server.requests) == 2 and record.status is LaneStatus.INCOMPLETE and len(frames) == 134
+    assert sorted(d.code for d in record.diagnostics) == ["attempt_retried", "finalizer_conflict"]
+    assert [r["status"] for r in ledger.rows(ledger.LEDGER_PATH)] == ["discarded", "incomplete"]
+
+
+async def test_response_failed_is_retried_once(server: FakeServer) -> None:
+    events = events_of(TEXT_FIXTURE)
+    failed = events[:3] + [{"type": "response.failed", "response": {"id": "resp_failed", "status": "failed", "error": {"message": "server busy"}}}]
+    server.script = [failed]
+    record, frames = await sam_client.segment_video("file-abc", "roof", run_id="r10", role="pickup", lane="roof", frames_sent=141, media_size=SIZE, metadata=sam_client.sam_metadata(), noun=Noun.ROOF)
+    assert len(server.requests) == 2 and record.status is LaneStatus.COMPLETED and len(frames) == 134 and record.error is None
+    rows = ledger.rows(ledger.LEDGER_PATH)
+    assert [r["status"] for r in rows] == ["abandoned", "completed"] and rows[0]["request_id"] == "resp_failed"
 
 
 async def test_segment_video_many_runs_every_lane_and_never_raises(server: FakeServer, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -689,6 +733,47 @@ async def test_segment_image_parses_and_saves_events(server: FakeServer) -> None
     assert row["unit"] == "images" and row["quantity"] == 1 and row["status"] == "completed"
 
 
+async def test_segment_image_mid_stream_break_keeps_only_the_retry(server: FakeServer) -> None:
+    class BrokenStream(FakeStream):
+        async def _gen(self) -> Any:
+            for i, event in enumerate(self._events):
+                if i == 3:
+                    raise APIConnectionError(request=httpx.Request("POST", "https://api.meta.ai/v1/responses"))
+                yield event
+
+    events = image_case_events()
+    server.default = events
+    server.script = [BrokenStream(events)]
+    run = await sam_client.segment_image(np.zeros((40, 60, 3), dtype=np.uint8), "license plate", run_id="imgr", role="pickup", tag="kf2")
+    assert len(server.requests) == 2 and run.outcome == "completed" and run.response_id == "resp_case"
+    assert len(run.frames[0]) == 1 and run.frames[0][0].mask is not None
+    assert not [d for d in run.diagnostics if d.startswith(("parser", "error"))]
+    assert list(sam_wire.read_events(run.events_path)) == events  # only the attempt that was kept
+    rows = ledger.rows(ledger.LEDGER_PATH)
+    assert [(r["kind"], r["status"]) for r in rows] == [("sam_image", "abandoned"), ("sam_image", "completed")]
+    assert run.usd == pytest.approx(2 * 0.0025)
+
+
+async def test_segment_image_error_diagnostic_is_retried_once(server: FakeServer) -> None:
+    events = image_case_events()
+    server.default = events
+    server.script = [[dict(e, text=e["text"] + "x") if e["type"] == "response.output_text.done" else e for e in events]]
+    run = await sam_client.segment_image(np.zeros((40, 60, 3), dtype=np.uint8), "face", run_id="imgd", role="pickup", tag="kf4")
+    assert len(server.requests) == 2 and run.outcome == "completed" and len(run.frames[0]) == 1
+    assert any("attempt_retried" in d and "finalizer_conflict" in d for d in run.diagnostics)
+    assert [r["status"] for r in ledger.rows(ledger.LEDGER_PATH)] == ["discarded", "completed"]
+
+
+async def test_segment_image_raises_when_the_check_never_completes(server: FakeServer) -> None:
+    server.default = [e for e in image_case_events() if e["type"] != "response.completed"]
+    with pytest.raises(sam_client.SamRequestError, match="ended incomplete") as info:
+        await sam_client.segment_image(np.zeros((40, 60, 3), dtype=np.uint8), "face", run_id="imgx", role="pickup", tag="kf3")
+    run = info.value.run
+    assert run is not None and run.outcome == "incomplete" and len(server.requests) == 2
+    assert run.events_path is not None and run.events_path.is_file() and len(run.frames[0]) == 1
+    assert [r["status"] for r in ledger.rows(ledger.LEDGER_PATH)] == ["abandoned", "incomplete"]
+
+
 async def test_segment_image_without_run_keeps_no_file_and_raises_on_no_answer(server: FakeServer, sleeps: list[float], tmp_path: Path) -> None:
     from PIL import Image
 
@@ -699,9 +784,10 @@ async def test_segment_image_without_run_keeps_no_file_and_raises_on_no_answer(s
     assert run.events_path is None and (run.media_width, run.media_height) == (20, 10)
     assert server.requests[-1]["input"][0]["content"][1]["image_url"].startswith("data:image/png;base64,")
     server.script = [http_error(RateLimitError, 429, "slow down") for _ in range(6)]
-    with pytest.raises(sam_client.SamRequestError):
+    with pytest.raises(sam_client.SamRequestError) as info:
         await sam_client.segment_image(png, "face", run_id=None)
-    assert len(sleeps) == 5
+    assert len(sleeps) == 5 and info.value.run is None
+    assert len(ledger.rows(ledger.LEDGER_PATH)) == 1  # the first call only; a 429 is never billed
 
 
 async def test_upload_file_caches_by_sha256_and_sets_expiry(server: FakeServer, tmp_path: Path) -> None:
@@ -730,13 +816,86 @@ async def test_upload_file_caches_by_sha256_and_sets_expiry(server: FakeServer, 
     assert digest not in json.loads(paths.uploads_cache_path().read_text())
 
 
-async def test_upload_file_remuxes_on_a_4xx(server: FakeServer, tmp_path: Path) -> None:
-    clip = tmp_path / "clip.mp4"
+async def test_upload_cache_is_scoped_to_the_run_that_uploaded(server: FakeServer, tmp_path: Path) -> None:
+    """Two runs of the same bytes each get their own file, so one run's run-end DELETE never removes the other's."""
+    video = tmp_path / "proxy.mp4"
+    video.write_bytes(b"the same proxy bytes in two runs")
+    server.file_fields["expires_at"] = 4102444800  # 2100: the cached entries stay fresh
+    first = await sam_client.upload_file(video, run_id="run_a")
+    assert (await sam_client.upload_file(video, run_id="run_a")).file_id == first.file_id and len(server.uploads) == 1
+    second = await sam_client.upload_file(video, run_id="run_b")
+    assert second.file_id != first.file_id and len(server.uploads) == 2
+    await sam_client.delete_file(first.file_id)  # run_a ends
+    assert (await sam_client.upload_file(video, run_id="run_b")).file_id == second.file_id and len(server.uploads) == 2
+
+
+async def test_upload_file_remuxes_on_a_4xx_and_removes_the_copy(server: FakeServer, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    clip = tmp_path / "pickup.proxy.mp4"
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=64x48:rate=10:duration=0.3", "-pix_fmt", "yuv420p", str(clip)], check=True)
+    seen: list[tuple[Path, bool]] = []
+    real = sam_client._files_create
+
+    async def spy(path: Path, expires_after_s: int) -> Any:
+        seen.append((Path(path), Path(path).is_file()))
+        return await real(path, expires_after_s)
+
+    monkeypatch.setattr(sam_client, "_files_create", spy)
     server.upload_errors = [http_error(BadRequestError, 400, "unsupported container", body=None)]
-    record = await sam_client.upload_file(clip)
+    record = await sam_client.upload_file(clip, run_id="rx")
     assert record.file_id == "file-0002" and len(server.uploads) == 2
-    assert server.uploads[1]["file"][0] == "clip.remux.mp4" and (tmp_path / "clip.remux.mp4").is_file()
+    assert server.uploads[1]["file"][0] == "pickup.proxy.remux.mp4"
+    assert server.uploads[1]["expires_after"] == {"anchor": "created_at", "seconds": 3600}
+    remux, existed = seen[1]
+    # The unblurred copy was made in quarantine/tmp (the sweeper's ground) and is gone once the upload returned.
+    assert existed and remux.parent == paths.quarantine_dir("rx") / "tmp" and not remux.exists()
+    assert sorted(p.name for p in tmp_path.iterdir() if p.is_file()) == ["pickup.proxy.mp4"]
+    entry = json.loads(paths.uploads_cache_path().read_text())[hashlib.sha256(clip.read_bytes()).hexdigest()]
+    assert entry["file_id"] == "file-0002" and entry["remux_sha256"] == hashlib.sha256(server.uploads[1]["file"][1]).hexdigest()
+    # Without a run the copy goes to a temp dir and is removed the same way.
+    paths.uploads_cache_path().unlink()
+    server.upload_errors = [http_error(BadRequestError, 400, "unsupported container", body=None)]
+    assert (await sam_client.upload_file(clip)).file_id == "file-0004"
+    assert seen[-1][1] and not seen[-1][0].exists() and not seen[-1][0].parent.exists()
+
+
+async def test_upload_file_removes_the_copy_when_the_remux_fails(server: FakeServer, tmp_path: Path) -> None:
+    junk = tmp_path / "junk.mp4"
+    junk.write_bytes(b"not a video")
+    server.upload_errors = [http_error(BadRequestError, 400, "unsupported container", body=None)]
+    with pytest.raises(subprocess.CalledProcessError):
+        await sam_client.upload_file(junk, run_id="ry")
+    assert len(server.uploads) == 1 and not list(paths.run_dir("ry").rglob("*.remux.mp4"))
+
+
+async def test_upload_file_never_uploads_without_the_expiry(server: FakeServer, tmp_path: Path) -> None:
+    video = tmp_path / "proxy.mp4"
+    video.write_bytes(b"bytes")
+    message = "Unknown parameter: 'expires_after'"
+    server.upload_errors = [http_error(BadRequestError, 400, message, body={"error": {"message": message, "param": "expires_after"}})]
+    with pytest.raises(BadRequestError):
+        await sam_client.upload_file(video, run_id="r1")
+    # One request, with the expiry; no second upload without it, no remux, nothing cached.
+    assert len(server.uploads) == 1 and server.uploads[0]["expires_after"] == {"anchor": "created_at", "seconds": 3600}
+    assert not paths.uploads_cache_path().is_file() and not list(paths.runs_root().rglob("*.remux.mp4"))
+
+
+async def test_upload_file_expiry_comes_from_the_api_then_created_at(server: FakeServer, tmp_path: Path) -> None:
+    video = tmp_path / "proxy.mp4"
+    video.write_bytes(b"other bytes")
+    digest = hashlib.sha256(video.read_bytes()).hexdigest()
+    first = await sam_client.upload_file(video)
+    assert first.expires_at == "2026-10-27T01:25:43Z"
+    assert json.loads(paths.uploads_cache_path().read_text())[digest]["expires_from"] == "api"
+    paths.uploads_cache_path().unlink()
+    server.file_fields = {"expires_at": None, "created_at": 1793060743}  # accepted, but no expires_at on the object
+    second = await sam_client.upload_file(video)
+    assert second.expires_at == "2026-10-27T01:25:43Z"  # the server's created_at plus the 3600 s sent
+    assert json.loads(paths.uploads_cache_path().read_text())[digest]["expires_from"] == "created_at"
+    paths.uploads_cache_path().unlink()
+    server.file_fields = {}
+    third = await sam_client.upload_file(video)
+    assert third.expires_at == sam_client._plus_seconds(third.uploaded_at, 3600)
+    assert json.loads(paths.uploads_cache_path().read_text())[digest]["expires_from"] == "uploaded_at"
 
 
 async def test_delete_response_returns_status_and_body(server: FakeServer) -> None:
@@ -794,6 +953,22 @@ def test_zero_match_without_any_output_item_is_still_zero_matches() -> None:
     assert frames == [] and outcome.status is LaneStatus.ZERO_MATCHES and outcome.diagnostics == []
 
 
+def test_decode_pool_workers_are_spawned_not_forked() -> None:
+    with sam_wire.DecodePool(1) as pool:
+        assert pool._pool._mp_context.get_start_method() == "spawn"
+
+
+def test_client_constants_match_thresholds() -> None:
+    th = contracts.load_thresholds()
+    assert sam_client.TIMEOUT_S == th["orchestrator"]["request_timeout_s"]
+    assert sam_client.RATE_LIMIT_TRIES == th["orchestrator"]["rate_limit_retries"]
+    assert sam_client.BACKOFF_BASE_S == th["orchestrator"]["rate_limit_backoff_base_s"]
+    assert sam_client.STREAM_RETRIES == th["orchestrator"]["request_retries"]
+    assert sam_client.FILES_DELETE_RETRIES == th["privacy"]["files_delete_retries"]
+    assert sam_client.INLINE_MAX_BYTES == th["media"]["inline_data_url_max_bytes"]
+    assert sam_client.FILES_EXPIRES_AFTER_S == th["media"]["files_expires_after_s"]
+
+
 def test_backoff_honors_retry_after() -> None:
     assert sam_client._backoff_delay(1, "3") >= 3.0
     assert 0.25 <= sam_client._backoff_delay(1, None) <= 0.75
@@ -822,6 +997,8 @@ async def test_live_smoke_text_and_box_lanes(tmp_path: Path, monkeypatch: pytest
     monkeypatch.setattr(paths, "RUNS_DIR", tmp_path / "runs")
     uploaded = await sam_client.upload_file(PINGPONG, run_id="smoke")
     assert uploaded.file_id.startswith("file-") and uploaded.expires_at is not None
+    entry = json.loads(paths.uploads_cache_path().read_text())[hashlib.sha256(PINGPONG.read_bytes()).hexdigest()]
+    print(f"\nLIVE smoke: expires_at {uploaded.expires_at} from {entry['expires_from']}")
     try:
         text_record, text_frames = await sam_client.segment_video(uploaded.file_id, "ping pong ball", run_id="smoke", role="pickup", lane="ping pong ball", frames_sent=141, media_size=SIZE, metadata=sam_client.sam_metadata())
         assert text_record.status is LaneStatus.COMPLETED, text_record

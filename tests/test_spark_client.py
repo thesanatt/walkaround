@@ -6,13 +6,12 @@ from __future__ import annotations
 
 import json
 import os
-import subprocess
 from pathlib import Path
 
 import httpx
 import numpy as np
 import pytest
-from openai import APITimeoutError
+from openai import APITimeoutError, AuthenticationError, BadRequestError, InternalServerError, RateLimitError
 from PIL import Image, ImageDraw
 from pydantic import ValidationError
 
@@ -184,6 +183,15 @@ def test_schemas_present_and_strict():
     assert spark_client.IMAGE_LONG_EDGE == th["spark"]["image_long_edge_px"]
     assert spark_client.GRID_SLACK == th["spark"]["grid_slack"]
     assert spark_client.DEFAULT_EFFORT == th["spark"]["effort"]
+    # Every other value the module mirrors from config/thresholds.json, so a config change cannot leave it behind.
+    assert spark_client.GRID == th["spark"]["grid"]
+    assert spark_client.JPEG_QUALITY == th["spark"]["jpeg_quality"]
+    assert spark_client.LANDMARKS_MAX == th["spark"]["landmarks_max"]
+    assert spark_client.CLIP_LONG_EDGE == th["media"]["clip_size_px"]
+    assert spark_client.TIMEOUT_S == th["orchestrator"]["request_timeout_s"]
+    assert spark_client.RATE_LIMIT_TRIES == th["orchestrator"]["rate_limit_retries"]
+    assert spark_client.BACKOFF_BASE_S == th["orchestrator"]["rate_limit_backoff_base_s"]
+    assert SPARK_MODEL == th["spark"]["model"]
 
 
 def test_marks_schema_landmark_enum():
@@ -276,7 +284,7 @@ def test_find_marks_request_shape_record_and_ledger(fake, ledger_path):
     assert "stream" not in request
     fmt = request["text"]["format"]
     assert fmt["type"] == "json_schema" and fmt["name"] == "marks_v1" and fmt["strict"] is True
-    assert fmt["schema"]["properties"]["landmarks"]["items"]["properties"]["name"]["enum"] == ["handle", "lock", "mirror_base", "wheel_arch"]
+    assert fmt["schema"]["properties"]["landmarks"]["items"]["properties"]["name"]["enum"] == ["handle", "lock", "mirror_base", "wheel_arch", "badge"]
     assert fmt["schema"]["additionalProperties"] is False
     system, user = request["input"]
     assert system == {"role": "system", "content": spark_client.SYSTEM_PROMPT}
@@ -284,7 +292,7 @@ def test_find_marks_request_shape_record_and_ledger(fake, ledger_path):
     text_part, image_part = user["content"]
     assert text_part["type"] == "input_text"
     assert "left front door" in text_part["text"] and "0 to 1000 grid" in text_part["text"] and "Do not miss" in text_part["text"]
-    assert "handle, lock, mirror_base, wheel_arch" in text_part["text"] and "badge" not in text_part["text"]
+    assert "handle, lock, mirror_base, wheel_arch, badge" in text_part["text"] and "up to 4 of these" in text_part["text"]
     assert image_part["type"] == "input_image" and image_part["image_url"].startswith("data:image/jpeg;base64,")
 
     assert result.answer is not None and len(result.answer.marks) == 2
@@ -332,6 +340,22 @@ def test_landmark_outside_the_closed_list_is_dropped_not_a_schema_miss(fake, led
     assert spark_client._marks_answer(GOOD_MARKS, landmark_names=[]).landmarks == []
     many = {**GOOD_MARKS, "landmarks": [{"name": f"n{i}", "point": {"x": i, "y": i}} for i in range(6)]}
     assert len(spark_client._marks_answer(many).landmarks) == spark_client.LANDMARKS_MAX
+
+
+def test_find_marks_sends_the_whole_closed_list_and_keeps_at_most_four(fake):
+    """5 step 8: up to 4 landmarks FROM the panel's closed list. The list itself (8 names on a door) is never cut."""
+    th = load_thresholds()
+    door = th["spark"]["landmarks"]["door"]
+    assert len(door) == 8 > spark_client.LANDMARKS_MAX == th["spark"]["landmarks_max"]
+    answered = [{"name": n, "point": {"x": 100 + 50 * i, "y": 500}} for i, n in enumerate(reversed(door))][:6]
+    fake.responses.replies.append(completed({**GOOD_MARKS, "landmarks": answered}, rid="lm8"))
+    result = spark_client.find_marks(crop(), PanelId.RIGHT_REAR_DOOR, landmarks=door + ["handle"])
+    sent = requests_of(fake)[0]
+    assert sent["text"]["format"]["schema"]["properties"]["landmarks"]["items"]["properties"]["name"]["enum"] == door  # the repeat is dropped
+    text = sent["input"][1]["content"][0]["text"]
+    assert ", ".join(door) in text and f"up to {spark_client.LANDMARKS_MAX} of these" in text
+    assert result.answer is not None
+    assert [lm.name for lm in result.answer.landmarks] == ["badge", "lower_trim", "wheel_arch", "window_rear_corner"]
 
 
 def test_stays_put_crop_is_sent_at_1008(fake):
@@ -394,6 +418,16 @@ def test_truncation_retries_at_8000_then_records_truncated(fake, ledger_path):
     assert rows[1]["usd"] > 0  # the truncated call still cost money
 
 
+def test_schema_miss_then_cut_at_4000_is_truncated_without_a_third_call(fake, ledger_path):
+    """Two rows at most: the 8000 budget follows only a cut on the first attempt; a later cut still reads truncated."""
+    fake.responses.replies.extend([completed("garbage", rid="m1"), incomplete('{"marks": [', rid="m2")])
+    result = spark_client.find_marks(crop(), PanelId.HOOD, landmarks=[])
+    assert [r["max_output_tokens"] for r in requests_of(fake)] == [4000, 4000]
+    assert result.answer is None and result.truncated is True
+    assert result.record.max_output_tokens == 4000 and result.record.incomplete_reason == "max_output_tokens"
+    assert [row["status"] for row in ledger.rows(ledger_path)] == ["schema_miss", "truncated"]
+
+
 def test_truncation_then_success_is_not_truncated(fake):
     fake.responses.replies.extend([incomplete(rid="c1"), completed(GOOD_MARKS, rid="ok", out=2500)])
     result = spark_client.find_marks(crop(), PanelId.HOOD, landmarks=[])
@@ -405,6 +439,7 @@ def test_api_error_is_recorded_not_raised(fake, ledger_path):
     request = httpx.Request("POST", "https://api.meta.ai/v1/responses")
     fake.responses.replies.extend([APITimeoutError(request=request), APITimeoutError(request=request)])
     result = spark_client.find_marks(crop(), PanelId.HOOD, landmarks=[], run_id="run1")
+    assert len(requests_of(fake)) == 2  # a timeout gets the one retry of section 14 item 10, never the 429 budget
     assert result.answer is None and result.truncated is False
     assert result.record.status is SparkStatus.INCOMPLETE
     assert result.record.incomplete_reason.startswith("error: APITimeoutError")
@@ -422,6 +457,65 @@ def test_response_failed_status_is_incomplete(fake):
     assert result.attempts[0].status is SparkStatus.INCOMPLETE
     assert result.attempts[0].incomplete_reason == "error: server_error: boom"
     assert result.answer is not None
+
+
+def status_error(status: int, retry_after: str | None = None, message: str = ""):
+    request = httpx.Request("POST", "https://api.meta.ai/v1/responses")
+    headers = {"retry-after": retry_after} if retry_after else {}
+    cls = {400: BadRequestError, 401: AuthenticationError, 429: RateLimitError, 503: InternalServerError}[status]
+    return cls(message or f"Error code: {status}", response=httpx.Response(status, headers=headers, request=request), body=None)
+
+
+def test_429_and_5xx_back_off_inside_one_attempt(fake, ledger_path, monkeypatch):
+    waits = []
+    monkeypatch.setattr(spark_client, "_sleep", waits.append)
+    fake.responses.replies.extend([status_error(429, "3"), status_error(503), completed(GOOD_MARKS, rid="ok")])
+    result = spark_client.find_marks(crop(), PanelId.HOOD, landmarks=[])
+    assert result.answer is not None and result.record.retry == 0 and len(requests_of(fake)) == 3
+    assert waits[0] == 3.0 and 0.75 <= waits[1] <= 1.0  # Retry-After honoured, then 500 ms doubled with jitter
+    assert [row["status"] for row in ledger.rows(ledger_path)] == ["completed"]  # the backoff stays inside one attempt
+
+
+def test_rate_limit_gives_up_after_six_tries_per_attempt(fake, ledger_path, monkeypatch):
+    monkeypatch.setattr(spark_client, "_sleep", lambda seconds: None)
+    fake.responses.replies.extend([status_error(429) for _ in range(2 * spark_client.RATE_LIMIT_TRIES)])
+    result = spark_client.find_marks(crop(), PanelId.HOOD, landmarks=[])
+    assert len(requests_of(fake)) == 2 * spark_client.RATE_LIMIT_TRIES  # 6 tries, then the retry of _ask_attempts
+    assert result.answer is None and result.record.incomplete_reason.startswith("error: RateLimitError")
+    assert [row["status"] for row in ledger.rows(ledger_path)] == ["failed", "failed"]
+
+
+def test_client_errors_and_a_long_retry_after_are_not_retried(fake, monkeypatch):
+    monkeypatch.setattr(spark_client, "_sleep", lambda seconds: pytest.fail(f"unexpected wait of {seconds} s"))
+    fake.responses.replies.extend([status_error(400), status_error(429, "120")])
+    result = spark_client.find_marks(crop(), PanelId.HOOD, landmarks=[])
+    assert len(requests_of(fake)) == 2  # one try in each attempt
+    assert result.attempts[0].incomplete_reason.startswith("error: BadRequestError")
+    assert result.attempts[1].incomplete_reason.startswith("error: RateLimitError")
+
+
+def test_real_client_leaves_retries_to_this_module(monkeypatch):
+    monkeypatch.setattr(spark_client, "_CLIENT", None)
+    monkeypatch.setattr(spark_client, "api_key", lambda: "LLM_0_offline_placeholder")
+    client = spark_client._client()
+    assert client.max_retries == 0 and client.timeout == spark_client.TIMEOUT_S == 240.0
+
+
+def test_error_text_never_stores_a_key(fake, monkeypatch):
+    """A server that echoes the bearer key in an error body must not put it into spark.json."""
+    monkeypatch.setenv("MODEL_API_KEY", "odd-format-key-0123456789")
+    denied = status_error(401, message="Incorrect API key provided: LLM_123_SECRETSECRET (Bearer odd-format-key-0123456789)")
+    failed = completed("", rid="f1")
+    failed["status"] = "failed"
+    failed["error"] = {"code": "invalid_api_key", "message": "key odd-format-key-0123456789 was refused"}
+    fake.responses.replies.extend([denied, failed])
+    result = spark_client.find_marks(crop(), PanelId.HOOD, landmarks=[])
+    first, second = result.attempts
+    assert first.incomplete_reason.startswith("error: AuthenticationError: Incorrect API key provided: [redacted]")
+    assert second.incomplete_reason == "error: invalid_api_key: key [redacted] was refused"
+    for record in result.attempts:
+        text = canonical_json(record)
+        assert "SECRET" not in text and "odd-format-key" not in text
 
 
 def test_sdk_response_object_works_through_output_text(fake):
@@ -550,6 +644,16 @@ def test_claim_name_maps_to_the_panel_enum(fake):
 )
 def test_panel_from_naming(noun, side, position, panel):
     assert spark_client.panel_from_naming(noun, side, position) is panel
+
+
+def test_claim_name_keeps_four_landmarks_after_dropping_off_grid_ones(fake):
+    names = ["off", "handle", "mirror", "badge", "wheel arch", "fuel door"]
+    points = [{"name": n, "point": {"x": 1500 if n == "off" else 100 * (i + 1), "y": 500}} for i, n in enumerate(names)]
+    reply = {"panel": "car door", "side": "left", "position": "rear", "front_direction": "left", "panel_bbox": None, "context": "", "landmarks": points}
+    fake.responses.replies.append(completed(reply, rid="cn4"))
+    result = spark_client.claim_name(crop())
+    assert result.panel is PanelId.LEFT_REAR_DOOR
+    assert [lm.name for lm in result.landmarks] == ["handle", "mirror", "badge", "wheel arch"]
 
 
 def test_claim_name_none_and_invalid(fake):
@@ -728,3 +832,13 @@ def test_live_find_marks_on_a_generated_panel():
         assert 0 <= mark.point.x <= 1000 and 0 <= mark.bbox.x_max <= 1000
     print("live spark marks:", [(m.type.value, m.point.x, m.point.y, m.size_class.value, m.confidence.value) for m in result.answer.marks])
     assert record.usage.input > 0 and record.dollars > 0
+
+
+@pytest.mark.skipif(os.environ.get("LIVE") != "1", reason="live Spark call; set LIVE=1 (about $0.01)")
+def test_live_seed_v1_anyof_null():
+    """seed_v1 puts anyOf [object, null] below the root, as claim_name_v1 and claim_box_v1 do; no D1 row sends it."""
+    result = spark_client.seed_mark(panel_with_scratch(), PanelId.LEFT_FRONT_DOOR, "a long scratch across the door", run_id="smoke_m2_seed")
+    record = result.record
+    print("live seed:", record.status.value, "valid", record.valid, "found", result.found, "bbox", result.bbox, "usd", record.dollars)
+    assert record.status is SparkStatus.COMPLETED, record.incomplete_reason
+    assert record.valid, record.raw_text[:300]

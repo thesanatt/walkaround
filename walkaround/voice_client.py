@@ -16,11 +16,15 @@ For the one-long-turn case, split_turn is the documented helper: when a turn spa
 is cut into sentence groups where a new panel noun from the keyword list begins, the turn's time is spread over the
 pieces in proportion to their character positions, and every piece is flagged estimated. The narration lane (M10)
 decides when to use it.
+
+Errors: ValueError before the wire (a WAV or mode the endpoint would refuse); TranscribeError, a RuntimeError, for
+everything after, with any key value or key-shaped token redacted from the server's text.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 import wave
@@ -66,10 +70,13 @@ DEFAULT_KEYWORDS = [
 MODES = ("PUSH_TO_TALK", "ENDPOINTING", "DIARIZATION")
 DEFAULT_MODE = "ENDPOINTING"  # thresholds voice.mode
 SAMPLE_RATES = (16000, 24000)
-MAX_AUDIO_SECONDS = 10 * 60
-MAX_BYTES = 32 * 1024 * 1024
-TIMEOUT_S = 300.0  # the cookbook's value: a 10 minute recording needs a generous wait
+MAX_AUDIO_SECONDS = 10 * 60  # thresholds voice.max_audio_s
+MAX_BYTES = 32 * 1024 * 1024  # thresholds voice.max_body_bytes
+# thresholds orchestrator.request_timeout_s (14 item 10: 240 s, then one retry). The cookbook waits 300 s because it
+# sends up to 10 minutes of audio; a walk is about 40 s of audio (API notes) and the 16.6 s probe answered in 5.3 s.
+TIMEOUT_S = 240.0
 MAX_RETRY_WAIT_S = 60.0
+TRANSPORT_RETRY_WAIT_S = 1.0  # before the one retry after a connect, read or timeout failure
 ENGINE = "meta-model-api"
 # Optional language hint sent as languageBias, e.g. ["english"]. None lets the model detect the language.
 LANGUAGE_BIAS: list[str] | None = None
@@ -89,7 +96,7 @@ STATUS_HINTS = {
 
 
 class TranscribeError(RuntimeError):
-    """The server rejected the request or failed to transcribe it."""
+    """No transcript: no key, the server refused or failed, or no response after the one retry."""
 
 
 @dataclass(frozen=True)
@@ -175,6 +182,20 @@ def _request_json(mode: str, keywords: list[str] | None) -> dict[str, Any]:
     return body
 
 
+_KEY_SHAPES = re.compile(r"\bLLM[_|][A-Za-z0-9_|-]{6,}|\bhf_[A-Za-z0-9]{10,}")  # LLM_{digits}_{secret}, HF tokens
+_BEARER = re.compile(r"(?i)\b(bearer\s+)\S+")
+_SECRET_ENV = ("MODEL_API_KEY", "BASETEN_API_KEY", "HF_TOKEN")
+
+
+def _redact(text: str) -> str:
+    """Server text with every configured key value and key-shaped token replaced, before it goes into an exception."""
+    for name in _SECRET_ENV:
+        value = os.environ.get(name) or ""
+        if len(value) >= 8:
+            text = text.replace(value, "[redacted]")
+    return _BEARER.sub(r"\1[redacted]", _KEY_SHAPES.sub("[redacted]", text))
+
+
 def _retry_after_s(response: httpx.Response) -> float:
     """Seconds to wait from Retry-After (a number or an HTTP date), clamped to [0.5, MAX_RETRY_WAIT_S]."""
     value = response.headers.get("retry-after", "").strip()
@@ -188,35 +209,52 @@ def _retry_after_s(response: httpx.Response) -> float:
     return min(max(delay, 0.5), MAX_RETRY_WAIT_S)
 
 
+def _try_post(client: httpx.Client, headers: dict[str, str], files: dict[str, Any]) -> tuple[httpx.Response | None, httpx.RequestError | None]:
+    try:
+        return client.post(VOICE_TRANSCRIBE_URL, headers=headers, files=files), None
+    except httpx.RequestError as exc:
+        return None, exc
+
+
 def _post(wav_path: Path, wav_bytes: bytes, request_json: dict[str, Any]) -> tuple[httpx.Response, int]:
-    """One multipart POST, repeated once after a 429. Returns the response and how many retries it took."""
-    headers = {"Authorization": f"Bearer {api_key()}"}
+    """One multipart POST, repeated once after a 429 (honouring Retry-After) or a connect, read or timeout failure
+    (section 14 item 10). Returns the response and how many retries it took."""
+    try:
+        headers = {"Authorization": f"Bearer {api_key()}"}
+    except RuntimeError as exc:
+        raise TranscribeError(str(exc)) from exc
     files = {
         # The params travel as a JSON part, not as form fields (cookbook utils.py).
         "request": (None, json.dumps(request_json), "application/json"),
         "audio": (wav_path.name, wav_bytes, "audio/wav"),
     }
-    retries = 0
     with httpx.Client(timeout=httpx.Timeout(TIMEOUT_S), transport=TRANSPORT) as client:
-        response = client.post(VOICE_TRANSCRIBE_URL, headers=headers, files=files)
-        if response.status_code == 429:
-            _sleep(_retry_after_s(response))
-            retries = 1
-            response = client.post(VOICE_TRANSCRIBE_URL, headers=headers, files=files)
-    return response, retries
+        response, error = _try_post(client, headers, files)
+        if response is not None and response.status_code != 429:
+            return response, 0
+        _sleep(_retry_after_s(response) if response is not None else TRANSPORT_RETRY_WAIT_S)
+        response, error = _try_post(client, headers, files)
+    if response is None:
+        raise TranscribeError(f"no response after one retry: {type(error).__name__}: {_redact(str(error))[:300]}") from error
+    return response, 1
 
 
 def _check_status(response: httpx.Response) -> None:
     if response.status_code == 200:
         return
     hint = STATUS_HINTS.get(response.status_code, "unexpected response")
-    raise TranscribeError(f"[{response.status_code}] {hint}: {response.text[:300]}")
+    raise TranscribeError(f"[{response.status_code}] {hint}: {_redact(response.text)[:300]}")
+
+
+def _speaker(value: Any) -> str | None:
+    """contracts.VoiceTurn holds speaker as a string, so a numeric label becomes its string (TODO(E10) in voice_record)."""
+    return None if value is None else str(value)
 
 
 def _parse_turns(raw: dict[str, Any]) -> list[Turn]:
     """The turns as they came. No turn is ever invented: an empty list stays empty (16b)."""
     return [
-        Turn(int(t.get("startMs") or 0), int(t.get("endMs") or 0), t.get("transcript") or "", t.get("speaker"))
+        Turn(int(t.get("startMs") or 0), int(t.get("endMs") or 0), t.get("transcript") or "", _speaker(t.get("speaker")))
         for t in raw.get("turns") or []
         if isinstance(t, dict)
     ]
@@ -225,8 +263,13 @@ def _parse_turns(raw: dict[str, Any]) -> list[Turn]:
 def transcribe_wav(
     wav_path: Path, *, mode: str = DEFAULT_MODE, keywords: list[str] | None = None, run_id: str | None = None
 ) -> Transcript:
-    """One multipart POST; one 429 retry honouring Retry-After. Records a ledger row (kind voice, audio_seconds from
-    audioDurationMs, request_id the sessionId, status 'mode not applied' when a speech mode returned no turns)."""
+    """One multipart POST; one retry after a 429 (honouring Retry-After) or a connect, read or timeout failure. Records
+    a ledger row (kind voice, audio_seconds from audioDurationMs, request_id the sessionId, status 'mode not applied'
+    when a speech mode returned no turns).
+
+    Raises ValueError for a WAV or mode the endpoint would refuse, before any request, and TranscribeError (a
+    RuntimeError) for everything after: no MODEL_API_KEY, a status other than 200, a body that is not a JSON object,
+    or no response after the retry. A caller catches both for section 14 item 16 ("no narration found")."""
     wav_path = Path(wav_path)
     mode = validate_mode(mode)
     header_seconds = check_wav(wav_path)
@@ -238,9 +281,9 @@ def transcribe_wav(
     try:
         raw = response.json()
     except ValueError as exc:
-        raise TranscribeError(f"[200] response was not JSON: {response.text[:300]}") from exc
+        raise TranscribeError(f"[200] response was not JSON: {_redact(response.text)[:300]}") from exc
     if not isinstance(raw, dict):
-        raise TranscribeError(f"[200] response was not a JSON object: {response.text[:300]}")
+        raise TranscribeError(f"[200] response was not a JSON object: {_redact(response.text)[:300]}")
     # The server meters whole seconds; the WAV header stands in if it did not report a duration.
     duration_ms = int(raw.get("audioDurationMs") or round(header_seconds * 1000))
     text = raw.get("transcript") or ""
@@ -273,11 +316,24 @@ def transcribe_wav(
     )
 
 
+def _turn_for_record(turn: Any) -> Any:
+    """A turn as contracts.VoiceTurn can hold it: a null transcript becomes "" and a non-string speaker its string.
+    TODO(E10): only ENDPOINTING (no speaker) has run live. The DIARIZATION comparison must show the speaker's type; if
+    it is a number, widen VoiceTurn.speaker to int | str | None in contracts.py and drop this so voice.json stays verbatim."""
+    if not isinstance(turn, dict):
+        return turn
+    fixed = dict(turn)
+    if "transcript" in fixed and fixed["transcript"] is None:
+        fixed["transcript"] = ""
+    if fixed.get("speaker") is not None and not isinstance(fixed["speaker"], str):
+        fixed["speaker"] = str(fixed["speaker"])
+    return fixed
+
+
 def voice_record(transcript: Transcript, *, role: str, wav_sha256: str) -> VoiceRecord:
-    """voice.json: the request part and the response verbatim, mode_applied, dollars."""
+    """voice.json: the request part and the response verbatim (but for _turn_for_record), mode_applied, dollars."""
     raw = dict(transcript.raw)
-    if raw.get("turns") is None:
-        raw["turns"] = []
+    raw["turns"] = [_turn_for_record(t) for t in raw.get("turns") or []]
     if raw.get("audioDurationMs") is None:
         raw["audioDurationMs"] = transcript.duration_ms
     if raw.get("transcript") is None:

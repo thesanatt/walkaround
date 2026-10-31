@@ -17,6 +17,7 @@ from __future__ import annotations
 import gzip
 import json
 import math
+import multiprocessing
 import re
 import time
 from concurrent.futures import ProcessPoolExecutor
@@ -615,7 +616,9 @@ class DecodePool:
     """ProcessPoolExecutor over decode_mask: the only place a mask is decoded in the request path."""
 
     def __init__(self, workers: int) -> None:
-        self._pool = ProcessPoolExecutor(max_workers=max(1, int(workers)))
+        # spawn, not Linux's default fork: the orchestrator builds the pool lazily inside a uvicorn process that
+        # already runs threads (asyncio.to_thread), and forking a threaded process can deadlock a worker.
+        self._pool = ProcessPoolExecutor(max_workers=max(1, int(workers)), mp_context=multiprocessing.get_context("spawn"))
         self._decoded = 0
         self._cpu_s = 0.0
 

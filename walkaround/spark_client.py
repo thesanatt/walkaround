@@ -12,6 +12,11 @@ additionalProperties false and every key required on each object; anyOf only bel
 on a 0 to 1000 grid over the image the model received: pixel = round(v * dim / 1000), clamped; 1001 occurs and
 clamps to 1000, anything farther off the grid is not a point on the image and that mark is dropped.
 
+Retries (section 14): 408, 409, 429 and 5xx back off inside _create, 6 tries in all; a timeout or a dropped
+connection is final for that attempt and _ask_attempts makes the one retry of item 10. The SDK's own retry loop is off
+because it would repeat a 240 s timeout five more times. Error text is redacted before it is stored, so a server that
+echoes the bearer key never puts it in spark.json.
+
 The client is injectable: tests call set_client() (or monkeypatch _CLIENT) with a fake whose .responses.create
 returns canned response dicts, so the offline suite never touches the network.
 """
@@ -21,16 +26,21 @@ from __future__ import annotations
 import base64
 import io
 import json
+import os
+import random
+import re
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 import numpy as np
-from openai import OpenAIError
+from openai import APIStatusError, OpenAIError
 from PIL import Image
 from pydantic import ValidationError
 
@@ -65,17 +75,21 @@ GRID = 1000
 GRID_SLACK = 20
 IMAGE_LONG_EDGE = 1280  # thresholds spark.image_long_edge_px
 CLIP_LONG_EDGE = 1008  # Stays Put clip frames (thresholds media.clip_size_px)
-JPEG_QUALITY = 90
+JPEG_QUALITY = 90  # thresholds spark.jpeg_quality
 # Reasoning tokens share the output budget (https://dev.meta.ai/docs/reasoning), so the floor is 4000 and the one
 # retry after a truncation doubles it (thresholds spark.max_output_tokens, spark.retry_max_output_tokens).
 MAX_OUTPUT_TOKENS = 4000
 RETRY_MAX_OUTPUT_TOKENS = 8000
 DEFAULT_EFFORT = "low"  # thresholds spark.effort; callers pass th["spark"]["effort"]
 EFFORTS = tuple(e.value for e in ReasoningEffort)
-LANDMARKS_MAX = 4  # thresholds spark.landmarks_max
-TIMEOUT_S = 240.0  # thresholds orchestrator.request_timeout_s
-# The SDK's own retry loop does the 429 and 5xx backoff of section 14 item 1: 0.5 s base, jitter, Retry-After honoured.
-MAX_RETRIES = 5
+# How many landmarks one answer keeps (thresholds spark.landmarks_max, section 5 step 8 "up to 4 landmarks from the
+# panel's closed list"). It caps the count, never the vocabulary: the whole closed list goes into the enum and prompt.
+LANDMARKS_MAX = 4
+TIMEOUT_S = 240.0  # thresholds orchestrator.request_timeout_s; then one retry (14 item 10)
+RATE_LIMIT_TRIES = 6  # thresholds orchestrator.rate_limit_retries: tries in all on 408, 409, 429, 5xx (14 item 1)
+BACKOFF_BASE_S = 0.5  # thresholds orchestrator.rate_limit_backoff_base_s, doubled per try, jitter, capped
+MAX_BACKOFF_S = 8.0
+MAX_RETRY_AFTER_S = 60.0  # a longer Retry-After fails the call instead of holding a worker thread
 ENGINE = SparkEngine.META_MODEL_API
 
 # Fixed and minimal, so the cached prefix is the same on every call (API notes: $0.15 per M cached input tokens).
@@ -136,6 +150,11 @@ def marks_schema(landmark_names: list[str] | None = None) -> dict[str, Any]:
     )
 
 
+# Only marks_v1 has been sent live (10/27). TODO(D1): confirm each of the others is accepted under strict mode:
+# count_v1 (E7), look_v1 (E6 second look), claim_name_v1 and claim_box_v1 (E11; anyOf with null below the root is
+# "ok" per the structured-output page, never measured), seed_v1 (no gate row: tests/test_spark_client.py
+# test_live_seed_v1_anyof_null, about $0.01), timeline_v1 (E17) and note_prefill_v1 (E18). Copy the accepted request
+# shapes into docs/API_NOTES.md.
 SCHEMAS: dict[str, dict[str, Any]] = {
     "marks_v1": marks_schema(),
     "count_v1": _obj({"points": {"type": "array", "items": _POINT}, "count": {"type": "integer"}}),
@@ -249,13 +268,20 @@ def _to_pil(rgb: np.ndarray) -> Image.Image:
     return Image.fromarray(np.ascontiguousarray(arr[:, :, :3]), "RGB")
 
 
+def sent_size(width: int, height: int, max_edge: int = IMAGE_LONG_EDGE) -> tuple[int, int]:
+    """The size prepare_image sends an image of width x height at: long edge <= max_edge, never upscaled."""
+    scale = min(1.0, max_edge / max(width, height))
+    if scale >= 1.0:
+        return int(width), int(height)
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
 def prepare_image(rgb: np.ndarray, max_edge: int = IMAGE_LONG_EDGE) -> tuple[str, int, int, float]:
     """JPEG data URL of the image resized so the long edge <= max_edge (never upscaled). (url, w, h, scale)."""
     img = _to_pil(rgb)
     width, height = img.size
-    scale = min(1.0, max_edge / max(width, height))
-    if scale < 1.0:
-        size = (max(1, round(width * scale)), max(1, round(height * scale)))
+    size = sent_size(width, height, max_edge)
+    if size != (width, height):
         img = img.resize(size, Image.Resampling.LANCZOS)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=JPEG_QUALITY)
@@ -340,7 +366,7 @@ def panel_display_name(panel_id: PanelId) -> str:
 def marks_prompt(panel_id: PanelId, landmarks: list[str]) -> str:
     """The marks_v1 grounding instruction of section 5 step 8: expert framing, grid, point plus bbox, do not miss."""
     panel = panel_display_name(panel_id)
-    names = ", ".join(landmarks[:LANDMARKS_MAX])
+    names = ", ".join(landmarks)  # the whole closed list; LANDMARKS_MAX caps how many come back, not the names
     landmark_line = (
         f"landmarks: point at up to {LANDMARKS_MAX} of these if they are visible, naming each exactly as written here: {names}. "
         if names
@@ -399,7 +425,7 @@ def claim_name_prompt() -> str:
         "the driver sits on the left), or none when you cannot tell or the panel has no side. position is front or "
         "rear, or none. front_direction says whether the front of the car points to the left or the right of the "
         f"image, or unknown. panel_bbox is the bbox of the named panel; {_GRID_SENTENCE} Use null when panel is car "
-        "or none. context is one sentence on what is visible around the panel. landmarks: point at up to 4 visible "
+        f"or none. context is one sentence on what is visible around the panel. landmarks: point at up to {LANDMARKS_MAX} visible "
         "features such as a door handle, mirror, wheel arch, badge, plate corner, fog lamp or fuel door, each with a "
         "short name and a point."
     )
@@ -437,6 +463,7 @@ def note_prefill_prompt(claim_text: str) -> str:
 
 _CLIENT: Any = None
 _CLIENT_LOCK = threading.Lock()  # marks.derive_marks calls this module from up to 12 threads at once
+_sleep = time.sleep  # tests replace it
 
 
 def _client() -> Any:
@@ -446,7 +473,8 @@ def _client() -> Any:
         if _CLIENT is None:
             from openai import OpenAI
 
-            _CLIENT = OpenAI(base_url=BASE_URL, api_key=api_key(), timeout=TIMEOUT_S, max_retries=MAX_RETRIES)
+            # max_retries 0: _create owns the 429 backoff, so a timeout is not repeated by the SDK as well.
+            _CLIENT = OpenAI(base_url=BASE_URL, api_key=api_key(), timeout=TIMEOUT_S, max_retries=0)
         return _CLIENT
 
 
@@ -454,6 +482,57 @@ def set_client(client: Any) -> None:
     """Inject a client with .responses.create(**kwargs); None goes back to the real one on the next call."""
     global _CLIENT
     _CLIENT = client
+
+
+_KEY_SHAPES = re.compile(r"\bLLM[_|][A-Za-z0-9_|-]{6,}|\bhf_[A-Za-z0-9]{10,}")  # LLM_{digits}_{secret}, HF tokens
+_BEARER = re.compile(r"(?i)\b(bearer\s+)\S+")
+_SECRET_ENV = ("MODEL_API_KEY", "BASETEN_API_KEY", "HF_TOKEN")
+
+
+def _redact(text: str) -> str:
+    """Error text with every configured key value and key-shaped token replaced, before it is stored anywhere."""
+    for name in _SECRET_ENV:
+        value = os.environ.get(name) or ""
+        if len(value) >= 8:
+            text = text.replace(value, "[redacted]")
+    return _BEARER.sub(r"\1[redacted]", _KEY_SHAPES.sub("[redacted]", text))
+
+
+def _retry_delay(exc: APIStatusError, tries: int) -> float | None:
+    """Seconds before the next try after `tries` tries, or None when this error is final: a status other than 408, 409,
+    429 or 5xx, the 6 tries used, or a Retry-After over a minute. 500 ms doubling, jitter, never under Retry-After."""
+    status = exc.status_code
+    if tries >= RATE_LIMIT_TRIES or not (status in (408, 409, 429) or status >= 500):
+        return None
+    delay = min(MAX_BACKOFF_S, BACKOFF_BASE_S * 2 ** (tries - 1)) * (1 - 0.25 * random.random())
+    retry_after = (exc.response.headers.get("retry-after") or "").strip()
+    if retry_after:
+        try:
+            wait = float(retry_after)
+        except ValueError:
+            try:
+                wait = (parsedate_to_datetime(retry_after) - datetime.now(timezone.utc)).total_seconds()
+            except (TypeError, ValueError):
+                wait = 0.0
+        if wait > MAX_RETRY_AFTER_S:
+            return None
+        delay = max(delay, wait)
+    return delay
+
+
+def _create(request: dict[str, Any]) -> Any:
+    """responses.create with the 429 and 5xx backoff of section 14 item 1. Timeouts and connection errors are raised
+    at once: ask records them and _ask_attempts makes the single retry of item 10."""
+    tries = 0
+    while True:
+        try:
+            return _client().responses.create(**request)
+        except APIStatusError as exc:
+            tries += 1
+            delay = _retry_delay(exc, tries)
+            if delay is None:
+                raise
+            _sleep(delay)
 
 
 def _as_dict(obj: Any) -> dict[str, Any]:
@@ -517,8 +596,8 @@ _FINAL_EVENTS = ("response.completed", "response.incomplete", "response.failed")
 
 
 def _send(request: dict[str, Any]) -> tuple[dict[str, Any], str]:
-    """One create call. Returns the final response as a dict plus its output text, streamed or not."""
-    response = _client().responses.create(**request)
+    """One create call (with its 429 backoff). Returns the final response as a dict plus its output text, streamed or not."""
+    response = _create(request)
     if not request.get("stream"):
         data = _as_dict(response)
         return data, _output_text(response, data)
@@ -579,19 +658,20 @@ def ask(
     try:
         data, text = _send(request)
     except (OpenAIError, httpx.HTTPError, OSError) as exc:
-        # The SDK already retried 429 and 5xx; what reaches here is final for this attempt and must not crash a run.
-        data, text, error = {}, "", f"error: {type(exc).__name__}: {str(exc)[:200]}"
+        # _create already backed off on 429 and 5xx; what reaches here is final for this attempt and must not crash a run.
+        data, text, error = {}, "", f"error: {type(exc).__name__}: {_redact(str(exc))[:200]}"
     ms = int(round((time.monotonic() - started) * 1000))
 
     api_error = _as_dict(data.get("error") or {})
     if error is None and api_error:
-        error = f"error: {api_error.get('code')}: {str(api_error.get('message'))[:200]}"
+        error = f"error: {api_error.get('code')}: {_redact(str(api_error.get('message')))[:200]}"
     status_text = str(data.get("status") or ("incomplete" if error else "completed"))
     status = SparkStatus.COMPLETED if status_text == "completed" and error is None else SparkStatus.INCOMPLETE
     incomplete_reason: str | None = None
     if status is SparkStatus.INCOMPLETE:
         details = _as_dict(data.get("incomplete_details") or {})
-        incomplete_reason = details.get("reason") or error or status_text
+        reason = details.get("reason")
+        incomplete_reason = (_redact(str(reason)) if reason else None) or error or status_text
     parsed, problems = _parse(text, check_schema if check_schema is not None else schema)
     valid = status is SparkStatus.COMPLETED and parsed is not None and not problems
     truncated = incomplete_reason == "max_output_tokens" and retry >= 1
@@ -661,7 +741,11 @@ def _ask_attempts(
     check_schema: dict[str, Any] | None = None,
 ) -> list[SparkRequestRecord]:
     """Step 8 outcomes in order: completed and valid -> done; completed and a schema miss -> one retry; incomplete
-    with reason max_output_tokens -> one retry at 8000, then truncated; an error -> one retry at the same budget."""
+    with reason max_output_tokens -> one retry at 8000, then truncated; an error -> one retry at the same budget.
+
+    Two rows at most, so only a cut on the first attempt earns the 8000 budget. A schema miss or an error followed by
+    a cut at 4000 ends there, truncated: G10 "marks incomplete" is the safer of the two readings ("no marks found" is
+    the other), and the record's max_output_tokens of 4000 shows the larger budget was never tried."""
     common = dict(
         purpose=purpose, schema_name=schema_name, effort=effort, run_id=run_id, input_refs=input_refs, stream=stream, schema=schema, check_schema=check_schema
     )
@@ -772,13 +856,14 @@ def find_marks(
 ) -> MarksResult:
     """The marks_v1 grounding call on one blurred crop. Points and boxes stay in the grid of the sent image.
 
-    The schema sent carries the panel's closed landmark enum (strict, so the server enforces it); `valid` is checked
-    against marks_v1 with the landmark name free, and a name outside the list is dropped from the answer, so a
-    landmark label can never throw away the marks of a crop."""
+    The schema sent carries the panel's whole closed landmark list as the enum (strict, so the server enforces it)
+    and the prompt asks for up to LANDMARKS_MAX of them; `valid` is checked against marks_v1 with the landmark name
+    free, a name outside the list is dropped, and at most LANDMARKS_MAX landmarks are kept, so a landmark label can
+    never throw away the marks of a crop."""
     effort = validate_effort(effort)
     orig_height, orig_width = np.asarray(crop_rgb).shape[:2]
     data_url, sent_width, sent_height, scale = prepare_image(crop_rgb, max_edge)
-    names = list(landmarks)[:LANDMARKS_MAX]
+    names = [str(n) for n in dict.fromkeys(landmarks) if n]  # order kept, duplicates dropped (an enum lists each once)
     parts = [
         {"type": "input_text", "text": marks_prompt(panel_id, names)},
         {"type": "input_image", "image_url": data_url},
@@ -804,6 +889,31 @@ def find_marks(
         orig_width=int(orig_width),
         orig_height=int(orig_height),
         attempts=attempts,
+    )
+
+
+def marks_result_from_record(
+    record: SparkRequestRecord,
+    *,
+    orig_width: int,
+    orig_height: int,
+    landmarks: list[str],
+    max_edge: int = IMAGE_LONG_EDGE,
+) -> MarksResult:
+    """A stored marks_v1 record read back exactly as find_marks reads a fresh one; no call and no ledger row. Used by
+    the rebuild and when a run asks the same question about the same crop bytes twice."""
+    names = [str(n) for n in dict.fromkeys(landmarks) if n]
+    sent_width, sent_height = sent_size(int(orig_width), int(orig_height), max_edge)
+    return MarksResult(
+        answer=_marks_answer(record.parsed, landmark_names=names) if record.valid else None,
+        truncated=record.truncated,
+        record=record,
+        sent_width=sent_width,
+        sent_height=sent_height,
+        scale=sent_width / int(orig_width),
+        orig_width=int(orig_width),
+        orig_height=int(orig_height),
+        attempts=[record],
     )
 
 
@@ -1005,9 +1115,9 @@ def claim_name(
     position = Position(parsed.get("position") or "none")
     front = parsed.get("front_direction")
     landmarks: list[Landmark] = []
-    for item in (parsed.get("landmarks") or [])[:LANDMARKS_MAX]:
+    for item in parsed.get("landmarks") or []:
         point = _grid_point(item.get("point")) if isinstance(item, dict) else None
-        if point is not None and item.get("name"):
+        if point is not None and item.get("name") and len(landmarks) < LANDMARKS_MAX:
             landmarks.append(Landmark(name=str(item["name"]), point=GridPoint(**point)))
     bbox = _grid_box(parsed.get("panel_bbox"))
     return ClaimNameResult(
@@ -1058,6 +1168,8 @@ def claim_box(
 
 def timeline(file_id: str, *, run_id: str | None = None, effort: str = DEFAULT_EFFORT) -> SparkRequestRecord:
     """timeline_v1 over the whole blurred proxy through the Files API id."""
+    # input_file with a file_id was measured on 10/26 (non-streamed, 6 s clip). TODO(E17): confirm it streamed with
+    # timeline_v1, and whether input_video with the same file_id differs.
     effort = validate_effort(effort)
     parts = [{"type": "input_text", "text": timeline_prompt()}, {"type": "input_file", "file_id": file_id}]
     return ask_with_retry(parts, purpose=SparkPurpose.TIMELINE, schema_name="timeline_v1", effort=effort, run_id=run_id, input_refs=[], stream=True)
@@ -1065,6 +1177,8 @@ def timeline(file_id: str, *, run_id: str | None = None, effort: str = DEFAULT_E
 
 def note_prefill(claim_text: str, agreement_pdf: Path, *, run_id: str | None = None, effort: str = DEFAULT_EFFORT) -> SparkRequestRecord:
     """note_prefill_v1 from the claim text and a rental agreement PDF sent inline."""
+    # TODO(E18): the inline part {type: input_file, filename, file_data: data:application/pdf;base64,...} is the
+    # OpenAI shape and has never been sent to the Meta API; if E18 gets a 400, upload the PDF and send its file_id.
     effort = validate_effort(effort)
     pdf = Path(agreement_pdf)
     file_data = "data:application/pdf;base64," + base64.b64encode(pdf.read_bytes()).decode("ascii")
