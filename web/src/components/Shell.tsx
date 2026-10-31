@@ -15,7 +15,7 @@ export function Shell({ children, status }: { children: ReactNode; status: Statu
         <nav className="nav" aria-label="pages">
           <Link to="/">upload</Link>
           <Link to="/claim">claim photo</Link>
-          <Link to="/verify">verify</Link>
+          <Link to="/verify">verify a sheet</Link>
         </nav>
         <span className="topbar-note small muted">evidence support, not legal advice</span>
       </header>

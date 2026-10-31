@@ -11,9 +11,9 @@ import {
 
 export interface LaneObject {
   id: string;
-  box: [number, number, number, number]; // half-open source pixels
-  c: number | null;
-  mask: SegmentationMask;
+  box: [number, number, number, number]; // half-open source pixels (the proxy's)
+  c: number | null; // absent means absent, never zero
+  mask: SegmentationMask | null; // null for a record that carried a box only
 }
 
 export interface FrameBatch {
@@ -30,7 +30,7 @@ export function eventsFromNdjson(text: string): ResponsesEvent[] {
       const parsed = JSON.parse(trimmed) as { type?: unknown };
       if (parsed && typeof parsed.type === 'string') events.push(parsed as ResponsesEvent);
     } catch {
-      // a torn line in a stream that ended early; the parser reports the lane as incomplete
+      // a torn last line of a stream that ended early; the parser then reports the lane as incomplete
     }
   }
   return events;
@@ -40,46 +40,51 @@ export async function* iterate<T>(items: readonly T[]): AsyncIterable<T> {
   for (const item of items) yield item;
 }
 
-// Pairs box and mask records into per-frame objects. Records come box first, then mask, per object.
+// Groups the parser's cumulative records into frames. A frame is handed out once a record of another frame arrives
+// or the stream finishes, so its box and mask records (which can land in different snapshots) are both in.
 export class FrameCollector {
-  private readonly pendingBoxes = new Map<string, { box: [number, number, number, number]; c: number | null }>();
   private consumed = 0;
+  private current: number | null = null;
+  private objects = new Map<string, LaneObject>();
 
-  // Returns the frames completed by the records added since the last call.
   take(records: readonly SegmentationRecord[]): FrameBatch[] {
-    const batches = new Map<number, LaneObject[]>();
+    const out: FrameBatch[] = [];
     for (let i = this.consumed; i < records.length; i += 1) {
       const record = records[i]!;
       if (record.kind === 'text') continue;
       const frame = frameIndexOf(record) ?? 0;
-      const key = `${frame}:${record.objectId}`;
+      if (this.current !== null && frame !== this.current) out.push(this.flushFrame());
+      this.current = frame;
+      const existing = this.objects.get(record.objectId);
       if (record.kind === 'box') {
-        this.pendingBoxes.set(key, {
+        this.objects.set(record.objectId, {
+          id: record.objectId,
           box: [record.left, record.top, record.right, record.bottom],
-          c: record.confidence ?? null,
+          c: record.confidence ?? existing?.c ?? null,
+          mask: existing?.mask ?? null,
         });
-        continue;
+      } else {
+        this.objects.set(record.objectId, {
+          id: record.objectId,
+          box: existing?.box ?? [record.bounds.left, record.bounds.top, record.bounds.right, record.bounds.bottom],
+          c: existing?.c ?? record.confidence ?? null,
+          mask: record.mask,
+        });
       }
-      const pending = this.pendingBoxes.get(key);
-      this.pendingBoxes.delete(key);
-      const box: [number, number, number, number] = pending?.box ?? [
-        record.bounds.left,
-        record.bounds.top,
-        record.bounds.right,
-        record.bounds.bottom,
-      ];
-      const object: LaneObject = {
-        id: record.objectId,
-        box,
-        c: record.confidence ?? pending?.c ?? null,
-        mask: record.mask,
-      };
-      const list = batches.get(frame) ?? [];
-      list.push(object);
-      batches.set(frame, list);
     }
     this.consumed = records.length;
-    return [...batches.entries()].map(([frame, objects]) => ({ frame, objects }));
+    return out;
+  }
+
+  finish(): FrameBatch[] {
+    return this.current === null ? [] : [this.flushFrame()];
+  }
+
+  private flushFrame(): FrameBatch {
+    const batch = { frame: this.current ?? 0, objects: [...this.objects.values()] };
+    this.objects = new Map();
+    this.current = null;
+    return batch;
   }
 }
 
@@ -89,24 +94,23 @@ export interface ParsedLane {
   diagnostics: number;
 }
 
-// Node-safe: the whole lane at once, no bitmaps. The worker streams the same records through FrameCollector.
+// The whole lane at once, for tests and Node; the worker streams the same records through FrameCollector.
 export async function parseLaneEvents(events: readonly ResponsesEvent[]): Promise<ParsedLane> {
   const result = await parseVideoStream(iterate(events)).finalResult;
   const collector = new FrameCollector();
   const frames = new Map<number, LaneObject[]>();
-  for (const batch of collector.take(result.records)) {
-    const existing = frames.get(batch.frame) ?? [];
-    frames.set(batch.frame, [...existing, ...batch.objects]);
+  for (const batch of [...collector.take(result.records), ...collector.finish()]) {
+    frames.set(batch.frame, [...(frames.get(batch.frame) ?? []), ...batch.objects]);
   }
   return { frames, outcome: result.outcome, diagnostics: result.diagnostics.length };
 }
 
-// The exact polygonal outline of a mask in raster pixels (top-left of the raster at the box's top-left).
-export function maskPath(mask: SegmentationMask): string {
-  return decodeMaskToSVGPath(mask);
+// The exact pixel-edge outline of a mask in raster pixels; (0, 0) is the box's top-left corner.
+export function maskPath(mask: SegmentationMask | null): string {
+  return mask ? decodeMaskToSVGPath(mask) : '';
 }
 
-// Gzip magic check for a lane fetched without Content-Encoding.
+// A lane fetched without Content-Encoding arrives still gzipped; with it, the browser already inflated it.
 export function isGzip(bytes: Uint8Array): boolean {
   return bytes.length >= 2 && bytes[0] === 0x1f && bytes[1] === 0x8b;
 }

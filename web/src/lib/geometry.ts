@@ -1,4 +1,4 @@
-import type { Box4, Point2 } from '../contracts/types.ts';
+import type { Box4, Crop, Point2 } from '../contracts/types.ts';
 
 export interface Fit {
   scale: number;
@@ -8,7 +8,7 @@ export interface Fit {
   h: number;
 }
 
-// Contain fit of a (srcW x srcH) frame into a (dstW x dstH) canvas: one scale, centered.
+// Contain fit of a (srcW x srcH) frame into a (dstW x dstH) canvas: one scale, centred.
 export function containFit(srcW: number, srcH: number, dstW: number, dstH: number): Fit {
   const scale = Math.min(dstW / srcW, dstH / srcH);
   const w = srcW * scale;
@@ -16,22 +16,16 @@ export function containFit(srcW: number, srcH: number, dstW: number, dstH: numbe
   return { scale, ox: (dstW - w) / 2, oy: (dstH - h) / 2, w, h };
 }
 
-export function boxCenter(box: Box4 | number[]): Point2 {
+export function boxCenter(box: readonly number[]): Point2 {
   const [x1 = 0, y1 = 0, x2 = 0, y2 = 0] = box;
   return [(x1 + x2) / 2, (y1 + y2) / 2];
 }
 
-// Source pixels (the original's display size) to proxy pixels, by the ratio of the two sizes.
-export function srcToProxy(p: Point2, srcSize: [number, number], proxySize: [number, number]): Point2 {
-  return [(p[0] * proxySize[0]) / srcSize[0], (p[1] * proxySize[1]) / srcSize[1]];
+// Source pixels to crop pixels (contracts.Crop: crop (u, v) is source (dx + u / scale, dy + v / scale)).
+export function boxSrcToCrop(b: Box4, crop: Crop): Box4 {
+  return [(b[0] - crop.dx) * crop.scale, (b[1] - crop.dy) * crop.scale, (b[2] - crop.dx) * crop.scale, (b[3] - crop.dy) * crop.scale];
 }
 
-export function boxSrcToProxy(b: Box4, srcSize: [number, number], proxySize: [number, number]): Box4 {
-  const [x1, y1] = srcToProxy([b[0], b[1]], srcSize, proxySize);
-  const [x2, y2] = srcToProxy([b[2], b[3]], srcSize, proxySize);
-  return [x1, y1, x2, y2];
-}
-
-export function applyFit(p: Point2, fit: Fit): Point2 {
-  return [fit.ox + p[0] * fit.scale, fit.oy + p[1] * fit.scale];
+export function pointSrcToCrop(p: Point2, crop: Crop): Point2 {
+  return [(p[0] - crop.dx) * crop.scale, (p[1] - crop.dy) * crop.scale];
 }

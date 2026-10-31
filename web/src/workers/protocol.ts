@@ -1,22 +1,25 @@
-// Worker protocol of docs/CONTRACTS.md (web reducer section), plus the SVG path that replaces the bitmap by default.
+// Messages between the main thread and the two workers (docs/CONTRACTS.md, web reducer section).
+
+// Lane worker. Deviation from the contract, on purpose: each object carries its mask as an SVG path (exact
+// pixel-edge outline from @meta-sam/parser's decodeMaskToSVGPath) instead of an ImageBitmap, because a 600-frame
+// door lane of bitmaps is about 160 MB; `bitmaps: true` still posts the contract's ImageBitmap as well.
 export interface ParseRequest {
   type: 'parse';
   url: string;
   role: string;
-  noun: string;
-  // Fill color for the optional ImageBitmap masks; the main thread colors paths itself.
-  color?: string;
-  // The contract's ImageBitmap per object. Off by default: a 600-frame door lane would hold about 160 MB of bitmaps.
+  noun: string; // the lane id, e.g. car_door
   bitmaps?: boolean;
+  color?: string; // fill for the optional bitmaps
 }
 
 export interface SnapshotObject {
   id: string;
   box: [number, number, number, number];
   c: number | null;
+  path: string; // raster pixels, (0, 0) at the box's top-left; '' for a box-only record
+  rw: number; // raster width and height, so the outline scales to the box exactly as @meta-sam/graphics does
+  rh: number;
   mask: ImageBitmap | null;
-  // decodeMaskToSVGPath of the mask, in raster pixels; translate to box[0], box[1] when drawing.
-  path: string;
 }
 
 export interface SnapshotMessage {
@@ -33,7 +36,7 @@ export interface DoneMessage {
   role: string;
   noun: string;
   frames: number;
-  outcome: string;
+  outcome: 'completed' | 'incomplete';
   diagnostics: number;
   parseMs: number;
 }
@@ -45,23 +48,11 @@ export interface ErrorMessage {
   message: string;
 }
 
-export type WorkerMessage = SnapshotMessage | DoneMessage | ErrorMessage;
+export type LaneWorkerMessage = SnapshotMessage | DoneMessage | ErrorMessage;
 
-export interface HashStart {
-  type: 'start';
-  id: string;
-}
-export interface HashChunk {
-  type: 'chunk';
-  id: string;
-  blob: Blob;
-  index: number;
-}
-export interface HashFinish {
-  type: 'finish';
-  id: string;
-}
-export type HashRequest = HashStart | HashChunk | HashFinish;
+// Hash worker: SHA-256 with hash-wasm over the same 8 MB slices the uploader sends, in index order.
+export type HashRequest = { type: 'start'; id: string } | { type: 'chunk'; id: string; index: number; blob: Blob } | { type: 'finish'; id: string };
+
 export type HashMessage =
   | { type: 'progress'; id: string; index: number }
   | { type: 'digest'; id: string; hex: string }

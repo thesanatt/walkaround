@@ -18,5 +18,5 @@
     "noUncheckedIndexedAccess": true,
     "erasableSyntaxOnly": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "mock", "test"]
+  "include": ["vite.config.ts", "vitest.config.ts", "mock"]
 }

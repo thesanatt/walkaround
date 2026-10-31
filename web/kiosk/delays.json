@@ -1,4 +1,5 @@
 {
+  "_note": "Fixed-mode replay: total ms per stage (the RunStatus a stage event names), spread evenly over that stage's events. orchestrator.load_delays skips keys that start with an underscore; default covers any stage not listed. About 34 s from first event to last.",
   "created": 500,
   "sealing": 1500,
   "sealed": 1000,
@@ -9,5 +10,9 @@
   "staysput": 3000,
   "matching": 1500,
   "sheet": 2000,
-  "done": 500
+  "done": 500,
+  "partial": 500,
+  "failed": 500,
+  "interrupted": 500,
+  "default": 500
 }

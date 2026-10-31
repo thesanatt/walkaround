@@ -1,5 +1,5 @@
 import type { Coverage, Panel, PanelTrack } from '../contracts/types.ts';
-import { COVERAGE_LABEL, PANELS, type PanelInfo } from '../lib/panels.ts';
+import { COVERAGE_LABEL, familyNoun, laneId, PANELS, type PanelInfo } from '../lib/panels.ts';
 import type { LaneState } from '../state/types.ts';
 
 export interface PanelListProps {
@@ -13,30 +13,29 @@ export interface PanelListProps {
 }
 
 function laneText(lane: LaneState | undefined): string {
-  if (!lane) return 'waiting';
+  if (!lane) return 'waiting for SAM 3.1';
   switch (lane.status) {
     case 'requested':
       return 'SAM 3.1 requested';
     case 'streaming':
       return `SAM 3.1 streaming, frame ${lane.frames}`;
     case 'completed':
-      return `lane done, ${lane.frames} frames, ${lane.ids.length} ${lane.ids.length === 1 ? 'id' : 'ids'}`;
+      return `tracked: ${lane.frames} frames, ${lane.ids.length} ${lane.ids.length === 1 ? 'object' : 'objects'}`;
     case 'zero_matches':
-      return 'not found';
+      return 'not found in this walk';
     case 'incomplete':
       return 'track incomplete';
     case 'failed':
-      return 'not run';
+      return 'not run (no answer after retries)';
   }
 }
 
+// "same door, fragments 5 to 1": SAM ids that died and came back, merged into one track per panel.
 export function fragmentsLine(info: PanelInfo, tracks: PanelTrack[]): string | null {
   const own = tracks.filter((t) => t.panel_id === info.id);
-  if (!own.length) return null;
   const fragments = own.reduce((n, t) => n + t.fragments.length, 0);
-  if (fragments <= own.length) return null;
-  const noun = info.noun.replace('car ', '');
-  return `same ${noun}, fragments ${fragments} to ${own.length}`;
+  if (!own.length || fragments <= own.length) return null;
+  return `same ${familyNoun(info.id)}, fragments ${fragments} to ${own.length}`;
 }
 
 // Fills as lanes finish: first the lane status by noun, then the coverage state once the panels derive.
@@ -60,22 +59,21 @@ export function PanelList({ role, panels, coverage, tracks, lanes, selected, onS
               const state = cov?.state ?? panel?.per_role[role]?.state ?? null;
               const seconds = cov?.seconds ?? panel?.per_role[role]?.seconds_visible ?? null;
               const frag = fragmentsLine(info, roleTracks);
-              const isSelected = selected === info.id;
               return (
-                <li key={info.id} className={`panel-row ${state ?? 'pending'} ${isSelected ? 'selected' : ''}`}>
-                  <button type="button" onClick={() => onSelect(info.id)}>
+                <li key={info.id} className={`panel-row ${state ?? 'pending'} ${selected === info.id ? 'selected' : ''}`}>
+                  <button type="button" onClick={() => onSelect(info.id)} aria-pressed={selected === info.id}>
                     <span className="swatch" style={{ background: info.color }} aria-hidden="true" />
                     <span className="panel-name">{info.name}</span>
                     <span className="panel-state">
                       {state ? (
                         <>
                           {COVERAGE_LABEL[state] ?? state}
-                          {seconds !== null && state !== 'not_seen' && state !== 'not_run' ? ` ${seconds.toFixed(1)} s` : ''}
+                          {seconds !== null && seconds > 0 && (state === 'filmed' || state === 'glimpsed') ? `, ${seconds.toFixed(1)} s` : ''}
                           {cov?.state_basis === 'area_only' ? ' (area basis)' : ''}
-                          {panel?.side_uncertain ? ' side uncertain' : ''}
+                          {panel?.side_uncertain ? ', side uncertain' : ''}
                         </>
                       ) : (
-                        <span className="muted">{laneText(lanes[info.noun])}</span>
+                        laneText(lanes[laneId(info.noun)])
                       )}
                     </span>
                     {frag ? <span className="panel-frag mono small">{frag}</span> : null}

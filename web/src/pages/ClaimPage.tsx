@@ -2,62 +2,61 @@ import { useState, type FormEvent } from 'react';
 
 import { api, ApiError } from '../api/client.ts';
 import type { Claim } from '../contracts/types.ts';
-import { formatClock } from '../lib/format.ts';
+import { sizeLine } from '../lib/lines.ts';
 import { panelName } from '../lib/panels.ts';
 import { ruleLabel } from '../lib/rules.ts';
 
-function sizeLine(size: Claim['size']): string {
-  if (!size) return 'size not stated';
-  if (size.refused_reason) return `size not stated: ${size.refused_reason}`;
-  if (size.inches === null) return 'size not stated';
-  const ruler = size.ruler === 'plate' ? 'the license plate, 12 in' : size.ruler === 'wheel' ? `the wheel${size.tire_code ? `, ${size.tire_code}` : ''}` : 'no ruler';
-  return `about ${size.inches.toFixed(1)} in, between ${(size.bound_lo ?? 0).toFixed(1)} and ${(size.bound_hi ?? 0).toFixed(1)} in (ruler: ${ruler})`;
-}
+const EXIT_TEXT: Record<string, string> = {
+  E1: 'There is no car panel in this photo.',
+  E2: 'Spark and the SAM vote name different panels; pick the one you mean.',
+  E3: 'This panel was not filmed at pickup, so there is no dated frame to compare.',
+  E4: 'This panel was only glimpsed at pickup; the sharpest frame and its seconds are below.',
+  E5: 'Cannot place the claim mark precisely. Look yourself.',
+  E6: 'Spark found no mark in the marked area.',
+  E7: 'The marked area covers most of the panel, so it is treated as a region.',
+  E8: 'Glare, water or dirt on the claim photo: at most "needs your eye".',
+};
 
 export function ClaimResult({ claim }: { claim: Claim }) {
-  const windows = claim.match?.kf_pair ? null : null;
+  const size = sizeLine(claim.size);
   return (
-    <div className="sealed-card">
-      <h3>{claim.exit ? `exit ${claim.exit}: ${ruleLabel(claim.exit)}` : 'claim placed'}</h3>
+    <div className="sealed-card claim-result">
+      <h3>{claim.exit ? `${claim.exit}: ${ruleLabel(claim.exit)}` : 'placed against the pickup walk'}</h3>
+      {claim.exit && EXIT_TEXT[claim.exit] ? <p>{EXIT_TEXT[claim.exit]}</p> : null}
       <dl>
         <dt>panel</dt>
         <dd>
           {claim.panel_id ? panelName(claim.panel_id) : 'not named'}
-          {claim.side_source === 'both_shown' ? ' (side unknown; both sides shown)' : ''}
+          {claim.side_source === 'both_shown' ? ' (no side in the text or the photo, so both sides are shown)' : ''}
         </dd>
-        <dt>naming</dt>
+        <dt>named by</dt>
         <dd>
-          Spark: {claim.naming.spark ? panelName(claim.naming.spark) : 'none'}; {claim.naming.sam_votes.length} SAM image requests {claim.naming.agreed ? 'agree' : 'do not agree'}
+          Muse Spark: {claim.naming.spark ? panelName(claim.naming.spark) : 'no panel'}; {claim.naming.sam_votes.length} SAM 3.1 image requests{' '}
+          {claim.naming.agreed ? 'agree' : 'do not agree'}
         </dd>
-        <dt>coverage at pickup</dt>
-        <dd>{claim.coverage_state ?? 'unknown'}</dd>
+        <dt>at pickup</dt>
+        <dd>{claim.coverage_state ? claim.coverage_state.replace('_', ' ') : 'unknown'}</dd>
         <dt>placement</dt>
         <dd>{claim.placement.method === 'none' ? 'not placed' : claim.placement.method.replace('_', ' ')}</dd>
         <dt>size</dt>
-        <dd>{sizeLine(claim.size)}</dd>
+        <dd>{size ?? 'size not stated'}</dd>
         {claim.scanner_style ? (
           <>
-            <dt>image</dt>
-            <dd>looks like a scanner image (grayscale)</dd>
+            <dt>photo</dt>
+            <dd>grayscale, like a scanner image</dd>
           </>
         ) : null}
-        {windows}
       </dl>
       {claim.paragraph ? <p>{claim.paragraph}</p> : null}
-      {claim.match?.state === 'comparable' && claim.match.pairs[0] ? (
-        <p className="small muted">nearest pickup mark {claim.match.pairs[0].d.toFixed(2)} units away; keyframe pair {claim.match.kf_pair?.join(' and ') ?? ''}</p>
-      ) : null}
-      {claim.image ? (
-        <p className="small muted mono">
-          image {claim.image.w}x{claim.image.h}
-          {claim.image.low_res ? ' (low resolution)' : ''}, sha256 {claim.image.sha256.slice(0, 12)}
-        </p>
-      ) : null}
+      <p className="small muted mono">
+        photo {claim.image.w}x{claim.image.h}
+        {claim.image.low_res ? ', low resolution' : ''}, sha256 {claim.image.sha256.slice(0, 12)}
+      </p>
     </div>
   );
 }
 
-// Claim-first: the company's photo and text against the pickup walk of a run. The flow is the same for a staged photo.
+// Claim-first: the photo and words from a damage bill, placed against a finished run's pickup walk.
 export function ClaimPage({ query }: { query: URLSearchParams }) {
   const [runId, setRunId] = useState(query.get('run') ?? '');
   const [text, setText] = useState('');
@@ -75,7 +74,8 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
     try {
       setClaim(await api.claim({ run_id: runId, image, text, tire_code: tire || undefined }));
     } catch (err) {
-      if (err instanceof ApiError && err.status === 501) setError('claim-first is not wired on this server yet');
+      if (err instanceof ApiError && err.status === 501) setError('Claim photos are not wired on this server yet.');
+      else if (err instanceof ApiError && err.status === 404) setError('There is no run with that id on this server.');
       else setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
@@ -83,16 +83,16 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
   };
 
   return (
-    <div>
+    <div className="claim">
       <h1>I have a claim photo</h1>
-      <p className="muted" style={{ maxWidth: '70ch' }}>
-        Paste the photo and the words from the bill. Spark names the panel, SAM image requests vote on it, and the dated pickup frame comes back with the mark boxed
-        and, when a ruler is in frame, a size with its bound. Anything it cannot place says so.
+      <p className="lead">
+        Paste the photo and the words from the bill. Muse Spark names the panel, SAM 3.1 image requests check the name, and the dated pickup frame of that
+        panel comes back. A size is printed only when a ruler (the plate, or a wheel with its tire size) is in frame, and always with its range.
       </p>
-      <form className="form-grid" onSubmit={submit}>
+      <form className="form-grid" onSubmit={(e) => void submit(e)}>
         <label>
-          run id (the URL of your run)
-          <input value={runId} onChange={(e) => setRunId(e.target.value.trim())} required placeholder="01J..." />
+          run id (the end of your run page address)
+          <input value={runId} onChange={(e) => setRunId(e.target.value.trim())} required spellCheck={false} />
         </label>
         <label>
           the claim photo
@@ -103,8 +103,8 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="scratch, right rear door" />
         </label>
         <label>
-          tire size from the sidewall, only for a wheel mark (for example 225/45R17)
-          <input value={tire} onChange={(e) => setTire(e.target.value.trim())} placeholder="optional" />
+          tire size from the sidewall, only for a wheel mark
+          <input value={tire} onChange={(e) => setTire(e.target.value.trim())} placeholder="225/45R17" spellCheck={false} />
         </label>
         <div>
           <button type="submit" className="btn primary" disabled={busy || !image || !runId}>
@@ -114,9 +114,6 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
       </form>
       {error ? <p className="error-line">{error}</p> : null}
       {claim ? <ClaimResult claim={claim} /> : null}
-      <p className="small muted" style={{ marginTop: 16 }}>
-        Video time on a placed frame is the proxy frame's pts (for example {formatClock(11)} to {formatClock(16)}); wall clocks are the camera time plus pts.
-      </p>
     </div>
   );
 }

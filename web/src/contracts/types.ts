@@ -1,5 +1,6 @@
 // TypeScript mirror of walkaround/contracts.py for the records the browser reads.
-// Field names are the Python names; enums are string unions. Nothing here is validated at runtime.
+// Field names are the Python names; enums are string unions. canonical_json writes every field, defaults included,
+// so fields are required here unless the Python type allows None. Nothing is validated at runtime.
 
 export type Role = string; // pickup | return | topup_<n> | claim_<n>
 export type WalkRole = 'pickup' | 'return';
@@ -23,18 +24,14 @@ export type RunStatus =
   | 'failed'
   | 'partial';
 
+export type RunKind = 'pair' | 'pickup_check' | 'topup' | 'claim';
 export type LaneStatus = 'completed' | 'zero_matches' | 'incomplete' | 'failed';
-
 export type CoverageState = 'filmed' | 'glimpsed' | 'not_filmed' | 'not_run' | 'not_seen';
-
-export type VerdictLabel =
-  | 'already_there'
-  | 'needs_your_eye'
-  | 'new_or_unseen'
-  | 'not_seen_at_return'
-  | 'not_comparable';
-
+export type VerdictLabel = 'already_there' | 'needs_your_eye' | 'new_or_unseen' | 'not_seen_at_return' | 'not_comparable';
 export type MarkKind = 'scratch' | 'scuff' | 'chip' | 'dent' | 'crack' | 'dirt' | 'reflection' | 'unsure';
+export type Side = 'left' | 'right' | 'none';
+export type Position = 'front' | 'rear' | 'none';
+export type ReplayMode = 'fixed' | 'recorded' | 'instant';
 
 export type PanelId =
   | 'left_front_door'
@@ -60,8 +57,7 @@ export type PanelId =
   | 'windshield'
   | 'rear_window';
 
-export type ReplayMode = 'fixed' | 'recorded' | 'instant';
-
+// contracts.EventKind, in declaration order. The reducer switches on these exact strings.
 export const EVENT_KINDS = [
   'run.created',
   'upload.started',
@@ -102,11 +98,14 @@ export const EVENT_KINDS = [
 
 export type EventKind = (typeof EVENT_KINDS)[number];
 
+// The SSE stream ends after either of these (orchestrator.TERMINAL_EVENTS).
+export const TERMINAL_KINDS: ReadonlySet<string> = new Set(['run.completed', 'run.failed']);
+
 export interface Event {
   seq: number;
   ts: string;
   run_id: string;
-  kind: EventKind | string;
+  kind: EventKind;
   payload: Record<string, unknown>;
   prev: string;
   hash: string;
@@ -123,15 +122,17 @@ export interface RunManifest {
   run_id: string;
   created_at: string;
   mode: 'car' | 'apartment';
-  kind: 'pair' | 'pickup_check' | 'topup' | 'claim';
+  kind: RunKind;
   status: RunStatus;
   live_or_replay: 'live' | 'replay';
   keep: boolean;
   keep_plate: boolean;
   app_commit: string | null;
   config_hash: string | null;
+  thresholds: Record<string, unknown>;
   fps: number | null;
   noun_list: string[];
+  prompts?: Record<string, string>; // test clips only: the text a lane was sent with instead of its noun
   retention_deadline: string | null;
   api_spend_cents: number;
   spend_ceiling_cents: number;
@@ -154,7 +155,7 @@ export interface FfprobeInfo {
   fps_avg: number;
   vfr: boolean;
   duration_s: number;
-  creation_time: string | 'not present';
+  creation_time: string; // ISO timestamp or "not present"
   device: string | null;
   hdr: boolean;
   has_audio: boolean;
@@ -168,6 +169,14 @@ export interface ProxyRecord {
   frames: number;
   pts_map_path: string;
   sha256: string | null;
+}
+
+export interface FilesApiRecord {
+  file_id: string;
+  uploaded_at: string;
+  expires_at: string | null;
+  deleted_at: string | null;
+  delete_response: Record<string, unknown> | null;
 }
 
 export interface VideoRecord {
@@ -184,7 +193,7 @@ export interface VideoRecord {
   proxy: ProxyRecord | null;
   proxy_blurred: { path: string; sha256: string | null } | null;
   wav: { path: string; duration_s: number; sha256: string | null } | null;
-  files_api: { file_id: string; uploaded_at: string; expires_at: string | null; deleted_at: string | null } | null;
+  files_api: FilesApiRecord | null;
   quarantine_path: string | null;
   quarantine_deleted_at: string | null;
 }
@@ -201,6 +210,13 @@ export interface MergeRecord {
   pred_dist: number | null;
   area_ratio: number | null;
   angle: number | null;
+}
+
+export interface AnchorReprompt {
+  request_id: string;
+  frame: number;
+  box: number[];
+  negative_points: Point2[];
 }
 
 export interface FrameObs {
@@ -223,12 +239,12 @@ export interface PanelTrack {
   sam_object_ids: string[];
   fragments: TrackFragment[];
   merges: MergeRecord[];
-  anchor_reprompts: { request_id: string; frame: number; box: number[]; negative_points: Point2[] }[];
+  anchor_reprompts: AnchorReprompt[];
   c_present_share: number;
   per_frame: FrameObs[];
   panel_id: PanelId | null;
-  side: 'left' | 'right' | 'none';
-  position: 'front' | 'rear' | 'none';
+  side: Side;
+  position: Position;
 }
 
 export interface PanelRole {
@@ -244,8 +260,8 @@ export interface PanelRole {
 export interface Panel {
   panel_id: PanelId;
   noun: string;
-  side: 'left' | 'right' | 'none';
-  position: 'front' | 'rear' | 'none';
+  side: Side;
+  position: Position;
   instance_from: 'tracks' | 'canonical';
   votes: { R1: number; R2: number; R3: number; R4: number };
   side_uncertain: boolean;
@@ -255,6 +271,16 @@ export interface Panel {
   not_comparable_reasons: string[];
 }
 
+export interface KeyframeScore {
+  area: number;
+  completeness: number;
+  sharpness: number;
+  glare: number;
+  frontality: number;
+  total: number;
+}
+
+// Crop pixel (u, v) maps to source (dx + u / scale, dy + v / scale).
 export interface Crop {
   path: string;
   sha256: string | null;
@@ -265,6 +291,32 @@ export interface Crop {
   dy: number;
 }
 
+export interface Moments {
+  cx: number;
+  cy: number;
+  mu20: number;
+  mu02: number;
+  mu11: number;
+  theta: number;
+  sigma_inv_half: [[number, number], [number, number]];
+}
+
+export interface BlurRecord {
+  plate_boxes: Box4[];
+  face_boxes: Box4[];
+  request_ids: string[];
+  plate_ruler_px: number | null;
+  plate_ruler_c: number | null;
+  plate_tilt_hw: number | null;
+}
+
+export interface Conditions {
+  wet: boolean;
+  dirty: boolean;
+  glare: boolean;
+  dark: boolean;
+}
+
 export interface Keyframe {
   kf_id: string;
   role: Role;
@@ -272,15 +324,30 @@ export interface Keyframe {
   track_id: string;
   f_proxy: number;
   pts: number;
-  score: { area: number; completeness: number; sharpness: number; glare: number; frontality: number; total: number };
+  score: KeyframeScore;
   aspect_ratio: number;
   box_src: Box4;
   crop: Crop | null;
   mask_png: string | null;
+  moments: Moments | null;
   front_sign: 1 | -1 | null;
   window_subtracted: boolean;
-  conditions: { wet: boolean; dirty: boolean; glare: boolean; dark: boolean };
+  blur: BlurRecord;
+  handle: { point_src: Point2 | null; c: number | null; request_id: string | null };
+  conditions: Conditions;
   marks_status: 'complete' | 'truncated' | 'not_run';
+}
+
+export interface GridPoint {
+  x: number;
+  y: number;
+}
+
+export interface GridBox {
+  x_min: number;
+  y_min: number;
+  x_max: number;
+  y_max: number;
 }
 
 export interface Mark {
@@ -293,6 +360,8 @@ export interface Mark {
   confidence: 'low' | 'medium' | 'high';
   size_class: 'S' | 'M' | 'L';
   description: string;
+  grid_point: GridPoint | null;
+  grid_bbox: GridBox | null;
   bbox_crop: Box4 | null;
   point_crop: Point2 | null;
   bbox_src: Box4 | null;
@@ -323,6 +392,13 @@ export interface MatchCandidate {
   mutual: boolean;
 }
 
+export interface MarkGroup {
+  type: MarkKind;
+  n_pickup: number;
+  n_return: number;
+  text: string;
+}
+
 export interface PanelMatch {
   panel_id: PanelId;
   state: 'comparable' | 'not_comparable';
@@ -335,27 +411,16 @@ export interface PanelMatch {
   pairs: MatchCandidate[];
   unmatched_pickup: string[];
   unmatched_return: string[];
-  groups: { type: MarkKind; n_pickup: number; n_return: number; text: string }[];
+  groups: MarkGroup[];
 }
 
-export interface Verdict {
-  verdict_id: string;
-  panel_id: PanelId;
-  label: VerdictLabel;
-  rule_id: string;
-  mark_ids: string[];
-  distance_units: number | null;
-  distance_cm_est: number | null;
-  reasons: string[];
-  trace: {
-    rule_ids: string[];
-    thresholds: Record<string, unknown>;
-    sam_request_ids: string[];
-    spark_request_ids: string[];
-    event_seqs: number[];
-    config_hash: string | null;
-  };
-  size: SizeEstimate | null;
+export interface Trace {
+  rule_ids: string[];
+  thresholds: Record<string, unknown>;
+  sam_request_ids: string[];
+  spark_request_ids: string[];
+  event_seqs: number[];
+  config_hash: string | null;
 }
 
 export interface SizeEstimate {
@@ -367,6 +432,19 @@ export interface SizeEstimate {
   tire_code: string | null;
   threshold_type: 'body_scratch' | 'dent' | 'wheel_mark' | 'body_scuff' | null;
   refused_reason: string | null;
+}
+
+export interface Verdict {
+  verdict_id: string;
+  panel_id: PanelId;
+  label: VerdictLabel;
+  rule_id: string;
+  mark_ids: string[];
+  distance_units: number | null;
+  distance_cm_est: number | null;
+  reasons: string[];
+  trace: Trace;
+  size: SizeEstimate | null;
 }
 
 export interface PanelCoverage {
@@ -413,23 +491,34 @@ export interface TrackPoint {
   u_rel: number | null;
 }
 
+export interface ClipRecord {
+  path: string;
+  sha256: string | null;
+  f0_src: number;
+  frames: number;
+  window_px: number;
+  windows_src: Box4[];
+  w: number;
+  h: number;
+}
+
 export interface MarkTrack {
   mark_id: string;
   role: Role;
-  clip: { path: string; sha256?: string | null; f0_src: number; frames: number; window_px: number; windows_src?: Box4[]; w: number; h: number } | null;
+  clip: ClipRecord | null;
   request_id: string | null;
-  prompt_text?: string;
-  track?: TrackPoint[];
-  verdict: 'fixed' | 'sliding' | 'inconclusive' | 'no_track' | 'not_run';
+  prompt_text: string;
+  track: TrackPoint[];
   b1: number | null;
   b2: number | null;
   b_pass: boolean;
   panned: boolean;
   drift_rms: number | null;
-  sign_agreement?: number | null;
-  pairs_n?: number;
-  curvature_cap?: boolean;
-  highlight_cap?: boolean;
+  sign_agreement: number | null;
+  pairs_n: number;
+  verdict: 'fixed' | 'sliding' | 'inconclusive' | 'no_track' | 'not_run';
+  curvature_cap: boolean;
+  highlight_cap: boolean;
   is_control: boolean;
 }
 
@@ -451,11 +540,13 @@ export interface ReplayPayload {
   events: Event[];
 }
 
+// GET /api/status (app.py).
 export interface StatusResponse {
   paused: boolean;
   pickup_left: number;
   pairs_left: number;
   queue_position: number | null;
+  queue_eta_minutes?: number | null; // app.py adds it beside the contract's fields
   engine: string;
 }
 
@@ -464,6 +555,7 @@ export interface SampleResponse {
   run_id: string;
   precomputed: boolean;
   recorded_on: string;
+  badge: string;
   replay: string;
 }
 
@@ -472,7 +564,7 @@ export interface Claim {
   text: string;
   scanner_style: boolean;
   roi: { box: Box4; source: 'drawn' | 'whole' } | null;
-  naming: { spark: PanelId | null; sam_votes: unknown[]; agreed: boolean };
+  naming: { spark: PanelId | null; sam_votes: Record<string, unknown>[]; agreed: boolean };
   panel_id: PanelId | null;
   side_source: 'text' | 'spark' | 'both_shown' | null;
   coverage_state: CoverageState | null;

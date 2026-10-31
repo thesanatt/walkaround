@@ -1,39 +1,34 @@
-import { routes } from '../api/client.ts';
 import type { Narration } from '../contracts/types.ts';
+import { useFileUrl } from '../lib/files.tsx';
+import { formatClockTenths } from '../lib/format.ts';
 import { panelName } from '../lib/panels.ts';
 
-function ms(value: number): string {
-  const s = value / 1000;
-  const m = Math.floor(s / 60);
-  return `${m}:${(s - m * 60).toFixed(1).padStart(4, '0')}`;
-}
-
-// Muse Voice turns with startMs and endMs; a click seeks the walk to the turn. No turns means no chips.
-export function NarrationChips({ runId, narration, roles, onSeek }: { runId: string; narration: Narration | null; roles: string[]; onSeek: (role: string, seconds: number) => void }) {
-  if (!narration) return <div className="empty">Narration comes with narration.derived. Without a transcript there are no chips.</div>;
+// Muse Voice turns with their start and end; a click seeks the walk to the turn, the chip plays the renter's words.
+export function NarrationChips({ narration, roles, onSeek }: { narration: Narration | null; roles: string[]; onSeek: (role: string, seconds: number) => void }) {
+  const url = useFileUrl();
+  if (!narration) return <div className="empty">Narration comes after the voice step. A walk filmed without talking has no chips.</div>;
   return (
     <div className="narration">
-      {!narration.mode_applied ? <p className="small muted">The transcript came back as one turn, so it is shown without pins.</p> : null}
+      {!narration.mode_applied ? <p className="small muted">Muse Voice returned the transcript without turns, so it is not pinned to panels.</p> : null}
       {roles.map((role) => {
         const turns = narration.per_role[role]?.turns ?? [];
         return (
           <div key={role} className="narration-role">
-            <h4>{role}</h4>
+            <h4>{role} walk</h4>
             {turns.length ? (
-              <div className="chips">
+              <ul className="turns">
                 {turns.map((t) => (
-                  <span key={t.turn_id} className="row">
+                  <li key={t.turn_id}>
                     <button type="button" className="chip" onClick={() => onSeek(role, t.start_ms / 1000)}>
                       <span className="mono">
-                        {ms(t.start_ms)} to {ms(t.end_ms)}
-                      </span>
-                      : {t.text}
-                      {t.pinned_panel ? ` (${panelName(t.pinned_panel)})` : ''}
+                        {formatClockTenths(t.start_ms / 1000)} to {formatClockTenths(t.end_ms / 1000)}
+                      </span>{' '}
+                      "{t.text}"{t.pinned_panel ? `, ${panelName(t.pinned_panel)}` : ''}
                     </button>
-                    {t.chip_path ? <audio controls preload="none" src={routes.file(runId, t.chip_path)} aria-label={`narration chip ${t.turn_id}`} /> : null}
-                  </span>
+                    {t.chip_path ? <audio controls preload="none" src={url(t.chip_path)} aria-label={`the renter saying "${t.text}"`} /> : null}
+                  </li>
                 ))}
-              </div>
+              </ul>
             ) : (
               <p className="small muted">no narration found in this walk</p>
             )}

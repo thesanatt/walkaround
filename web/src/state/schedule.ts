@@ -5,73 +5,47 @@ export interface ScheduledEvent {
   atMs: number;
 }
 
-export interface ScheduleOptions {
-  // Stage budgets for fixed mode, keyed by the stage event's name (web/kiosk/delays.json or ReplayPayload.delays_ms).
-  delaysMs: Record<string, number>;
-  // Recorded mode caps every gap at this many ms (thresholds.json orchestrator.replay_recorded_delay_cap_ms).
-  capMs?: number;
-  // A stage with no budget entry gets this many ms in fixed mode.
-  defaultStageMs?: number;
+// thresholds.json orchestrator.replay_recorded_delay_cap_ms
+export const RECORDED_CAP_MS = 2000;
+
+// The stage each event belongs to: the latest stage event's name at or before it, "created" before the first
+// (orchestrator._stage_of_each).
+export function stageOfEach(events: readonly Event[]): string[] {
+  let current = 'created';
+  return events.map((e) => {
+    if (e.kind === 'stage' && typeof e.payload['name'] === 'string') current = e.payload['name'];
+    return current;
+  });
 }
 
-const DEFAULT_CAP_MS = 2000;
-const DEFAULT_STAGE_MS = 1000;
-
-function parseTs(ts: string): number {
-  const t = Date.parse(ts);
-  return Number.isFinite(t) ? t : NaN;
-}
-
-// Pure: turns a replay payload's events into (event, time from start) pairs for one of the three modes.
-// fixed: the events between two stage markers share that stage's budget evenly, so every take is identical.
-// recorded: the stored ts deltas, each capped. instant: everything at 0.
-export function scheduleReplay(events: Event[], mode: ReplayMode, options: ScheduleOptions): ScheduledEvent[] {
-  if (mode === 'instant') return events.map((event) => ({ event, atMs: 0 }));
-
+// Milliseconds to wait before each event, the same numbers orchestrator.replay_delays computes:
+// fixed spreads a stage's budget evenly over that stage's events, recorded uses the ts gaps capped at capMs,
+// instant waits for nothing.
+export function replayWaits(events: readonly Event[], mode: ReplayMode, delaysMs: Record<string, number>, capMs = RECORDED_CAP_MS): number[] {
+  if (mode === 'instant' || !events.length) return events.map(() => 0);
   if (mode === 'recorded') {
-    const cap = options.capMs ?? DEFAULT_CAP_MS;
-    let at = 0;
-    let prev: number | null = null;
-    return events.map((event) => {
-      const t = parseTs(event.ts);
-      if (prev !== null && Number.isFinite(t) && Number.isFinite(prev)) {
-        at += Math.min(cap, Math.max(0, t - prev));
-      }
-      if (Number.isFinite(t)) prev = t;
-      return { event, atMs: at };
+    return events.map((e, i) => {
+      if (i === 0) return 0;
+      const gap = Date.parse(e.ts) - Date.parse(events[i - 1]!.ts);
+      return Number.isFinite(gap) ? Math.min(capMs, Math.max(0, gap)) : 0;
     });
   }
-
-  // fixed
-  const defaultMs = options.defaultStageMs ?? DEFAULT_STAGE_MS;
-  const segments: { name: string; events: Event[] }[] = [];
-  let current: { name: string; events: Event[] } = { name: 'created', events: [] };
-  for (const event of events) {
-    if (event.kind === 'stage') {
-      const name = typeof event.payload['name'] === 'string' ? (event.payload['name'] as string) : current.name;
-      if (current.events.length) segments.push(current);
-      current = { name, events: [event] };
-    } else {
-      current.events.push(event);
-    }
-  }
-  if (current.events.length) segments.push(current);
-
-  const out: ScheduledEvent[] = [];
-  let start = 0;
-  for (const segment of segments) {
-    const budget = options.delaysMs[segment.name] ?? defaultMs;
-    const n = segment.events.length;
-    segment.events.forEach((event, i) => {
-      // The stage marker itself lands at the segment start; the rest spread to the end of the budget.
-      const atMs = i === 0 && event.kind === 'stage' ? start : start + Math.round((budget * (i + 1)) / n);
-      out.push({ event, atMs });
-    });
-    start += budget;
-  }
-  return out;
+  const stages = stageOfEach(events);
+  const counts = new Map<string, number>();
+  for (const s of stages) counts.set(s, (counts.get(s) ?? 0) + 1);
+  return stages.map((s) => (delaysMs[s] ?? delaysMs['default'] ?? 0) / counts.get(s)!);
 }
 
-export function totalDurationMs(schedule: ScheduledEvent[]): number {
-  return schedule.length ? Math.max(...schedule.map((s) => s.atMs)) : 0;
+// Pure: (event, ms from start) pairs; each event lands after the sum of the waits up to and including its own.
+export function scheduleReplay(events: readonly Event[], mode: ReplayMode, delaysMs: Record<string, number>, capMs = RECORDED_CAP_MS): ScheduledEvent[] {
+  const waits = replayWaits(events, mode, delaysMs, capMs);
+  let at = 0;
+  return events.map((event, i) => {
+    at += waits[i]!;
+    return { event, atMs: at };
+  });
+}
+
+export function totalMs(schedule: readonly ScheduledEvent[]): number {
+  return schedule.length ? schedule[schedule.length - 1]!.atMs : 0;
 }

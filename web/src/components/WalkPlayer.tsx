@@ -1,10 +1,10 @@
 import { useMediaPlayer } from '@meta-sam/react';
-import type { IMediaPlayer, MediaPlayerRenderContext } from '@meta-sam/video';
+import type { MediaPlayerRenderContext } from '@meta-sam/video';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { LaneStore } from '../lanes/laneStore.ts';
-import { containFit, type Fit } from '../lib/geometry.ts';
 import { formatClock } from '../lib/format.ts';
+import { containFit } from '../lib/geometry.ts';
 import type { SnapshotObject } from '../workers/protocol.ts';
 
 export interface WalkMetadata {
@@ -15,162 +15,162 @@ export interface WalkMetadata {
   duration: number;
 }
 
+// Every "<lane>|<SAM id>" of the panel (lib/focus.panelObjectKeys): a merged track carries several ids.
 export interface Spotlight {
-  noun: string;
-  id: string;
+  keys: ReadonlySet<string>;
 }
 
 export interface WalkPlayerProps {
   src: string;
   role: string;
   store: LaneStore;
-  nouns: readonly string[];
-  colorFor: (role: string, noun: string, id: string) => string;
-  labelFor: (role: string, noun: string, id: string) => string;
-  // Only objects passing this filter are drawn (the MatchPane hides every other panel's ids).
-  filterIds?: (noun: string, id: string) => boolean;
-  spotlight?: Spotlight | null;
-  seekFrame?: number | null;
+  lanes: readonly string[];
+  colorFor: (role: string, lane: string, id: string) => string;
+  labelFor: (role: string, lane: string, id: string) => string;
+  filterIds?: (lane: string, id: string) => boolean; // only objects passing it are drawn
+  spotlight?: Spotlight | null; // dims everything outside these objects' masks
+  seekFrame?: number | null; // pause and show this proxy frame
+  startTime?: number; // seconds to open the video at; playback continues from there
   autoPlay?: boolean;
   loop?: boolean;
   controls?: boolean;
+  bloom?: boolean; // false draws every mask at full fill at once (scripted frame capture)
   clock?: () => number;
   className?: string;
   onFrame?: (frameIndex: number, time: number) => void;
   onMetadata?: (meta: WalkMetadata) => void;
-  onFit?: (fit: Fit, cssWidth: number, cssHeight: number) => void;
 }
 
 const BLOOM_MS = 350;
 const LABEL_AFTER_MS = 400;
 const FILL_ALPHA = 0.45;
+const DIM = 'rgba(10, 12, 12, 0.62)';
 
-// One canvas: the blurred proxy decoded by @meta-sam/video, SAM masks from the worker drawn by frame index.
-// Bloom per object: outline first, fill rising to 45% over 350 ms, label last.
+const hasWebCodecs = typeof globalThis.VideoDecoder === 'function';
+const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+interface Drawn {
+  o: SnapshotObject;
+  lane: string;
+  color: string;
+  age: number;
+}
+
+// One canvas: the blurred proxy decoded by @meta-sam/video, SAM 3.1 outlines from the lane worker drawn by frame index.
 export function WalkPlayer(props: WalkPlayerProps) {
-  const {
-    src,
-    role,
-    store,
-    nouns,
-    colorFor,
-    labelFor,
-    filterIds,
-    spotlight = null,
-    seekFrame = null,
-    autoPlay = false,
-    loop = true,
-    controls = true,
-    clock,
-    className,
-    onFrame,
-    onMetadata,
-    onFit,
-  } = props;
-
+  const { src, role, store, seekFrame = null, startTime, autoPlay = false, loop = true, controls = true, className } = props;
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const pathCache = useRef(new WeakMap<SnapshotObject, Path2D>());
   const propsRef = useRef(props);
   propsRef.current = props;
+  const dprRef = useRef(1);
+  const paths = useRef(new WeakMap<SnapshotObject, Path2D>());
+  const blooming = useRef(false);
   const [meta, setMeta] = useState<WalkMetadata | null>(null);
   const [playing, setPlaying] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const pendingBloom = useRef(false);
-  const playerHolder = useRef<IMediaPlayer | null>(null);
 
-  const now = useCallback(() => (propsRef.current.clock ? propsRef.current.clock() : performance.now()), []);
+  const renderFrame = useCallback((context: MediaPlayerRenderContext) => {
+    const { ctx, canvas, frame, frameIndex: fi, fallbackCtx, fallbackCanvas } = context;
+    const p = propsRef.current;
+    const dpr = dprRef.current;
+    const fit = containFit(frame.width, frame.height, canvas.width, canvas.height);
+    fallbackCtx.setTransform(1, 0, 0, 1, 0, 0);
+    fallbackCtx.clearRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+    fallbackCtx.drawImage(frame, fit.ox, fit.oy, fit.w, fit.h);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(frame, fit.ox, fit.oy, fit.w, fit.h);
 
-  const renderFrame = useCallback(
-    (context: MediaPlayerRenderContext) => {
-      const { ctx, canvas, frame, frameIndex: fi } = context;
-      const p = propsRef.current;
-      const width = canvas.width;
-      const height = canvas.height;
-      const dpr = Math.max(1, width / Math.max(1, canvas instanceof HTMLCanvasElement ? canvas.clientWidth || width : width));
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.clearRect(0, 0, width, height);
-      const fit = containFit(frame.width, frame.height, width, height);
-      ctx.drawImage(frame, fit.ox, fit.oy, fit.w, fit.h);
-
-      const t = now();
-      let blooming = false;
-      const drawn: { obj: SnapshotObject; noun: string; color: string; age: number }[] = [];
-
-      for (const noun of p.nouns) {
-        for (const obj of p.store.objectsAt(p.role, noun, fi)) {
-          if (p.filterIds && !p.filterIds(noun, obj.id)) continue;
-          const key = `${p.role}|${noun}|${obj.id}`;
-          let first = p.store.firstSeen.get(key);
-          if (first === undefined) {
-            first = t;
-            p.store.firstSeen.set(key, t);
-          }
-          const age = t - first;
-          if (age < LABEL_AFTER_MS + 50) blooming = true;
-          drawn.push({ obj, noun, color: p.colorFor(p.role, noun, obj.id), age });
+    const now = p.clock ? p.clock() : performance.now();
+    const bloom = (p.bloom ?? true) && !reducedMotion;
+    const drawn: Drawn[] = [];
+    let anyBlooming = false;
+    for (const lane of p.lanes) {
+      for (const o of p.store.objectsAt(p.role, lane, fi)) {
+        if (p.filterIds && !p.filterIds(lane, o.id)) continue;
+        const key = `${p.role}|${lane}|${o.id}`;
+        let first = p.store.firstSeen.get(key);
+        if (first === undefined) {
+          first = now;
+          p.store.firstSeen.set(key, now);
         }
+        const age = bloom ? now - first : Infinity;
+        if (age < LABEL_AFTER_MS) anyBlooming = true;
+        drawn.push({ o, lane, color: p.colorFor(p.role, lane, o.id), age });
       }
+    }
+    blooming.current = anyBlooming;
 
-      if (p.spotlight) {
-        const target = drawn.find((d) => d.noun === p.spotlight!.noun && d.obj.id === p.spotlight!.id);
+    // Places a raster-pixel path on the canvas: box origin, frame scale, raster-to-box scale. The traced outline
+    // runs through pixel centres, so it moves half a raster pixel to sit on the pixel edges.
+    const place = (o: SnapshotObject) => {
+      const sx = o.rw > 0 ? (o.box[2] - o.box[0]) / o.rw : 1;
+      const sy = o.rh > 0 ? (o.box[3] - o.box[1]) / o.rh : 1;
+      ctx.translate(fit.ox + o.box[0] * fit.scale, fit.oy + o.box[1] * fit.scale);
+      ctx.scale(fit.scale * sx, fit.scale * sy);
+      ctx.translate(0.5, 0.5);
+      return Math.max(fit.scale * sx, fit.scale * sy);
+    };
+
+    if (p.spotlight) {
+      ctx.fillStyle = DIM;
+      ctx.fillRect(fit.ox, fit.oy, fit.w, fit.h);
+      for (const target of drawn) {
+        if (!target.o.path || !p.spotlight.keys.has(`${target.lane}|${target.o.id}`)) continue;
         ctx.save();
-        ctx.fillStyle = 'rgba(10, 12, 12, 0.6)';
-        ctx.fillRect(fit.ox, fit.oy, fit.w, fit.h);
+        place(target.o);
+        ctx.clip(pathOf(paths.current, target.o), 'evenodd');
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.drawImage(frame, fit.ox, fit.oy, fit.w, fit.h);
         ctx.restore();
-        if (target) {
-          ctx.save();
-          const s = fit.scale;
-          ctx.translate(fit.ox + target.obj.box[0] * s, fit.oy + target.obj.box[1] * s);
-          ctx.scale(s, s);
-          ctx.clip(pathFor(pathCache.current, target.obj), 'evenodd');
-          ctx.setTransform(1, 0, 0, 1, 0, 0);
-          ctx.drawImage(frame, fit.ox, fit.oy, fit.w, fit.h);
-          ctx.restore();
-        }
       }
+    }
 
-      for (const d of drawn) {
-        const s = fit.scale;
-        const path = pathFor(pathCache.current, d.obj);
-        ctx.save();
-        ctx.translate(fit.ox + d.obj.box[0] * s, fit.oy + d.obj.box[1] * s);
-        ctx.scale(s, s);
-        const fillAlpha = Math.min(FILL_ALPHA, (FILL_ALPHA * d.age) / BLOOM_MS);
-        if (fillAlpha > 0) {
-          ctx.globalAlpha = fillAlpha;
+    for (const d of drawn) {
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = d.color;
+      if (d.o.path) {
+        const scale = place(d.o);
+        const path = pathOf(paths.current, d.o);
+        const fill = Math.min(FILL_ALPHA, (FILL_ALPHA * d.age) / BLOOM_MS);
+        if (fill > 0) {
+          ctx.globalAlpha = fill;
           ctx.fillStyle = d.color;
           ctx.fill(path, 'evenodd');
+          ctx.globalAlpha = 0.9;
         }
-        ctx.globalAlpha = 0.9;
-        ctx.strokeStyle = d.color;
-        ctx.lineWidth = (2 * dpr) / s;
+        ctx.lineWidth = (2 * dpr) / scale;
         ctx.lineJoin = 'round';
         ctx.stroke(path);
-        ctx.restore();
-
-        if (d.age >= LABEL_AFTER_MS) {
-          const label = p.labelFor(p.role, d.noun, d.obj.id);
-          const x = fit.ox + d.obj.box[0] * s;
-          const y = fit.oy + d.obj.box[1] * s;
-          ctx.save();
-          ctx.font = `${Math.round(12 * dpr)}px "IBM Plex Sans", system-ui, sans-serif`;
-          const tw = ctx.measureText(label).width + 10 * dpr;
-          const th = 18 * dpr;
-          const ly = Math.max(fit.oy, y - th);
-          ctx.fillStyle = d.color;
-          ctx.fillRect(x, ly, tw, th);
-          ctx.fillStyle = '#fff';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(label, x + 5 * dpr, ly + th / 2);
-          ctx.restore();
-        }
+      } else {
+        // A record with a box and no mask: the box itself.
+        ctx.lineWidth = 2 * dpr;
+        ctx.strokeRect(fit.ox + d.o.box[0] * fit.scale, fit.oy + d.o.box[1] * fit.scale, (d.o.box[2] - d.o.box[0]) * fit.scale, (d.o.box[3] - d.o.box[1]) * fit.scale);
       }
-      pendingBloom.current = blooming;
-    },
-    [now],
-  );
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.font = `500 ${Math.round(12 * dpr)}px "IBM Plex Sans", system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    for (const d of drawn) {
+      if (d.age < LABEL_AFTER_MS) continue;
+      const label = p.labelFor(p.role, d.lane, d.o.id);
+      const x = fit.ox + d.o.box[0] * fit.scale;
+      const y = fit.oy + d.o.box[1] * fit.scale;
+      const tw = ctx.measureText(label).width + 10 * dpr;
+      const th = 18 * dpr;
+      const ly = Math.max(fit.oy, y - th);
+      ctx.fillStyle = d.color;
+      ctx.fillRect(x, ly, tw, th);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(label, x + 5 * dpr, ly + th / 2);
+    }
+    ctx.restore();
+  }, []);
 
   const playerRef = useMediaPlayer({
     canvasRef,
@@ -178,6 +178,7 @@ export function WalkPlayer(props: WalkPlayerProps) {
     loop,
     muted: true,
     autoPlay,
+    initialSeekTime: startTime,
     renderFrame,
     onLoadedMetadata: (m) => {
       const info = { width: m.width, height: m.height, numFrames: m.numFrames, fps: m.fps, duration: m.duration };
@@ -191,61 +192,64 @@ export function WalkPlayer(props: WalkPlayerProps) {
     },
     onPlayingChange: setPlaying,
     onError: (err) => setError(err.message),
-    onPlayerReady: (player) => {
-      playerHolder.current = player;
-    },
   });
 
-  // Size the backing store to CSS size times DPR; re-render the retained frame after a resize.
+  // The backing store follows the CSS size times the device pixel ratio; the retained frame is redrawn after a resize.
   useEffect(() => {
     const wrap = wrapRef.current;
     const canvas = canvasRef.current;
     if (!wrap || !canvas) return;
     const apply = () => {
       const dpr = window.devicePixelRatio || 1;
+      dprRef.current = dpr;
       const w = Math.max(1, Math.round(wrap.clientWidth));
       const h = Math.max(1, Math.round(wrap.clientHeight));
       canvas.style.width = `${w}px`;
       canvas.style.height = `${h}px`;
       canvas.width = Math.round(w * dpr);
       canvas.height = Math.round(h * dpr);
-      const m = meta;
-      if (m) propsRef.current.onFit?.(containFit(m.width, m.height, w, h), w, h);
       void playerRef.current?.forceRender().catch(() => undefined);
     };
     apply();
     const observer = new ResizeObserver(apply);
     observer.observe(wrap);
     return () => observer.disconnect();
-  }, [meta, playerRef]);
+  }, [playerRef]);
 
-  // A bloom in progress needs repaints while paused; while playing the frames arrive anyway.
+  // While paused, new lane frames and a bloom in progress need repaints; during playback frames arrive anyway.
   useEffect(() => {
     let raf = 0;
     const tick = () => {
       const player = playerRef.current;
-      if (pendingBloom.current && player && player.paused) void player.forceRender().catch(() => undefined);
+      if (blooming.current && player?.paused) void player.forceRender().catch(() => undefined);
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [playerRef]);
-
-  // Store updates (new lane frames) repaint the paused frame.
-  useEffect(() => {
-    return store.subscribe(() => {
+    const unsubscribe = store.subscribe(() => {
       const player = playerRef.current;
-      if (player && player.paused) void player.forceRender().catch(() => undefined);
+      if (player?.paused) void player.forceRender().catch(() => undefined);
     });
+    return () => {
+      cancelAnimationFrame(raf);
+      unsubscribe();
+    };
   }, [store, playerRef]);
 
   useEffect(() => {
     const player = playerRef.current;
     if (!player || !meta || seekFrame === null) return;
-    const target = Math.max(0, Math.min(meta.numFrames - 1, seekFrame));
     player.pause();
-    void player.seekToFrame(target).catch(() => undefined);
+    void player.seekToFrame(Math.max(0, Math.min(meta.numFrames - 1, seekFrame))).catch(() => undefined);
   }, [seekFrame, meta, playerRef]);
+
+  if (!hasWebCodecs) {
+    return (
+      <div className={`walk ${className ?? ''}`}>
+        <video className="walk-plain" src={src} controls muted playsInline loop={loop} aria-label={`${role} walk, blurred`} />
+        <p className="small muted">Simple playback mode: this browser has no WebCodecs, so the SAM 3.1 outlines are not drawn here. The sheet carries the frames.</p>
+      </div>
+    );
+  }
 
   const toggle = () => {
     const player = playerRef.current;
@@ -266,18 +270,17 @@ export function WalkPlayer(props: WalkPlayerProps) {
   return (
     <div className={`walk ${className ?? ''}`}>
       <div className="walk-canvas" ref={wrapRef}>
-        <canvas ref={canvasRef} aria-label={`${role} walk with SAM 3.1 masks`} />
+        <canvas ref={canvasRef} aria-label={`${role} walk, blurred, with SAM 3.1 outlines`} />
         {error ? (
           <div className="walk-error">
-            <p>Could not decode this video in the browser: {error}</p>
-            <p className="muted">Playback needs WebCodecs (Chrome, Edge, Safari 17+ or Firefox 130+).</p>
+            <p>The browser could not decode this video: {error}</p>
           </div>
         ) : null}
-        {!meta && !error ? <div className="walk-loading muted">opening the blurred proxy</div> : null}
+        {!meta && !error ? <div className="walk-loading">opening the blurred video</div> : null}
       </div>
       {controls ? (
         <div className="walk-controls">
-          <button type="button" onClick={toggle} disabled={!meta} aria-label={playing ? 'pause' : 'play'}>
+          <button type="button" className="btn small" onClick={toggle} disabled={!meta}>
             {playing ? 'pause' : 'play'}
           </button>
           <input
@@ -287,10 +290,10 @@ export function WalkPlayer(props: WalkPlayerProps) {
             value={frameIndex}
             onChange={(e) => scrub(Number(e.target.value))}
             disabled={!meta}
-            aria-label="frame"
+            aria-label={`${role} walk frame`}
           />
           <span className="mono small">
-            {formatClock(time)} / {formatClock(meta?.duration ?? 0)} f{frameIndex}
+            {formatClock(time)} / {formatClock(meta?.duration ?? 0)}, frame {frameIndex}
           </span>
         </div>
       ) : null}
@@ -298,11 +301,11 @@ export function WalkPlayer(props: WalkPlayerProps) {
   );
 }
 
-function pathFor(cache: WeakMap<SnapshotObject, Path2D>, obj: SnapshotObject): Path2D {
-  let path = cache.get(obj);
+function pathOf(cache: WeakMap<SnapshotObject, Path2D>, o: SnapshotObject): Path2D {
+  let path = cache.get(o);
   if (!path) {
-    path = new Path2D(obj.path);
-    cache.set(obj, path);
+    path = new Path2D(o.path);
+    cache.set(o, path);
   }
   return path;
 }

@@ -2,6 +2,7 @@ import type {
   Coverage,
   DeletionRecord,
   Event,
+  FfprobeInfo,
   Keyframe,
   Mark,
   MarkTrack,
@@ -9,6 +10,7 @@ import type {
   Panel,
   PanelMatch,
   PanelTrack,
+  ProxyRecord,
   ReplayMode,
   Role,
   RunManifest,
@@ -19,6 +21,7 @@ import type {
 // A lane's life in the UI: requested -> streaming -> one of the four contract statuses.
 export type LaneUiStatus = 'requested' | 'streaming' | 'completed' | 'zero_matches' | 'incomplete' | 'failed';
 
+// Keyed by lane id (contracts.noun_slug: 'car_door'), the spelling sam.* events carry.
 export interface LaneState {
   status: LaneUiStatus;
   frames: number;
@@ -49,15 +52,9 @@ export interface SealState {
   ots: string | null; // pending | confirmed:<block> | failed:<reason>
   tsr_time: string | null;
   tsa_issuer: string | null;
+  files_uploaded: boolean; // a files.uploaded event arrived: run.clocks.first_model_call_at may be shown
 }
 
-export interface SparkCounts {
-  requested: number;
-  answered: number;
-  truncated: number;
-}
-
-// What upload.done said, before videos/<role>.json is fetched.
 export interface UploadDone {
   bytes: number;
   sha256: string;
@@ -65,42 +62,79 @@ export interface UploadDone {
   warning: string | null;
 }
 
+// What the events say about one walk's media, so the page works before (or without) videos/<role>.json.
+export interface RoleMedia {
+  upload: UploadDone | null; // upload.done
+  ffprobe: FfprobeInfo | null; // media.probed
+  proxy: ProxyRecord | null; // media.proxy_done: fps, size and frames only; the unblurred file is never fetched
+  blurredPath: string | null; // blur.done: the only video the browser plays
+  fileId: string | null; // files.uploaded
+}
+
+export interface VoiceState {
+  mode_applied: boolean | null;
+  turns: number | null;
+  text: string | null;
+}
+
+export interface Ledger {
+  dollarsSoFar: number;
+  inFlight: number;
+  p50FirstDeltaMs: number | null;
+  parseCpuMs: number;
+  firstDeltas: number[];
+}
+
 export interface RunState {
   run: RunManifest | null;
   videos: Record<Role, VideoRecord>;
-  uploads: Record<Role, UploadDone>;
+  media: Record<Role, RoleMedia>;
   lanes: Record<Role, Record<string, LaneState>>;
-  frames: Record<Role, Record<string, LastFrame>>;
+  frames: Record<Role, Record<string, LastFrame>>; // the last sam.frame per lane, boxes only
   seal: SealState;
   tracks: PanelTrack[];
   panels: Panel[];
   coverage: Coverage | null;
+  topup: { missing: string[]; topup_text: string; nouns_to_rerun: string[] } | null;
   keyframes: Keyframe[];
   marks: Mark[];
   matches: PanelMatch[];
   verdicts: Verdict[];
   narration: Narration | null;
   markTracks: MarkTrack[];
-  spark: SparkCounts;
-  voice: { done: boolean; mode_applied: boolean | null };
+  spark: { requested: number; answered: number; truncated: number };
+  voice: Record<Role, VoiceState>;
   sheet: { written: boolean; sha256s: Record<string, string> };
   deletions: DeletionRecord[];
-  ledger: { dollarsSoFar: number; inFlight: number; p50FirstDeltaMs: number | null; parseCpuMs: number; firstDeltas: number[] };
+  ledger: Ledger;
   stage: { name: string; pct: number };
   errors: string[];
   partial: string[] | null;
+  partialText: string | null;
   completed: boolean;
   replay: { mode: ReplayMode; badgeDate: string } | null;
   lastSeq: number;
   lastTs: string | null;
 }
 
-// The synthetic kinds a driver adds around the contract events. The reducer treats them like any other kind.
-export const SYNTHETIC_KINDS = {
-  runLoaded: 'run.loaded',
-  videoLoaded: 'video.loaded',
-  replayStarted: 'replay.started',
-  derivedSuffix: '.loaded',
-} as const;
+// Kinds a driver adds around the contract events. "<kind>.loaded" carries the derived JSON an event references.
+export type SyntheticKind =
+  | 'reset'
+  | 'run.loaded'
+  | 'video.loaded'
+  | 'replay.started'
+  | 'panels.derived.loaded'
+  | 'coverage.updated.loaded'
+  | 'marks.derived.loaded'
+  | 'narration.derived.loaded'
+  | 'staysput.derived.loaded'
+  | 'match.derived.loaded'
+  | 'deletions.loaded'
+  | 'run.ended.loaded'; // run.json of a run that ended with no chained event (failed before the seal)
 
-export type AnyEvent = Event | { kind: string; payload: Record<string, unknown>; seq?: number; ts?: string };
+export interface SyntheticEvent {
+  kind: SyntheticKind;
+  payload: Record<string, unknown>;
+}
+
+export type AnyEvent = Event | SyntheticEvent;

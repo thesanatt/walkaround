@@ -1,4 +1,5 @@
-// SHA-256 over the same 8 MB slices the uploader sends, with hash-wasm, off the main thread.
+// SHA-256 with hash-wasm over the same 8 MB slices the uploader sends, in index order, off the main thread.
+// WebCrypto's digest cannot stream, so a 400 MB walk would otherwise sit in memory whole.
 import { createSHA256, type IHasher } from 'hash-wasm';
 
 import type { HashMessage, HashRequest } from './protocol.ts';
@@ -12,10 +13,6 @@ const scope = self as unknown as WorkerScope;
 const hashers = new Map<string, Promise<IHasher>>();
 let queue: Promise<void> = Promise.resolve();
 
-function enqueue(task: () => Promise<void>): void {
-  queue = queue.then(task).catch(() => undefined);
-}
-
 scope.onmessage = (event: MessageEvent<HashRequest>) => {
   const message = event.data;
   if (message.type === 'start') {
@@ -28,7 +25,7 @@ scope.onmessage = (event: MessageEvent<HashRequest>) => {
     );
     return;
   }
-  enqueue(async () => {
+  queue = queue.then(async () => {
     const pending = hashers.get(message.id);
     if (!pending) {
       scope.postMessage({ type: 'error', id: message.id, message: 'hash not started' });
@@ -40,11 +37,11 @@ scope.onmessage = (event: MessageEvent<HashRequest>) => {
         hasher.update(new Uint8Array(await message.blob.arrayBuffer()));
         scope.postMessage({ type: 'progress', id: message.id, index: message.index });
       } else {
-        const hex = hasher.digest('hex');
         hashers.delete(message.id);
-        scope.postMessage({ type: 'digest', id: message.id, hex });
+        scope.postMessage({ type: 'digest', id: message.id, hex: hasher.digest('hex') });
       }
     } catch (err) {
+      hashers.delete(message.id);
       scope.postMessage({ type: 'error', id: message.id, message: err instanceof Error ? err.message : String(err) });
     }
   });
