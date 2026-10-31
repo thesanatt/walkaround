@@ -3,11 +3,14 @@ without the backend. Run from web/: ../.venv/bin/python mock/build_fixture.py
 
 Every record goes through the pydantic models and contracts.write_json, the event log through contracts.chain_hash,
 the lanes through sam_wire.index_from_events and the mark positions through geometry, so the mock cannot drift from
-the contract silently. What is real: the cookbook ping pong clip (data/test/pingpong.mp4, served as the blurred walk by
-the mock server, never copied into the fixture) and the two saved SAM 3.1 streams of 10/26 (tests/fixtures/sam).
-Everything else is hand-made dev data: the panels, crops (drawn here, not photos), Stays Put clips (a synthetic test
-pattern, so no face or plate from the clip is ever committed), marks, verdicts, narration and the sheet. Output is
-deterministic.
+the contract silently. What is real: the two saved SAM 3.1 streams of 10/26 (tests/fixtures/sam). Everything else is
+hand-made dev data: the walk the mock serves as the blurred proxy (ffmpeg's test pattern at the clip's size, frame
+count and rate, so no face, plate or unlicensed footage is served or committed), the panels, crops (drawn here, not
+photos), Stays Put clips (a synthetic test pattern too), marks (one boxed because the narration named it), verdicts,
+the second looks (derived/looks.json and open_weights.ndjson in the CONTRACTS.md "Phase 2 file shapes" form),
+narration, five claims with their exits, coverage after a top-up clip, and the sheet. run.json carries the thresholds
+as config/thresholds.json has them today, so the mock shows what a run frozen now shows (Stays Put uncalibrated).
+Output is deterministic.
 """
 
 from __future__ import annotations
@@ -35,7 +38,7 @@ from walkaround import geometry, sam_wire  # noqa: E402
 RUN_ID = "mock-sample-pair"
 OUT = WEB / "mock" / "fixture" / RUN_ID
 FIX = REPO / "tests" / "fixtures"
-CLIP = REPO / "data" / "test" / "pingpong.mp4"
+ORIGINAL_BYTES = 3_820_975  # the byte count the mock's walks have always carried; no original exists
 T0 = datetime(2026, 10, 27, 15, 2, 11, tzinfo=timezone.utc)
 FPS = 24.0
 FRAMES = 141
@@ -127,7 +130,7 @@ def write_lanes() -> dict[str, dict[str, tuple[c.LaneRecord, list[c.IndexFrame]]
 # Pictures -----------------------------------------------------------------------------------------------------------
 
 CROP_W, CROP_H = 1280, 860
-PANEL_PAINT = {"right_rear_door": (88, 104, 120), "left_front_door": (88, 104, 120), "hood": (96, 110, 126)}
+PANEL_PAINT = {"right_rear_door": (88, 104, 120), "left_front_door": (88, 104, 120), "hood": (96, 110, 126), "rear_bumper": (82, 96, 110)}
 
 
 def font(size: int) -> ImageFont.ImageFont:
@@ -141,7 +144,7 @@ def font(size: int) -> ImageFont.ImageFont:
 
 def panel_polygon(panel: str, shift: tuple[int, int]) -> list[tuple[int, int]]:
     dx, dy = shift
-    if panel == "hood":
+    if panel in ("hood", "rear_bumper"):
         pts = [(170, 250), (1110, 250), (1220, 760), (60, 760)]
     else:
         pts = [(150, 120), (1090, 120), (1160, 210), (1160, 760), (120, 760), (110, 200)]
@@ -160,7 +163,7 @@ def draw_crop(panel: str, role: str, shift: tuple[int, int], marks: list[dict[st
     d.polygon(poly, fill=paint)
     xs = [p[0] for p in poly]
     ys = [p[1] for p in poly]
-    if panel != "hood":
+    if panel not in ("hood", "rear_bumper"):
         top = min(ys)
         d.polygon([(xs[0] + 40, top + 18), (xs[1] - 40, top + 18), (xs[1] - 10, top + 180), (xs[0] + 30, top + 180)], fill=(34, 40, 46))
         d.rounded_rectangle([max(xs) - 260, top + 300, max(xs) - 110, top + 336], radius=12, fill=(52, 60, 68))
@@ -209,8 +212,8 @@ def silent_chip(path: Path, seconds: float) -> None:
 
 
 def clip_from_walk(path: Path, x: int, y: int, size: int) -> None:
-    """A stand-in for a Stays Put clip: 3 s of a synthetic test pattern at 504 x 504, offset by (x, y) so the two clips
-    differ. The walk itself has people's faces in it, and nothing unblurred from it belongs in the repo."""
+    """A stand-in for a Stays Put clip: 3 s of a synthetic test pattern at 504 x 504, its hue set by (x, y) so the two
+    clips differ. No footage goes into the fixture."""
     path.parent.mkdir(parents=True, exist_ok=True)
     pattern = f"testsrc2=size={size}x{size}:rate=30:duration=3,hue=h={(x + y) % 360},scale=504:504"
     subprocess.run(
@@ -221,6 +224,23 @@ def clip_from_walk(path: Path, x: int, y: int, size: int) -> None:
         ],
         check=True,
     )
+
+
+def synthetic_walk(role: str) -> Path:
+    """The walk the mock serves as media/<role>.proxy_blurred.mp4: ffmpeg's test pattern (a seconds counter, so a seek
+    can be checked by eye) at the SAM fixtures' size, rate and frame count, muted so the outlines read on top."""
+    path = OUT / "media" / f"{role}.proxy_blurred.mp4"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pattern = f"testsrc=size={SIZE[0]}x{SIZE[1]}:rate={FPS:g},trim=end_frame={FRAMES},hue=s=0.35"
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-loglevel", "error", "-f", "lavfi", "-i", pattern,
+            "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "30", "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            "-fflags", "+bitexact", "-map_metadata", "-1", str(path),
+        ],
+        check=True,
+    )
+    return path
 
 
 # Records ------------------------------------------------------------------------------------------------------------
@@ -234,7 +254,7 @@ def video_record(role: str) -> c.VideoRecord:
     return c.VideoRecord(
         role=role,
         original_filename=f"{role}.mp4",
-        bytes=CLIP.stat().st_size,
+        bytes=ORIGINAL_BYTES,
         sha256_browser=FAKE_SHA[f"{role}-original"],
         sha256_server=FAKE_SHA[f"{role}-original"],
         hash_match=True,
@@ -243,7 +263,7 @@ def video_record(role: str) -> c.VideoRecord:
         chunks_received=1,
         ffprobe=ffprobe,
         proxy=c.ProxyRecord(path=f"media/{role}.proxy.mp4", fps=FPS, width=SIZE[0], height=SIZE[1], frames=FRAMES, pts_map_path=f"media/{role}.pts.json"),
-        proxy_blurred=c.BlurredProxyRecord(path=f"media/{role}.proxy_blurred.mp4", sha256=sha(CLIP)),
+        proxy_blurred=c.BlurredProxyRecord(path=f"media/{role}.proxy_blurred.mp4", sha256=sha(synthetic_walk(role))),
         files_api=c.FilesApiRecord(file_id=f"file-mock-{role}", uploaded_at=iso(upload), expires_at=iso(upload + timedelta(hours=1)), deleted_at=iso(upload + timedelta(minutes=9)), delete_response={"id": f"file-mock-{role}", "object": "file", "deleted": True}),
         quarantine_path=f"quarantine/{role}.orig",
         quarantine_deleted_at=iso(upload + timedelta(minutes=9)),
@@ -287,18 +307,46 @@ def track_for(role: str, frames: list[c.IndexFrame]) -> c.PanelTrack:
     )
 
 
+def synthetic_track(role: str, panel: str, noun: c.Noun, spans: list[tuple[int, int]], box: list[float], object_id: str) -> c.PanelTrack:
+    """A hand-made track for a panel whose lane in the fixture is not real (the saved streams cover one door only)."""
+    rows = []
+    for first, last in spans:
+        for f in range(first, last + 1):
+            rows.append(c.FrameObs(frame=f, pts=f / FPS, box=box, box_area_frac=(box[2] - box[0]) * (box[3] - box[1]) / (SIZE[0] * SIZE[1]), in_car_box=True, c=0.81))
+    frags = [c.TrackFragment(object_id=object_id, first_frame=a, last_frame=b) for a, b in spans]
+    merges = [c.MergeRecord(rule=c.MergeRule.VELOCITY_GAP, gap_s=(b.first_frame - a.last_frame) / FPS, pred_dist=0.18, area_ratio=0.97) for a, b in zip(frags, frags[1:])]
+    side = c.Side.LEFT if panel.startswith("left") else c.Side.RIGHT if panel.startswith("right") else c.Side.NONE
+    position = c.Position.FRONT if "front" in panel else c.Position.REAR if "rear" in panel else c.Position.NONE
+    return c.PanelTrack(
+        track_id=f"{role}_{panel}_t0",
+        role=role,
+        noun=noun,
+        sam_object_ids=[object_id],
+        fragments=frags,
+        merges=merges,
+        c_present_share=1.0,
+        per_frame=rows,
+        panel_id=c.PanelId(panel),
+        side=side,
+        position=position,
+    )
+
+
 SHIFT = {"pickup": (0, 0), "return": (-36, 14)}
 MARKS: dict[tuple[str, str], list[dict[str, Any]]] = {
     ("pickup", "right_rear_door"): [
         {"id": "m1", "type": "scuff", "bbox": (612, 448, 690, 488), "size": "S", "conf": "medium", "note": "light scuff below the handle line"},
-        {"id": "m2", "type": "chip", "bbox": (402, 560, 430, 588), "size": "S", "conf": "low", "note": "small chip"},
+        {"id": "m2", "type": "chip", "bbox": (402, 560, 430, 588), "size": "S", "conf": "low", "note": "chip, boxed where the renter said", "source": "narration_seed"},
     ],
     ("return", "right_rear_door"): [
         {"id": "m1", "type": "scuff", "bbox": (579, 464, 655, 505), "size": "S", "conf": "medium", "note": "scuff below the handle line"},
-        {"id": "m2", "type": "chip", "bbox": (371, 571, 399, 599), "size": "S", "conf": "low", "note": "chip"},
+        {"id": "m2", "type": "chip", "bbox": (371, 571, 399, 599), "size": "S", "conf": "medium", "note": "chip"},
     ],
-    ("pickup", "left_front_door"): [],
-    ("return", "left_front_door"): [{"id": "m1", "type": "scratch", "bbox": (520, 470, 650, 500), "size": "M", "conf": "high", "note": "blue strip, likely tape"}],
+    ("pickup", "left_front_door"): [{"id": "m1", "type": "chip", "bbox": (300, 600, 326, 626), "size": "S", "conf": "medium", "note": "small chip near the lower edge"}],
+    ("return", "left_front_door"): [
+        {"id": "m1", "type": "scratch", "bbox": (520, 470, 650, 500), "size": "M", "conf": "high", "note": "blue strip, likely tape"},
+        {"id": "m2", "type": "chip", "bbox": (270, 609, 296, 635), "size": "S", "conf": "medium", "note": "chip near the lower edge"},
+    ],
     ("pickup", "hood"): [{"id": "m1", "type": "reflection", "bbox": (560, 360, 720, 440), "size": "M", "conf": "low", "note": "bright patch, likely sky"}],
     ("return", "hood"): [],
 }
@@ -322,7 +370,7 @@ def build_keyframes_and_marks() -> tuple[list[c.Keyframe], list[c.Mark]]:
                 kf_id=kf_id,
                 role=role,
                 panel_id=c.PanelId(panel),
-                track_id=f"{role}_car_door_t0" if panel == "right_rear_door" else f"{role}_{panel}_mock",
+                track_id=f"{role}_car_door_t0" if panel == "right_rear_door" else f"{role}_{panel}_t0",
                 f_proxy=f,
                 pts=f / FPS,
                 score=c.KeyframeScore(area=0.92, completeness=0.97, sharpness=0.81, glare=0.4 if glare else 0.03, frontality=0.88, total=0.71),
@@ -352,7 +400,7 @@ def build_keyframes_and_marks() -> tuple[list[c.Keyframe], list[c.Mark]]:
                     role=role,
                     panel_id=c.PanelId(panel),
                     kf_id=kf_id,
-                    source=c.MarkSource.SPARK_BOX,
+                    source=c.MarkSource(spec.get("source", "spark_box")),
                     type=c.MarkKind(spec["type"]),
                     confidence=c.Confidence(spec["conf"]),
                     size_class=c.SizeClass(spec["size"]),
@@ -449,16 +497,19 @@ def build_match(marks: list[c.Mark], calib: c.Calibration) -> tuple[list[c.Panel
     p1, r1 = mark("kf_pickup_right_rear_door", "m1"), mark("kf_return_right_rear_door", "m1")
     p2, r2 = mark("kf_pickup_right_rear_door", "m2"), mark("kf_return_right_rear_door", "m2")
     tape = mark("kf_return_left_front_door", "m1")
+    lp, lr = mark("kf_pickup_left_front_door", "m1"), mark("kf_return_left_front_door", "m2")
     pairs = [cand(p1, r1), cand(p2, r2)]
+    left = cand(lp, lr)
     trace = lambda ids, seqs: c.Trace(rule_ids=ids, thresholds={"tau_pre": calib.tau_pre, "tau_eye": calib.tau_eye}, sam_request_ids=["resp_mock_door"], spark_request_ids=["resp_mock_spark_pickup_right_rear_door", "resp_mock_spark_return_right_rear_door"], event_seqs=seqs, config_hash=CONFIG_HASH)
     matches = [
         c.PanelMatch(panel_id=c.PanelId.RIGHT_REAR_DOOR, state=c.MatchState.COMPARABLE, kf_pair=["kf_pickup_right_rear_door", "kf_return_right_rear_door"], aspect_diff=0.02, mask_iou=0.91, handle_residual=[0.01, -0.02], pairs=pairs),
-        c.PanelMatch(panel_id=c.PanelId.LEFT_FRONT_DOOR, state=c.MatchState.COMPARABLE, kf_pair=["kf_pickup_left_front_door", "kf_return_left_front_door"], aspect_diff=0.03, mask_iou=0.88, unmatched_return=[tape.mark_id]),
+        c.PanelMatch(panel_id=c.PanelId.LEFT_FRONT_DOOR, state=c.MatchState.COMPARABLE, kf_pair=["kf_pickup_left_front_door", "kf_return_left_front_door"], aspect_diff=0.03, mask_iou=0.88, pairs=[left], unmatched_return=[tape.mark_id]),
         c.PanelMatch(panel_id=c.PanelId.HOOD, state=c.MatchState.NOT_COMPARABLE, reasons=["G2"], kf_pair=["kf_pickup_hood", "kf_return_hood"]),
     ]
     verdicts = [
         c.Verdict(verdict_id="v1", panel_id=c.PanelId.RIGHT_REAR_DOOR, label=c.VerdictLabel.ALREADY_THERE, rule_id="L3", mark_ids=[p1.mark_id, r1.mark_id], distance_units=pairs[0].d_pos, distance_cm_est=pairs[0].d_pos * 35, trace=trace(["L3"], [120, 410])),
-        c.Verdict(verdict_id="v2", panel_id=c.PanelId.RIGHT_REAR_DOOR, label=c.VerdictLabel.NEEDS_YOUR_EYE, rule_id="L4", mark_ids=[p2.mark_id, r2.mark_id], distance_units=pairs[1].d_pos, distance_cm_est=pairs[1].d_pos * 35, reasons=["K12"], trace=trace(["L4", "K12"], [121, 411])),
+        # A seeded mark has confidence low (K12), so it never makes "already there" on its own and gets no second look.
+        c.Verdict(verdict_id="v2", panel_id=c.PanelId.RIGHT_REAR_DOOR, label=c.VerdictLabel.NEEDS_YOUR_EYE, rule_id="L4", mark_ids=[p2.mark_id, r2.mark_id], distance_units=pairs[1].d_pos, distance_cm_est=pairs[1].d_pos * 35, reasons=["K12"], trace=trace(["L4", "L3", "K12"], [121, 411])),
         c.Verdict(
             verdict_id="v3",
             panel_id=c.PanelId.LEFT_FRONT_DOOR,
@@ -469,8 +520,103 @@ def build_match(marks: list[c.Mark], calib: c.Calibration) -> tuple[list[c.Panel
             size=c.SizeEstimate(refused_reason="the plate is not in this frame", threshold_type=c.ThresholdType.BODY_SCRATCH),
         ),
         c.Verdict(verdict_id="v4", panel_id=c.PanelId.HOOD, label=c.VerdictLabel.NOT_COMPARABLE, rule_id="L6", reasons=["G2"], trace=trace(["L6", "G2"], [413])),
+        # A provisional "already there" the second look called different: K7 lowers it to needs your eye.
+        c.Verdict(verdict_id="v5", panel_id=c.PanelId.LEFT_FRONT_DOOR, label=c.VerdictLabel.NEEDS_YOUR_EYE, rule_id="L4", mark_ids=[lp.mark_id, lr.mark_id], distance_units=left.d_pos, distance_cm_est=left.d_pos * 35, reasons=["K7"], trace=trace(["L4", "L3", "K7"], [414])),
     ]
     return matches, verdicts
+
+
+OPEN_MODEL = "meta-models/muse-spark-open"  # the id open_weights.py tries first
+
+
+def look_crop(mark: c.Mark, keyframes: dict[str, c.Keyframe], pair: str) -> tuple[c.InputRef, list[float]]:
+    """The mark's blurred crop with a thin outline, saved where second_look.py keeps the image it sent."""
+    kf = keyframes[mark.kf_id]
+    img = Image.open(OUT / kf.crop.path).convert("RGB")
+    box = [float(v) for v in mark.bbox_crop]
+    ImageDraw.Draw(img).rectangle([box[0], box[1], box[2] - 1, box[3] - 1], outline=(255, 64, 64), width=2)
+    path = OUT / "crops" / mark.role / f"{pair}.look.jpg"
+    img.save(path, quality=85)
+    return c.InputRef(path=rel(path), sha256=sha(path)), box
+
+
+def build_looks(marks: list[c.Mark], keyframes: list[c.Keyframe]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """derived/looks.json rows in the shape of second_look.LookRecord and open_weights.ndjson lines in the shape
+    open_weights._answered writes, for the two provisional "already there" pairs: Muse Spark Open on Baseten says same
+    for the scuff and different for the left front chip, which K7 turns into needs your eye. Rows sorted by
+    (pickup_mark, return_mark) as second_look._store writes them. Plain dicts: second_look.py is another lane's module."""
+    by_id = {m.mark_id: m for m in marks}
+    kfs = {k.kf_id: k for k in keyframes}
+    rows = [
+        ("kf_pickup_left_front_door_m1", "kf_return_left_front_door_m2", "different", "the return chip is about twice the size and has a pale ring the pickup chip does not", 2480, 1874, 58),
+        ("kf_pickup_right_rear_door_m1", "kf_return_right_rear_door_m1", "same", "the same light scuff below the handle line in both crops, same length and angle", 2310, 1874, 61),
+    ]
+    looks: list[dict[str, Any]] = []
+    log: list[dict[str, Any]] = []
+    for i, (a, b, verdict, reason, ms, tokens_in, tokens_out) in enumerate(rows, start=1):
+        request_id = f"bt_mock_look_{i}"
+        pair = f"{a}__{b}"
+        ref_a, box_a = look_crop(by_id[a], kfs, pair)
+        ref_b, box_b = look_crop(by_id[b], kfs, pair)
+        answer = {"verdict": verdict, "reason": reason}
+        record = c.SparkRequestRecord(
+            request_id=request_id,
+            purpose=c.SparkPurpose.SECOND_LOOK,
+            model=OPEN_MODEL,
+            engine=c.SparkEngine.BASETEN,
+            input_refs=[ref_a, ref_b],
+            schema_name="look_v1",
+            raw_text=json.dumps(answer, sort_keys=True),
+            parsed=answer,
+            valid=True,
+            usage=c.SparkUsage(input=tokens_in, output=tokens_out),
+            ms=ms,
+        )
+        panel = by_id[a].panel_id.value
+        question = hashlib.sha256(c.canonical_json({"panel": panel, "images": [ref_a.sha256, ref_b.sha256]}).encode("ascii")).hexdigest()
+        looks.append(
+            {
+                "pickup_mark": a,
+                "return_mark": b,
+                "panel_id": panel,
+                "verdict": verdict,
+                "reason": reason,
+                "engine": "baseten",
+                "model": OPEN_MODEL,
+                "request_id": request_id,
+                "latency_ms": ms,
+                "fallback_from": None,
+                "valid": True,
+                "fallback": None,
+                "outlines": [box_a, box_b],
+                "input_refs": [ref_a, ref_b],
+                "question_sha256": question,
+                "records": [record],
+            }
+        )
+        log.append(
+            {
+                "ts": (T0 + timedelta(minutes=8, seconds=10 + 3 * i)).strftime("%Y-%m-%dT%H:%M:%S.000000Z"),
+                "run_id": RUN_ID,
+                "engine": "baseten",
+                "pickup_mark": a,
+                "return_mark": b,
+                "panel_id": panel,
+                "purpose": "second_look",
+                "model": OPEN_MODEL,
+                "model_requested": OPEN_MODEL,
+                "request_id": request_id,
+                "baseten_request_id": f"bt-mock-{i:04d}",
+                "http_status": 200,
+                "latency_ms": ms,
+                "status": "completed",
+                "verdict": verdict,
+                "reason": reason,
+                "valid": True,
+                "error": None,
+            }
+        )
+    return looks, log
 
 
 def build_mark_tracks(marks: list[c.Mark]) -> list[c.MarkTrack]:
@@ -579,11 +725,11 @@ def build_events(genesis: str, manifest: c.SealManifest, videos: dict[str, c.Vid
     ch.emit(E.STAYSPUT_DERIVED, {"sha256": derived_sha["mark_tracks"], "mark_tracks": 2}, 14.0)
     ch.emit(E.LEDGER_ROW, {"dollars_so_far": 1.52}, 0.2)
     ch.stage(c.RunStatus.STAYSPUT, 82)
-    ch.emit(E.VOICE_DONE, {"role": "pickup", "mode_applied": True, "turns": 1}, 5.3)
+    ch.emit(E.VOICE_DONE, {"role": "pickup", "mode_applied": True, "turns": 3}, 5.3)
     ch.emit(E.NARRATION_DERIVED, {"sha256": derived_sha["narration"], "mode_applied": True}, 0.4)
     ch.emit(E.LEDGER_ROW, {"dollars_so_far": 1.53}, 0.1)
     ch.stage(c.RunStatus.MATCHING, 88)
-    ch.emit(E.MATCH_DERIVED, {"sha256": {"matches": derived_sha["matches"], "verdicts": derived_sha["verdicts"]}, "matches": 3, "verdicts": 4}, 0.6)
+    ch.emit(E.MATCH_DERIVED, {"sha256": {"matches": derived_sha["matches"], "verdicts": derived_sha["verdicts"]}, "matches": 3, "verdicts": 5}, 0.6)
     ch.stage(c.RunStatus.SHEET, 95)
     ch.emit(E.SHEET_WRITTEN, {"sha256": sheet_sha}, 3.0)
     ch.stage(c.RunStatus.SHEET, 98)
@@ -594,6 +740,107 @@ def build_events(genesis: str, manifest: c.SealManifest, videos: dict[str, c.Vid
     ch.stage(c.RunStatus.DONE, 100)
     ch.emit(E.RUN_COMPLETED, {"status": "done", "api_spend_cents": 153}, 0.05)
     return ch.events
+
+
+def claim_photo(claim_id: str, panel: str, marks: list[dict[str, Any]], *, zoom: tuple[int, int, int, int] | None = None) -> tuple[Path, int, int]:
+    """A drawn stand-in for a claim photo, stored only as the blurred copy the app serves (claim/<id>.blurred.jpg)."""
+    draw, mask, _ = draw_crop(panel, "claim", (40, -20), marks, glare=False, stem=f"claim/{claim_id}_full")
+    img = Image.open(draw)
+    if zoom:
+        img = img.crop(zoom)
+        d = ImageDraw.Draw(img)
+        d.text((12, img.height - 30), "mock close-up, drawn, not a photo", fill=(214, 210, 200), font=font(18))
+    out = OUT / "claim" / f"{claim_id}.blurred.jpg"
+    img.resize((960, 645)).save(out, quality=78)
+    draw.unlink()
+    mask.unlink()
+    return out, 960, 645
+
+
+def build_claims() -> list[c.Claim]:
+    """Five claims, one per path the claim page shows: placed with a size (claim_1), a close-up it cannot place (E5),
+    a glimpsed panel (E4), a naming disagreement that asks the renter to pick (E2), and no side named (both shown)."""
+    door_marks = MARKS[("pickup", "right_rear_door")][:1]
+    received = iso(T0 + timedelta(days=2))
+    def vote(scores: dict[c.Noun, tuple[int, float, str | None]]) -> list[dict[str, Any]]:
+        """One row per SAM 3.1 image request, as claim.sam_vote writes them: car first, then the 13 panel nouns."""
+        rows = []
+        for noun in c.LANE_NOUNS:
+            if noun in (c.Noun.LICENSE_PLATE, c.Noun.FACE):
+                continue
+            matches, score, panel = scores.get(noun, (0, 0.0, None))
+            rows.append({"noun": noun.value, "status": "completed", "matches": matches, "score": score, "panel_id": panel})
+        best = max((r for r in rows if r["noun"] != "car"), key=lambda r: r["score"])
+        for r in rows:
+            r["winner"] = best["score"] > 0 and r is best
+        return rows
+
+    door = c.ClaimNaming(
+        spark=c.PanelId.RIGHT_REAR_DOOR,
+        sam_votes=vote({c.Noun.CAR: (1, 0.0, None), c.Noun.CAR_DOOR: (1, 0.74, "right_rear_door"), c.Noun.FENDER: (1, 0.05, "right_rear_fender"), c.Noun.CAR_WINDOW: (1, 0.0, None)}),
+        agreed=True,
+    )
+    p1, w1, h1 = claim_photo("claim_1", "right_rear_door", door_marks)
+    p2, w2, h2 = claim_photo("claim_2", "right_rear_door", door_marks, zoom=(560, 340, 840, 528))
+    p3, w3, h3 = claim_photo("claim_3", "rear_bumper", [{"id": "m1", "type": "scuff", "bbox": (520, 560, 640, 600), "size": "S", "conf": "medium", "note": ""}])
+    p4 = OUT / "claim" / "claim_4.blurred.jpg"
+    shutil.copyfile(p1, p4)
+    p5 = OUT / "claim" / "claim_5.blurred.jpg"  # every claim has its served copy, as claim.derive_claim writes one
+    shutil.copyfile(p1, p5)
+    image = lambda path, w, h: c.ClaimImage(sha256=sha(path), received_at=received, w=w, h=h)
+    return [
+        c.Claim(
+            claim_id="claim_1",
+            image=image(p1, w1, h1),
+            text="scratch, right rear door",
+            roi=c.ClaimRoi(box=[430.0, 300.0, 560.0, 380.0], source=c.RoiSource.DRAWN),
+            naming=door,
+            panel_id=c.PanelId.RIGHT_REAR_DOOR,
+            side_source="text",
+            coverage_state=c.CoverageState.FILMED,
+            placement=c.ClaimPlacement(method=c.PlacementMethod.FULL_PANEL, w_claim=[0.31, 0.12], r_claim=0.1),
+            match=c.PanelMatch(panel_id=c.PanelId.RIGHT_REAR_DOOR, state=c.MatchState.COMPARABLE, kf_pair=["kf_pickup_right_rear_door", "claim_1"], pairs=[c.MatchCandidate(pickup_mark="kf_pickup_right_rear_door_m1", return_mark="claim_1_m1", d=0.14, d_pos=0.04, type_cost=0.1, size_cost=0.0, r_mean=0.32, tau_pre_r=0.42, tau_eye_r=0.84, mutual=True)]),
+            size=c.SizeEstimate(inches=1.1, bound_lo=0.9, bound_hi=1.3, ruler=c.RulerKind.PLATE, ruler_source_kf="kf_pickup_right_rear_door", threshold_type=c.ThresholdType.BODY_SCRATCH),
+            paragraph="Mock claim: the right rear door was filmed at pickup, and the marked area falls on the scuff seen in that walk.",
+        ),
+        c.Claim(
+            claim_id="claim_2",
+            image=image(p2, w2, h2),
+            text="close-up of the scratch, right rear door",
+            naming=door,
+            panel_id=c.PanelId.RIGHT_REAR_DOOR,
+            side_source="text",
+            coverage_state=c.CoverageState.FILMED,
+            exit=c.ClaimExit.E5,
+            paragraph="Mock claim: a close-up with no panel edge in frame. The right rear door was filmed at pickup, but the claim mark cannot be placed on it precisely.",
+        ),
+        c.Claim(
+            claim_id="claim_3",
+            image=image(p3, w3, h3),
+            text="scuff, rear bumper",
+            naming=c.ClaimNaming(spark=c.PanelId.REAR_BUMPER, sam_votes=vote({c.Noun.BUMPER: (1, 0.52, "rear_bumper")}), agreed=True),
+            panel_id=c.PanelId.REAR_BUMPER,
+            coverage_state=c.CoverageState.GLIMPSED,
+            exit=c.ClaimExit.E4,
+            paragraph="Mock claim: the rear bumper was only glimpsed at pickup, for 0.8 s. Nothing is compared.",
+        ),
+        c.Claim(
+            claim_id="claim_4",
+            image=image(p4, w1, h1),
+            text="scratch on the door",
+            naming=c.ClaimNaming(spark=c.PanelId.RIGHT_REAR_DOOR, sam_votes=vote({c.Noun.CAR_DOOR: (1, 0.33, "right_rear_door"), c.Noun.FENDER: (1, 0.61, "right_rear_fender")}), agreed=False),
+            exit=c.ClaimExit.E2,
+            paragraph="Mock claim: Muse Spark named the right rear door; the SAM 3.1 vote named the right rear fender. Pick the panel the bill means; your pick is recorded as your input.",
+        ),
+        c.Claim(
+            claim_id="claim_5",
+            image=image(p5, w1, h1),
+            text="dent on the rear door",
+            naming=c.ClaimNaming(sam_votes=vote({c.Noun.CAR_DOOR: (1, 0.7, None)}), agreed=True),
+            side_source="both_shown",
+            paragraph="Mock claim: the photo shows a car door, but neither the words on the bill nor the photo say which one. Left rear door: not seen at pickup. Right rear door: filmed at pickup for 5.6 s. Pick one.",
+        ),
+    ]
 
 
 def lane_done(role: str, lane: str, record: c.LaneRecord, frames: list[c.IndexFrame]) -> dict[str, Any]:
@@ -642,37 +889,45 @@ def main() -> int:
     genesis = put_json("bundle/manifest.json", manifest)
 
     tracks = [track_for(role, lanes[role]["car_door"][1]) for role in ROLES]
+    for role in ROLES:
+        tracks.append(synthetic_track(role, "left_front_door", c.Noun.CAR_DOOR, [(70, 94), (103, 140)], [240.0, 260.0, 700.0, 560.0], "5"))
+        tracks.append(synthetic_track(role, "hood", c.Noun.HOOD, [(108, 140)], [380.0, 300.0, 900.0, 520.0], "3"))
     keyframes, marks = build_keyframes_and_marks()
     panels, coverage = build_panels(tracks)
+    # coverage.json as it stands after the renter's top-up clip; the events keep the ask as it was before it.
+    after = coverage.model_copy(
+        update={
+            "per_role": {**coverage.per_role, "topup_1": {c.PanelId.REAR_BUMPER: c.PanelCoverage(state=c.CoverageState.FILMED, seconds=9.6, best_kf=None)}},
+            "missing": [c.PanelId.ROOF],
+            "topup_text": "roof: not run, add 5 seconds?",
+            "nouns_to_rerun": [c.Noun.ROOF, c.Noun.CAR, c.Noun.LICENSE_PLATE, c.Noun.FACE],
+            "rerun_seconds": 41.2,
+            "odometer": c.Odometer(asked=True, filmed=True),
+        }
+    )
     calib = c.Calibration(sigma_frame=0.02, sigma_spark=0.03, sigma_view=0.04, sigma_within=0.05, tau_pre=0.18, tau_eye=0.36, tau_fix=0.08, calibrated=True)
     matches, verdicts = build_match(marks, calib)
     mark_tracks = build_mark_tracks(marks)
-    chip = OUT / "chips" / "pickup" / "t1.m4a"
-    silent_chip(chip, 1.7)
+    chips = {"t1": OUT / "chips" / "pickup" / "t1.m4a", "t2": OUT / "chips" / "pickup" / "t2.m4a", "t3": OUT / "chips" / "pickup" / "t3.m4a"}
+    silent_chip(chips["t1"], 1.7)
+    silent_chip(chips["t2"], 1.6)
+    silent_chip(chips["t3"], 1.0)
     narration = c.Narration(
         per_role={
-            "pickup": c.NarrationRole(turns=[c.NarrationTurn(turn_id="t1", start_ms=400, end_ms=2100, text="small scuff, right rear door", keywords_hit=["scuff", "door"], pinned_panel=c.PanelId.RIGHT_REAR_DOOR, pin_seconds=1.7, pin_kind=c.PinKind.OVERLAP, chip_path=rel(chip))]),
+            "pickup": c.NarrationRole(
+                turns=[
+                    # The seed call found the box the box pass already had, so the words link to that mark.
+                    c.NarrationTurn(turn_id="t1", start_ms=400, end_ms=2100, text="small scuff, right rear door", keywords_hit=["scuff", "door"], pinned_panel=c.PanelId.RIGHT_REAR_DOOR, pin_seconds=1.7, pin_kind=c.PinKind.OVERLAP, seed_mark_id="kf_pickup_right_rear_door_m1", chip_path=rel(chips["t1"])),
+                    c.NarrationTurn(turn_id="t2", start_ms=3000, end_ms=4600, text="hood looks clean", keywords_hit=["hood"], pinned_panel=c.PanelId.HOOD, pin_kind=c.PinKind.ABOUT, chip_path=rel(chips["t2"])),
+                    # The box pass missed this chip; the renter named it and Spark boxed it (a narration_seed mark).
+                    c.NarrationTurn(turn_id="t3", start_ms=4700, end_ms=5700, text="chip, lower on that door", keywords_hit=["chip", "door"], pinned_panel=c.PanelId.RIGHT_REAR_DOOR, pin_seconds=1.0, pin_kind=c.PinKind.OVERLAP, seed_mark_id="kf_pickup_right_rear_door_m2", chip_path=rel(chips["t3"])),
+                ]
+            ),
             "return": c.NarrationRole(turns=[]),
         },
         mode_applied=True,
     )
-    claim_img = OUT / "claim" / "claim_1.jpg"
-    claim_draw, claim_mask, _ = draw_crop("right_rear_door", "claim", (40, -20), MARKS[("pickup", "right_rear_door")][:1], glare=False, stem="claim/claim_1_full")
-    Image.open(claim_draw).resize((960, 645)).save(claim_img, quality=78)
-    claim_draw.unlink()
-    claim_mask.unlink()
-    claim = c.Claim(
-        image=c.ClaimImage(sha256=sha(claim_img), received_at=iso(T0 + timedelta(days=2)), w=960, h=645),
-        text="scratch, right rear door",
-        roi=c.ClaimRoi(box=[430.0, 300.0, 560.0, 380.0], source=c.RoiSource.DRAWN),
-        naming=c.ClaimNaming(spark=c.PanelId.RIGHT_REAR_DOOR, sam_votes=[{"noun": "car door", "matches": 1, "c": 0.9}], agreed=True),
-        panel_id=c.PanelId.RIGHT_REAR_DOOR,
-        side_source="text",
-        coverage_state=c.CoverageState.FILMED,
-        placement=c.ClaimPlacement(method=c.PlacementMethod.FULL_PANEL, w_claim=[0.31, 0.12], r_claim=0.33),
-        size=c.SizeEstimate(inches=1.1, bound_lo=0.9, bound_hi=1.3, ruler=c.RulerKind.PLATE, ruler_source_kf="kf_pickup_right_rear_door", threshold_type=c.ThresholdType.BODY_SCRATCH),
-        paragraph="Mock claim: the right rear door was filmed at pickup, and the marked area falls on the scuff seen in that walk.",
-    )
+    claims = build_claims()
 
     derived_sha = {
         "tracks": put_json("derived/tracks.json", tracks),
@@ -682,11 +937,17 @@ def main() -> int:
         "mark_tracks": put_json("derived/mark_tracks.json", mark_tracks),
         "matches": put_json("derived/matches.json", matches),
         "verdicts": put_json("derived/verdicts.json", verdicts),
-        "coverage": put_json("derived/coverage.json", coverage),
+        "coverage": put_json("derived/coverage.json", after),
         "narration": put_json("derived/narration.json", narration),
         "calibration": put_json("derived/calibration.json", calib),
-        "claim": put_json("derived/claim.json", claim),
+        # The latest claim, as claim.py mirrors it while the run is open (no bundle/manifest_run.json in this fixture).
+        "claim": put_json("derived/claim.json", claims[-1]),
     }
+    for claim in claims:
+        put_json(f"claim/{claim.claim_id}.json", claim)
+    looks, open_weights = build_looks(marks, keyframes)
+    derived_sha["looks"] = put_json("derived/looks.json", looks)
+    (OUT / "open_weights.ndjson").write_text("".join(c.canonical_json(row) + "\n" for row in open_weights), encoding="ascii")
     end = T0 + timedelta(minutes=9)
     rows = [c.DeletionRecord(target=f"media/{r}.proxy.mp4", kind=c.DeletionKind.FILE, sha256=FAKE_SHA[f"{r}-original"], bytes=3_100_000, deleted_at=iso(T0 + timedelta(minutes=4)), reason="unblurred proxy, deleted at blur.done") for r in ROLES]
     rows += [c.DeletionRecord(target=videos[r].files_api.file_id, kind=c.DeletionKind.FILES_API, deleted_at=iso(end), reason="run ended", api_response=videos[r].files_api.delete_response) for r in ROLES]
@@ -707,8 +968,10 @@ def main() -> int:
         live_or_replay=c.LiveOrReplay.REPLAY,
         keep=True,
         config_hash=CONFIG_HASH,
+        thresholds=c.load_thresholds(),
         fps=FPS,
         api_spend_cents=153,
+        footage_credit="Footage: an ffmpeg test pattern (dev mock, not a car)",
         clocks=c.ThreeClocks(sealed_at=iso(T0 + timedelta(seconds=58)), first_model_call_at=iso(T0 + timedelta(seconds=94)), sealed_minutes_after_camera=7, camera_time=iso(CAMERA["pickup"])),
         responses_store=c.ResponsesStore.FALSE_ACCEPTED,
         events_head_hash=events[-1].hash,

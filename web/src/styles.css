@@ -778,10 +778,6 @@ abbr[title] {
   border-top: 1px solid var(--line);
 }
 
-.topup-form-wrap {
-  margin-top: 10px;
-}
-
 .topup-form {
   display: flex;
   flex-wrap: wrap;
@@ -964,11 +960,91 @@ abbr[title] {
   color: var(--muted);
 }
 
+/* the two dates: pickup, the gap, return */
 .dates-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 4px 18px;
+  align-items: start;
   margin-top: 12px;
-  padding: 10px 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
   border-left: 3px solid var(--accent);
   background: var(--surface);
+}
+
+.date-col {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.date-role {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.date-day {
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.date-time {
+  font-size: 1.05rem;
+}
+
+.date-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin-top: 4px;
+}
+
+.date-gap {
+  display: grid;
+  justify-items: center;
+  align-self: center;
+  gap: 4px;
+  min-width: 90px;
+  padding-top: 14px;
+}
+
+.date-rule {
+  display: block;
+  width: 100%;
+  height: 0;
+  border-top: 1px solid var(--ink);
+  position: relative;
+}
+
+.date-rule::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -5px;
+  width: 8px;
+  height: 8px;
+  border-top: 1px solid var(--ink);
+  border-right: 1px solid var(--ink);
+  transform: rotate(45deg);
+}
+
+.date-gap-text {
+  font-size: 0.82rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .dates-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .date-gap {
+    justify-items: start;
+    padding-top: 0;
+  }
+  .date-rule {
+    display: none;
+  }
 }
 
 .refusal {
@@ -1323,9 +1399,19 @@ body.kiosk {
   text-align: center;
 }
 
+/* the seal scene fills in place: top-aligned, so a card arriving never re-centres its neighbour */
 .kiosk-seal .kiosk-cols-even {
-  align-items: center;
-  align-content: center;
+  align-items: start;
+  align-content: start;
+  padding-top: 120px;
+}
+
+.kiosk-seal .empty {
+  min-height: 320px;
+  display: grid;
+  place-content: center;
+  border: 1px dashed var(--line);
+  font-size: 26px;
 }
 
 .kiosk-stage .sealed-card {
@@ -1408,14 +1494,6 @@ body.kiosk {
   margin: 0 auto;
 }
 
-.kiosk-trail {
-  display: grid;
-  grid-template-columns: 760px 440px;
-  gap: 48px;
-  justify-content: center;
-  align-items: start;
-}
-
 .moment-card {
   display: flex;
   flex-wrap: wrap;
@@ -1480,6 +1558,10 @@ body.kiosk {
   height: 100%;
 }
 
+.clip-frame svg {
+  pointer-events: none;
+}
+
 .clip-trail figcaption {
   font-size: 0.85em;
   color: var(--muted);
@@ -1536,4 +1618,900 @@ body.kiosk {
   .progress > span {
     transition: none;
   }
+}
+
+/* utility: keeps its place in the layout while not shown, so a reveal never moves its neighbours */
+.hidden {
+  visibility: hidden;
+}
+
+/* how it was checked ------------------------------------------------------------------------------------- */
+
+.checked-block {
+  margin-top: 18px;
+}
+
+.checked-block > h2 {
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+
+.how-checked dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--line);
+}
+
+.how-checked .check {
+  padding: 9px 12px 10px 0;
+  min-width: 0;
+}
+
+.how-checked .check + .check {
+  padding-left: 12px;
+  border-left: 1px solid var(--line);
+}
+
+.how-checked dt {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 2px;
+}
+
+.how-checked dd {
+  margin: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.how-checked .check-did {
+  font-size: 0.9rem;
+}
+
+.how-checked .check-detail {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.how-checked .check.waiting .check-did,
+.how-checked .check.not_run .check-did {
+  color: var(--muted);
+}
+
+.how-checked .check-code dt {
+  color: var(--accent);
+}
+
+@media (max-width: 980px) {
+  .how-checked dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .how-checked .check,
+  .how-checked .check + .check {
+    padding: 9px 12px 10px 0;
+    border-left: 0;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 560px) {
+  .how-checked dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* footage credit: the line every frame from licensed footage carries */
+.footage-credit {
+  margin: 4px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* coverage car ---------------------------------------------------------------------------------------------- */
+
+.cars {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr));
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+.coverage-car {
+  margin: 0;
+  min-width: 0;
+}
+
+.coverage-car > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.cc-key svg {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.cc-body {
+  fill: var(--surface);
+}
+
+.cc-outline {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.4;
+  pointer-events: none;
+}
+
+.cc-panel path {
+  fill: var(--surface);
+  stroke: var(--bg);
+  stroke-width: 1.6;
+  transition: fill 200ms ease-out, fill-opacity 200ms ease-out;
+}
+
+.cc-panel.filmed path {
+  fill: var(--good);
+  fill-opacity: 0.78;
+}
+
+.cc-panel.not_filmed path {
+  fill: var(--line);
+  stroke: var(--bad);
+  stroke-dasharray: 4 3;
+}
+
+.cc-panel.not_seen path {
+  fill: var(--surface-2);
+}
+
+.cc-panel.pending path {
+  fill: var(--surface);
+}
+
+.cc-panel.selected path {
+  stroke: var(--focus);
+  stroke-width: 2.6;
+}
+
+.cc-panel.clickable {
+  cursor: pointer;
+}
+
+.cc-panel.clickable:hover path {
+  stroke: var(--ink);
+}
+
+.cc-hatch-bg {
+  fill: var(--surface);
+}
+
+.cc-hatch-line {
+  stroke: var(--warn);
+}
+
+.cc-cross-bg {
+  fill: var(--surface-2);
+}
+
+.cc-cross-line {
+  stroke: var(--gray);
+}
+
+.cc-labels text {
+  font-family: var(--sans);
+  font-size: 13px;
+  fill: var(--muted);
+}
+
+.cc-labels .cc-front {
+  fill: var(--ink);
+  font-weight: 500;
+}
+
+.cc-arrow {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 1.2;
+}
+
+.cc-callout circle {
+  fill: var(--ink);
+}
+
+.cc-callout text {
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  fill: var(--ink);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+}
+
+.coverage-car figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: baseline;
+  font-size: 0.82rem;
+  margin-top: 4px;
+}
+
+.cc-title {
+  font-weight: 600;
+}
+
+.cc-legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--muted);
+}
+
+.cc-key {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+}
+
+.cc-swatch {
+  fill: var(--surface);
+  stroke: var(--line);
+}
+
+.cc-swatch.filmed {
+  fill: var(--good);
+  fill-opacity: 0.78;
+  stroke: none;
+}
+
+.cc-swatch.not_filmed {
+  fill: var(--line);
+  stroke: none;
+}
+
+.cc-swatch.not_seen {
+  fill: var(--surface-2);
+}
+
+/* top-up */
+
+.topup-banner {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--warn);
+  background: var(--surface);
+}
+
+.topup-ask-line {
+  font-weight: 500;
+}
+
+.topup-result {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+/* second look, narration --------------------------------------------------------------------------------- */
+
+.second-look {
+  font-size: 0.82rem;
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.second-look strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.second-look.different strong,
+.second-look.unsure strong {
+  color: var(--warn);
+}
+
+.turn {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.turn-words {
+  font: inherit;
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  align-items: baseline;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.turn-words:hover {
+  border-color: var(--ink);
+}
+
+.turn-time {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.turn-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  color: var(--muted);
+}
+
+.seed-badge {
+  color: var(--accent);
+  border-left: 2px solid var(--accent);
+  padding-left: 6px;
+}
+
+.audio-chip button {
+  font: inherit;
+  font-size: 0.82rem;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  padding: 3px 9px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.audio-chip button:hover {
+  background: var(--surface-2);
+}
+
+.audio-chip audio {
+  display: none;
+}
+
+.audio-chip.error {
+  color: var(--bad);
+}
+
+/* Stays Put pair ------------------------------------------------------------------------------------------ */
+
+.staysput-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 18px;
+  align-items: start;
+  margin-bottom: 14px;
+  max-width: 820px;
+}
+
+.staysput-clip {
+  margin: 0;
+  min-width: 0;
+}
+
+.staysput-clip figcaption {
+  display: grid;
+  gap: 2px;
+  margin-top: 6px;
+}
+
+.sp-caption {
+  font-weight: 500;
+}
+
+.sp-caption.fixed {
+  color: var(--good);
+}
+
+.sp-caption.sliding {
+  color: var(--warn);
+}
+
+.sp-caption.inconclusive,
+.sp-caption.no_track,
+.sp-caption.not_run,
+.sp-caption.uncalibrated {
+  color: var(--muted);
+}
+
+.sp-numbers {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.staysput-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 3fr);
+  gap: 2px 14px;
+  align-items: baseline;
+}
+
+@media (max-width: 720px) {
+  .staysput-pair,
+  .staysput-list li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* match cut ------------------------------------------------------------------------------------------------ */
+
+.match-cut svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--video);
+}
+
+/* the one dissolve: 8 frames at 60 fps */
+.match-cut .cut-pickup {
+  transition: opacity 133ms linear;
+}
+
+.match-cut .cut-mask {
+  transition: opacity 300ms ease-out;
+}
+
+.match-cut.still .cut-pickup,
+.match-cut.still .cut-mask {
+  transition: none;
+}
+
+.match-cut.still .join-line {
+  animation: none;
+}
+
+/* fragments: the joined track under the pieces */
+
+.timeline.track-row {
+  height: 22px;
+  background: transparent;
+  margin: -4px 0 14px;
+}
+
+.track-span {
+  position: absolute;
+  top: 2px;
+  height: 18px;
+  border: 2px solid;
+  border-radius: 3px;
+}
+
+.track-label {
+  position: absolute;
+  left: 6px;
+  top: -1px;
+  font-size: 0.75rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.fragments-joined {
+  font-weight: 500;
+}
+
+/* claim ----------------------------------------------------------------------------------------------------- */
+
+.claim-result {
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+}
+
+.claim-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border-left: 3px solid var(--good);
+  background: var(--surface);
+  margin: 0;
+}
+
+.claim-head.exit {
+  border-left-color: var(--warn);
+}
+
+.claim-head.exit.E1,
+.claim-head.exit.E3 {
+  border-left-color: var(--gray);
+}
+
+.claim-head abbr {
+  font-weight: 500;
+}
+
+.claim-pick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.claim-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .claim-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.claim-side-title {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.claim-facts {
+  max-width: 760px;
+}
+
+.claim-pick {
+  align-items: center;
+}
+
+.claim-steps {
+  margin: 0 0 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.claim-steps div {
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.claim-steps dt {
+  color: var(--muted);
+}
+
+.claim-steps dd {
+  margin: 0;
+}
+
+.claim-roi {
+  stroke: var(--focus);
+}
+
+.claim-photo figcaption,
+.claim-frame figcaption {
+  display: grid;
+  gap: 4px;
+}
+
+.claim-words {
+  color: var(--ink);
+}
+
+.claim-staged {
+  font-size: 0.85em;
+}
+
+.claim-paragraph {
+  max-width: 70ch;
+}
+
+/* kiosk scenes added for the video beats ----------------------------------------------------------------- */
+
+.kiosk-credit {
+  position: absolute;
+  left: 56px;
+  bottom: 26px;
+  font-size: 18px;
+  color: var(--muted);
+}
+
+.kiosk-stage .how-checked.big dl {
+  grid-template-columns: minmax(0, 1fr);
+  border-top-width: 2px;
+}
+
+.kiosk-stage .how-checked.big .check,
+.kiosk-stage .how-checked.big .check + .check {
+  display: grid;
+  grid-template-columns: 420px minmax(0, 1fr);
+  gap: 24px;
+  padding: 22px 0;
+  border-left: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.kiosk-stage .how-checked.big dt {
+  font-size: 32px;
+}
+
+.kiosk-stage .how-checked.big .check-did {
+  font-size: 32px;
+}
+
+.kiosk-stage .how-checked.big .check-detail {
+  font-size: 22px;
+}
+
+.cov-scene {
+  display: grid;
+  grid-template-columns: 1180px minmax(0, 1fr);
+  gap: 56px;
+  align-items: center;
+}
+
+.kiosk-stage .coverage-car figcaption {
+  font-size: 22px;
+  gap: 8px 22px;
+}
+
+.kiosk-stage .cc-legend {
+  gap: 8px 20px;
+}
+
+.kiosk-stage .cc-key svg {
+  width: 22px;
+  height: 22px;
+}
+
+.cov-short ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.cov-short li {
+  display: grid;
+  gap: 2px;
+  padding-left: 16px;
+  border-left: 3px solid var(--line);
+}
+
+.cov-short li.not_filmed {
+  border-left-color: var(--bad);
+}
+
+.cov-short li.glimpsed {
+  border-left-color: var(--warn);
+}
+
+.cov-short li.not_run,
+.cov-short li.not_seen {
+  border-left-color: var(--gray);
+}
+
+.cov-short .short-panel {
+  font-size: 34px;
+  font-weight: 600;
+}
+
+.cov-short .short-state {
+  font-size: 26px;
+  color: var(--muted);
+}
+
+.topup-scene {
+  display: grid;
+  grid-template-columns: 1000px minmax(0, 1fr);
+  gap: 56px;
+  align-items: center;
+}
+
+.topup-running {
+  font-size: 22px !important;
+  color: var(--muted);
+}
+
+.topup-done {
+  color: var(--good);
+}
+
+.kiosk-cut {
+  display: grid;
+  grid-template-columns: 1180px minmax(0, 1fr);
+  gap: 48px;
+  align-items: center;
+  align-content: start;
+}
+
+.moment-side {
+  display: grid;
+  gap: 22px;
+  justify-items: start;
+}
+
+.kiosk-stage .moment-side .label {
+  font-size: 36px;
+  padding: 6px 18px;
+}
+
+/* the two dates in one column: pickup, the gap, return */
+.dates-card.stacked {
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+
+.dates-card.stacked .date-gap {
+  justify-items: start;
+  padding: 6px 0;
+}
+
+.dates-card.stacked .date-rule {
+  display: none;
+}
+
+.dates-card.stacked .date-gap-text::before {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 1.4em;
+  margin-right: 12px;
+  vertical-align: middle;
+  background: var(--ink);
+}
+
+.kiosk-caption .mono {
+  font-size: 22px;
+  opacity: 0.85;
+}
+
+.kiosk-stage .dates-card {
+  padding: 16px 22px;
+  gap: 4px 28px;
+}
+
+.kiosk-stage .date-role {
+  font-size: 20px;
+}
+
+.kiosk-stage .date-day,
+.kiosk-stage .date-time {
+  font-size: 30px;
+}
+
+.kiosk-stage .date-note,
+.kiosk-stage .date-gap-text {
+  font-size: 20px;
+}
+
+.kiosk-moment .staysput-pair {
+  grid-template-columns: 760px 460px;
+  gap: 56px;
+  justify-content: center;
+  max-width: none;
+}
+
+.kiosk-moment .staysput-clip figcaption {
+  margin-top: 14px;
+}
+
+.kiosk-moment .sp-caption {
+  font-size: 34px;
+}
+
+.claim-scene {
+  position: relative;
+  display: grid;
+  grid-template-columns: 720px minmax(0, 1fr);
+  gap: 48px;
+  align-items: start;
+  min-height: 0;
+}
+
+.claim-scene .claim-photo figcaption {
+  font-size: 22px;
+}
+
+.claim-scene-right {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.claim-scene-right .claim-steps div {
+  grid-template-columns: 230px minmax(0, 1fr);
+  font-size: 24px;
+}
+
+.claim-scene-right .claim-frame {
+  width: 760px;
+}
+
+.claim-scene-second {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 620px;
+  padding: 18px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+}
+
+.claim-scene-second .claim-photo figcaption .claim-staged {
+  font-size: 16px;
+}
+
+.kiosk-stage .claim-head {
+  font-size: 24px;
+}
+
+.kiosk-stage .second-look {
+  font-size: 19px;
+}
+
+.kiosk-stage .track-label {
+  font-size: 18px;
+}
+
+.kiosk-stage .timeline.track-row {
+  height: 30px;
+}
+
+.kiosk-stage .track-span {
+  height: 26px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cc-panel path,
+  .match-cut .cut-pickup,
+  .match-cut .cut-mask {
+    transition: none;
+  }
+}
+
+.kiosk-stage .timeline {
+  height: 22px;
+  margin-bottom: 30px;
+}
+
+.kiosk-stage .fragment {
+  top: 3px;
+  height: 16px;
+}
+
+.kiosk-stage .timeline-axis {
+  top: 26px;
+  font-size: 16px;
+}
+
+.kiosk-stage .fragments-line {
+  font-size: 26px;
+}
+
+.kiosk-stage .crop-flags span {
+  font-size: 20px;
+  padding: 3px 10px;
+}
+
+.kiosk-stage .ledger-strip {
+  font-size: 28px;
+  gap: 8px 40px;
+  color: var(--ink);
+}
+
+.compare-in-place {
+  margin-top: 14px;
+  max-width: 720px;
+}
+
+.compare-in-place .match-cut {
+  margin-bottom: 6px;
 }

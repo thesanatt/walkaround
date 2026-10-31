@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Event, ReplayPayload, RunManifest } from '../src/contracts/types.ts';
 import { startLive } from '../src/state/live.ts';
 import type { RunFiles } from '../src/state/loader.ts';
-import { initialState, reduce, rolesOf } from '../src/state/reducer.ts';
+import { cleanTurnText, initialState, reduce, rolesOf } from '../src/state/reducer.ts';
 import { BUNDLED_DELAYS, runSchedule, startReplay, type Pacer } from '../src/state/replay.ts';
 import { replayWaits, scheduleReplay, stageOfEach } from '../src/state/schedule.ts';
 import type { AnyEvent, RunState } from '../src/state/types.ts';
@@ -122,12 +122,20 @@ describe('one reducer, two drivers', () => {
     expect(state.run?.run_id).toBe(run.run_id);
     expect(rolesOf(state)).toEqual(['pickup', 'return']);
     expect(state.panels).toHaveLength(22);
-    expect(state.tracks.map((t) => t.panel_id)).toEqual(['right_rear_door', 'right_rear_door']);
+    expect(state.tracks.map((t) => `${t.role} ${t.panel_id}`)).toEqual([
+      'pickup right_rear_door',
+      'return right_rear_door',
+      'pickup left_front_door',
+      'pickup hood',
+      'return left_front_door',
+      'return hood',
+    ]);
     expect(state.keyframes.length).toBe(6);
-    expect(state.verdicts.map((v) => v.label)).toEqual(['already_there', 'needs_your_eye', 'new_or_unseen', 'not_comparable']);
+    expect(state.verdicts.map((v) => v.label)).toEqual(['already_there', 'needs_your_eye', 'new_or_unseen', 'not_comparable', 'needs_your_eye']);
     expect(state.markTracks.map((m) => m.verdict)).toEqual(['fixed', 'sliding']);
     expect(state.narration?.per_role['pickup']?.turns[0]?.text).toBe('small scuff, right rear door');
-    expect(state.coverage?.missing).toEqual(['rear_bumper', 'roof']);
+    expect(state.coverage?.missing).toEqual(['roof']); // coverage.json after the top-up clip
+    expect(state.topup?.missing).toEqual(['rear_bumper', 'roof']); // the ask as the event logged it, before the clip
     expect(state.sheet.written).toBe(true);
     expect(state.deletions.map((d) => d.kind).sort()).toEqual(['file', 'file', 'files_api', 'files_api', 'quarantine', 'quarantine']);
     expect(state.media['pickup']?.blurredPath).toBe('media/pickup.proxy_blurred.mp4');
@@ -311,5 +319,14 @@ describe('one render per frame', () => {
     batch.flush();
     expect(batches).toHaveLength(2);
     expect(fold(batches.flat()).lastSeq).toBe(59);
+  });
+});
+
+describe('narration text', () => {
+  it('drops Muse Voice speaker markers, whole or cut in half by a piece boundary', () => {
+    expect(cleanTurnText('front door like scratch near the handle <|speaker_')).toBe('front door like scratch near the handle');
+    expect(cleanTurnText('A|>  trunk lid two small chips by the edge')).toBe('trunk lid two small chips by the edge');
+    expect(cleanTurnText('hood looks clean <|speaker_B|> rear bumper looks fine')).toBe('hood looks clean rear bumper looks fine');
+    expect(cleanTurnText('a 3 | 4 inch scuff')).toBe('a 3 | 4 inch scuff');
   });
 });

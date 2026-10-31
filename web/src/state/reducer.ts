@@ -1,4 +1,5 @@
 import type {
+  Claim,
   Coverage,
   DeletionRecord,
   FfprobeInfo,
@@ -15,6 +16,8 @@ import type {
   Verdict,
   VideoRecord,
 } from '../contracts/types.ts';
+import { mergeClaims } from '../lib/claim.ts';
+import { readLooks, readOpenWeights } from '../lib/looks.ts';
 import { laneId } from '../lib/panels.ts';
 import type { AnyEvent, LaneState, LaneUiStatus, RoleMedia, RunState } from './types.ts';
 
@@ -36,6 +39,10 @@ export function initialState(): RunState {
     verdicts: [],
     narration: null,
     markTracks: [],
+    looks: [],
+    openWeights: [],
+    claims: [],
+    claim: null,
     spark: { requested: 0, answered: 0, truncated: 0 },
     voice: {},
     sheet: { written: false, sha256s: {} },
@@ -147,6 +154,22 @@ function deletionRows(kind: string, payload: Record<string, unknown>, ts: string
 }
 
 // The one reducer. Pure: no I/O, no clock, no branch on live versus replay. A driver feeds the same kinds either way.
+// Muse Voice sometimes writes speaker markers such as "<|speaker_A|>" into a transcript, and the narration lane can cut
+// a piece in the middle of one ("... the handle <|speaker_" then "A|> trunk lid ..."). The words shown drop them; the
+// stored narration.json keeps what Voice said.
+const SPEAKER_TOKEN = /<\|[^|<>]*\|>|<\|[^|<>]*$|^[^|<>\s]*\|>/g;
+
+export function cleanTurnText(text: string): string {
+  return text.replace(SPEAKER_TOKEN, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function cleanNarration(narration: Narration): Narration {
+  const per_role = Object.fromEntries(
+    Object.entries(narration.per_role).map(([role, nr]) => [role, { ...nr, turns: nr.turns.map((t) => ({ ...t, text: cleanTurnText(t.text) })) }]),
+  ) as Narration['per_role'];
+  return { ...narration, per_role };
+}
+
 export function reduce(state: RunState, event: AnyEvent): RunState {
   const payload = (event.payload ?? {}) as Record<string, unknown>;
   if ('seq' in event && typeof event.seq === 'number') {
@@ -337,14 +360,33 @@ export function reduce(state: RunState, event: AnyEvent): RunState {
       return { ...state, marks: list<Mark>(payload['marks']), keyframes: keyframes ?? state.keyframes };
     }
 
-    case 'narration.derived.loaded':
-      return { ...state, narration: (payload['narration'] as Narration | undefined) ?? state.narration };
+    case 'narration.derived.loaded': {
+      const narration = payload['narration'] as Narration | undefined;
+      return { ...state, narration: narration ? cleanNarration(narration) : state.narration };
+    }
 
     case 'staysput.derived.loaded':
       return { ...state, markTracks: list<MarkTrack>(payload['mark_tracks']) };
 
     case 'match.derived.loaded':
       return { ...state, matches: list<PanelMatch>(payload['matches']), verdicts: list<Verdict>(payload['verdicts']) };
+
+    case 'looks.loaded': {
+      const raw = payload['open_weights'];
+      return { ...state, looks: readLooks(payload['looks']), openWeights: readOpenWeights(typeof raw === 'string' ? raw : null) };
+    }
+
+    case 'claims.loaded': {
+      const claims = mergeClaims(list<unknown>(payload['claims']));
+      return claims.length ? { ...state, claims, claim: claims[claims.length - 1]! } : state;
+    }
+
+    case 'claim.derived.loaded': {
+      const claim = payload['claim'] as Claim | undefined;
+      if (!claim?.image) return state;
+      const claims = mergeClaims(state.claims, [claim]);
+      return { ...state, claims, claim: claims[claims.length - 1]! };
+    }
 
     case 'spark.response': {
       // orchestrator._emit_spark emits spark.request then spark.response for each stored call; max() keeps the count

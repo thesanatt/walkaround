@@ -2,7 +2,7 @@
 export function MockBanner() {
   return (
     <div className="mock-banner" role="note">
-      Mock server. The walk is the cookbook ping pong clip and its SAM 3.1 lanes are the saved 10/26 streams; the panels, crops, marks and verdicts are
+      Mock server. The walk is a test pattern and its SAM 3.1 lanes are saved 10/26 streams from another clip; the panels, crops, marks and verdicts are
       hand-made dev data. No car, no model call.
     </div>
   );

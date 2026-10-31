@@ -4,6 +4,9 @@ import type { RoleMedia } from '../state/types.ts';
 const TRAINING = "Processed with Meta's Model API in Standard mode, which Meta's documentation says is not used to train Meta models. ";
 const TERMS = "Meta's terms allow it to retain content for abuse review and legal reasons; Walkaround does not control that. ";
 const SAM_SAW = 'SAM 3.1 saw the unblurred proxy for the length of one segmentation pass to find the plates and faces it then blurred.';
+// The second look on Baseten sends pixels to a company that is not Meta, so a run that used it says so. TODO(Sanat):
+// sign off on this wording; privacy.privacy_line (the sheet) needs the same clause (integrator).
+const BASETEN = ' For the second look, two blurred crops per look were sent to Muse Spark Open on Baseten, a company separate from Meta; no video went there.';
 
 // The upload page, and a run that has not ended: what will happen, in the present tense.
 export const PRIVACY_BEFORE =
@@ -33,9 +36,11 @@ function count(n: number, one: string, many: string): string {
 
 // privacy.privacy_line word for word, but only for what the deletion rows show: before the run ends it is the
 // present-tense promise, and a delete that failed (or never ran) is said, not claimed (section 8 item 7, 14 item 25).
-export function storageLine(run: RunManifest | null, opts: { completed: boolean; uploads: string[]; deletions: DeletionRecord[] }): string {
-  if (!opts.completed) return PRIVACY_BEFORE;
-  if (!opts.uploads.length) return "No file from this run reached Meta's Model API.";
+// baseten: the run sent second looks to Muse Spark Open on Baseten (a look row or an open_weights.ndjson line).
+export function storageLine(run: RunManifest | null, opts: { completed: boolean; uploads: string[]; deletions: DeletionRecord[]; baseten?: boolean }): string {
+  const tail = opts.baseten ? BASETEN : '';
+  if (!opts.completed) return PRIVACY_BEFORE + tail;
+  if (!opts.uploads.length) return "No file from this run reached Meta's Model API." + tail;
   const rows = new Map(opts.deletions.filter((d) => d.kind === 'files_api').map((d) => [d.target, d]));
   const failed = opts.uploads.filter((id) => rows.has(id) && deleteFailed(rows.get(id)!)).length;
   const pending = opts.uploads.filter((id) => !rows.has(id)).length;
@@ -54,5 +59,5 @@ export function storageLine(run: RunManifest | null, opts: { completed: boolean;
   } else {
     text += 'Model requests were sent with storage off. ';
   }
-  return text + TERMS + SAM_SAW;
+  return text + TERMS + SAM_SAW + tail;
 }

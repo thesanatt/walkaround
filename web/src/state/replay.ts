@@ -92,6 +92,7 @@ export interface ReplayDeps {
   pacer?: Pacer;
   startAtStage?: string; // apply everything before this stage's first event at once, pace the rest
   untilMs?: number; // measured from the start point; freeze there
+  delays?: Record<string, number>; // a kiosk scene's own stage budgets, laid over the fixed-mode table
   fetchFiles?: boolean;
   onStatus?: (status: DriverStatus, detail?: string) => void;
   onProgress?: (done: number, total: number, atMs: number, spanMs: number) => void;
@@ -120,7 +121,8 @@ export function startReplay(runId: string, mode: ReplayMode, dispatch: Dispatch,
       // A run that ended before its chain began (failed before the seal) has no event to replay; run.json says how.
       const run = first?.find((e) => e.kind === 'run.loaded')?.payload;
       if (!payload.events.length && run && ENDED_STATUSES.has(String(run['status']))) dispatch({ kind: 'run.ended.loaded', payload: run });
-      const delays = actual === 'fixed' && !Object.keys(payload.delays_ms ?? {}).length ? BUNDLED_DELAYS : (payload.delays_ms ?? {});
+      const base = actual === 'fixed' && !Object.keys(payload.delays_ms ?? {}).length ? BUNDLED_DELAYS : (payload.delays_ms ?? {});
+      const delays = actual === 'fixed' && deps.delays ? { ...base, ...deps.delays } : base;
       const schedule = scheduleReplay(payload.events, actual, delays, recordedCapOf(first));
       const span = totalMs(schedule);
       const startAtMs = deps.startAtStage ? stageStartMs(schedule, deps.startAtStage) : 0;

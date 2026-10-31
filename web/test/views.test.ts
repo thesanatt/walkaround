@@ -75,13 +75,15 @@ describe('the match pane follows the verdicts code wrote', () => {
     const lfd = matches.find((m) => m.panel_id === 'left_front_door')!;
     const other: Keyframe = { ...keyframes.find((k) => k.kf_id === 'kf_return_left_front_door')!, kf_id: 'kf_return_left_front_door_b', score: { ...keyframes[0]!.score, total: 0.3 } };
     const moved = marks.map((m) => (m.mark_id === 'kf_return_left_front_door_m1' ? { ...m, kf_id: other.kf_id } : m));
-    const focus = panelFocus('left_front_door', lfd, verdicts);
+    // Only the tape's own verdict: the chip pair of this door (v5) would lead otherwise.
+    const focus = panelFocus('left_front_door', lfd, verdicts.filter((v) => v.verdict_id !== 'v5'));
     expect(focus.verdict?.label).toBe('new_or_unseen');
     expect(focus.pair).toBeNull();
     const { a, b } = paneKeyframes('left_front_door', lfd, focus, new Map(moved.map((m) => [m.mark_id, m])), [...keyframes, other]);
     expect(a?.kf_id).toBe('kf_pickup_left_front_door');
     expect(b?.kf_id).toBe(other.kf_id);
-    expect(offPaneMarks('left_front_door', moved, a, b)).toEqual([]);
+    // The door's chip stayed on the first return keyframe, which this view does not show.
+    expect(offPaneMarks('left_front_door', moved, a, b).map((m) => m.mark_id)).toEqual(['kf_return_left_front_door_m2']);
   });
 
   it("takes the moment's Stays Put trail from the focus mark only, never another mark or panel", () => {
@@ -98,9 +100,10 @@ describe('the match pane follows the verdicts code wrote', () => {
 
   it('spotlights every SAM id of a panel merged from several fragments', () => {
     const tracks = derived<PanelTrack[]>('tracks.json');
-    const merged = tracks.map((t) => (t.role === 'pickup' ? { ...t, sam_object_ids: ['0', '4'] } : t));
+    const merged = tracks.map((t) => (t.role === 'pickup' && t.panel_id === DOOR ? { ...t, sam_object_ids: ['0', '4'] } : t));
     expect([...panelObjectKeys(merged, 'pickup', DOOR)].sort()).toEqual(['car_door|0', 'car_door|4']);
-    expect(panelObjectKeys(merged, 'pickup', 'hood').size).toBe(0);
+    expect([...panelObjectKeys(merged, 'pickup', 'hood')]).toEqual(['hood|3']);
+    expect(panelObjectKeys(merged, 'pickup', 'roof').size).toBe(0);
     expect(panelObjectKeys(merged, 'pickup', null).size).toBe(0);
   });
 });
@@ -151,6 +154,13 @@ describe('the privacy card says only what the deletion rows show', () => {
     expect(storageLine(run, { completed: true, uploads: ['f1', 'f2'], deletions: [ok('f1'), ok('f2')] })).toBe(SHEET_LINE);
   });
 
+  it('names Baseten when the second look sent crops there, and only then', () => {
+    const clause = 'two blurred crops per look were sent to Muse Spark Open on Baseten, a company separate from Meta; no video went there.';
+    expect(storageLine(run, { completed: true, uploads: ['f1', 'f2'], deletions: [ok('f1'), ok('f2')], baseten: true })).toBe(`${SHEET_LINE} For the second look, ${clause}`);
+    expect(storageLine(run, { completed: false, uploads: ['f1'], deletions: [], baseten: true })).toContain(clause);
+    expect(storageLine(run, { completed: true, uploads: ['f1', 'f2'], deletions: [ok('f1'), ok('f2')], baseten: false })).not.toContain('Baseten');
+  });
+
   it('says a failed delete failed, and never "deleted"', () => {
     const rows = [ok('f1'), failed('f2')];
     expect(rows.map(deleteFailed)).toEqual([false, true]);
@@ -190,14 +200,25 @@ describe('lines copied from sheet.py', () => {
     expect(sizeLine(size({ inches: 0.9 }))).toBe('about 0.9 in (ruler: not recorded)');
   });
 
-  it('words a Stays Put row like sheet.staysput_line', () => {
+  it('words a Stays Put row like sheet.staysput_line once calibrated', () => {
     const [fixed, control] = derived<MarkTrack[]>('mark_tracks.json');
-    expect(staysPutLine(fixed)).toBe('drift 0.03, b1 0.21, b2 0.02, not panned; fixed');
-    expect(staysPutLine(control)).toBe('drift 0.61, b1 0.19, b2 0.03, not panned; sliding; highlight cap');
-    expect(staysPutLine({ ...fixed!, drift_rms: null })).toBe('drift n/a, b1 0.21, b2 0.02, not panned; fixed');
-    expect(staysPutLine({ ...fixed!, verdict: 'inconclusive', panned: true })).toBe('inconclusive (the camera panned: b1 under its floor, b2 over)');
-    expect(staysPutLine({ ...fixed!, verdict: 'inconclusive' })).toBe('inconclusive (camera did not move enough)');
-    expect(staysPutLine({ ...fixed!, verdict: 'no_track' })).toBe('no track (SAM did not follow the mark through the clip)');
-    expect(staysPutLine({ ...fixed!, verdict: 'not_run' })).toBeNull();
+    expect(staysPutLine(fixed, true)).toBe('drift 0.03, b1 0.21, b2 0.02, not panned; fixed');
+    expect(staysPutLine(control, true)).toBe('drift 0.61, b1 0.19, b2 0.03, not panned; sliding; highlight cap');
+    expect(staysPutLine({ ...fixed!, drift_rms: null }, true)).toBe('drift n/a, b1 0.21, b2 0.02, not panned; fixed');
+    expect(staysPutLine({ ...fixed!, verdict: 'inconclusive', panned: true }, true)).toBe('drift 0.03, b1 0.21, b2 0.02, panned; inconclusive (between fixed and sliding; sign test 0.94 on 88 pairs)');
+    expect(staysPutLine({ ...fixed!, verdict: 'inconclusive', b_pass: false }, true)).toBe('inconclusive (camera did not move enough)');
+    expect(staysPutLine({ ...fixed!, verdict: 'inconclusive', drift_rms: null }, true)).toBe('inconclusive (the whole panel was in view on too few frames)');
+    expect(staysPutLine({ ...fixed!, verdict: 'no_track' }, true)).toBe('no track (SAM did not follow the mark through the clip)');
+    expect(staysPutLine({ ...fixed!, verdict: 'not_run' }, true)).toBeNull();
+  });
+
+  it('prints only the measured numbers while Stays Put is uncalibrated (cap_enabled false)', () => {
+    const [fixed, control] = derived<MarkTrack[]>('mark_tracks.json');
+    // pair C's trunk chips: real paint, drift 0.21, labelled sliding by the uncalibrated rule
+    expect(staysPutLine({ ...fixed!, verdict: 'sliding', drift_rms: 0.21, b1: 0.3, b2: 0.01 }, false)).toBe('drift 0.21, b1 0.30, b2 0.01, not panned');
+    expect(staysPutLine(control, false)).toBe('drift 0.61, b1 0.19, b2 0.03, not panned');
+    expect(staysPutLine({ ...fixed!, verdict: 'inconclusive', panned: true }, false)).toBe('drift 0.03, b1 0.21, b2 0.02, panned');
+    expect(staysPutLine({ ...fixed!, verdict: 'no_track' }, false)).toBe('no track (SAM did not follow the mark through the clip)');
+    expect(staysPutLine({ ...fixed!, verdict: 'not_run' }, false)).toBeNull();
   });
 });

@@ -3,8 +3,10 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Event, RunManifest } from '../src/contracts/types.ts';
-import type { EventSourceLike } from '../src/state/live.ts';
+import { startLive, type EventSourceLike } from '../src/state/live.ts';
 import type { RunFiles } from '../src/state/loader.ts';
+import { initialState, reduce } from '../src/state/reducer.ts';
+import type { AnyEvent, RunState } from '../src/state/types.ts';
 
 export const HERE = dirname(fileURLToPath(import.meta.url));
 export const RUN_DIR = join(HERE, '..', 'mock', 'fixture', 'mock-sample-pair');
@@ -36,8 +38,33 @@ export function fixtureFiles(jitterMs = 0, seed = 7): RunFiles {
       const path = join(RUN_DIR, ...rel.split('/'));
       return later(existsSync(path) ? (JSON.parse(readFileSync(path, 'utf8')) as T) : null);
     },
+    text: (rel: string) => {
+      const path = join(RUN_DIR, ...rel.split('/'));
+      return later(existsSync(path) ? readFileSync(path, 'utf8') : null);
+    },
     run: () => later(fixtureRun()),
   };
+}
+
+// Every event the fixture run's live driver dispatches, recorded events and "<kind>.loaded" files alike.
+export async function liveSequence(files: RunFiles = fixtureFiles()): Promise<AnyEvent[]> {
+  const seen: AnyEvent[] = [];
+  let source: FakeEventSource | null = null;
+  await new Promise<void>((resolve) => {
+    startLive('mock-sample-pair', (e) => seen.push(e), { files, openEvents: (url) => (source = new FakeEventSource(url)), onEnd: resolve });
+    const wait = setInterval(() => {
+      if (!source) return;
+      clearInterval(wait);
+      source.open();
+      for (const e of recordedEvents()) source.emit(e);
+    }, 1);
+  });
+  return seen;
+}
+
+// The fixture run's final state through the live driver.
+export async function finalFixtureState(): Promise<RunState> {
+  return (await liveSequence()).reduce(reduce, initialState());
 }
 
 // An EventSource stand-in: emit() delivers to the listeners of the event's kind, as the browser does for `event: <kind>`.

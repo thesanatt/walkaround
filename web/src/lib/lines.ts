@@ -1,4 +1,4 @@
-import type { FfprobeInfo, MarkTrack, SizeEstimate, VideoRecord } from '../contracts/types.ts';
+import type { FfprobeInfo, Mark, MarkTrack, RunManifest, SizeEstimate, VideoRecord } from '../contracts/types.ts';
 
 // sheet._TIRE_CODE and sheet.tire_diameter_in: D = 2 x (SW x AR / 2540 + RD / 2) inches from a code like 225/60R16.
 const TIRE_CODE = /^\s*(\d{3})\s*\/\s*(\d{2})\s*[A-Za-z]*\s*(\d{2}(?:\.\d)?)\s*$/;
@@ -30,12 +30,29 @@ function num(v: number | null): string {
   return v === null ? 'n/a' : v.toFixed(2);
 }
 
-// sheet.staysput_line word for word: "drift 0.03, b1 0.20, b2 0.01, not panned; fixed", caps appended; null when not run.
-export function staysPutLine(mt: MarkTrack | null | undefined): string | null {
+// thresholds staysput.cap_enabled as the run froze it. The lead turned it off after D1 (docs/D1_MEMO.md note 2):
+// real paint on pair C was labelled sliding, so until a recalibration turns it on Stays Put records and shows its
+// tracks but caps no label, and the page states none of its verdicts as fact. A run without the key is uncalibrated.
+export function staysPutCalibrated(run: Pick<RunManifest, 'thresholds'> | null | undefined): boolean {
+  const sp = run?.thresholds?.['staysput'];
+  return Boolean(sp && typeof sp === 'object' && (sp as Record<string, unknown>)['cap_enabled'] === true);
+}
+
+// What SAM 3.1 measured on the clip, with no verdict: "drift 0.21, b1 0.30, b2 0.01, not panned".
+function staysPutNumbers(mt: MarkTrack): string {
+  return `drift ${num(mt.drift_rms)}, b1 ${num(mt.b1)}, b2 ${num(mt.b2)}, ${mt.panned ? 'panned' : 'not panned'}`;
+}
+
+// sheet.staysput_line word for word when calibrated: "drift 0.03, b1 0.20, b2 0.01, not panned; fixed", caps
+// appended; null when not run. Uncalibrated, only the measured numbers (the verdict and its caps are left out).
+export function staysPutLine(mt: MarkTrack | null | undefined, calibrated: boolean): string | null {
   if (!mt || mt.verdict === 'not_run') return null;
   if (mt.verdict === 'no_track') return 'no track (SAM did not follow the mark through the clip)';
-  if (mt.verdict === 'inconclusive') return mt.panned ? 'inconclusive (the camera panned: b1 under its floor, b2 over)' : 'inconclusive (camera did not move enough)';
-  let line = `drift ${num(mt.drift_rms)}, b1 ${num(mt.b1)}, b2 ${num(mt.b2)}, ${mt.panned ? 'panned' : 'not panned'}; ${mt.verdict}`;
+  if (!calibrated) return staysPutNumbers(mt);
+  if (mt.verdict === 'inconclusive' && !mt.b_pass) return 'inconclusive (camera did not move enough)';
+  if (mt.verdict === 'inconclusive' && mt.drift_rms === null) return 'inconclusive (the whole panel was in view on too few frames)';
+  let line = `${staysPutNumbers(mt)}; ${mt.verdict}`;
+  if (mt.verdict === 'inconclusive') line += ` (between fixed and sliding; sign test ${num(mt.sign_agreement)} on ${mt.pairs_n} pairs)`;
   if (mt.curvature_cap) line += '; curvature cap';
   if (mt.highlight_cap) line += '; highlight cap';
   return line;
@@ -48,4 +65,41 @@ export function wallClock(ffprobe: FfprobeInfo | null | undefined, video: VideoR
   if (!camera || camera === 'not present') return null;
   const t = Date.parse(camera);
   return Number.isFinite(t) ? new Date(t + pts * 1000).toISOString() : null;
+}
+
+// The one-line caption under a Stays Put clip: what the track decided, in plain words. A mark on the paint moves
+// with the panel; a reflection slides across it as the camera moves. Uncalibrated, it says only that the mark was
+// tracked; a lost track or a mark Stays Put never ran on is still said.
+export function staysPutCaption(mt: MarkTrack, calibrated: boolean): string {
+  if (!calibrated && mt.verdict !== 'no_track' && mt.verdict !== 'not_run') {
+    return mt.is_control ? 'Tracked the same way. Stays Put is not calibrated yet.' : 'Tracked through its own clip. Stays Put is not calibrated yet and changes no label.';
+  }
+  switch (mt.verdict) {
+    case 'fixed':
+      return 'Stays put: paint';
+    case 'sliding':
+      return mt.is_control ? 'Slides with the camera: reflection' : 'Slides with the camera: likely a reflection';
+    case 'inconclusive':
+      if (!mt.b_pass) return 'Too little camera motion to tell';
+      return mt.drift_rms === null ? 'Too few frames with the whole panel in view to tell' : 'Between paint and reflection: not enough to call';
+    case 'no_track':
+      return 'SAM 3.1 lost it in this clip';
+    case 'not_run':
+      return 'Stays Put did not run on this mark';
+  }
+}
+
+// The caption's class: the verdict colors it only when calibrated.
+export function staysPutTone(mt: MarkTrack, calibrated: boolean): string {
+  return calibrated || mt.verdict === 'no_track' || mt.verdict === 'not_run' ? mt.verdict : 'uncalibrated';
+}
+
+// What the control clip is called: a reflection only once Stays Put is calibrated.
+export function controlName(calibrated: boolean): string {
+  return calibrated ? 'reflection control' : 'control clip';
+}
+
+// "scuff, S", and "from your words" on a mark Muse Spark boxed because the renter named it.
+export function markLabel(m: Mark): string {
+  return `${m.type}, ${m.size_class}${m.source === 'narration_seed' ? ', from your words' : ''}`;
 }

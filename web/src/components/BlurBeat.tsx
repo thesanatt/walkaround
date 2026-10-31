@@ -4,6 +4,9 @@ import { boxSrcToCrop } from '../lib/geometry.ts';
 import { panelName } from '../lib/panels.ts';
 
 // A stored keyframe whose plate region is already pixelated; the plate and face boxes outline for 400 ms and fade.
+// The outlines and counts are the frame's own image checks (BlurRecord). privacy.blur_keyframe also pixelates the
+// plate and face track boxes of the walk at that frame, which the record does not list, so the caption claims no
+// more than the checks found.
 export function BlurBeat({ kf }: { kf: Keyframe | undefined }) {
   const url = useFileUrl();
   if (!kf?.crop) return <div className="empty">No stored keyframe to show yet.</div>;
@@ -24,8 +27,8 @@ export function BlurBeat({ kf }: { kf: Keyframe | undefined }) {
         </svg>
       </div>
       <figcaption>
-        Blurred before storage and before Spark: {plates} plate {plates === 1 ? 'region' : 'regions'}, {faces} face {faces === 1 ? 'region' : 'regions'}.
-        {plates === 0 ? ' No plate was detected in this frame, so nothing was blurred for that reason.' : ''}
+        This crop was blurred before it was saved or sent to Muse Spark. Outlined: what the plate and face checks found on this frame, {plates} plate{' '}
+        {plates === 1 ? 'region' : 'regions'} and {faces} face {faces === 1 ? 'region' : 'regions'}. Any plate or face the video tracks had at this frame was pixelated too.
       </figcaption>
     </figure>
   );

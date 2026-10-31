@@ -48,6 +48,19 @@ export function formatDateTime(iso: string | null | undefined): string {
   return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}, ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}${zone ? ` ${zone}` : ''}`;
 }
 
+// The two halves of formatDateTime, for a card that sets the day and the time on separate lines.
+export function formatDay(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? iso : `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+export function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const zone = zoneOf(d);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}${zone ? ` ${zone}` : ''}`;
+}
+
 // "Oct 27, 2026". A bare YYYY-MM-DD (ReplayPayload.recorded_on) is a calendar date, not UTC midnight.
 export function formatDate(value: string | null | undefined): string {
   if (!value) return 'an unknown date';

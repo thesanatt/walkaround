@@ -1,5 +1,6 @@
 import type { DeletionRecord } from '../contracts/types.ts';
 import { formatBytes, formatDateTime, hashPrefix } from '../lib/format.ts';
+import { isOpenWeights } from '../lib/looks.ts';
 import { deleteFailed, storageLine, uploadedFileIds } from '../lib/privacy.ts';
 import type { RunState } from '../state/types.ts';
 
@@ -39,9 +40,10 @@ function Row({ d }: { d: DeletionRecord }) {
 export function PrivacyCard({ state }: { state: RunState }) {
   const { run, deletions, completed } = state;
   const uploads = uploadedFileIds(state.media, state.videos, deletions);
+  const baseten = state.looks.some(isOpenWeights) || state.openWeights.length > 0;
   return (
     <div className="privacy">
-      <p>{storageLine(run, { completed, uploads, deletions })}</p>
+      <p>{storageLine(run, { completed, uploads, deletions, baseten })}</p>
       {run ? <p className="small">Plate: {run.keep_plate ? 'kept on this sheet because the renter asked for it at upload' : 'blurred'}. Faces: always blurred.</p> : null}
       {deletions.length ? (
         <ul className="small deletions">

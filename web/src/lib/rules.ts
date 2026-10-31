@@ -29,6 +29,7 @@ export const RULES: Record<string, RuleText> = {
   K11: { label: "claim region", text: "claim ROI is a region (E7) or the claim crop carries a condition flag (E8)" },
   K12: { label: "low confidence", text: "Spark confidence low on either mark" },
   K13: { label: "other walk truncated", text: "one of the two keyframes has marks_status truncated" },
+  K14: { label: "named by the renter", text: "Muse Spark boxed the mark only because the renter named it; seed_v1 gives no confidence or size, so its type or size may be the renter's words" },
   L1: { label: "not seen at return", text: "d is None for a pickup mark: not_seen_at_return" },
   L2: { label: "new or unseen", text: "d is None for a return mark: new_or_unseen" },
   L3: { label: "already there", text: "d < tau_pre_r" },

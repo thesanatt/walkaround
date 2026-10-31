@@ -35,6 +35,7 @@ export interface WalkPlayerProps {
   loop?: boolean;
   controls?: boolean;
   bloom?: boolean; // false draws every mask at full fill at once (scripted frame capture)
+  labelPx?: number; // label text size in CSS pixels, 12 by default
   clock?: () => number;
   className?: string;
   onFrame?: (frameIndex: number, time: number) => void;
@@ -154,20 +155,21 @@ export function WalkPlayer(props: WalkPlayerProps) {
     }
 
     ctx.save();
-    ctx.font = `500 ${Math.round(12 * dpr)}px "IBM Plex Sans", system-ui, sans-serif`;
+    const px = p.labelPx ?? 12;
+    ctx.font = `500 ${Math.round(px * dpr)}px "IBM Plex Sans", system-ui, sans-serif`;
     ctx.textBaseline = 'middle';
     for (const d of drawn) {
       if (d.age < LABEL_AFTER_MS) continue;
       const label = p.labelFor(p.role, d.lane, d.o.id);
       const x = fit.ox + d.o.box[0] * fit.scale;
       const y = fit.oy + d.o.box[1] * fit.scale;
-      const tw = ctx.measureText(label).width + 10 * dpr;
-      const th = 18 * dpr;
+      const tw = ctx.measureText(label).width + ((px * 10) / 12) * dpr;
+      const th = px * 1.5 * dpr;
       const ly = Math.max(fit.oy, y - th);
       ctx.fillStyle = d.color;
       ctx.fillRect(x, ly, tw, th);
       ctx.fillStyle = '#fff';
-      ctx.fillText(label, x + 5 * dpr, ly + th / 2);
+      ctx.fillText(label, x + ((px * 5) / 12) * dpr, ly + th / 2);
     }
     ctx.restore();
   }, []);

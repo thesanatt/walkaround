@@ -32,6 +32,7 @@ export type MarkKind = 'scratch' | 'scuff' | 'chip' | 'dent' | 'crack' | 'dirt' 
 export type Side = 'left' | 'right' | 'none';
 export type Position = 'front' | 'rear' | 'none';
 export type ReplayMode = 'fixed' | 'recorded' | 'instant';
+export type ClaimExit = 'E1' | 'E2' | 'E3' | 'E4' | 'E5' | 'E6' | 'E7' | 'E8';
 
 export type PanelId =
   | 'left_front_door'
@@ -127,6 +128,7 @@ export interface RunManifest {
   live_or_replay: 'live' | 'replay';
   keep: boolean;
   keep_plate: boolean;
+  footage_credit?: string | null; // a sample run's footage credit, shown under the walk player
   app_commit: string | null;
   config_hash: string | null;
   thresholds: Record<string, unknown>;
@@ -478,7 +480,7 @@ export interface NarrationTurn {
 }
 
 export interface Narration {
-  per_role: Record<Role, { turns: NarrationTurn[] }>;
+  per_role: Record<Role, { turns: NarrationTurn[]; transcript?: string | null }>;
   mode_applied: boolean;
 }
 
@@ -522,6 +524,40 @@ export interface MarkTrack {
   is_control: boolean;
 }
 
+export type LookVerdict = 'same' | 'different' | 'unsure';
+
+// One derived/looks.json row as the page reads it (walkaround/second_look.py LookRecord, CONTRACTS.md "Phase 2 file
+// shapes", fields trimmed to what is printed). engine "baseten" is Muse Spark Open; "meta-model-api" is hosted Muse
+// Spark 1.3, which answered after Baseten gave none when fallback_from is "baseten" (the free-text fallback says why).
+// A row with verdict null is a look that did not run; the reader drops it, since it changes no label.
+export interface LookRow {
+  pickup_mark: string;
+  return_mark: string;
+  panel_id: PanelId | null;
+  verdict: LookVerdict;
+  reason: string;
+  engine: string | null;
+  model: string | null;
+  fallback_from: 'baseten' | null;
+  valid: boolean | null; // false when the answer failed look_v1 (the verdict is then unsure)
+  fallback: string | null; // why hosted Spark answered, shown only as a tooltip
+  request_id: string | null; // the row's own, else the last of its records
+  inputs: string[]; // the two outlined crops as sent, run-relative paths
+}
+
+// One open_weights.ndjson line (walkaround/open_weights.py): one per Muse Spark Open request on Baseten, failed ones
+// included, kept as provenance. Only the fields the page counts are read.
+export interface OpenWeightsRow {
+  request_id: string | null;
+  model: string | null;
+  purpose: string | null;
+  verdict: LookVerdict | null;
+  status: string | null; // completed, schema_miss, truncated, incomplete or failed
+  valid: boolean | null;
+  error: string | null; // redacted by open_weights.py
+  ts: string | null;
+}
+
 export interface DeletionRecord {
   target: string;
   kind: 'file' | 'files_api' | 'response' | 'quarantine';
@@ -560,6 +596,7 @@ export interface SampleResponse {
 }
 
 export interface Claim {
+  claim_id?: string | null; // "claim_<n>": its photo is served only as claim/<claim_id>.blurred.jpg
   image: { sha256: string; received_at: string; w: number; h: number; low_res: boolean };
   text: string;
   scanner_style: boolean;
@@ -571,7 +608,7 @@ export interface Claim {
   placement: { method: 'full_panel' | 'landmark_fit' | 'none'; w_claim: Point2 | null; r_claim: number | null };
   match: PanelMatch | null;
   size: SizeEstimate | null;
-  exit: string | null;
+  exit: ClaimExit | null;
   paragraph: string;
   note_prefill: { fields: Record<string, string>; verified_against_typed: boolean } | null;
 }

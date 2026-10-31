@@ -21,6 +21,8 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
     target: 'es2022',
+    // The run page's lazy chunk carries the @meta-sam player and parser (about 0.5 MB, 136 kB gzipped); only that page loads it.
+    chunkSizeWarningLimit: 600,
   },
   worker: {
     format: 'es',

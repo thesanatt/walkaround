@@ -2,9 +2,12 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { routes } from '../api/client.ts';
 import { useStatus } from '../api/useStatus.ts';
+import { CompareInPlace } from '../components/CompareInPlace.tsx';
+import { CoverageCar } from '../components/CoverageCar.tsx';
 import { CoverageList } from '../components/CoverageList.tsx';
 import { bestKeyframe, CropView } from '../components/CropView.tsx';
 import { FragmentsRow } from '../components/FragmentsRow.tsx';
+import { HowChecked } from '../components/HowChecked.tsx';
 import { LedgerStrip } from '../components/LedgerStrip.tsx';
 import { MatchPane } from '../components/MatchPane.tsx';
 import { NarrationChips } from '../components/NarrationChips.tsx';
@@ -15,19 +18,23 @@ import { ReplayBadge } from '../components/ReplayBadge.tsx';
 import { SealCard } from '../components/SealCard.tsx';
 import { StageLine } from '../components/StageLine.tsx';
 import { StaysPutList } from '../components/StaysPutList.tsx';
+import { controlTrack, StaysPutPair } from '../components/StaysPutPair.tsx';
 import { TopUpBanner } from '../components/TopUpBanner.tsx';
 import { VerdictList } from '../components/VerdictList.tsx';
 import { WalkPlayer } from '../components/WalkPlayer.tsx';
 import type { Coverage, PanelTrack, ReplayMode } from '../contracts/types.ts';
 import { useLanes } from '../lanes/useLanes.ts';
 import { RunFiles } from '../lib/files.tsx';
+import { focusTrack, panelFocus } from '../lib/focus.ts';
 import { formatDate } from '../lib/format.ts';
+import { staysPutCalibrated } from '../lib/lines.ts';
 import { replayBadgeDate, sheetFileHash } from '../lib/runview.ts';
 import { colorForLane, colorForPanel, DRAWN_LANES, laneId, nounOfLane, panelName } from '../lib/panels.ts';
 import { Link, navigate } from '../lib/router.tsx';
 import { fpsOf, rolesOf } from '../state/reducer.ts';
 import type { RunState } from '../state/types.ts';
 import { useRun, type RunSource } from '../state/useRun.ts';
+import { ClaimExit, ClaimSteps } from './ClaimPage.tsx';
 
 export function replayModeOf(query: URLSearchParams): ReplayMode | null {
   const v = query.get('replay');
@@ -99,6 +106,15 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   const panel = state.panels.find((p) => p.panel_id === panelId);
   const match = state.matches.find((m) => m.panel_id === panelId);
   const tab = roles.includes(roleTab) ? roleTab : 'pickup';
+  const markById = useMemo(() => new Map(state.marks.map((m) => [m.mark_id, m])), [state.marks]);
+  const focus = panelFocus(panelId, match, state.verdicts);
+  const focusMarkTrack = focusTrack(focus, panelId, state.markTracks, markById);
+  const staysPut = {
+    track: focusMarkTrack,
+    control: controlTrack(state.markTracks),
+    mark: focusMarkTrack ? markById.get(focusMarkTrack.mark_id) : undefined,
+    calibrated: staysPutCalibrated(state.run),
+  };
 
   const choosePanel = (id: string) => {
     setSelected(id);
@@ -163,6 +179,10 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
         <StageLine state={state} />
         <LedgerStrip ledger={state.ledger} />
         <QueueLine status={status} />
+        <section className="checked-block" aria-label="how it was checked">
+          <h2>how it was checked</h2>
+          <HowChecked state={state} />
+        </section>
         {state.errors.map((e, i) => (
           <p key={i} className="error-line small">
             {e}
@@ -201,6 +221,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
                         : `The ${role} walk has not arrived yet.`}
                   </div>
                 )}
+                {state.run?.footage_credit ? <p className="footage-credit">{state.run.footage_credit}</p> : null}
                 <SealCard role={role} video={state.videos[role] ?? null} media={media} seal={state.seal} run={state.run} failed={state.stage.name === 'failed'} />
               </section>
             );
@@ -223,7 +244,14 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
             </section>
             <section className="section">
               <h2>coverage</h2>
-              <p className="section-note">Filmed, glimpsed, not filmed, not run (no answer from the model), or not seen in either walk.</p>
+              <p className="section-note">Filmed, glimpsed, not filmed, not run (no answer from the model), or not seen in either walk. A top-up clip counts for the pickup walk.</p>
+              {coverage || state.panels.length ? (
+                <div className={`cars cars-${roles.length}`}>
+                  {roles.map((role) => (
+                    <CoverageCar key={role} coverage={coverage} panels={state.panels} role={role} withTopups={role === 'pickup'} selected={panelId} onSelect={choosePanel} />
+                  ))}
+                </div>
+              ) : null}
               <CoverageList coverage={coverage} roles={roles} />
               {!mode ? <TopUpBanner runId={runId} coverage={coverage} onCoverage={setCoverageOverride} /> : null}
             </section>
@@ -259,25 +287,45 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
               videos={state.videos}
               media={state.media}
               run={state.run}
+              looks={state.looks}
             />
+            <CompareInPlace panelId={panelId} match={match} verdicts={state.verdicts} marks={state.marks} keyframes={state.keyframes} />
           </section>
         ) : null}
 
         <section className="section">
           <h2>verdicts</h2>
-          <VerdictList verdicts={state.verdicts} marks={state.marks} />
+          <VerdictList verdicts={state.verdicts} marks={state.marks} looks={state.looks} />
         </section>
 
         <section className="section">
           <h2>Stays Put</h2>
-          <p className="section-note">SAM 3.1 tracks each mark through its own clip. A mark on the paint moves with the panel; a reflection slides across it.</p>
-          <StaysPutList markTracks={state.markTracks} />
+          <p className="section-note">
+            SAM 3.1 tracks each mark through its own short clip. A mark on the paint moves with the panel; a reflection slides across it as the camera moves.
+            {staysPut.calibrated ? '' : ' Stays Put is not calibrated yet, so in this run it records the tracks and their drift and changes no label.'}
+          </p>
+          {staysPut.track || staysPut.control ? (
+            <StaysPutPair track={staysPut.track} control={staysPut.control} mark={staysPut.mark} color={colorForPanel(panelId)} calibrated={staysPut.calibrated} numbers />
+          ) : null}
+          <StaysPutList markTracks={state.markTracks} marks={state.marks} calibrated={staysPut.calibrated} missing={Boolean(state.partial?.includes('staysput'))} />
         </section>
 
         <section className="section">
           <h2>narration</h2>
-          <NarrationChips narration={state.narration} roles={roles} onSeek={onSeekSeconds} />
+          <NarrationChips narration={state.narration} roles={roles} onSeek={onSeekSeconds} marks={state.marks} missing={Boolean(state.partial?.includes('narration'))} />
         </section>
+
+        {state.claim ? (
+          <section className="section">
+            <h2>claim</h2>
+            {state.claims.length > 1 ? <p className="section-note">{state.claims.length} claim photos were placed against this run; the latest is below.</p> : null}
+            <ClaimExit claim={state.claim} />
+            <ClaimSteps claim={state.claim} />
+            <p className="small">
+              <Link to={`/claim?run=${encodeURIComponent(runId)}`}>place another claim photo</Link>
+            </p>
+          </section>
+        ) : null}
 
         <section className="section">
           <h2>sheet</h2>

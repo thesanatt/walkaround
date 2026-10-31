@@ -89,6 +89,12 @@ export function colorForPanel(id: string | null | undefined): string {
   return (id && PANEL_BY_ID[id]?.color) || '#6b7280';
 }
 
+// "#5fc2ad" as 0..1 channels, for the SVG filter that tints a panel mask.
+export function hexToUnit(hex: string): [number, number, number] {
+  const v = parseInt(hex.replace('#', ''), 16);
+  return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
+}
+
 // Before the side vote names a panel, a lane is drawn in the first color of its noun's family.
 export function colorForLane(lane: string): string {
   const id = laneId(lane);

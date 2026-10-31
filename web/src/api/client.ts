@@ -92,6 +92,12 @@ export const api = {
   run: (id: string) => getJson<RunManifest>(routes.run(id)),
   replay: (id: string, mode: ReplayMode) => getJson<ReplayPayload>(routes.replay(id, mode)),
   file: <T>(id: string, rel: string, view: FileView = 'owner') => getJson<T>(routes.file(id, rel, view)),
+  // A stored text file such as open_weights.ndjson, read as is.
+  text: async (id: string, rel: string, view: FileView = 'owner'): Promise<string> => {
+    const res = await fetch(routes.file(id, rel, view));
+    if (!res.ok) throw new ApiError(res.status, await readBody(res));
+    return res.text();
+  },
   video: (id: string, role: string, view: FileView = 'owner') => getJson<VideoRecord>(routes.file(id, `videos/${role}.json`, view)),
   createRun: (body: CreateRunBody) =>
     send<RunManifest>(routes.runs(), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }),
@@ -108,12 +114,14 @@ export const api = {
     form.append('video', video, video.name);
     return send<Coverage>(routes.topup(id), { method: 'POST', body: form });
   },
-  claim: (body: { run_id: string; image: File; text: string; tire_code?: string }) => {
+  // panel_id is the renter's one tap after exit E2 (two candidate panels) or E2b (both sides shown).
+  claim: (body: { run_id: string; image: File; text: string; tire_code?: string; panel_id?: string }) => {
     const form = new FormData();
     form.append('image', body.image, body.image.name);
     form.append('run_id', body.run_id);
     form.append('text', body.text);
     if (body.tire_code) form.append('tire_code', body.tire_code);
+    if (body.panel_id) form.append('panel_id', body.panel_id);
     return send<Claim>(routes.claims(), { method: 'POST', body: form });
   },
   // GET with a 1-byte range: FastAPI's FileResponse has no HEAD route, so a 404 means "PDF retry".

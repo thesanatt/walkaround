@@ -11,6 +11,8 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
   const [html, setHtml] = useState<'checking' | 'ready' | 'missing'>('checking');
   const [pdf, setPdf] = useState<'checking' | 'ready' | 'retry'>('checking');
   const scroll = kiosk || query.get('scroll') === '1';
+  // A frozen kiosk capture (?t=<ms>) shows the sheet where the scroll would be at that time.
+  const frozenMs = kiosk && query.get('t') !== null && Number.isFinite(Number(query.get('t'))) ? Math.max(0, Number(query.get('t'))) : null;
 
   useEffect(() => {
     let live = true;
@@ -38,6 +40,14 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
     const begin = () => {
       cancelAnimationFrame(raf);
       start = 0;
+      if (frozenMs !== null) {
+        try {
+          el.contentWindow?.scrollTo(0, (frozenMs / 1000) * SCROLL_PX_PER_S);
+        } catch {
+          // as above
+        }
+        return;
+      }
       raf = requestAnimationFrame(step);
     };
     el.addEventListener('load', begin);
@@ -45,7 +55,7 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
       el.removeEventListener('load', begin);
       cancelAnimationFrame(raf);
     };
-  }, [scroll, html, runId]);
+  }, [scroll, html, runId, frozenMs]);
 
   return (
     <div className="sheet-page">

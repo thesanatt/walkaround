@@ -2,6 +2,7 @@ import type { Keyframe, Mark } from '../contracts/types.ts';
 import { useFileUrl } from '../lib/files.tsx';
 import { bestKeyframe } from '../lib/focus.ts';
 import { formatClock } from '../lib/format.ts';
+import { markLabel } from '../lib/lines.ts';
 import { colorForPanel, panelName } from '../lib/panels.ts';
 
 export { bestKeyframe };
@@ -20,9 +21,11 @@ export function marksStatusText(kf: Keyframe, count: number): string {
 }
 
 // One blurred crop with the Spark boxes dropping in one by one (type and size class on each), flags in a corner.
-export function CropFigure({ kf, marks, title }: { kf: Keyframe; marks: Mark[]; title: string }) {
+// shown: how many boxes are on screen so far (the kiosk drops them in by its step table); all of them when absent.
+export function CropFigure({ kf, marks, title, shown }: { kf: Keyframe; marks: Mark[]; title: string; shown?: number }) {
   const url = useFileUrl();
   const own = marks.filter((m) => m.kf_id === kf.kf_id);
+  const visible = shown === undefined ? own : own.slice(0, shown);
   if (!kf.crop) return <div className="empty">{title}: keyframe at {formatClock(kf.pts)} has no crop file.</div>;
   const { w, h } = kf.crop;
   const color = colorForPanel(kf.panel_id);
@@ -34,11 +37,13 @@ export function CropFigure({ kf, marks, title }: { kf: Keyframe; marks: Mark[]; 
       <div className="crop-frame">
         <img src={url(kf.crop.path)} width={w} height={h} alt={`${panelName(kf.panel_id)} from the ${title} walk at ${formatClock(kf.pts)}, plates and faces pixelated`} />
         <svg viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
-          {own.map((m, i) =>
+          {visible.map((m, i) =>
             m.bbox_crop ? (
-              <g key={m.mark_id} className="mark-box" style={{ animationDelay: `${i * 250}ms` }}>
+              <g key={m.mark_id} className="mark-box" style={shown === undefined ? { animationDelay: `${i * 250}ms` } : undefined}>
                 <rect x={m.bbox_crop[0]} y={m.bbox_crop[1]} width={m.bbox_crop[2] - m.bbox_crop[0]} height={m.bbox_crop[3] - m.bbox_crop[1]} stroke={color} strokeWidth={stroke} />
-                <text x={m.bbox_crop[0]} y={Math.max(label.fontSize, m.bbox_crop[1] - label.fontSize / 3)} style={label}>{`${m.type}, ${m.size_class}`}</text>
+                <text x={m.bbox_crop[0]} y={Math.max(label.fontSize, m.bbox_crop[1] - label.fontSize / 3)} style={label}>
+                  {markLabel(m)}
+                </text>
               </g>
             ) : null,
           )}

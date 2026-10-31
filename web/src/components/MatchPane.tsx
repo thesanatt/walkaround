@@ -1,11 +1,13 @@
-import type { Keyframe, Mark, Panel, PanelMatch, RunManifest, Verdict, VideoRecord } from '../contracts/types.ts';
+import type { Keyframe, LookRow, Mark, Panel, PanelMatch, RunManifest, Verdict, VideoRecord } from '../contracts/types.ts';
 import { useFileUrl } from '../lib/files.tsx';
 import { drawnPairs, offPaneMarks, paneKeyframes, panelFocus } from '../lib/focus.ts';
-import { daysBetween, formatClock, formatDateTime, minutesBetween } from '../lib/format.ts';
-import { sizeLine, wallClock } from '../lib/lines.ts';
-import { colorForPanel, familyNoun, panelName, VERDICT_LABEL } from '../lib/panels.ts';
+import { daysBetween, formatClock, formatDateTime, formatDay, formatTime, minutesBetween } from '../lib/format.ts';
+import { markLabel, sizeLine, wallClock } from '../lib/lines.ts';
+import { lookFor, loweredByLook } from '../lib/looks.ts';
+import { colorForPanel, familyNoun, hexToUnit, panelName, VERDICT_LABEL } from '../lib/panels.ts';
 import { ruleLabel, ruleTitle } from '../lib/rules.ts';
 import type { RoleMedia } from '../state/types.ts';
+import { SecondLookLine } from './SecondLookLine.tsx';
 
 const GAP = 40;
 
@@ -19,15 +21,12 @@ export interface MatchPaneProps {
   videos: Record<string, VideoRecord>;
   media: Record<string, RoleMedia>;
   run: RunManifest | null;
+  looks?: LookRow[]; // the second looks, printed under the verdicts they touched
   aligned?: boolean; // the match cut: the return crop shifts so the focus pair's return mark sits level with its pickup mark
   showCards?: boolean;
   showDates?: boolean;
+  showRefusal?: boolean;
   moment?: boolean; // the video's moment: no video times or units on the pane, the card is the label and two dates
-}
-
-function hexToUnit(hex: string): [number, number, number] {
-  const v = parseInt(hex.replace('#', ''), 16);
-  return [((v >> 16) & 255) / 255, ((v >> 8) & 255) / 255, (v & 255) / 255];
 }
 
 interface Sizes {
@@ -52,18 +51,19 @@ function MarkGlyph({ m, ox, oy, color, z }: { m: Mark; ox: number; oy: number; c
       {p ? <circle cx={p[0] + ox} cy={p[1] + oy} r={z.dot} fill={color} stroke="#0b0d0c" strokeWidth={z.stroke / 2} /> : null}
       {b ? (
         <text className="pane-label" x={b[0] + ox} y={Math.max(z.label, b[1] + oy - z.label / 3)} style={{ fontSize: z.label, strokeWidth: z.label / 5 }}>
-          {`${m.type}, ${m.size_class}`}
+          {markLabel(m)}
         </text>
       ) : null}
     </g>
   );
 }
 
-export function VerdictCard({ v, marks, panel }: { v: Verdict; marks: Map<string, Mark>; panel: Panel | undefined }) {
+export function VerdictCard({ v, marks, panel, looks = [] }: { v: Verdict; marks: Map<string, Mark>; panel: Panel | undefined; looks?: LookRow[] }) {
   const described = v.mark_ids.map((id) => {
     const m = marks.get(id);
-    return m ? `${m.role}: ${m.type}, ${m.size_class}${m.description ? `, "${m.description}"` : ''}` : id;
+    return m ? `${m.role}: ${m.type}, ${m.size_class}${m.description ? `, "${m.description}"` : ''}${m.source === 'narration_seed' ? ' (seeded from your words)' : ''}` : id;
   });
+  const look = lookFor(v, looks);
   const ids = [v.rule_id, ...v.trace.rule_ids.filter((r) => r !== v.rule_id)];
   const windows = panel?.per_role['pickup']?.windows ?? [];
   const windowLine =
@@ -90,28 +90,82 @@ export function VerdictCard({ v, marks, panel }: { v: Verdict; marks: Map<string
       <p className="small muted">{described.join('; ')}</p>
       {windowLine ? <p className="small">{windowLine}</p> : null}
       {size ? <p className="small">{size}</p> : null}
+      {look ? <SecondLookLine look={look} lowered={loweredByLook(v)} /> : null}
     </div>
   );
 }
 
-// Both camera clocks at the shown keyframes, as the sheet prints them: no camera time, no wall clock and no gap.
-export function DatesCard({ kfA, kfB, videos, media, run }: { kfA: Keyframe; kfB: Keyframe; videos: Record<string, VideoRecord>; media: Record<string, RoleMedia>; run: RunManifest | null }) {
+// G2's flags in words: " (glare on the return frame)".
+export function conditionsText(kfA: Keyframe | undefined, kfB: Keyframe | undefined): string {
+  const flags = (kf: Keyframe | undefined) => (kf ? (['wet', 'dirty', 'glare', 'dark'] as const).filter((f) => kf.conditions[f]) : []);
+  const parts = [
+    ...(flags(kfA).length ? [`${flags(kfA).join(' and ')} on the pickup frame`] : []),
+    ...(flags(kfB).length ? [`${flags(kfB).join(' and ')} on the return frame`] : []),
+  ];
+  return parts.length ? ` (${parts.join(', ')})` : '';
+}
+
+// The gap between the two camera clocks: "4 days later", or "same day, 45 minutes later" for one day. A return clock
+// set before the pickup clock says "earlier"; it is printed as the cameras wrote it, never corrected.
+export function gapText(a: string | null, b: string | null): string | null {
+  const days = daysBetween(a, b);
+  if (days === null) return null;
+  if (days === 0) {
+    const minutes = minutesBetween(a, b) ?? 0;
+    const m = Math.abs(minutes);
+    return `same day, ${m} ${m === 1 ? 'minute' : 'minutes'} ${minutes < 0 ? 'earlier' : 'later'}`;
+  }
+  const d = Math.abs(days);
+  return `${d} ${d === 1 ? 'day' : 'days'} ${days < 0 ? 'earlier' : 'later'}`;
+}
+
+function sealedText(run: RunManifest | null): string {
+  const sealed = run?.clocks.sealed_minutes_after_camera ?? null;
+  if (sealed === null) return 'the seal clock appears once the seal is written';
+  if (typeof sealed === 'number') return `sealed ${sealed} ${sealed === 1 ? 'minute' : 'minutes'} after the camera time`;
+  return `seal: ${sealed}`;
+}
+
+// The two dates: the pickup camera time with how soon it was sealed, beside the return camera time and the gap. As
+// the sheet prints them: no camera time, no wall clock and no gap (the receipt time never stands in).
+export function DatesCard({ kfA, kfB, videos, media, run, stacked = false }: { kfA: Keyframe; kfB: Keyframe; videos: Record<string, VideoRecord>; media: Record<string, RoleMedia>; run: RunManifest | null; stacked?: boolean }) {
   const a = wallClock(media['pickup']?.ffprobe, videos['pickup'], kfA.pts);
   const b = wallClock(media['return']?.ffprobe, videos['return'], kfB.pts);
-  const days = daysBetween(a, b);
-  const minutes = minutesBetween(a, b);
-  const gap = days === null ? '' : days === 0 ? ` (same day, ${minutes ?? 0} minutes later)` : ` (${days} ${days === 1 ? 'day' : 'days'} later)`;
-  const sealed = run?.clocks.sealed_minutes_after_camera ?? null;
+  const gap = a && b ? gapText(a, b) : null;
   return (
-    <div className="dates-card">
-      <p>
+    <div className={`dates-card ${stacked ? 'stacked' : ''}`}>
+      <p className="sr-only">
         pickup {a ? formatDateTime(a) : 'camera time not present'}; return {b ? formatDateTime(b) : 'camera time not present'}
-        {gap}
+        {gap ? ` (${gap})` : ''}
       </p>
-      <p className="small muted">
-        {sealed === null ? 'The seal clock appears once the seal is written.' : typeof sealed === 'number' ? `Pickup sealed ${sealed} minutes after the camera time.` : `Pickup seal: ${sealed}.`}
-        {a && b ? '' : ' A walk whose camera wrote no time gets no wall clock, here or on the sheet.'}
-      </p>
+      <div className="date-col" aria-hidden="true">
+        <span className="date-role">pickup</span>
+        {a ? (
+          <>
+            <span className="date-day mono">{formatDay(a)}</span>
+            <span className="date-time mono">{formatTime(a)}</span>
+          </>
+        ) : (
+          <span className="date-day">camera time not present</span>
+        )}
+        <span className="date-note">{sealedText(run)}</span>
+      </div>
+      <div className="date-gap" aria-hidden="true">
+        <span className="date-rule" />
+        {gap ? <span className="date-gap-text">{gap}</span> : null}
+      </div>
+      <div className="date-col" aria-hidden="true">
+        <span className="date-role">return</span>
+        {b ? (
+          <>
+            <span className="date-day mono">{formatDay(b)}</span>
+            <span className="date-time mono">{formatTime(b)}</span>
+          </>
+        ) : (
+          <span className="date-day">camera time not present</span>
+        )}
+        <span className="date-note">{a && b ? '' : 'a walk whose camera wrote no time gets no wall clock, here or on the sheet'}</span>
+      </div>
     </div>
   );
 }
@@ -120,7 +174,7 @@ export function DatesCard({ kfA, kfB, videos, media, run }: { kfA: Keyframe; kfB
 // Spark boxes on top, one line per joined pair whose marks are both on the frames shown. Code wrote the labels below;
 // the pane only draws them.
 export function MatchPane(props: MatchPaneProps) {
-  const { panelId, match, panel, keyframes, marks, verdicts, videos, media, run, aligned = false, showCards = true, showDates = true, moment = false } = props;
+  const { panelId, match, panel, keyframes, marks, verdicts, videos, media, run, looks = [], aligned = false, showCards = true, showDates = true, showRefusal = true, moment = false } = props;
   const url = useFileUrl();
   if (!panelId) return <div className="empty">Pick a panel to see its two frames.</div>;
   const markById = new Map(marks.map((m) => [m.mark_id, m]));
@@ -190,9 +244,9 @@ export function MatchPane(props: MatchPaneProps) {
         </text>
       </svg>
       {!match ? <p className="empty">The comparison for the {panelName(panelId)} comes with the match step. Code writes every label.</p> : null}
-      {match?.state === 'not_comparable' ? (
+      {showRefusal && match?.state === 'not_comparable' ? (
         <p className="refusal">
-          Not compared: {match.reasons.map((id) => `${id} ${ruleLabel(id)}`).join('; ')}. Both best frames are shown so you can look yourself.
+          Not compared: {match.reasons.map((id) => `${id} ${ruleLabel(id)}${id === 'G2' ? conditionsText(kfA, kfB) : ''}`).join('; ')}. Both best frames are shown so you can look yourself.
         </p>
       ) : null}
       {match?.state === 'comparable' && !match.pairs.length && !panelVerdicts.length ? <p className="small muted">Compared: no marks on either frame.</p> : null}
@@ -211,7 +265,7 @@ export function MatchPane(props: MatchPaneProps) {
       {!moment && showCards && panelVerdicts.length ? (
         <div className="verdict-cards">
           {panelVerdicts.map((v) => (
-            <VerdictCard key={v.verdict_id} v={v} marks={markById} panel={panel} />
+            <VerdictCard key={v.verdict_id} v={v} marks={markById} panel={panel} looks={looks} />
           ))}
         </div>
       ) : null}

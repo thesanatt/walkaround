@@ -8,7 +8,7 @@ import { initialState, reduce } from './reducer.ts';
 import { startReplay } from './replay.ts';
 import type { AnyEvent, RunState } from './types.ts';
 
-export type RunSource = { kind: 'live' } | { kind: 'replay'; mode: ReplayMode; untilMs?: number; startAtStage?: string };
+export type RunSource = { kind: 'live' } | { kind: 'replay'; mode: ReplayMode; untilMs?: number; startAtStage?: string; delays?: Record<string, number> };
 
 export interface RunHandle {
   state: RunState;
@@ -71,7 +71,7 @@ export function useRun(runId: string | null, source: RunSource, view: FileView =
   const [detail, setDetail] = useState<string | null>(null);
   const [ended, setEnded] = useState(false);
   const [progress, setProgress] = useState<RunHandle['progress']>(null);
-  const key = source.kind === 'live' ? 'live' : `replay:${source.mode}:${source.untilMs ?? ''}:${source.startAtStage ?? ''}`;
+  const key = source.kind === 'live' ? 'live' : `replay:${source.mode}:${source.untilMs ?? ''}:${source.startAtStage ?? ''}:${JSON.stringify(source.delays ?? {})}`;
 
   useEffect(() => {
     dispatch({ kind: 'reset', payload: {} });
@@ -100,6 +100,7 @@ export function useRun(runId: string | null, source: RunSource, view: FileView =
             files,
             untilMs: source.untilMs,
             startAtStage: source.startAtStage,
+            delays: source.delays,
             onStatus,
             onEnd,
             onProgress: (done, total, atMs, spanMs) => {

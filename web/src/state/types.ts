@@ -1,12 +1,15 @@
 import type {
+  Claim,
   Coverage,
   DeletionRecord,
   Event,
   FfprobeInfo,
   Keyframe,
+  LookRow,
   Mark,
   MarkTrack,
   Narration,
+  OpenWeightsRow,
   Panel,
   PanelMatch,
   PanelTrack,
@@ -102,6 +105,10 @@ export interface RunState {
   verdicts: Verdict[];
   narration: Narration | null;
   markTracks: MarkTrack[];
+  looks: LookRow[]; // derived/looks.json: the second looks, each of which can only lower a label
+  openWeights: OpenWeightsRow[]; // open_weights.ndjson: the Muse Spark Open calls on Baseten behind those looks
+  claims: Claim[]; // every claim placed against this run (claim/<id>.json, and derived/claim.json while it is open), oldest first
+  claim: Claim | null; // the latest of them
   spark: { requested: number; answered: number; truncated: number };
   voice: Record<Role, VoiceState>;
   sheet: { written: boolean; sha256s: Record<string, string> };
@@ -129,6 +136,9 @@ export type SyntheticKind =
   | 'narration.derived.loaded'
   | 'staysput.derived.loaded'
   | 'match.derived.loaded'
+  | 'looks.loaded' // derived/looks.json and open_weights.ndjson, read with the match
+  | 'claim.derived.loaded'
+  | 'claims.loaded' // claim/claim_<n>.json and derived/claim.json, read when the run ends or claim.derived arrives
   | 'deletions.loaded'
   | 'run.ended.loaded'; // run.json of a run that ended with no chained event (failed before the seal)
 

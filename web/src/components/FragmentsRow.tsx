@@ -9,11 +9,12 @@ export interface FragmentsRowProps {
   fps: number;
   durationS: number | null;
   color: string;
+  phase?: 'fragments' | 'joined' | 'anchor'; // the kiosk shows the pieces, then the joined track, then the anchor pass
 }
 
 // One panel's timeline: each SAM id's fragment as a span, the merged track named underneath, and the anchor
 // re-prompts (the box and the negative points that keep the glass out) when the anchor pass ran.
-export function FragmentsRow({ role, panelId, tracks, fps, durationS, color }: FragmentsRowProps) {
+export function FragmentsRow({ role, panelId, tracks, fps, durationS, color, phase = 'anchor' }: FragmentsRowProps) {
   if (!panelId) return <div className="empty">Pick a panel in the list to see its track.</div>;
   const own = tracks.filter((t) => t.role === role && t.panel_id === panelId);
   if (!own.length) return <div className="empty">No track for the {panelName(panelId)} in the {role} walk yet. Tracks come with the panel step.</div>;
@@ -26,12 +27,14 @@ export function FragmentsRow({ role, panelId, tracks, fps, durationS, color }: F
   });
   const anchors = own.flatMap((t) => t.anchor_reprompts);
   const merged = fragments.length > own.length;
+  const joined = phase !== 'fragments';
+  const pct = (frame: number) => `${(frame / fps / total) * 100}%`;
 
   return (
     <div className="fragments">
       <p className="fragments-line">
         <strong>{panelName(panelId)}</strong>: {windows.join(' and ')}
-        {merged ? `; same ${familyNoun(panelId)}, fragments ${fragments.length} to ${own.length}` : ''}
+        {merged && joined ? <span className="fragments-joined">; same {familyNoun(panelId)}, fragments {fragments.length} to {own.length}</span> : ''}
       </p>
       <div className="timeline" role="img" aria-label={`${panelName(panelId)} in the ${role} walk: ${windows.join(', ')}`}>
         {fragments.map((f, i) => (
@@ -51,7 +54,24 @@ export function FragmentsRow({ role, panelId, tracks, fps, durationS, color }: F
           <span>{formatClock(total)}</span>
         </span>
       </div>
-      <ul className="fragments-merged mono small">
+      {joined ? (
+        <div className="timeline track-row" aria-hidden="true">
+          {own.map((t) => (
+            <span
+              key={t.track_id}
+              className="track-span"
+              style={{
+                left: pct(t.fragments[0]?.first_frame ?? 0),
+                width: `${Math.max(0.6, (((t.fragments[t.fragments.length - 1]?.last_frame ?? 0) + 1 - (t.fragments[0]?.first_frame ?? 0)) / fps / total) * 100)}%`,
+                borderColor: color,
+              }}
+            >
+              <span className="track-label">one track</span>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <ul className={`fragments-merged mono small ${joined ? '' : 'hidden'}`}>
         {own.map((t) => (
           <li key={t.track_id}>
             {t.track_id}: SAM ids {t.sam_object_ids.join(', ')}
@@ -59,7 +79,7 @@ export function FragmentsRow({ role, panelId, tracks, fps, durationS, color }: F
           </li>
         ))}
       </ul>
-      <p className="small muted">
+      <p className={`small muted anchor-line ${phase === 'anchor' ? '' : 'hidden'}`}>
         {anchors.length
           ? anchors.map((a) => `anchor pass: re-prompted at frame ${a.frame} with a box${a.negative_points.length ? ` and ${a.negative_points.length} negative ${a.negative_points.length === 1 ? 'point' : 'points'} on the glass` : ''}`).join('; ')
           : 'no anchor pass on this track'}

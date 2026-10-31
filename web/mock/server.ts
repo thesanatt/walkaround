@@ -4,15 +4,15 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { dirname, extname, join, resolve } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { replayWaits } from '../src/state/schedule.ts';
-import type { Event, ReplayMode, RunManifest, VideoRecord } from '../src/contracts/types.ts';
+import type { Claim, Coverage, Event, ReplayMode, RunManifest, VideoRecord } from '../src/contracts/types.ts';
+import { servedFileAllowed } from './allowlist.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(HERE, 'fixture');
-const WALK_CLIP = resolve(HERE, '..', '..', 'data', 'test', 'pingpong.mp4');
 const DELAYS = JSON.parse(readFileSync(join(HERE, '..', 'kiosk', 'delays.json'), 'utf8')) as Record<string, unknown>;
 const CHUNK_MAX = 9_437_184; // thresholds.json media.chunk_route_max_body_bytes
 const CHUNK_BYTES = 8_388_608;
@@ -107,6 +107,48 @@ function serveFile(req: IncomingMessage, res: ServerResponse, path: string): voi
   else createReadStream(path).pipe(res);
 }
 
+// One text field of a multipart body, read without a parser: the mock only needs the words and the renter's tap.
+function formField(body: Buffer | null, field: string): string | null {
+  if (!body) return null;
+  const text = body.toString('latin1');
+  const m = new RegExp(`name="${field}"\\r\\n\\r\\n([^\\r]*)\\r\\n`).exec(text);
+  return m ? m[1]! : null;
+}
+
+// Which stored claim the mock answers with, so every path of the claim page can be tried by its words: "bumper" is a
+// glimpsed panel (E4), "close" or "tight" a close-up it cannot place (E5), "dent" names no side (both shown, E2b),
+// other words without a side make Spark and the SAM vote disagree (E2), anything else places it with a size. A tap is
+// answered by tapClaim.
+function claimFor(text: string): string {
+  const words = text.toLowerCase();
+  if (words.includes('bumper')) return 'claim_3';
+  if (words.includes('close') || words.includes('tight')) return 'claim_2';
+  if (words.includes('dent')) return 'claim_5';
+  if (words && !/left|right|driver|passenger/.test(words)) return 'claim_4';
+  return 'claim_1';
+}
+
+const STATE_RANK: Record<string, number> = { filmed: 4, glimpsed: 3, not_filmed: 2, not_seen: 1, not_run: 0 };
+
+// The renter's tap after E2 or E2b, as claim.decide answers it: the picked panel stands, "Panel picked by you" leads
+// the paragraph, and the pickup coverage decides the rest. The mock compares marks only on the right rear door (the
+// placed claim_1); another filmed panel comes back not compared, a glimpsed one E4, one never filmed E3.
+export function tapClaim(dir: string, panelId: string, text: string): Claim {
+  const placed = JSON.parse(readFileSync(join(dir, 'claim', 'claim_1.json'), 'utf8')) as Claim;
+  const pick = `Panel picked by you: the ${panelId.replaceAll('_', ' ')}. `;
+  if (panelId === placed.panel_id) return { ...placed, text, paragraph: pick + placed.paragraph };
+  const coverage = JSON.parse(readFileSync(join(dir, 'derived', 'coverage.json'), 'utf8')) as Coverage;
+  let state: string = 'not_seen';
+  for (const [role, per] of Object.entries(coverage.per_role)) {
+    const pc = /^(pickup|topup_[0-9]+)$/.test(role) ? per[panelId as keyof typeof per] : undefined;
+    if (pc && (STATE_RANK[pc.state] ?? 0) > (STATE_RANK[state] ?? 0)) state = pc.state;
+  }
+  const base: Claim = { ...placed, text, panel_id: panelId as Claim['panel_id'], side_source: null, coverage_state: state as Claim['coverage_state'], placement: { method: 'none', w_claim: null, r_claim: null }, match: null, size: null, exit: null };
+  if (state === 'not_filmed' || state === 'not_seen') return { ...base, exit: 'E3', paragraph: `${pick}Mock claim: not filmed at pickup, so there is no dated pickup frame to compare.` };
+  if (state === 'glimpsed') return { ...base, exit: 'E4', paragraph: `${pick}Mock claim: only glimpsed at pickup, so nothing is compared.` };
+  return { ...base, paragraph: `${pick}Mock claim: the mock compares marks only on the right rear door, so nothing was compared here.` };
+}
+
 function sseLine(e: Event): string {
   return `id: ${e.seq}\nevent: ${e.kind}\ndata: ${JSON.stringify(e)}\n\n`;
 }
@@ -155,12 +197,11 @@ export function createMockApi(): MockApi {
     setTimeout(step, 50);
   };
 
-  const fileFor = (stored: StoredRun, rel: string): string | null => {
-    const parts = rel.split('/');
-    if (!rel || rel.startsWith('/') || parts.some((p) => p === '..' || p === '' || p.startsWith('.'))) return null;
-    if (parts[0] === 'quarantine' || parts[0] === 'uploads' || rel.endsWith('.proxy.mp4') || rel.endsWith('.orig')) return null;
-    if (/^media\/[a-z_0-9]+\.proxy_blurred\.mp4$/.test(rel)) return existsSync(WALK_CLIP) ? WALK_CLIP : null;
-    const path = join(stored.dir, ...parts);
+  // A file of the run only where app.py would serve it (mock/allowlist.ts). owner is false for ?view=kiosk and for a
+  // kept (public) run, as app.may_serve decides.
+  const fileFor = (stored: StoredRun, rel: string, owner: boolean): string | null => {
+    if (!servedFileAllowed(stored.run, rel, owner)) return null;
+    const path = join(stored.dir, ...rel.split('/'));
     return existsSync(path) && statSync(path).isFile() ? path : null;
   };
 
@@ -296,7 +337,7 @@ export function createMockApi(): MockApi {
       const role = /^videos\/([a-z_0-9]+)\.json$/.exec(relPath)?.[1];
       if (role && stored.videos[role]) return json(res, 200, stored.videos[role]), true;
       if (role && stored.run.live_or_replay === 'live') return json(res, 404, { detail: 'no such file' }), true;
-      const path = fileFor(stored, relPath);
+      const path = fileFor(stored, relPath, url.searchParams.get('view') !== 'kiosk' && !stored.run.keep);
       if (!path) return json(res, 404, { detail: 'no such file' }), true;
       serveFile(req, res, path);
       return true;
@@ -325,10 +366,14 @@ export function createMockApi(): MockApi {
       const url = req.url ?? '/';
       if (url.startsWith('/api/claims') && req.method === 'POST') {
         void (async () => {
-          await readBody(req, 60 * 1024 * 1024);
+          const body = await readBody(req, 60 * 1024 * 1024);
           await new Promise((r) => setTimeout(r, 1200));
-          const claim = sample ? join(runs.get(sample)!.dir, 'derived', 'claim.json') : null;
-          if (!claim || !existsSync(claim)) json(res, 501, { detail: 'claim-first is not wired yet' });
+          const dir = sample ? runs.get(sample)!.dir : null;
+          const text = formField(body, 'text') ?? '';
+          const tap = formField(body, 'panel_id');
+          const claim = dir ? join(dir, 'claim', `${claimFor(text)}.json`) : null;
+          if (!dir || !claim || !existsSync(claim)) json(res, 501, { detail: 'claim-first is not wired yet' });
+          else if (tap) json(res, 200, tapClaim(dir, tap, text));
           else serveFile(req, res, claim);
         })();
         return;
