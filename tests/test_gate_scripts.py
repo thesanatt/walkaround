@@ -53,8 +53,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(ledger, "LEDGER_PATH", root / "ledger.jsonl")
     monkeypatch.delenv("LIVE", raising=False)
     yield root
-    after = real.read_bytes() if real.exists() else None
-    assert after == before, "a test wrote to the real runs/ledger.jsonl"
+    assert not _test_rows_added(real, before), "a test wrote to the real runs/ledger.jsonl"
 
 
 @pytest.fixture(scope="module")
@@ -64,9 +63,19 @@ def dry_run(tmp_path_factory):
     before = real.read_bytes() if real.exists() else None
     out = tmp_path_factory.mktemp("d1") / "dry"
     code = run_d1.main(["--dry-run", "--out", str(out)])
-    after = real.read_bytes() if real.exists() else None
-    assert after == before, "the dry run wrote to the real ledger"
+    assert not _test_rows_added(real, before), "the dry run wrote to the real ledger"
     return code, out
+
+
+def _test_rows_added(real: Path, before: bytes | None) -> list[str]:
+    """Rows a test or dry run appended to the real ledger. A live run in another process may append its own rows
+    meanwhile (D1, a smoke), so the check is: nothing rewritten, and no appended row carries a dry-run or fixture id."""
+    after = real.read_bytes() if real.exists() else b""
+    head = before or b""
+    if not after.startswith(head):
+        return ["the real ledger was rewritten, not appended to"]
+    added = after[len(head):].decode("utf-8").splitlines()
+    return [line for line in added if '"d1dry_' in line or '"fixture-' in line]
 
 
 # ------------------------------------------------------------------------------------------------------------------
