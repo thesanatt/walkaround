@@ -10,6 +10,7 @@ import importlib.util
 import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import cv2
@@ -266,6 +267,28 @@ def test_render_empty_model_and_strict_undefined() -> None:
     html = sheet.render_html(c.SheetModel(run_id="empty"))
     assert "run empty" in html and "no originals recorded" in html and "coverage not computed" in html and html.isascii()
     assert "Every canonical panel has a frame." in html  # no blocks at all
+
+
+def test_pin_pdf_dates_keeps_the_width_and_pins_both_dates(tmp_path: Path) -> None:
+    pdf = tmp_path / "x.pdf"
+    raw = b"<</Producer (Skia/PDF m153)\n/CreationDate (D:20261031175842+00'00')\n/ModDate (D:20261031175843+00'00')>>"
+    pdf.write_bytes(raw)
+    sheet.pin_pdf_dates(pdf, "20261027150002")
+    out = pdf.read_bytes()
+    assert len(out) == len(raw) and out.count(b"D:20261027150002+00'00'") == 2
+
+
+def test_two_prints_of_one_page_are_byte_identical(tmp_path: Path) -> None:
+    pytest.importorskip("playwright.sync_api")
+    html = tmp_path / "p.html"
+    html.write_text("<html><body><p>sheet</p></body></html>", encoding="ascii")
+    try:
+        a = sheet.render_pdf(html, tmp_path / "a.pdf", timeout_s=60, stamp="20261027150002").read_bytes()
+        time.sleep(1.1)  # the print time moves on by a second
+        b = sheet.render_pdf(html, tmp_path / "b.pdf", timeout_s=60, stamp="20261027150002").read_bytes()
+    except Exception as exc:  # playwright without its browser
+        pytest.skip(f"Chromium not available: {exc}")
+    assert a == b and b"D:20261027150002" in a
 
 
 def test_render_pdf_without_playwright_raises_runtime_error(tmp_path: Path) -> None:

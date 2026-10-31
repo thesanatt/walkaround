@@ -931,8 +931,27 @@ def render_html(sheet: SheetModel, *, template_dir: Path = TEMPLATE_DIR, inline_
     return _ascii(env.get_template("sheet.html").render(**context))
 
 
-def render_pdf(html_path: Path, pdf_path: Path, *, timeout_s: int = 60) -> Path:
-    """Playwright Chromium prints the HTML; raises TimeoutError past timeout_s and RuntimeError without Playwright."""
+_PDF_DATES = re.compile(rb"(/(?:CreationDate|ModDate) \(D:)\d{14}")
+
+
+def pin_pdf_dates(pdf_path: Path, stamp: str) -> None:
+    """Chromium writes the print time into /CreationDate and /ModDate, the only bytes that differ between two prints of
+    one page (measured 10/31). Both become `stamp` (14 digits, same width), so the xref offsets hold and a reprint of
+    the same sheet is byte-identical to the one the run manifest hashed."""
+    data = Path(pdf_path).read_bytes()
+    Path(pdf_path).write_bytes(_PDF_DATES.sub(lambda m: m.group(1) + stamp.encode("ascii"), data))
+
+
+def pdf_stamp(sheet: SheetModel) -> str:
+    """YYYYMMDDHHMMSS (UTC) of the seal, the time the sheet is about; a run that was never sealed gets 2000-01-01."""
+    sealed = sheet.clocks.sealed_at or ""
+    digits = re.sub(r"\D", "", sealed)[:14]
+    return digits if len(digits) == 14 else "20000101000000"
+
+
+def render_pdf(html_path: Path, pdf_path: Path, *, timeout_s: int = 60, stamp: str | None = None) -> Path:
+    """Playwright Chromium prints the HTML; raises TimeoutError past timeout_s and RuntimeError without Playwright.
+    With stamp, the PDF's two dates are pinned to it (pin_pdf_dates)."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError as exc:
@@ -955,6 +974,8 @@ def render_pdf(html_path: Path, pdf_path: Path, *, timeout_s: int = 60) -> Path:
         raise TimeoutError(f"PDF render exceeded {timeout_s} s") from exc
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
+    if stamp is not None:
+        pin_pdf_dates(Path(pdf_path), stamp)
     return Path(pdf_path)
 
 
@@ -977,7 +998,7 @@ def write_sheet(run_id: str, *, th: dict[str, Any]) -> tuple[SheetModel, dict[st
     hashes["bundle/note.md"] = _write_text(paths.bundle_file(run_id, "note.md"), "\n".join(f"{i}. {line}" for i, line in enumerate(sheet.note_lines, 1)) + "\n")
     pdf_path = paths.sheet_pdf(run_id)
     try:
-        render_pdf(html_path, pdf_path, timeout_s=int(th.get("orchestrator", {}).get("pdf_timeout_s", 60)))
+        render_pdf(html_path, pdf_path, timeout_s=int(th.get("orchestrator", {}).get("pdf_timeout_s", 60)), stamp=pdf_stamp(sheet))
         hashes["sheet/evidence.pdf"] = seal.sha256_file(pdf_path)
     except (RuntimeError, TimeoutError, OSError):
         pdf_path.unlink(missing_ok=True)

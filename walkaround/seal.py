@@ -16,6 +16,7 @@ import json
 import re
 import shutil
 import subprocess
+import sys
 from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
@@ -162,7 +163,8 @@ def _last_line(proc: subprocess.CompletedProcess[str]) -> str:
 
 
 def _ots_binary() -> str:
-    found = shutil.which("ots")
+    # The venv's own bin first, so .venv/bin/walkaround finds the client without an activated shell.
+    found = shutil.which("ots", path=str(Path(sys.executable).parent)) or shutil.which("ots")
     if found is None:
         raise FileNotFoundError(f"the OpenTimestamps client is not installed; {OTS_INSTALL_LINE}")
     return found

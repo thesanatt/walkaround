@@ -280,7 +280,7 @@ def test_seal_run_without_clients_records_failures_and_never_fails(runs: Path) -
 
 
 def test_ots_client_missing_names_the_install_line(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(seal.shutil, "which", lambda name: None)
+    monkeypatch.setattr(seal.shutil, "which", lambda name, path=None: None)
     with pytest.raises(FileNotFoundError, match="opentimestamps-client"):
         REAL_OTS_BINARY()
     monkeypatch.setattr(seal, "_ots_binary", REAL_OTS_BINARY)

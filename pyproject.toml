@@ -23,6 +23,10 @@ walkaround = "walkaround.__main__:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+# The OpenTimestamps stamp on every seal and the evidence PDF. Without them the seal keeps its RFC 3161 token and
+# the run page offers a PDF retry. After installing pdf, run: playwright install chromium
+seal = ["opentimestamps-client==0.7.2"]
+pdf = ["playwright>=1.48"]
 
 [build-system]
 requires = ["hatchling"]
