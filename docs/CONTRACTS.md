@@ -263,7 +263,7 @@ decode on a synthetic clip under 0.02 units; the 20-degree synthetic residual bo
 
 | Function | Behaviour | In -> out |
 |---|---|---|
-| `calibrate(*, sigma_frame: float | None, sigma_spark: float | None, sigma_view: float | None, pseudo_pair_d: list[tuple[float, float]] | None, th: dict) -> contracts.Calibration` | 5.10: sigma_within, tau_pre0 = max(floor, 2.5 sqrt(2) sigma_within), tau_eye = 2 tau_pre, tau_fix = max(0.08, 3 sigma_frame); pseudo pair rows are (d, d) tuples of mutual-NN pairs under tau_eye: if fewer than 90% fall under tau_pre, tau_pre rises to the 90th percentile capped at 0.4 and `calibrated=False` above the cap | numbers -> Calibration |
+| `calibrate(*, sigma_frame: float | None, sigma_spark: float | None, sigma_view: float | None, pseudo_pair_d: list[tuple[float, float]] | None, th: dict) -> contracts.Calibration` | 5.10: sigma_within, tau_pre0 = max(floor, 2.5 sqrt(2) sigma_within), tau_eye = 2 tau_pre, tau_fix = max(0.08, 3 sigma_frame); pseudo pair rows are (d, r_mean) tuples of mutual-NN pairs under tau_eye, each d brought back to r = 0 by the band factor (a bare float is read as r = 0): if fewer than 90% fall under tau_pre, tau_pre rises to the 90th percentile capped at 0.4 and `calibrated=False` above the cap | numbers -> Calibration |
 | `tau_r(tau0: float, r: float, th: dict) -> float` | tau0 x (1 + band_radius_factor r^2) | |
 | `pair_keyframes(kfs_pickup: list[contracts.Keyframe], kfs_return: list[contracts.Keyframe]) -> tuple[contracts.Keyframe, contracts.Keyframe, float]` | smallest abs(ln(ar_pickup / ar_return)) among the 9 candidates | |
 | `handle_residual(kf_pickup: contracts.Keyframe, kf_return: contracts.Keyframe) -> Point2 | None` | whitened handle centroid difference; None when either handle is missing (self-test skipped and printed as skipped) | |
@@ -371,8 +371,8 @@ stage {name, pct}; run.partial {missing[]}; files.deleted {file_id, response}; r
 |---|---|
 | `class Orchestrator.__init__(self, *, th: dict, engine: contracts.SamEngine, max_concurrent_runs: int, media_workers: int, decode_workers: int, now: Callable[[], str] = utc_now)` | semaphores, the queue, the decode pool, the health flag |
 | `async create_run(self, *, mode: contracts.RunMode, kind: contracts.RunKind, keep_plate: bool, live_or_replay: contracts.LiveOrReplay = LIVE) -> contracts.RunManifest` | ULID run_id, `paths.ensure_run_layout`, thresholds frozen with config_hash, run.json written, run.created emitted |
-| `async finalize_upload(self, run_id: str, *, upload_id: str, role: str, sha256_browser: str, bytes: int, filename: str) -> contracts.VideoRecord` | reassemble chunks into quarantine, `hashlib.file_digest`, raise `HashMismatch(sha256_browser, sha256_server)` (the app turns it into a 409 with both values); upload.done emitted; the seal is scheduled at once |
-| `async run_pipeline(self, run_id: str) -> contracts.RunManifest` | the stage order of section 5: seal -> media (proxy, pts, WAV) -> Files upload (first_model_call_at) -> 16 lanes per video with the car filter -> blur (proxy_blurred, unblurred proxy deleted) -> panels, keyframes, coverage -> marks -> Stays Put -> voice and narration -> match and verdicts -> sheet -> deletions and manifest_run -> run.completed; status set at each stage; spend ceiling and the 12 min deadline enforced; a stage failure past retries emits run.partial with the missing list and still writes the sheet |
+| `async finalize_upload(self, run_id: str, *, upload_id: str, role: str, sha256_browser: str, bytes: int, filename: str) -> contracts.VideoRecord` | reassemble chunks into quarantine, `hashlib.file_digest`, raise `HashMismatch(sha256_browser, sha256_server)` (the app turns it into a 409 with both values); upload.done emitted; the caller starts the run (the app's finalize route after admit, the CLI through pipeline.run_pair) |
+| `async run_pipeline(self, run_id: str) -> contracts.RunManifest` | the stage order as built (orchestrator.STAGES): seal -> media (proxy, pts, WAV) -> Files upload (first_model_call_at) -> 16 lanes per video -> panels, keyframes, coverage (the car filter) -> blur (proxy_blurred from plate and face tracks rebuilt from their lanes, unblurred proxy deleted) -> marks -> Stays Put -> voice and narration -> match and verdicts -> release (remote and local deletions, deletions.json, a first manifest_run.json) -> sheet -> close (final manifest_run.json) -> run.completed; status set at each stage; spend ceiling and the 12 min deadline enforced; a stage failure past retries emits run.partial with the missing list and still writes the sheet |
 | `async run_topup(self, run_id: str, role: str) -> contracts.Coverage` | only `coverage.nouns_to_rerun` on the new clip; rerun_seconds measured and printed |
 | `async resume_all(self) -> list[str]` | on boot: runs without run.completed become interrupted and resume lanes without lane_done, re-uploading the proxy when the file_id expired |
 | `spend_cents(self, run_id: str) -> int` | from ledger rows of the run |
@@ -423,7 +423,7 @@ Tests: chunk assembly hashes equal on a 50 MB random file; 409 on mismatch; SSE 
   the reducer also handles, so live and replay feed identical sequences.
 - Drivers: live = `EventSource('/api/runs/{id}/events')` with Last-Event-ID; replay = `ReplayPayload` paced by
   `delays_ms` per stage (fixed), by capped `ts` deltas (recorded) or not at all (instant).
-- Worker protocol (web/src/workers/lane.ts): request `{type: "parse", url, role, noun}`; the worker fetches the gz
+- Worker protocol (web/src/workers/lane.worker.ts; as built it posts an SVG path per object, ImageBitmaps only on request, see the integration notes): request `{type: "parse", url, role, noun}`; the worker fetches the gz
   lane, parses with `@meta-sam/parser`, posts `{type: "snapshot", role, noun, revision, frame, objects: [{id, box,
   c, mask: ImageBitmap}]}` and `{type: "done", role, noun, frames}`. No lane parsing on the main thread.
 - Test: a recorded event log reaches the same final state live and replayed (vitest); fixed delays within 20 ms.
@@ -442,7 +442,7 @@ modules and are never imported by them.
 | `scripts/gate_sam.py` | E2, E3, E4, E9, E15 | `async sweep(file_id: str, nouns: list[contracts.Noun], *, run_id, role, frames_sent, media_size, out: Path) -> list[contracts.LaneRecord]` (16 at once, store false, one text lane with propagation_direction both); `c_semantics(records: list[contracts.LaneRecord], indexes) -> dict`; `fragment_report(tracks: list[contracts.PanelTrack]) -> dict`; `anchor_bridge(...)` (E4); `blur_coverage(...)` (E9); `lane_sizes(out: Path) -> dict` (E15) |
 | `scripts/gate_spark.py` | E6, E7, E11, E18 | keeps the existing CLI (`IMAGE_OR_VIDEO --panel --crop --t --effort --n --out`); adds `--truncate 600` (the on-purpose truncation call), `--count` (E7), `--second-look A B` and `--claim` (E11), `--note-prefill PDF` (E18); `stability(runs, crop_shape) -> dict` stays |
 | `scripts/gate_voice.py` | E10 | keeps the existing CLI; adds `--pins panels.json` to print turn spans against panel windows and the mode_applied flag |
-| `scripts/gate_staysput.py` | E5 | `async run_clip(src: Path, *, pts_center, window_src: Box4, mark_box_src: Box4, out: Path) -> contracts.MarkTrack`; `--panned` and `--backtrack` flags label the clip |
+| `scripts/gate_stays_put.py` | E5 | `async run_clip(src: Path, *, pts_center, window_src: Box4, mark_box_src: Box4, out: Path) -> contracts.MarkTrack`; `--panned` and `--backtrack` flags label the clip |
 | `scripts/gate_handle.py` | E8 | `sigma_frame(...) -> float` from one "door handle" video request over 10 consecutive frames; `cross_take_residual(kf_a, kf_b) -> Point2` |
 | `scripts/gate_seal.py` | E12 | ots and freetsa smoke on a text file; `store_false_probe() -> dict` (sam-3.1 and muse-spark-1.3 echo); `delete_probe(file_id) -> dict` |
 | `scripts/gate_wallclock.py` | E13 | one pickup-only check and one pair through the orchestrator with timings and dollars from the ledger |
@@ -500,3 +500,97 @@ modules and are never imported by them.
    changes with them.
 10. The zero-match fixture does not exist yet (the 10/26 probe had no zero-match lane); the sam lane makes one by
     hand and E2 replaces it with a real "face" lane.
+
+## Integration notes (2026-10-31)
+
+The integrator reconciled the lane reports against this file. Where a lane deviated and the deviation was sound, the
+deviation stands and is listed here; the tables above keep their original wording except for the five lines fixed in
+place (calibrate's pseudo-pair rows, finalize_upload, run_pipeline's stage order, the worker file, gate_stays_put.py).
+
+New since the lanes:
+
+- `walkaround/pipeline.py`: `run_pair(pickup, return_, run_id=None, nouns=None, **kw) -> RunManifest` and
+  `async run_pair_async(..., container=None, keep_plate=False, orch=None, on_event=None)` run the floor on local
+  files through the browser's upload path and every orchestrator stage; an unfinished run of the same id resumes (the
+  walks must hash to the stored originals). `rebuild(run_id, *, out=None, thresholds=None, orch=None) -> (dict, out)`
+  (a closed run goes to runs/_rebuild/<run_id>) and `verify(run_id, *, out=None, orch=None) -> list[str]`.
+  `stand_in_prompts(nouns, *, container=None) -> (noun_list, prompts)` maps up to four stand-in prompts onto the
+  single-slot panels hood, trunk lid, windshield, rear window. The CLI (`walkaround`, now a console script) calls these:
+  `walkaround run P [R] [--run-id ID] [--nouns N...] [--container N]`, `walkaround rebuild ID`, `walkaround verify ID`.
+- `contracts.RunManifest.prompts: dict[str, str]` (test clips only: the text a lane is sent with instead of its noun;
+  `{"car": ""}` means no car request, the whole frame is the car box) and `contracts.SheetModel.stand_in_line: str`
+  (page 1 says a run used stand-in prompts). web/src/contracts/types.ts carries `prompts?`.
+- `Orchestrator.create_run(..., run_id=None, noun_list=None, prompts=None)`: a chosen run id (letters, digits, _ and -,
+  not taken), a narrowed lane list (car, license plate and face always stay), stand-in prompts. `prompt_text(run,
+  noun)`, `whole_frame_container(run)`.
+- Identical requests are asked once per run. A walk whose original has the same sha256 as an earlier walk of the run
+  (`reuse_source`) gets that walk's finished lanes copied (diagnostic `reused_identical_request`, no request, no ledger
+  row, dollars 0); `shared_checks(run_id)` asks the plate and face image checks once per distinct unblurred frame
+  (passed to `privacy.blur_keyframe` as the new optional `checks=`); `marks.derive_marks` reads a valid marks_v1 answer
+  back for the same (crop sha256, panel). Measured 10/31 with scripts/probe_sam_determinism.py (run id
+  probe_det_1031 in the ledger, $0.04): SAM 3.1 answers two identical video requests with 18 of 178 boxes one pixel
+  apart and two identical image requests with one face mask 2 px apart, so without this a self-pair could never match
+  itself at distance 0.
+- `marks.rebuild_marks(run_id, role, *, th) -> list[Mark]`: marks.json rows, sigma_view and calibration.json
+  recomputed from spark.json and keyframes.json with no call (box mode). Orchestrator.rebuild now regenerates
+  coverage.json, marks.json, calibration.json, matches.json, verdicts.json and sheet.json; mark_tracks, narration and
+  claim stay "not rebuilt" until their lanes exist.
+- `spark_client.sent_size(w, h, max_edge)` and `spark_client.marks_result_from_record(record, *, orig_width,
+  orig_height, landmarks, max_edge)`.
+- `privacy.privacy_line(run, plate_found, deletions=None)`: a Files API delete that failed prints "Walkaround's delete
+  request failed, so that expiry applies" instead of claiming the delete (section 14 item 25).
+- `ledger.rows(path=None)` and `ledger.summary(path=None)` read `LEDGER_PATH` at call time.
+- The orchestrator records `WavRecord.duration_s` from the WAV itself, not the container.
+
+Accepted lane deviations (all additive unless noted):
+
+- video: `frame_times`, `clip_span`, `iter_frames_at`, `iso_z`, `VideoError`, `NoAudioError`, `ClipOutOfRange`,
+  `VIDEO_STREAM`, `sharpness(..., mask=None)`, `render_blurred_proxy(..., preset, crf)`, VideoInfo fields vfr, hdr,
+  device, start_time, color_space, color_transfer, color_primaries. pts_map values are the proxy's own pts on the
+  source timeline (up to one source frame from the shown frame's own pts); pts_to_proxy_frame is nearest-frame.
+  render_blurred_proxy accepts boxes past the last frame.
+- sam_client: `LaneRecord.lane_id` is the noun slug and `lane_path` is relative to the run directory (resolve with
+  paths.run_dir); a lane that never got an answer writes no ledger row; `segment_image` raises SamRequestError when a
+  check does not complete (callers catch it); `upload_s` is never set; `store` is the effective store value sent.
+- spark_client: `ask(..., retry, schema, check_schema)`, `ask_with_retry(..., stream, schema, check_schema)`,
+  `find_marks/count_marks(..., max_edge)`, result dataclasses carry `attempts`, ClaimNameResult carries noun and bbox,
+  `second_look(..., input_refs=None)`. SparkRequestRecord has no store echo field (gate_spark records it itself).
+- voice_client: VoiceTurn.speaker is stored as a string.
+- panels: `vote_sides(..., direction_by_role=, frozen_roles=, expected_by_role=)`, `walk_direction(..., backup=)`,
+  `fragmented_panels(tracks, th)`, `privacy_tracks(role, noun, frames, pts, car_boxes, media_size, *, fps, th)` (the
+  orchestrator's blur rebuilds plate and face tracks with it); needs_anchor_pass is per noun before the vote and per
+  panel after it; derive types `decode` as any object with `.decode(lane_path, refs)`.
+- marks, geometry, match: additive helpers `geometry.moments_from_points, whitening_matrix, unwhiten, whitened_mask,
+  inscribed_radius`, `marks.whiten_marks, whitened_from_marks, collinear_merge, crop_from_proxy_box`,
+  `match.measured_sigmas(th)` (reads optional thresholds leaves matching.sigma_frame and matching.sigma_spark,
+  absent until D1); `wheel_match(..., calibration=None)`; G4 and G8 fire only when both keyframes exist; derived/
+  sigma_view.json is a per-role helper file (not in DERIVED_FILES). geometry.perspective_residual_* hold only after
+  the handle residual is subtracted (the bare moment frame gives about 0.24 at 20 degrees).
+- privacy, seal, sheet: `blur_frame(..., plate_track_boxes_src=, plate_detections=)`, `track_boxes_at(..., nouns=)`,
+  `delete_remote(..., retries=None)`, `seal_run(..., stamp=True)`, `write_manifest_run(..., stamps=None)`,
+  `verify_run(..., rebuild_dir=None, originals=None)`, `seal.verify`, `privacy.read_original_frame`; blur_keyframe
+  always pixelates the plate (keep_plate stays in the signature); manifest.json holds only {path, sha256, bytes} per
+  original (capture times live in videos/<role>.json, stamps in the seal.ots and seal.tsr events and in
+  manifest_run.json); manifest_run.json excludes run.json and the event log and pins the log with events_head_hash;
+  the method page's rebuild_status cannot say "rebuild identical" at sheet time; stamps ride in
+  sheet.method.thresholds["stamps"] until SheetModel has a field.
+- orchestrator and app: there is no walkaround/eventlog.py; `orchestrator.FileEventLog` implements the M3 contract.
+  Pre-seal events wait in events.pending.ndjson and are chained at the seal (seal.manifest is not seq 1); a run that
+  fails before the seal shows its waiting events unchained (`visible_events`). New public methods admit,
+  discard_uploads, check_can_topup, card_ceiling_reached, visible_events, is_closed, reuse_source, shared_checks;
+  exceptions VideoUnreadable, RebuildRefused, UploadRefused; `caps_remaining(..., exclude=)`;
+  `finalize_upload(sha256_browser: str | None)`. rebuild without --out is refused for a closed run (the CLI rebuilds
+  into runs/_rebuild/). voice.json holds a list of VoiceRecord. App extras: GET /api/runs (public runs only), GET
+  /api/sample, /api/status queue_eta_minutes, 204 from /events for an ended run with nothing new, error bodies 429
+  {reason, pickup_left, pairs_left} on finalize and start, 403 on public runs for top-up and claims.
+- web: sam.* events name lanes by slug (car_door); RunState also carries media, seal (with files_uploaded), tracks,
+  topup, spark, voice, partialText, completed, lastSeq, lastTs and the synthetic kinds run.loaded, video.loaded,
+  deletions.loaded, run.ended.loaded; WalkPlayer uses @meta-sam/react's useMediaPlayer with worker-traced paths;
+  MatchPane shows the keyframe crops with the SAM mask tinted under them.
+- D1: E8 lives in gate_sam.py (--handle, --take2), E17 in gate_sam.py (--timeline), E0 and the E12 seal smoke and E13
+  in run_d1.py; E16 and E19 are recorded as not run. Ledger notes carry the lane slug, the Spark purpose or the Voice
+  mode, and the E row rides in every run_id (<prefix>_E6_...). Take 2 runs under role pickup with its own run id.
+  run_d1.py takes any readable pickup, return, take 2 and narration path and names a missing or unreadable one.
+
+Still open: narration (M10), claim (M11), Stays Put (M8) and the second look are not wired; their stages record gaps
+and the sheet prints them.
