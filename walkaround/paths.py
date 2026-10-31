@@ -293,6 +293,26 @@ def claim_json(run_id: str) -> Path:
     return _file(derived_dir(run_id) / "claim.json")
 
 
+def claim_record_path(run_id: str, claim_id: str) -> Path:
+    """claim/<claim_id>.json, one contracts.Claim per claim; derived/claim.json mirrors the latest."""
+    return _file(claim_dir(run_id) / f"{claim_id}.json")
+
+
+def claim_blurred_path(run_id: str, claim_id: str) -> Path:
+    """The claim photo with plates and faces pixelated; the only copy of the photo the app serves."""
+    return _file(claim_dir(run_id) / f"{claim_id}.blurred.jpg")
+
+
+def looks_json(run_id: str) -> Path:
+    """derived/looks.json: one row per second look, sorted by (pickup_mark, return_mark)."""
+    return _file(derived_dir(run_id) / "looks.json")
+
+
+def open_weights_log(run_id: str) -> Path:
+    """open_weights.ndjson at the run root: one line per Muse Spark Open call on Baseten, append-only provenance."""
+    return _file(run_dir(run_id) / "open_weights.ndjson")
+
+
 def calibration_json(run_id: str) -> Path:
     return _file(derived_dir(run_id) / "calibration.json")
 

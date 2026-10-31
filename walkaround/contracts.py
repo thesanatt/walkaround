@@ -658,6 +658,7 @@ class RunManifest(Contract):
     live_or_replay: LiveOrReplay = LiveOrReplay.LIVE
     keep: bool = False  # sample and eval runs survive the sweeper
     keep_plate: bool = False  # the renter's explicit choice at upload (section 8)
+    footage_credit: str | None = None  # a sample run's footage credit, shown under the walk player
     app_commit: str | None = None
     config_hash: str | None = None
     thresholds: dict[str, Any] = Field(default_factory=dict)  # the whole plain dict, frozen at creation
@@ -1442,8 +1443,9 @@ class NotePrefill(Contract):
 
 
 class Claim(Contract):
-    """derived/claim.json."""
+    """derived/claim.json (the latest claim); every claim also at claim/<claim_id>.json."""
 
+    claim_id: str | None = None  # "claim_<n>": the upload claim/<claim_id>.jpg (never served), its blurred copy claim/<claim_id>.blurred.jpg
     image: ClaimImage
     text: str = ""
     scanner_style: bool = False

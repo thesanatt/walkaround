@@ -154,6 +154,7 @@
     "min_bbox_px_at_4k": {"value": 12, "source": "14 item 17", "unit": "px"},
     "clip_blur_dilation_frac": {"value": 0.3, "source": "5.9 item 2 (plate and face tracks dilated 30%)"},
     "reflection_control_from_hood_glare": {"value": true, "source": "5.9 item 4"},
+    "cap_enabled": {"value": false, "source": "lead decision 10/31 after D1 on uCO3D pair C: real paint drifted 0.21 whitened units and was labelled sliding, and no reflection control exists on white paint; Stays Put records and shows but caps no verdict until recalibrated on dark paint (docs/D1_MEMO.md note 2)"},
     "panned_inconclusive_share_caption_threshold": {"value": 0.5, "source": "5.9 item 8"},
     "d1_pass_box_share": {"value": 0.8, "source": "11 E5"},
     "d1_pass_drift_max": {"value": 0.08, "source": "11 E5"},

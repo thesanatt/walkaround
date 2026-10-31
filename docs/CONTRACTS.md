@@ -594,3 +594,27 @@ Accepted lane deviations (all additive unless noted):
 
 Still open: narration (M10), claim (M11), Stays Put (M8) and the second look are not wired; their stages record gaps
 and the sheet prints them.
+
+## Phase 2 file shapes (lead, 2026-10-31, binding for the second_look, claim, narration and web lanes)
+
+Reviewers: check the lanes against this section. Integrator: reconcile any lane that differs to this section.
+
+- `derived/looks.json` (`paths.looks_json`): a JSON array, canonical like every derived file, sorted by
+  (pickup_mark, return_mark), one row per second look: `{"pickup_mark": str, "return_mark": str, "panel_id": PanelId,
+  "verdict": "same"|"different"|"unsure", "reason": str (one plain sentence, at most 200 chars), "engine":
+  "baseten"|"meta-model-api", "model": str (the response's own model field), "request_id": str|null, "latency_ms":
+  int|null, "fallback_from": "baseten"|null (Baseten failed and hosted Muse Spark 1.3 answered), "valid": bool (false
+  when the answer failed the schema; verdict is then "unsure")}`. Only "different" and "unsure" lower a verdict (K7).
+  Rebuild replays it with no network call.
+- `open_weights.ndjson` at the run root (`paths.open_weights_log`), not in derived/: append-only provenance, never
+  rebuilt, one line per Muse Spark Open call on Baseten, failed calls included: `{"ts": ISO 8601 UTC, "run_id": str,
+  "engine": "baseten", "model": str (as returned; the requested id when the call failed), "request_id": str|null,
+  "latency_ms": int, "pickup_mark": str, "return_mark": str, "panel_id": str, "verdict": "same"|"different"|"unsure"|null,
+  "reason": str, "valid": bool, "error": str|null (redacted)}`. No image bytes, no keys.
+- Claims: `derived/claim.json` (`paths.claim_json`) is the latest `contracts.Claim`; every claim is also
+  `claim/<claim_id>.json` (`paths.claim_record_path`) with `claim_id = "claim_<n>"` from 1, now a field on
+  `contracts.Claim`. The upload `claim/<claim_id>.jpg` is never served; the app serves only the pixelated copy
+  `claim/<claim_id>.blurred.jpg` (`paths.claim_blurred_path`). POST /api/claims returns the Claim it wrote.
+- `RunManifest.footage_credit: str | None` (new, optional): a sample run's credit line, shown under the walk player.
+- Privacy allowlist (integrator): looks.json, open_weights.ndjson, claim/<claim_id>.json, claim/<claim_id>.blurred.jpg,
+  the narration chips and the blurred Stays Put clips; never claim/<claim_id>.jpg.
