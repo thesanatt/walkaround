@@ -1,7 +1,8 @@
 """Panels (M5): SAM lanes to tracks, canonical panel names, keyframes, coverage and the top-up plan.
 
 Covers docs/ARCHITECTURE.md 5.1 to 5.4. Every per-frame rule runs on boxes and c. Masks are decoded only for keyframe
-candidates, through the DecodePool the caller hands to derive(). Nothing here reads a mark, calls Spark or opens the
+candidates, in process through fastmask (the DecodePool the caller hands to derive() takes only what fastmask refuses),
+and a candidate's car mask only when its panel is about to keep it. Nothing here reads a mark, calls Spark or opens the
 network. Every function except derive() is a pure function of its arguments and the threshold dict th
 (contracts.load_thresholds()); derive() is the one function that touches the run directory.
 
@@ -27,6 +28,7 @@ import asyncio
 import logging
 import math
 import statistics
+import threading
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Collection, Sequence
@@ -34,7 +36,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Collection, Sequence
 import numpy as np
 
 from . import contracts as c
-from . import paths, sam_wire
+from . import fastmask, paths, sam_wire
 from .config import redact
 from .contracts import (
     LANE_NOUNS,
@@ -803,13 +805,18 @@ def _own_drift_sign(track: c.PanelTrack, floor: float) -> int:
 class _RoleContext:
     """The anchors, mirrors and wheels of one role, with the shared-frame geometry the side rules read."""
 
-    def __init__(self, tracks: list[c.PanelTrack], direction: int | None, floor: float) -> None:
+    def __init__(self, tracks: list[c.PanelTrack], direction: int | None, floor: float, ends: dict[str, int] | None = None) -> None:
         self.tracks = tracks
         self.direction = direction
         self.floor = floor
         self.by_noun: dict[Noun, list[c.PanelTrack]] = {}
         for t in tracks:
-            self.by_noun.setdefault(t.noun, []).append(t)
+            noun = t.noun
+            if ends is not None and t.track_id in ends:  # a lid the twin check placed anchors its end; a split one none
+                if not ends[t.track_id]:
+                    continue
+                noun = Noun.HOOD if ends[t.track_id] > 0 else Noun.TRUNK_LID
+            self.by_noun.setdefault(noun, []).append(t)
         self.cent: dict[str, dict[int, tuple[float, float]]] = {
             t.track_id: {r.frame: _centroid(r.box) for r in t.per_frame} for t in tracks
         }
@@ -968,6 +975,8 @@ def candidate_slots(track: c.PanelTrack) -> list[PanelId]:
         return [_lateral_panel_id(track.noun, s, q) for s in sides for q in positions]
     if track.noun is Noun.BUMPER and track.position is Position.NONE:
         return [PanelId.FRONT_BUMPER, PanelId.REAR_BUMPER]
+    if track.twin_check is not None and not track.twin_check.decided:
+        return [PanelId.HOOD, PanelId.TRUNK_LID]
     return [track.panel_id]
 
 
@@ -1242,10 +1251,17 @@ def vote_sides(
         role_direction = direction if direction_by_role is None else direction_by_role.get(role, direction)
         stored = {t.track_id: (t.panel_id, t.side, t.position) for t in role_tracks}
         expected = (expected_by_role or {}).get(role, ())
-        _vote_role(_RoleContext(role_tracks, role_direction, floor), role_tracks, weights, margin_min, expected, votes_by_track)
+        twin = twin_check(role_tracks, th)
+        # only the lids move the side vote's anchors: lights and glass placed by them changed wheels and fenders both
+        # ways on pair C (panels lane notes in docs/CONTRACTS.md)
+        lid_ids = {t.track_id for t in role_tracks if t.noun in LID_NOUNS}
+        ends = {tid: LID_END[PANEL_NOUN[slot]] if slot is not None else 0 for tid, (slot, _record) in twin.items() if tid in lid_ids}
+        _vote_role(_RoleContext(role_tracks, role_direction, floor, ends), role_tracks, weights, margin_min, expected, votes_by_track)
         if role in frozen_roles:
             for t in role_tracks:
                 t.panel_id, t.side, t.position = stored[t.track_id]
+        else:
+            apply_twin_check(role_tracks, th, result=twin)
     panels = _panels_from(
         out_tracks,
         votes_by_track,
@@ -1262,6 +1278,244 @@ def _role_order(role: str) -> tuple[int, int, str]:
         return (0 if role == "pickup" else 1, 0, role)
     prefix, _, number = role.partition("_")
     return ({"topup": 2, "claim": 3}.get(prefix, 4), int(number) if number.isdigit() else 0, role)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# 5.2 the twin check: which lid is the hood
+# ----------------------------------------------------------------------------------------------------------------
+#
+# The hood and the trunk lid can look alike (pair C's white Ambassador): SAM 3.1's "hood" lane then holds the trunk
+# lid whenever the camera is at the rear, and its "trunk lid" lane the hood at the front, and the match compared a
+# trunk with a hood. So the lane noun is only the prior. The tracks of both lanes that show one lid (boxes overlapping
+# on shared frames) are judged together from what the walk already tracked, each cue voting +1 for the front, -1 for
+# the rear or 0:
+#   plate   a license plate box lying on the lid box marks the rear (rear plates sit on the trunk lid or right under
+#           it; a front plate sits on the bumper, below the grille);
+#   mirror  side mirrors sit beside the hood's rear corners: near the lid marks the front, far from it the rear;
+#   lights  headlights or tail lights next to the lid, when one lane sees them clearly more often than the other;
+#   glass   the windshield or the rear window next to the lid, the same way.
+# Plate and mirror weigh 2 and lights and glass 1 (thresholds panels.twin_check); a sum reaching the margin decides.
+# Under it the lane noun stands when all the lid's tracks come from one lane and no cue points the other way;
+# otherwise the evidence is split, the tracks keep their lane's slot as a placeholder and the panel is side_uncertain.
+
+LID_NOUNS: tuple[Noun, ...] = (Noun.HOOD, Noun.TRUNK_LID)
+LID_END: dict[Noun, int] = {Noun.HOOD: 1, Noun.TRUNK_LID: -1}
+END_LID: dict[int, PanelId] = {1: PanelId.HOOD, -1: PanelId.TRUNK_LID}
+# Lights and glass have twins too (pair C: the headlight lane on the tail lights, the windshield lane on the rear
+# window). Once a lid is placed, a light or glass track takes the end of the placed lid it sits next to.
+NEIGHBOUR_SLOTS: dict[Noun, dict[int, PanelId]] = {
+    Noun.HEADLIGHT: {1: PanelId.HEADLIGHTS, -1: PanelId.TAIL_LIGHTS},
+    Noun.TAIL_LIGHT: {1: PanelId.HEADLIGHTS, -1: PanelId.TAIL_LIGHTS},
+    Noun.WINDSHIELD: {1: PanelId.WINDSHIELD, -1: PanelId.REAR_WINDOW},
+    Noun.REAR_WINDOW: {1: PanelId.WINDSHIELD, -1: PanelId.REAR_WINDOW},
+}
+TWIN_NOUNS: tuple[Noun, ...] = (*LID_NOUNS, *NEIGHBOUR_SLOTS)
+TWIN_CUES: dict[str, tuple[Noun, Noun]] = {"lights": (Noun.HEADLIGHT, Noun.TAIL_LIGHT), "glass": (Noun.WINDSHIELD, Noun.REAR_WINDOW)}
+TWIN_OBSERVED: tuple[Noun, ...] = (Noun.LICENSE_PLATE, Noun.SIDE_MIRROR, Noun.HEADLIGHT, Noun.TAIL_LIGHT, Noun.WINDSHIELD, Noun.REAR_WINDOW)
+
+
+def twin_settings(th: dict[str, Any]) -> dict[str, Any] | None:
+    """thresholds panels.twin_check, or None when the run's thresholds predate it (the check is then off)."""
+    cfg = th.get("panels", {}).get("twin_check")
+    return cfg if isinstance(cfg, dict) else None
+
+
+def _box_gap(a: Box, b: Box) -> float:
+    """Distance between two boxes, 0 when they touch or overlap."""
+    dx = max(float(b[0]) - float(a[2]), float(a[0]) - float(b[2]), 0.0)
+    dy = max(float(b[1]) - float(a[3]), float(a[1]) - float(b[3]), 0.0)
+    return math.hypot(dx, dy)
+
+
+def _point_gap(point: tuple[float, float], box: Box) -> float:
+    """Distance from a point to a box, 0 inside it."""
+    dx = max(float(box[0]) - point[0], point[0] - float(box[2]), 0.0)
+    dy = max(float(box[1]) - point[1], point[1] - float(box[3]), 0.0)
+    return math.hypot(dx, dy)
+
+
+def _lid_size(box: Box) -> float:
+    return max(_width(box), _height(box), 1.0)
+
+
+def twin_cues(
+    lid: dict[int, Box],
+    seen: dict[Noun, dict[int, list[Box]]],
+    cfg: dict[str, Any],
+    *,
+    min_frames: int,
+) -> tuple[dict[str, int], dict[str, float]]:
+    """The four votes (+1 front, -1 rear, 0 silent) on one lid, given its box per frame and the boxes of the plate,
+    mirror, light and glass lanes per frame, plus the numbers behind them. A cue votes only on at least min_frames
+    frames of evidence (1 for a single photo)."""
+    frames = sorted(lid)
+    votes: dict[str, int] = {}
+    numbers: dict[str, float] = {"lid_frames": float(len(frames))}
+    plates = seen.get(Noun.LICENSE_PLATE, {})
+    with_plate = [f for f in frames if plates.get(f)]
+    on_lid = sum(1 for f in with_plate if any(containment(p, lid[f]) >= float(cfg["plate_inside_min"]) for p in plates[f]))
+    share = on_lid / len(with_plate) if with_plate else 0.0
+    numbers.update(plate_frames=float(len(with_plate)), plate_on_lid_share=share)
+    votes["plate"] = -1 if len(with_plate) >= min_frames and share >= float(cfg["plate_share_min"]) else 0
+    mirrors = seen.get(Noun.SIDE_MIRROR, {})
+    gaps = [min(_point_gap(_centroid(m), lid[f]) for m in mirrors[f]) / _lid_size(lid[f]) for f in frames if mirrors.get(f)]
+    numbers["mirror_frames"] = float(len(gaps))
+    votes["mirror"] = 0
+    if gaps and len(gaps) >= min_frames:
+        gap = statistics.median(gaps)
+        numbers["mirror_gap_lid_sizes"] = gap
+        votes["mirror"] = 1 if gap <= float(cfg["mirror_near_lid_sizes"]) else -1 if gap >= float(cfg["mirror_far_lid_sizes"]) else 0
+    near = float(cfg["adjacent_lid_sizes"])
+    margin = float(cfg["presence_margin"])
+    for cue, (front, rear) in TWIN_CUES.items():
+        shares = []
+        for noun in (front, rear):
+            boxes = seen.get(noun, {})
+            hits = sum(1 for f in frames if any(_box_gap(b, lid[f]) <= near * _lid_size(lid[f]) for b in boxes.get(f, [])))
+            shares.append(hits / len(frames) if frames else 0.0)
+        diff = shares[0] - shares[1]
+        numbers.update({f"{cue}_front_share": shares[0], f"{cue}_rear_share": shares[1]})
+        votes[cue] = 0 if len(frames) < min_frames else 1 if diff >= margin else -1 if diff <= -margin else 0
+    return votes, numbers
+
+
+def twin_decision(votes: dict[str, int], nouns: Collection[Noun], cfg: dict[str, Any]) -> tuple[int | None, float]:
+    """(+1 hood, -1 trunk lid or None when split, the weighted score) for one lid shown by tracks of nouns."""
+    weights = cfg["weights"]
+    score = float(sum(float(weights.get(cue, 0)) * vote for cue, vote in votes.items()))
+    margin = float(cfg["margin_min"])
+    if score >= margin:
+        return 1, score
+    if score <= -margin:
+        return -1, score
+    ends = {LID_END[n] for n in nouns if n in LID_END}
+    if len(ends) == 1:
+        end = ends.pop()
+        if score == 0 or (score > 0) == (end > 0):
+            return end, score
+    return None, score
+
+
+def lid_groups(lids: list[c.PanelTrack], iou_min: float) -> list[list[c.PanelTrack]]:
+    """Hood and trunk-lid tracks grouped by the lid they show: two tracks whose boxes overlap (median box IoU >= iou_min
+    on their shared frames) show the same one. Tracks of one lane that never share a frame stay apart: SAM's lanes
+    keep an id from one lid to the other across a gap."""
+    ordered = sorted(lids, key=lambda t: t.track_id)
+    parent = list(range(len(ordered)))
+
+    def root(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    boxes = [{r.frame: r.box for r in t.per_frame} for t in ordered]
+    for i in range(len(ordered)):
+        for j in range(i + 1, len(ordered)):
+            shared = sorted(set(boxes[i]) & set(boxes[j]))
+            if shared and statistics.median(box_iou(boxes[i][f], boxes[j][f]) for f in shared) >= iou_min:
+                parent[root(j)] = root(i)
+    groups: dict[int, list[c.PanelTrack]] = {}
+    for i, t in enumerate(ordered):
+        groups.setdefault(root(i), []).append(t)
+    return [groups[k] for k in sorted(groups)]
+
+
+def _seen_boxes(tracks: list[c.PanelTrack]) -> dict[Noun, dict[int, list[Box]]]:
+    seen: dict[Noun, dict[int, list[Box]]] = {}
+    for t in tracks:
+        if t.noun in TWIN_OBSERVED:
+            for r in t.per_frame:
+                seen.setdefault(t.noun, {}).setdefault(r.frame, []).append(r.box)
+    return seen
+
+
+def twin_check(role_tracks: list[c.PanelTrack], th: dict[str, Any]) -> dict[str, tuple[PanelId | None, c.TwinCheck]]:
+    """{track id: (the slot or None when split, its TwinCheck)} for every hood and trunk-lid track of one walk, and for
+    the light and glass tracks the placed lids decide; empty when thresholds panels.twin_check is absent."""
+    cfg = twin_settings(th)
+    lids = [t for t in role_tracks if t.noun in LID_NOUNS and t.per_frame]
+    if cfg is None or not lids:
+        return {}
+    seen = _seen_boxes(role_tracks)
+    out: dict[str, tuple[PanelId | None, c.TwinCheck]] = {}
+    for group in lid_groups(lids, float(th["panels"]["anchor_absorb_iou_min"])):
+        lid: dict[int, Box] = {}
+        for t in group:
+            for r in t.per_frame:
+                lid.setdefault(r.frame, r.box)
+        votes, numbers = twin_cues(lid, seen, cfg, min_frames=int(cfg["min_frames"]))
+        end, score = twin_decision(votes, [t.noun for t in group], cfg)
+        record = c.TwinCheck(lid=[t.track_id for t in group], votes=votes, numbers=numbers, score=score, decided=end is not None)
+        for t in group:
+            out[t.track_id] = (END_LID[end] if end is not None else None, record)
+    out.update(_ends_next_to_lids(role_tracks, out, cfg))
+    return out
+
+
+def _ends_next_to_lids(
+    role_tracks: list[c.PanelTrack], lids: dict[str, tuple[PanelId | None, c.TwinCheck]], cfg: dict[str, Any]
+) -> dict[str, tuple[PanelId | None, c.TwinCheck]]:
+    """Each light and glass track next to a placed lid (box gap <= adjacent_lid_sizes lid sizes) on at least min_frames
+    frames and on neighbour_share_min of its own frames takes the end of that lid when one end has neighbour_majority
+    times the other's frames: headlights and the windshield sit at the hood, tail lights and the rear window at the
+    trunk lid. A part is attached to its lid, so it is beside it whenever both show; a track beside a lid only now and
+    then is not that lid's part (pair C's "tail light" lane also tracked an orange mud flap by the front wheel, beside
+    the hood on 57 of its 152 frames). Without such evidence the lane noun stands and no record is kept; a light or
+    glass track is never left side uncertain."""
+    near = float(cfg["adjacent_lid_sizes"])
+    majority = float(cfg.get("neighbour_majority", 2.0))
+    share_min = float(cfg.get("neighbour_share_min", 0.5))
+    by_frame: dict[int, list[tuple[Box, int, list[str]]]] = {}
+    for t in role_tracks:
+        found = lids.get(t.track_id)
+        if t.noun in LID_NOUNS and found is not None and found[0] is not None:
+            end = LID_END[PANEL_NOUN[found[0]]]
+            for r in t.per_frame:
+                by_frame.setdefault(r.frame, []).append((r.box, end, found[1].lid))
+    out: dict[str, tuple[PanelId | None, c.TwinCheck]] = {}
+    for t in role_tracks:
+        slots = NEIGHBOUR_SLOTS.get(t.noun)
+        if slots is None:
+            continue
+        frames = {1: 0, -1: 0}
+        beside: list[str] = []
+        for r in t.per_frame:
+            for box, end, lid_ids in by_frame.get(r.frame, ()):
+                if _box_gap(r.box, box) <= near * _lid_size(box):
+                    frames[end] += 1
+                    beside.extend(i for i in lid_ids if i not in beside)
+                    break
+        if frames[1] + frames[-1] < max(int(cfg["min_frames"]), share_min * len(t.per_frame)):
+            continue
+        end = 1 if frames[1] >= majority * frames[-1] else -1 if frames[-1] >= majority * frames[1] else 0
+        if not end:
+            continue
+        numbers = {"front_lid_frames": float(frames[1]), "rear_lid_frames": float(frames[-1]), "frames": float(len(t.per_frame))}
+        record = c.TwinCheck(lid=sorted(beside), votes={"next_to_lid": end}, numbers=numbers, score=float(frames[1] - frames[-1]), decided=True)
+        out[t.track_id] = (slots[end], record)
+    return out
+
+
+def apply_twin_check(
+    role_tracks: list[c.PanelTrack], th: dict[str, Any], *, result: dict[str, tuple[PanelId | None, c.TwinCheck]] | None = None
+) -> None:
+    """File every hood and trunk-lid track of one voted walk under the lid the twin check found, and every light and
+    glass track it placed under its end, in place; a split lid keeps its lane's slot as a placeholder and carries
+    twin_check.decided false (candidate_slots then lists both). result is twin_check(role_tracks, th) when the caller
+    already has it."""
+    result = twin_check(role_tracks, th) if result is None else result
+    for t in role_tracks:
+        if t.noun not in TWIN_NOUNS:
+            continue
+        found = result.get(t.track_id)
+        t.twin_check = found[1] if found is not None else None  # a re-vote without the check drops an old record
+        if found is None:
+            continue
+        slot, record = found
+        t.panel_id = slot if slot is not None else SINGLE_SLOT[t.noun]
+        if slot is not None and slot is not SINGLE_SLOT[t.noun]:
+            log.info("%s: %s (%s lane) filed as %s by the twin check, score %+.0f", t.role, t.track_id, t.noun.value, slot.value, record.score)
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -1545,8 +1799,9 @@ def _uncertain_coverage(maybe: list[c.PanelTrack], kfs: list[c.Keyframe], *, fps
     for t in maybe:
         slots.extend(s for s in candidate_slots(t) if s not in slots)
     filed = sorted({t.panel_id for t in maybe if t.panel_id is not None}, key=lambda pid: pid.value)
+    lead = "front or rear uncertain" if all(t.noun in LID_NOUNS for t in maybe) else "side uncertain"
     reason = (
-        f"side uncertain: {', '.join(t.track_id for t in maybe)} could be {' or '.join(display_name(s) for s in slots)}; "
+        f"{lead}: {', '.join(t.track_id for t in maybe)} could be {' or '.join(display_name(s) for s in slots)}; "
         f"{seconds:.1f} s visible, frames filed under {', '.join(display_name(pid) for pid in filed)}"
     )
     return c.PanelCoverage(state=CoverageState.GLIMPSED, seconds=seconds, best_kf=best_kf.kf_id if best_kf else None, reason=reason)
@@ -1949,19 +2204,18 @@ def _keyframe_plan(
 def _wanted_masks(
     plan: list[tuple[c.Panel, list[tuple[int, c.PanelTrack]]]],
     kept_at: dict[Noun, dict[int, list[c.IndexObject]]],
-    car_ids: dict[int, str],
 ) -> dict[Noun, list[tuple[int, str]]]:
-    """Every (frame, id) to decode per lane: the panel at each candidate, the car there, and the car windows (doors),
-    plates and faces in those frames. Shared frames are decoded once."""
+    """Every (frame, id) the scoring pass decodes per lane: the panel at each candidate, from the lane of the track it
+    came from (the twin check can file a trunk-lid lane track under the hood), and the car windows (doors), plates and
+    faces in those frames. Shared frames are decoded once. The car masks are not here: the containment test decodes
+    them only for the candidates a panel is about to keep (_CarTest)."""
     wanted: dict[Noun, set[tuple[int, str]]] = {}
-    for panel, cands in plan:
+    for _panel, cands in plan:
         for f, t in cands:
             oid = _object_at(t, f)
             if oid is not None:
-                wanted.setdefault(panel.noun, set()).add((f, oid))
-            if f in car_ids:
-                wanted.setdefault(Noun.CAR, set()).add((f, car_ids[f]))
-            companions = (*PRIVACY_NOUNS, Noun.CAR_WINDOW) if panel.noun is Noun.CAR_DOOR else PRIVACY_NOUNS
+                wanted.setdefault(t.noun, set()).add((f, oid))
+            companions = (*PRIVACY_NOUNS, Noun.CAR_WINDOW) if t.noun is Noun.CAR_DOOR else PRIVACY_NOUNS
             for noun in companions:
                 wanted.setdefault(noun, set()).update((f, o.id) for o in kept_at[noun].get(f, []))
     return {noun: sorted(pairs) for noun, pairs in wanted.items() if pairs}
@@ -1993,6 +2247,108 @@ def _decode_lane(
 def _decode_cpu(decode: Any) -> float | None:
     stats = getattr(decode, "stats", None)
     return float(stats()[1]) if callable(stats) else None
+
+
+class _Masks:
+    """The keyframe pass's decoder. One_bit masks go through fastmask in the calling thread (each lane's text read
+    once) unless thresholds panels.fast_mask_decode is false; a payload it refuses, and everything when it is off, go
+    to the caller's DecodePool. cpu() is the CPU both spent, the figure the decode budget compares."""
+
+    def __init__(self, pool: Any, th: dict[str, Any]) -> None:
+        self.pool = pool
+        self.fast = fastmask.LaneMasks() if th["panels"].get("fast_mask_decode", True) and fastmask.available() else None
+        self._pool_cpu0 = _decode_cpu(pool) if pool is not None else None
+        self._lock = threading.Lock()
+
+    @property
+    def usable(self) -> bool:
+        return self.fast is not None or self.pool is not None
+
+    def lane(
+        self, lane_path: Path | None, pairs: list[tuple[int, str]], lookup: dict[tuple[int, str], c.IndexObject], *, rows: int | None = None
+    ) -> dict[tuple[int, str], np.ndarray]:
+        """Rasters for (frame, id) pairs of one lane; a mask no decoder could read is dropped, costing only its frame."""
+        if self.fast is None:
+            return _decode_lane(self.pool, lane_path, pairs, lookup) if self.pool is not None else {}
+        if lane_path is None:
+            return {}
+        out: dict[tuple[int, str], np.ndarray] = {}
+        for key in pairs:
+            obj = lookup.get(key)
+            if obj is None or obj.mask is None:
+                continue
+            try:
+                with self._lock:
+                    out[key] = self.fast.decode(lane_path, [obj.mask], rows=rows)[0]
+                continue
+            except Exception as exc:
+                why = exc
+            if self.pool is not None:
+                got = _decode_lane(self.pool, lane_path, [key], lookup)
+                if key in got:
+                    out[key] = got[key]
+                    continue
+            log.warning("mask of id %s at frame %d of %s dropped: %s", key[1], key[0], lane_path.name, why)
+        return out
+
+    def cpu(self) -> float:
+        spent = self.fast.stats()[1] if self.fast is not None else 0.0
+        pool_now = _decode_cpu(self.pool) if self.pool is not None else None
+        if pool_now is not None and self._pool_cpu0 is not None:
+            spent += pool_now - self._pool_cpu0
+        return spent
+
+
+class _CarTest:
+    """score_keyframe's car-mask containment test, run only on a candidate a panel is about to keep. The panel mask
+    (window already cut) must have car_mask_containment_min of its pixels inside the car mask. The car raster is
+    decoded only down to the panel's last row: every pixel the test reads lies above it, so the answer is the one a
+    whole decode gives. Each frame's car mask is decoded once (again in full when a later panel needs more rows)."""
+
+    def __init__(self, masks: _Masks, lane_path: Path | None, lookup: dict[tuple[int, str], c.IndexObject], car_ids: dict[int, str], media_size: tuple[int, int], th: dict[str, Any]) -> None:
+        self.masks, self.lane_path, self.lookup, self.car_ids = masks, lane_path, lookup, car_ids
+        self.media_size = media_size
+        self.min_share = float(th["panels"]["car_mask_containment_min"])
+        self.decoded = 0
+        self._cache: dict[int, tuple[int | None, np.ndarray | None]] = {}
+        self._lock = threading.Lock()  # panels run concurrently and call passes() from worker threads
+
+    def car_mask(self, f: int, last_row: int) -> tuple[np.ndarray | None, bool]:
+        """(the car mask at proxy size or None when there is none to test against, False when the car raster lies
+        wholly under the panel's last row and so holds none of its pixels)."""
+        with self._lock:
+            return self._car_mask(f, last_row)
+
+    def _car_mask(self, f: int, last_row: int) -> tuple[np.ndarray | None, bool]:
+        oid = self.car_ids.get(f)
+        obj = self.lookup.get((f, oid)) if oid is not None else None
+        if obj is None or obj.mask is None:
+            return None, True
+        top = int(obj.box[1]) + obj.mask.y
+        need = last_row - top + 1
+        if need <= 0:
+            return None, False
+        rows = None if need >= obj.mask.h else need
+        cached = self._cache.get(f)
+        if cached is not None and (cached[0] is None or (rows is not None and cached[0] >= rows)):
+            return cached[1], True
+        if cached is not None:
+            rows = None  # a second, deeper look at the same frame: decode it whole once
+        got = self.masks.lane(self.lane_path, [(f, obj.id)], self.lookup, rows=rows)
+        raster = got.get((f, obj.id))
+        self.decoded += 1
+        pasted = sam_wire.paste_mask(np.asarray(raster, dtype=bool), list(obj.box), obj.mask, self.media_size) if raster is not None else None
+        self._cache[f] = (rows, pasted)
+        return pasted, True
+
+    def passes(self, f: int, mask: np.ndarray, last_row: int) -> bool:
+        car, reachable = self.car_mask(f, last_row)
+        if not reachable:
+            return False
+        if car is None:
+            return True  # no car mask decoded at this frame: score_keyframe skips the test too
+        total = int(mask.sum())
+        return total > 0 and float((mask & _fit_mask(car, mask.shape[:2])).sum()) / total >= self.min_share
 
 
 def _mask_at(
@@ -2038,38 +2394,38 @@ def _score_panel(
     rasters: dict[tuple[Noun, int, str], np.ndarray],
     lookups: dict[Noun, dict[tuple[int, str], c.IndexObject]],
     kept_at: dict[Noun, dict[int, list[c.IndexObject]]],
-    car_ids: dict[int, str],
     video: Any,
     src: Path,
     pts: Sequence[float],
     media_size: tuple[int, int],
     th: dict[str, Any],
-) -> tuple[list[tuple[int, c.KeyframeScore]], dict[int, tuple[c.PanelTrack, np.ndarray, bool, np.ndarray]]]:
+) -> tuple[list[tuple[int, c.KeyframeScore]], dict[int, tuple[c.PanelTrack, np.ndarray, bool, np.ndarray, int]]]:
     """The mask pass on one panel's candidates, each source frame read once: [(frame, raw score)] and per frame the
-    track, the panel mask after window subtraction, window_subtracted and the unblurred frame (kept for the blur)."""
+    track, the panel mask after window subtraction, window_subtracted, the unblurred frame (kept for the blur) and the
+    panel mask's last proxy row. The car-mask containment test is left to _CarTest: it only zeroes a failing area, so
+    the normalised totals of the others do not depend on it."""
     fallback_fps = float(th["media"]["proxy_fps"])
     times = {f: float(_pts_at(pts, f, fallback_fps)) for f, _ in cands}
     frames = _read_frames(video, src, sorted(set(times.values())))
     scored: list[tuple[int, c.KeyframeScore]] = []
-    details: dict[int, tuple[c.PanelTrack, np.ndarray, bool, np.ndarray]] = {}
+    details: dict[int, tuple[c.PanelTrack, np.ndarray, bool, np.ndarray, int]] = {}
     for f, t in cands:
         rgb = frames.get(times[f])
         oid = _object_at(t, f)
-        obj = lookups[panel.noun].get((f, oid)) if oid is not None else None
-        mask = _mask_at(rasters, panel.noun, f, [obj] if obj is not None else [], media_size)
+        obj = lookups[t.noun].get((f, oid)) if oid is not None else None
+        mask = _mask_at(rasters, t.noun, f, [obj] if obj is not None else [], media_size)
         if rgb is None or mask is None:
             continue
-        car_obj = lookups[Noun.CAR].get((f, car_ids[f])) if f in car_ids else None
-        car_mask = _mask_at(rasters, Noun.CAR, f, [car_obj] if car_obj is not None else [], media_size)
-        window = _mask_at(rasters, Noun.CAR_WINDOW, f, kept_at[Noun.CAR_WINDOW].get(f, []), media_size) if panel.noun is Noun.CAR_DOOR else None
+        rows = np.flatnonzero(mask.any(axis=1))
+        window = _mask_at(rasters, Noun.CAR_WINDOW, f, kept_at[Noun.CAR_WINDOW].get(f, []), media_size) if t.noun is Noun.CAR_DOOR else None
         exclude = [m for n in PRIVACY_NOUNS if (m := _mask_at(rasters, n, f, kept_at[n].get(f, []), media_size)) is not None]
         try:
-            score, m2, ws = score_keyframe(t, f, mask=mask, car_mask=car_mask, window_mask=window, frame_rgb=rgb, exclude_masks=exclude, th=th)
+            score, m2, ws = score_keyframe(t, f, mask=mask, car_mask=None, window_mask=window, frame_rgb=rgb, exclude_masks=exclude, th=th)
         except Exception as exc:
             log.warning("%s frame %d: scoring failed (%s)", panel.panel_id.value, f, exc)
             continue
         scored.append((f, score))
-        details[f] = (t, m2, ws, rgb)
+        details[f] = (t, m2, ws, rgb, int(rows[-1]) if rows.size else -1)
     return scored, details
 
 
@@ -2142,16 +2498,21 @@ async def _derive_keyframes(
     blur_keyframe: Callable[..., Awaitable[tuple[np.ndarray, c.BlurRecord]]],
     th: dict[str, Any],
 ) -> list[c.Keyframe]:
-    """The box pass, one decode call per lane for every candidate's masks, the mask pass on each candidate's source
-    frame (read once, off the event loop), then blur and crop the best frames. A failed read, decode, score or blur
-    drops that frame and the next candidate takes its place; KeyframeError when no candidate could be scored or every
-    blur failed. Over the decode budget (section 14 item 34) each panel keeps keyframe_top_k_under_budget."""
+    """The box pass, one decode per mask the scoring pass needs (panel, car windows on doors, plates, faces at each
+    candidate), the mask pass on each candidate's source frame (read once, off the event loop), then per panel in
+    score order: the car-mask containment test (the car mask decoded only now, only down to the panel's last row),
+    the blur and the crop, until the panel has its keyframes. A failed read, decode, score or blur drops that frame and
+    the next candidate takes its place; KeyframeError when no candidate could be scored or every blur failed. Over the
+    decode budget (section 14 item 34) each panel keeps keyframe_top_k_under_budget. Up to
+    keyframe_panels_in_flight panels run at once (each blur is two image requests); a frame two panels keep is
+    blurred once and both keyframes carry that one answer."""
     p = th["panels"]
     plan = _keyframe_plan(panels, role_tracks, th)
     if not plan:
         return []
-    if decode is None:
-        raise KeyframeError(f"{role}: no DecodePool, so no keyframe mask can be decoded")
+    masks = _Masks(decode, th)
+    if not masks.usable:
+        raise KeyframeError(f"{role}: no DecodePool and the fast decoder is off, so no keyframe mask can be decoded")
     video = _video_mod()
     src = paths.quarantine_original(run_id, role)
     lookups = {noun: _box_lookup(kept[noun]) for noun in LANE_NOUNS}
@@ -2159,71 +2520,146 @@ async def _derive_keyframes(
     kept_at = {noun: {fr.frame: fr.objects for fr in kept[noun]} for noun in (Noun.CAR_WINDOW, *PRIVACY_NOUNS)}
     car_ids = {fr.frame: max(fr.objects, key=lambda o: _area(o.box)).id for fr in kept[Noun.CAR] if fr.objects}
     car_boxes = car_boxes_by_frame(kept[Noun.CAR])
-    cpu0, wall0 = _decode_cpu(decode), time.perf_counter()
+    wall0 = time.perf_counter()
     rasters: dict[tuple[Noun, int, str], np.ndarray] = {}
-    for noun, pairs in _wanted_masks(plan, kept_at, car_ids).items():
-        got = await asyncio.to_thread(_decode_lane, decode, lane_paths[noun], pairs, lookups[noun])
+    for noun, pairs in _wanted_masks(plan, kept_at).items():
+        got = await asyncio.to_thread(masks.lane, lane_paths[noun], pairs, lookups[noun])
         rasters.update({(noun, f, oid): raster for (f, oid), raster in got.items()})
-    cpu1 = _decode_cpu(decode)
-    spent = cpu1 - cpu0 if cpu0 is not None and cpu1 is not None else time.perf_counter() - wall0
+    spent = masks.cpu()
     top_k = int(p["keyframe_top_k"])
     if spent > float(p["keyframe_decode_budget_s_per_video"]):
         top_k = int(p["keyframe_top_k_under_budget"])
         # TODO(integrator): section 14 item 34 also wants a ledger flag here; panels writes no ledger rows by contract.
         log.warning("%s %s: %.1f s of mask decoding is over the budget; top %d keyframes per panel", run_id, role, spent, top_k)
-    min_gap = float(p["keyframe_min_gap_s"]) * fps
-    keyframes: list[c.Keyframe] = []
-    n_scored = tried = failed = 0
-    last_error = ""
-    for panel, cands in plan:
-        try:
-            scored, details = await asyncio.to_thread(
-                _score_panel, panel, cands, rasters, lookups, kept_at, car_ids, video, src, pts, media_size, th
-            )
-        except Exception as exc:
-            last_error = redact(f"{type(exc).__name__}: {exc}")
-            log.warning("%s %s %s: keyframe pass failed (%s)", run_id, role, panel.panel_id.value, last_error)
-            continue
-        n_scored += len(scored)
-        for f, score in scored:
-            _note_decoded(details[f][0], f, score, th)
-        taken: list[int] = []
-        for f, score in sorted(normalise_scores(scored, th), key=lambda fs: (-fs[1].total, fs[0])):
-            if len(taken) >= top_k:
-                break
-            if score.total <= 0 or any(abs(f - g) < min_gap for g in taken):
-                continue
-            tried += 1
-            track, mask, ws, rgb = details[f]
-            try:
-                h_src, w_src = int(rgb.shape[0]), int(rgb.shape[1])
-                # stored crops and frames always carry a blurred plate; only the sheet writer keeps it for the run
-                # owner under keep_plate (section 8 items 5 and 6)
-                blurred, blur = await blur_keyframe(
-                    run_id, role, rgb, f_proxy=f, tracks=role_tracks, fps=fps, sizes=(media_size, (w_src, h_src)),
-                    keep_plate=False, th=th,
-                )
-                kf = await asyncio.to_thread(
-                    _keyframe_files, run_id, role, f"{role}_{panel.panel_id.value}_kf{len(taken) + 1}", panel, track, f,
-                    mask, ws, blurred, blur, score, car_boxes.get(f), media_size, th,
-                )
-            except Exception as exc:
-                failed += 1
-                last_error = redact(f"{type(exc).__name__}: {exc}")
-                log.warning("%s %s %s frame %d: keyframe dropped (%s)", run_id, role, panel.panel_id.value, f, last_error)
-                continue
-            taken.append(f)
-            keyframes.append(kf)
-        details.clear()
-    if not n_scored:
-        raise KeyframeError(f"{role}: no keyframe candidate could be read and scored; last error: {last_error or 'none'}")
-    if tried and failed == tried:
-        raise KeyframeError(f"{role}: all {failed} keyframes failed; last error: {last_error}")
+    run = _KeyframeRun(
+        run_id=run_id, role=role, role_tracks=role_tracks, lookups=lookups, kept_at=kept_at, car_boxes=car_boxes,
+        rasters=rasters, video=video, src=src, pts=pts, media_size=media_size, fps=fps, blur_keyframe=blur_keyframe, th=th,
+        top_k=top_k, car_test=_CarTest(masks, lane_paths[Noun.CAR], lookups[Noun.CAR], car_ids, media_size, th),
+    )
+    gate = asyncio.Semaphore(max(1, int(p.get("keyframe_panels_in_flight", 1))))
+
+    async def one(panel: c.Panel, cands: list[tuple[int, c.PanelTrack]]) -> list[c.Keyframe]:
+        async with gate:
+            return await run.panel(panel, cands)
+
+    tasks = [asyncio.ensure_future(one(panel, cands)) for panel, cands in plan]
+    try:
+        found = await asyncio.gather(*tasks)
+    except BaseException:
+        for task in tasks:  # a bug in one panel must not leave the others writing crops after derive gave up
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        raise
+    keyframes = [kf for kfs in found for kf in kfs]
+    log.info(
+        "%s %s: %d keyframes from %d candidates in %.1f s; mask decoding %.1f s CPU, %d car masks for the containment test",
+        run_id, role, len(keyframes), run.n_scored, time.perf_counter() - wall0, masks.cpu(), run.car_test.decoded,
+    )
+    if not run.n_scored:
+        raise KeyframeError(f"{role}: no keyframe candidate could be read and scored; last error: {run.last_error or 'none'}")
+    if run.tried and run.failed == run.tried:
+        raise KeyframeError(f"{role}: all {run.failed} keyframes failed; last error: {run.last_error}")
     return keyframes
 
 
+class _KeyframeRun:
+    """The per-panel half of _derive_keyframes: score, then in score order test, blur and crop."""
+
+    def __init__(self, **kw: Any) -> None:
+        self.__dict__.update(kw)
+        self.n_scored = self.tried = self.failed = 0
+        self.last_error = ""
+        self._blurs: dict[int, asyncio.Future] = {}
+
+    async def blur(self, f: int, rgb: np.ndarray) -> tuple[np.ndarray, c.BlurRecord]:
+        """One blur per frame per derive: a second panel keeping the same frame waits for the first answer; a failure is
+        not kept, so the next panel asks again."""
+        pending = self._blurs.get(f)
+        if pending is not None:
+            blurred, record = await asyncio.shield(pending)
+            return blurred, record.model_copy(deep=True)
+        future: asyncio.Future = asyncio.get_running_loop().create_future()
+        self._blurs[f] = future
+        h_src, w_src = int(rgb.shape[0]), int(rgb.shape[1])
+        try:
+            # stored crops and frames always carry a blurred plate; only the sheet writer keeps it for the run owner
+            # under keep_plate (section 8 items 5 and 6)
+            result = await self.blur_keyframe(
+                self.run_id, self.role, rgb, f_proxy=f, tracks=self.role_tracks, fps=self.fps,
+                sizes=(self.media_size, (w_src, h_src)), keep_plate=False, th=self.th,
+            )
+        except asyncio.CancelledError:
+            del self._blurs[f]
+            future.cancel()
+            raise
+        except Exception as exc:
+            del self._blurs[f]
+            future.set_exception(exc)
+            future.exception()  # retrieved here, so a frame nobody else waited for logs no warning
+            raise
+        future.set_result(result)
+        return result
+
+    async def panel(self, panel: c.Panel, cands: list[tuple[int, c.PanelTrack]]) -> list[c.Keyframe]:
+        th = self.th
+        try:
+            scored, details = await asyncio.to_thread(
+                _score_panel, panel, cands, self.rasters, self.lookups, self.kept_at, self.video, self.src, self.pts, self.media_size, th
+            )
+        except Exception as exc:
+            self.last_error = redact(f"{type(exc).__name__}: {exc}")
+            log.warning("%s %s %s: keyframe pass failed (%s)", self.run_id, self.role, panel.panel_id.value, self.last_error)
+            return []
+        self.n_scored += len(scored)
+        for f, score in scored:
+            _note_decoded(details[f][0], f, score, th)
+        min_gap = float(th["panels"]["keyframe_min_gap_s"]) * self.fps
+        taken: list[int] = []
+        out: list[c.Keyframe] = []
+        for f, score in sorted(normalise_scores(scored, th), key=lambda fs: (-fs[1].total, fs[0])):
+            if len(taken) >= self.top_k:
+                break
+            if score.total <= 0 or any(abs(f - g) < min_gap for g in taken):
+                continue
+            track, mask, ws, rgb, last_row = details[f]
+            try:
+                inside = await asyncio.to_thread(self.car_test.passes, f, mask, last_row)
+            except Exception as exc:  # a car mask that cannot be tested drops only this candidate
+                inside = False
+                log.warning("%s %s %s frame %d: car-mask test failed (%s)", self.run_id, self.role, panel.panel_id.value, f, exc)
+            if not inside:
+                _note_outside_car(track, f)
+                continue
+            self.tried += 1
+            try:
+                blurred, blur = await self.blur(f, rgb)
+                kf = await asyncio.to_thread(
+                    _keyframe_files, self.run_id, self.role, f"{self.role}_{panel.panel_id.value}_kf{len(taken) + 1}", panel,
+                    track, f, mask, ws, blurred, blur, score, self.car_boxes.get(f), self.media_size, th,
+                )
+            except Exception as exc:
+                self.failed += 1
+                self.last_error = redact(f"{type(exc).__name__}: {exc}")
+                log.warning("%s %s %s frame %d: keyframe dropped (%s)", self.run_id, self.role, panel.panel_id.value, f, self.last_error)
+                continue
+            taken.append(f)
+            out.append(kf)
+        details.clear()
+        return out
+
+
+def _note_outside_car(track: c.PanelTrack, frame: int) -> None:
+    """A candidate whose mask failed the car-mask test scores area 0, as score_keyframe's test would have made it."""
+    for r in track.per_frame:
+        if r.frame == frame:
+            r.area_frac = 0.0
+            return
+
+
 def _note_decoded(track: c.PanelTrack, frame: int, score: c.KeyframeScore, th: dict[str, Any]) -> None:
-    """Mark the per_frame row of a decoded candidate: mask_decoded, area_frac and complete."""
+    """Mark the per_frame row of a decoded candidate: mask_decoded, area_frac and complete. area_frac is the mask's share
+    of the frame before the car-mask test, which only the candidates a panel reached in score order took (a failure
+    sets it to 0)."""
     for r in track.per_frame:
         if r.frame == frame:
             r.mask_decoded = True

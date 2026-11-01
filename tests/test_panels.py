@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import gzip
+import json
 import shutil
 import time
 from pathlib import Path
@@ -16,7 +18,7 @@ import pytest
 from meta_sam_parser import build_object_prompt
 
 from walkaround import contracts as c
-from walkaround import panels, paths, privacy, sam_wire, video
+from walkaround import fastmask, panels, paths, privacy, sam_wire, video
 from walkaround.contracts import LANE_NOUNS, CoverageState, LaneStatus, MergeRule, Noun, PanelId, Position, Side, StateBasis
 
 ROOT = Path(__file__).resolve().parent
@@ -1062,8 +1064,8 @@ async def test_derive_on_the_fixture_pair_writes_the_four_files(tmp_path: Path, 
         tracks, voted_panels, keyframes, coverage = await panels.derive(
             run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=pool, blur_keyframe=fake_blur, th=fixture_th
         )
-        decoded, cpu_s = pool.stats()
-    assert decoded >= 9 and cpu_s >= 0.0
+        decoded, _cpu_s = pool.stats()
+    assert decoded == 0  # fastmask read every fixture mask in process; the pool is only the fallback
     door = next(t for t in tracks if t.noun is Noun.CAR_DOOR)
     assert door.panel_id is PanelId.LEFT_FRONT_DOOR  # a lone door with no mirror, anchor or wheel: a placeholder slot
     assert door.side is Side.NONE and door.position is Position.NONE
@@ -1157,36 +1159,65 @@ async def test_derive_keeps_the_event_loop_free_and_reads_each_candidate_frame_o
     assert lags and max(lags) < 0.3, max(lags)
 
 
-async def test_derive_decodes_each_lane_once_and_keeps_two_keyframes_over_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
+@pytest.mark.parametrize("fast", [True, False])
+async def test_derive_decodes_each_mask_once_and_keeps_two_keyframes_over_budget(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th, fast: bool) -> None:
     run_id, role = "01TESTBUDGET", "pickup"
     lanes, pts = _fixture_run(tmp_path, monkeypatch, run_id, role)
     shutil.copy(TEXT_FIXTURE, paths.lane_events_path(run_id, role, Noun.BUMPER))  # a second panel on the same frames
     lanes["bumper"] = (_lane_record(Noun.BUMPER, LaneStatus.COMPLETED), lanes["car_door"][1])
     th = copy.deepcopy(fixture_th)
     th["panels"]["keyframe_decode_budget_s_per_video"] = -1.0  # always over budget
-    calls: list[tuple[str, int]] = []
+    th["panels"]["fast_mask_decode"] = fast
+    pool_calls: list[tuple[str, list[int]]] = []
+    fast_calls: list[tuple[str, int, int | None]] = []
+    real_fast = fastmask.LaneMasks.decode
+
+    def counting_fast(self: fastmask.LaneMasks, lane_path: Path, refs: list[c.MaskRef], *, rows: int | None = None) -> list[np.ndarray]:
+        fast_calls.extend((Path(lane_path).name, ref.payload_offset, rows) for ref in refs)
+        return real_fast(self, lane_path, refs, rows=rows)
+
+    monkeypatch.setattr(fastmask.LaneMasks, "decode", counting_fast)
 
     class CountingPool:
         def __init__(self, pool: sam_wire.DecodePool) -> None:
             self.pool = pool
 
         def decode(self, lane_path: Path, refs: list[c.MaskRef]) -> list[np.ndarray]:
-            calls.append((Path(lane_path).name, len(refs)))
+            pool_calls.append((Path(lane_path).name, [ref.payload_offset for ref in refs]))
             return self.pool.decode(lane_path, refs)
 
         def stats(self) -> tuple[int, float]:
             return self.pool.stats()
 
+    blurred: list[int] = []
+
+    async def counting_blur(run_id_: str, role_: str, rgb: np.ndarray, **kwargs: Any) -> tuple[np.ndarray, c.BlurRecord]:
+        blurred.append(kwargs["f_proxy"])
+        await asyncio.sleep(0.01)  # both panels are in flight at once
+        return rgb, c.BlurRecord(request_ids=[f"img_{kwargs['f_proxy']}"])
+
     with sam_wire.DecodePool(1) as pool:
         _tracks, _panels, keyframes, _cov = await panels.derive(
-            run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=CountingPool(pool), blur_keyframe=_passthrough_blur, th=th
+            run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=CountingPool(pool), blur_keyframe=counting_blur, th=th
         )
-    assert sorted(name for name, _ in calls) == ["bumper.ndjson", "car.ndjson", "car_door.ndjson"]  # one call per lane
-    assert dict(calls)["car.ndjson"] == 9  # the car masks the two panels share are decoded once
+    if fast:
+        assert pool_calls == []  # the pool only takes what fastmask refuses
+        decoded = [(name, offset) for name, offset, _rows in fast_calls]
+    else:
+        assert fast_calls == []
+        assert sorted(name for name, _ in pool_calls if name != "car.ndjson") == ["bumper.ndjson", "car_door.ndjson"]  # one call per lane
+        decoded = [(name, offset) for name, offsets in pool_calls for offset in offsets]
+    assert len(decoded) == len(set(decoded))  # no mask decoded twice, the car masks the two panels share included
+    car = [offset for name, offset in decoded if name == "car.ndjson"]
+    assert sum(1 for name, _ in decoded if name == "car_door.ndjson") == 9 and sum(1 for name, _ in decoded if name == "bumper.ndjson") == 9
+    assert 1 <= len(car) < 9  # the containment test reads the car mask only at the candidates the panels kept
     by_panel: dict[PanelId, int] = {}
     for k in keyframes:
         by_panel[k.panel_id] = by_panel.get(k.panel_id, 0) + 1
     assert set(by_panel) == {PanelId.LEFT_FRONT_DOOR, PanelId.FRONT_BUMPER} and all(1 <= n <= 2 for n in by_panel.values())
+    assert len(blurred) == len(set(blurred))  # a frame both panels keep is blurred once, and both carry that answer
+    shared = {k.f_proxy for k in keyframes if k.panel_id is PanelId.LEFT_FRONT_DOOR} & {k.f_proxy for k in keyframes if k.panel_id is PanelId.FRONT_BUMPER}
+    assert shared and all(k.blur.request_ids == [f"img_{k.f_proxy}"] for k in keyframes)
 
 
 async def test_a_failing_blur_still_leaves_the_plate_and_face_tracks_on_disk(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fixture_th) -> None:
@@ -1280,3 +1311,162 @@ async def test_a_crash_in_the_panel_path_still_leaves_the_face_track_on_disk(tmp
         await panels.derive(run_id, role, lanes=lanes, pts=pts, media_size=(1280, 720), fps=24.0, decode=None, blur_keyframe=_passthrough_blur, th=fixture_th)
     on_disk = c.read_json_list(paths.tracks_json(run_id), c.PanelTrack)
     assert [(t.noun, [r.frame for r in t.per_frame]) for t in on_disk] == [(Noun.FACE, [7])]
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# The twin check: which lid is the hood (panels lane 11/1)
+# ----------------------------------------------------------------------------------------------------------------
+
+TWIN_FIXTURE = ROOT / "fixtures" / "twin" / "pairC_core1_lane_boxes.json.gz"  # boxes only, no pixel or mask
+
+
+def _pair_c_tracks(th: dict[str, Any]) -> list[c.PanelTrack]:
+    """Both walks of the 10/31 live run on uCO3D pair C, rebuilt from the stored boxes of all 16 lanes the way derive()
+    builds tracks."""
+    data = json.loads(gzip.decompress(TWIN_FIXTURE.read_bytes()))
+    tracks: list[c.PanelTrack] = []
+    for role, walk in data["walks"].items():
+        lanes = {
+            Noun(noun): [c.IndexFrame(frame=f, objects=[c.IndexObject(id=oid, box=box, c=conf) for oid, box, conf in objs]) for f, objs in frames]
+            for noun, frames in walk["lanes"].items()
+        }
+        built, _ = panels.build_role_tracks(role, lanes, pts=walk["pts"], media_size=tuple(walk["media_size"]), fps=walk["fps"], th=th)
+        tracks += built
+    return tracks
+
+
+def _pair_c_vote(th: dict[str, Any], tracks: list[c.PanelTrack] | None = None, **kw: Any) -> tuple[list[c.Panel], list[c.PanelTrack]]:
+    tracks = tracks if tracks is not None else _pair_c_tracks(th)
+    dirs = {r: panels.walk_direction([t for t in tracks if t.role == r], th) for r in ("pickup", "return")}
+    return panels.vote_sides(tracks, None, th, fps=15.0, direction_by_role=dirs, **kw)
+
+
+def test_twin_check_files_the_pair_c_lids_by_the_end_they_show() -> None:
+    voted_panels, voted = _pair_c_vote(TH)
+    lids = {t.track_id: t for t in voted if t.noun in panels.LID_NOUNS}
+    assert {tid: t.panel_id for tid, t in lids.items()} == {
+        "pickup_hood_00": PanelId.HOOD,
+        "pickup_hood_01": PanelId.TRUNK_LID,  # the hood lane on the trunk lid, frames 155 to 295
+        "pickup_trunk_lid_00": PanelId.TRUNK_LID,
+        "return_hood_00": PanelId.TRUNK_LID,  # the hood lane on the trunk lid, frames 0 to 103
+        "return_hood_01": PanelId.HOOD,
+        "return_trunk_lid_00": PanelId.TRUNK_LID,
+        "return_trunk_lid_01": PanelId.HOOD,  # the trunk-lid lane on the hood, frames 184 to 303
+    }
+    assert all(t.twin_check is not None and t.twin_check.decided and abs(t.twin_check.score) >= 3 for t in lids.values())
+    rear = lids["return_hood_00"].twin_check
+    assert rear.lid == ["return_hood_00", "return_trunk_lid_00"] and rear.votes["plate"] == -1 and rear.votes["mirror"] == -1
+    assert rear.numbers["plate_on_lid_share"] > 0.9 and rear.numbers["mirror_gap_lid_sizes"] > 2.5
+    front = lids["return_trunk_lid_01"].twin_check
+    assert front.votes["mirror"] == 1 and front.votes["glass"] == 1 and front.numbers["plate_on_lid_share"] == 0.0
+    by_id = {p.panel_id: p for p in voted_panels}
+    assert (by_id[PanelId.HOOD].front_sign, by_id[PanelId.TRUNK_LID].front_sign) == (1, -1)
+    assert not by_id[PanelId.HOOD].side_uncertain and not by_id[PanelId.TRUNK_LID].side_uncertain
+    assert by_id[PanelId.HOOD].per_role["return"].track_ids == ["return_hood_01", "return_trunk_lid_01"]
+    assert by_id[PanelId.TRUNK_LID].per_role["pickup"].track_ids == ["pickup_hood_01", "pickup_trunk_lid_00"]
+
+
+def test_lights_and_glass_take_the_end_of_the_lid_they_sit_beside() -> None:
+    old = copy.deepcopy(TH)
+    del old["panels"]["twin_check"]
+    _, before = _pair_c_vote(old)
+    _, after = _pair_c_vote(TH)
+    was = {t.track_id: t.panel_id for t in before}
+    moved = {t.track_id: t.panel_id for t in after if t.noun in panels.NEIGHBOUR_SLOTS and t.panel_id != was[t.track_id]}
+    assert moved == {
+        "pickup_headlight_03": PanelId.TAIL_LIGHTS,  # the headlight lane on a tail light at the rear quarter
+        "pickup_windshield_02": PanelId.REAR_WINDOW,  # the windshield lane on the rear window
+        "return_headlight_00": PanelId.TAIL_LIGHTS,
+        "return_headlight_01": PanelId.TAIL_LIGHTS,
+        "return_tail_light_03": PanelId.HEADLIGHTS,
+        "return_tail_light_04": PanelId.HEADLIGHTS,
+        "return_windshield_00": PanelId.REAR_WINDOW,
+        "return_windshield_01": PanelId.REAR_WINDOW,
+    }
+    by_id = {t.track_id: t for t in after}
+    assert by_id["return_windshield_00"].twin_check.votes == {"next_to_lid": -1} and by_id["return_windshield_00"].twin_check.lid == ["return_hood_00", "return_trunk_lid_00"]
+    mud_flap = by_id["return_tail_light_02"]  # the tail light lane's orange mud flap by the front wheel: beside the hood now and then only
+    assert mud_flap.panel_id is PanelId.TAIL_LIGHTS and mud_flap.twin_check is None
+    # the placed lids also anchor the side vote: two placeholders and one door land on the side the walk shows
+    lateral = {t.track_id: (t.panel_id, t.side) for t in after if t.panel_id != was[t.track_id] and t.noun in panels.LATERAL_NOUNS}
+    assert lateral == {
+        "pickup_wheel_02": (PanelId.RIGHT_REAR_WHEEL, Side.RIGHT),
+        "pickup_fender_01": (PanelId.RIGHT_REAR_FENDER, Side.RIGHT),
+        "return_car_door_00": (PanelId.LEFT_REAR_DOOR, Side.LEFT),  # the first frames show the rear and the left side
+    }
+
+
+def test_a_run_frozen_before_the_twin_check_keeps_the_lane_nouns() -> None:
+    old = copy.deepcopy(TH)
+    del old["panels"]["twin_check"]
+    _, voted = _pair_c_vote(old)
+    lids = [t for t in voted if t.noun in panels.LID_NOUNS]
+    assert lids and all(t.panel_id is panels.SINGLE_SLOT[t.noun] and t.twin_check is None for t in lids)
+
+
+def test_a_frozen_walk_keeps_its_twin_check_and_a_revote_without_it_drops_the_record() -> None:
+    _, first = _pair_c_vote(TH)
+    old = copy.deepcopy(TH)
+    del old["panels"]["twin_check"]
+    _, again = _pair_c_vote(old, tracks=first, frozen_roles={"pickup"})
+    stored = {t.track_id: (t.panel_id, t.twin_check) for t in first if t.role == "pickup"}
+    assert {t.track_id: (t.panel_id, t.twin_check) for t in again if t.role == "pickup"} == stored
+    assert all(t.twin_check is None and t.panel_id is panels.SINGLE_SLOT[t.noun] for t in again if t.role == "return" and t.noun in panels.LID_NOUNS)
+
+
+def test_twin_cues_read_the_plate_the_mirror_and_the_neighbours() -> None:
+    cfg = TH["panels"]["twin_check"]
+    lid = {f: [100.0, 100.0, 400.0, 300.0] for f in range(10)}
+    rear = {
+        Noun.LICENSE_PLATE: {f: [[200, 220, 280, 260]] for f in range(10)},  # on the lid
+        Noun.SIDE_MIRROR: {f: [[1200, 120, 1240, 160]] for f in range(10)},  # 820 px off: 2.7 lid sizes
+        Noun.TAIL_LIGHT: {f: [[80, 220, 110, 260]] for f in range(10)},  # touching the lid
+        Noun.WINDSHIELD: {f: [[120, 40, 380, 98]] for f in range(10)},  # both glass lanes see the same glass
+        Noun.REAR_WINDOW: {f: [[120, 40, 380, 98]] for f in range(10)},
+    }
+    votes, numbers = panels.twin_cues(lid, rear, cfg, min_frames=5)
+    assert votes == {"plate": -1, "mirror": -1, "lights": -1, "glass": 0}
+    assert numbers["plate_on_lid_share"] == 1.0 and numbers["mirror_gap_lid_sizes"] == pytest.approx(820 / 300)
+    front = {
+        Noun.SIDE_MIRROR: {f: [[410, 90, 440, 120]] for f in range(10)},  # beside the lid's corner
+        Noun.HEADLIGHT: {f: [[110, 300, 160, 340]] for f in range(10)},  # at its front edge
+        Noun.LICENSE_PLATE: {f: [[220, 380, 300, 410]] for f in range(10)},  # on the bumper, below it
+    }
+    votes, _ = panels.twin_cues(lid, front, cfg, min_frames=5)
+    assert votes == {"plate": 0, "mirror": 1, "lights": 1, "glass": 0}
+    votes, _ = panels.twin_cues({0: lid[0]}, rear, cfg, min_frames=5)  # one frame of a walk is not evidence
+    assert votes == {"plate": 0, "mirror": 0, "lights": 0, "glass": 0}
+
+
+def test_twin_decision_needs_the_margin_or_an_unopposed_lane() -> None:
+    cfg = TH["panels"]["twin_check"]
+    silent = {"plate": 0, "mirror": 0, "lights": 0, "glass": 0}
+    assert panels.twin_decision({**silent, "plate": -1}, [Noun.HOOD], cfg) == (-1, -2.0)  # the plate alone moves a hood-lane lid
+    assert panels.twin_decision({**silent, "lights": 1}, [Noun.HOOD], cfg) == (1, 1.0)  # weak, but on the lane's side
+    assert panels.twin_decision(silent, [Noun.TRUNK_LID], cfg) == (-1, 0.0)  # nothing against the lane
+    assert panels.twin_decision({**silent, "lights": -1}, [Noun.HOOD], cfg) == (None, -1.0)  # weak and against it: split
+    assert panels.twin_decision(silent, [Noun.HOOD, Noun.TRUNK_LID], cfg) == (None, 0.0)  # both lanes on one lid, no cue
+    assert panels.twin_decision({"plate": -1, "mirror": 1, "lights": 1, "glass": 0}, [Noun.HOOD, Noun.TRUNK_LID], cfg) == (None, 1.0)
+
+
+def test_a_split_twin_check_leaves_both_lids_side_uncertain() -> None:
+    frames = range(0, 30)
+    hood = _track("pickup", Noun.HOOD, [(f, [300, 200, 600, 400], 0.8) for f in frames], track_id="pickup_hood_00")
+    trunk = _track("pickup", Noun.TRUNK_LID, [(f, [302, 201, 600, 400], 0.8) for f in frames], track_id="pickup_trunk_lid_00")
+    voted_panels, voted = panels.vote_sides([hood, trunk], None, TH, fps=FPS)
+    for t in voted:
+        assert t.twin_check is not None and not t.twin_check.decided and t.twin_check.lid == ["pickup_hood_00", "pickup_trunk_lid_00"]
+        assert t.panel_id is panels.SINGLE_SLOT[t.noun] and panels.candidate_slots(t) == [PanelId.HOOD, PanelId.TRUNK_LID]
+    by_id = {p.panel_id: p for p in voted_panels}
+    assert by_id[PanelId.HOOD].side_uncertain and by_id[PanelId.TRUNK_LID].side_uncertain  # G6: neither is compared
+    assert by_id[PanelId.HOOD].front_sign is None and by_id[PanelId.TRUNK_LID].front_sign is None
+    cov = panels.coverage_for_role(voted_panels, voted, [], role="pickup", fps=FPS, lane_status=_lane_status(), th=TH)
+    for pid in (PanelId.HOOD, PanelId.TRUNK_LID):
+        assert cov[pid].state is CoverageState.GLIMPSED and cov[pid].reason.startswith("front or rear uncertain: pickup_hood_00, pickup_trunk_lid_00 could be hood or trunk lid")
+
+
+def test_a_relabelled_lid_decodes_its_masks_from_its_own_lane() -> None:
+    trunk_on_hood = _filed(_track("return", Noun.TRUNK_LID, [(f, [300, 200, 600, 400], 0.8) for f in range(5)], track_id="return_trunk_lid_01"), PanelId.HOOD)
+    hood_panel = c.Panel(panel_id=PanelId.HOOD, noun=Noun.HOOD)
+    wanted = panels._wanted_masks([(hood_panel, [(2, trunk_on_hood)])], {Noun.CAR_WINDOW: {}, Noun.LICENSE_PLATE: {}, Noun.FACE: {}})
+    assert wanted == {Noun.TRUNK_LID: [(2, "0")]}
