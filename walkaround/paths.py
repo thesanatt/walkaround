@@ -303,6 +303,12 @@ def claim_blurred_path(run_id: str, claim_id: str) -> Path:
     return _file(claim_dir(run_id) / f"{claim_id}.blurred.jpg")
 
 
+def claim_open_weights_log(run_id: str, claim_id: str) -> Path:
+    """claim/<claim_id>.open_weights.ndjson: the claim's Muse Spark Open lines. A claim comes after the run is sealed,
+    so its lines never go into the run's own open_weights.ndjson (sealed in bundle/manifest_run.json); not served."""
+    return _file(claim_dir(run_id) / f"{claim_id}.open_weights.ndjson")
+
+
 def looks_json(run_id: str) -> Path:
     """derived/looks.json: one row per second look, sorted by (pickup_mark, return_mark)."""
     return _file(derived_dir(run_id) / "looks.json")

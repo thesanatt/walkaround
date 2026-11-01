@@ -26,7 +26,7 @@ from meta_sam_parser import SegmentationMask
 from meta_sam_parser._mask_codec import _encode_raster
 from PIL import Image
 
-from walkaround import claim, config, geometry, ledger, paths, rules, ruler, sam_client, spark_client
+from walkaround import claim, config, geometry, ledger, open_weights, paths, privacy, rules, ruler, sam_client, spark_client
 from walkaround import contracts as c
 from walkaround.panels import END_ON_FRONT_SIGN
 
@@ -600,6 +600,10 @@ def test_coverage_exits(runs: Path, monkeypatch: pytest.MonkeyPatch, state, exit
     ],
 )
 def test_pickup_marks_that_prove_nothing_are_never_no_pickup_mark(runs: Path, monkeypatch: pytest.MonkeyPatch, change: str, words: str) -> None:
+    th = TH
+    if change == "glare":  # a run frozen before claim.view_flag_caps (10/31) keeps the old G2 refusal
+        th = copy.deepcopy(TH)
+        del th["claim"]["view_flag_caps"]
     make_run("r", offsets=((0.05, 0.0),) if change == "unplaced" else ())
     kfs = c.read_json_list(paths.keyframes_json("r"), c.Keyframe)
     update = {
@@ -618,10 +622,74 @@ def test_pickup_marks_that_prove_nothing_are_never_no_pickup_mark(runs: Path, mo
         panels = c.read_json_list(paths.panels_json("r"), c.Panel)
         c.write_json(paths.panels_json("r"), [p.model_copy(update={"side_uncertain": p.panel_id == c.PanelId.TRUNK_LID}) for p in panels])
     _, spark = install(monkeypatch)
-    out = derive("r", photo())
+    out = asyncio.run(claim.derive_claim("r", image=upload("r", photo()), text="", tire_code=None, th=th))
     assert out.exit is None and out.match is None and out.placement.method == c.PlacementMethod.NONE
     assert words in out.paragraph and "No pickup mark" not in out.paragraph
     assert spark.names() == ["claim_name_v1"]  # nothing is grounded when nothing can be compared
+
+
+# A flagged pickup frame caps instead of stopping the claim (K15, lead decision 10/31) -------------------------------------
+
+
+def _flag_pickup(run_id: str, **flags: bool) -> None:
+    kfs = c.read_json_list(paths.keyframes_json(run_id), c.Keyframe)
+    c.write_json(paths.keyframes_json(run_id), [k.model_copy(update={"conditions": c.Conditions(**flags)}) for k in kfs])
+
+
+def test_a_flagged_pickup_frame_caps_a_claim_mark_it_shows_nothing_near(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r")
+    _flag_pickup("r", dirty=True)
+    _, spark = install(monkeypatch)
+    out = derive("r", photo())
+    assert out.match is not None and out.match.reasons == ["L4", "L2", "K15"]
+    assert "Needs your eye: no pickup mark at that spot, but every usable pickup frame of this panel is flagged for glare, water or dirt" in out.paragraph
+    assert spark.names() == ["claim_name_v1", "marks_v1"]
+    assert claim.rebuild_claim("r", "claim_1", th=TH, write=False).match.reasons == ["L4", "L2", "K15"]
+
+
+def test_a_pickup_mark_at_the_spot_on_a_flagged_frame_stays_already_there_with_a_note(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r", offsets=((0.05, 0.0),))
+    _flag_pickup("r", glare=True)
+    install(monkeypatch)
+    out = derive("r", photo())
+    assert out.match.reasons == ["L3"] and "K15" not in out.match.reasons
+    assert "Already there at pickup" in out.paragraph and "The pickup frame was flagged glare, but a mark shows at this spot on it" in out.paragraph
+
+
+def test_one_clean_pickup_frame_means_no_cap(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r")
+    kfs = c.read_json_list(paths.keyframes_json("r"), c.Keyframe)
+    dirty = kfs[0].model_copy(update={"kf_id": f"{KF}b", "conditions": c.Conditions(dirty=True)})
+    c.write_json(paths.keyframes_json("r"), [kfs[0], dirty])
+    install(monkeypatch)
+    out = derive("r", photo())
+    assert out.match.reasons == ["L2"]
+
+
+def test_a_claim_look_on_spark_open_logs_in_the_claim_folder_and_bills_the_claim(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tests.test_open_weights import HACKATHON, SAME, FakeBaseten, chat
+
+    make_run("r", offsets=((0.05, 0.0),))
+    _sam, spark = install(monkeypatch)
+    monkeypatch.setattr(claim.second_look, "_IMAGE_BREAKERS", {})
+    monkeypatch.setattr(open_weights, "_sleep", lambda seconds: None)
+    fake = FakeBaseten()
+    fake.reply(chat(SAME, model=HACKATHON, rid="chatcmpl-claim1"))
+    open_weights.reset()
+    open_weights.set_client(fake)
+    try:
+        out = derive("r", photo())
+    finally:
+        open_weights.set_client(None)
+        open_weights.reset()
+    assert out.match.reasons == ["L3"] and "look_v1" not in spark.names()  # Spark Open answered, hosted Spark was not asked
+    lines = [json.loads(text) for text in paths.claim_open_weights_log("r", "claim_1").read_text().splitlines()]
+    assert [(x["run_id"], x["ledger_run_id"], x["return_mark"], x["key_slot"], x["verdict"]) for x in lines] == [("r", "r.claim_1", "claim_1", "hackathon", "same")]
+    assert not (runs / "r" / "open_weights.ndjson").exists() and not (runs / "r.claim_1").exists()
+    assert [row["run_id"] for row in ledger.rows() if row["kind"] == "spark_open"] == ["r.claim_1"]
+    run = c.read_json(paths.run_json("r"), c.RunManifest)
+    assert not privacy.served_file_allowed(run, "claim/claim_1.open_weights.ndjson", run_owner=True)  # kept, never served
+    assert claim.rebuild_claim("r", "claim_1", th=TH, write=False).match.reasons == ["L3"]  # replayed, no call
 
 
 def test_a_top_up_frame_prints_its_own_clip_and_time(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -935,3 +1003,87 @@ def test_an_unusable_spark_answer_is_not_a_panel_name(runs: Path, monkeypatch: p
     install(monkeypatch, spark=FakeSpark(answers(claim_name_v1="not json")))
     out = derive("r", photo())
     assert out.exit == c.ClaimExit.E2 and out.paragraph.startswith("Muse Spark gave no usable answer; the SAM 3.1 vote named the trunk lid.")
+
+
+# The twin check on the photo (panels lane 11/1) ------------------------------------------------------------------------
+
+PLATE = (330, 380, 470, 440)  # on the synthetic trunk lid
+
+
+def test_a_plate_on_the_lid_turns_a_hood_vote_into_the_trunk_lid(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r", offsets=((0.05, 0.0),))
+    dets = {"hood": [(rect_mask(PANEL), 0.9)], "license plate": [(rect_mask(PLATE), 0.9)], "car": [(rect_mask((50, 50, 750, 550)), 0.95)]}
+    install(monkeypatch, FakeSam(dets))
+    out = derive("r", photo(plate=PLATE))
+    win = next(row for row in out.naming.sam_votes if row["winner"])
+    assert win["noun"] == "hood" and win["twin_check"]["votes"]["plate"] == -1 and win["twin_check"]["panel_id"] == "trunk_lid"
+    assert out.naming.agreed and out.panel_id == c.PanelId.TRUNK_LID and out.exit is None and out.match.reasons == ["L3"]
+
+
+def test_a_photo_whose_lid_evidence_is_split_names_no_lid(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r")
+    dets = {
+        "hood": [(rect_mask(PANEL), 0.9)],
+        "trunk lid": [(rect_mask(PANEL), 0.8)],  # both lanes on the same lid
+        "license plate": [(rect_mask(PLATE), 0.9)],  # a plate on it says rear
+        "side mirror": [(rect_mask((705, 120, 740, 160)), 0.9)],  # a mirror at its corner says front
+        "car": [(rect_mask((50, 50, 750, 550)), 0.95)],
+    }
+    install(monkeypatch, FakeSam(dets))
+    out = derive("r", photo(plate=PLATE))
+    win = next(row for row in out.naming.sam_votes if row["winner"])
+    assert win["twin_check"]["decided"] is False and win["twin_check"]["lid_nouns"] == ["hood", "trunk lid"]
+    assert out.exit == c.ClaimExit.E2 and not out.naming.agreed and out.panel_id is None
+    assert "the SAM 3.1 vote found the hood or the trunk lid, and the photo does not show which end of the car it is." in out.paragraph
+
+
+def test_a_run_frozen_before_the_twin_check_keeps_the_photo_vote_as_it_was(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r", offsets=((0.05, 0.0),))
+    dets = {"hood": [(rect_mask(PANEL), 0.9)], "license plate": [(rect_mask(PLATE), 0.9)], "car": [(rect_mask((50, 50, 750, 550)), 0.95)]}
+    install(monkeypatch, FakeSam(dets))
+    old = copy.deepcopy(TH)
+    del old["panels"]["twin_check"]
+    out = asyncio.run(claim.derive_claim("r", image=upload("r", photo(plate=PLATE)), text="", tire_code=None, th=old))
+    assert out.exit == c.ClaimExit.E2 and "twin_check" not in next(row for row in out.naming.sam_votes if row["winner"])
+
+
+# The claim's second look in second_look's engine order (panels lane 11/1) ----------------------------------------------
+
+
+def _baseten_look(verdict: str) -> c.SparkRequestRecord:
+    return c.SparkRequestRecord(
+        request_id="chatcmpl-claim", purpose=c.SparkPurpose.SECOND_LOOK, model="meta-models/muse-spark-open-1026", engine=c.SparkEngine.BASETEN,
+        schema_name="look_v1", raw_text=json.dumps({"verdict": verdict, "reason": "checked"}), parsed={"verdict": verdict, "reason": "checked"}, valid=True,
+    )
+
+
+def test_the_claims_look_goes_through_second_looks_engine_order(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r", offsets=((0.05, 0.0),))
+    _sam, spark = install(monkeypatch)
+    asked: list[dict[str, Any]] = []
+
+    def look_images(image_a: np.ndarray, image_b: np.ndarray, **kw: Any) -> tuple[c.SparkRequestRecord | None, list[c.SparkRequestRecord], list[str]]:
+        asked.append(kw)
+        record = _baseten_look("different")
+        return record, [record], []
+
+    monkeypatch.setattr(claim.second_look, "look_images", look_images, raising=False)
+    out = derive("r", photo())
+    assert out.match.reasons == ["L4", "L3", "K7"]  # Spark Open's answer lowered the label
+    assert spark.names() == ["claim_name_v1", "marks_v1"]  # hosted Muse Spark was not asked for the look
+    (kw,) = asked
+    assert kw["run_id"] == "r" and kw["ledger_run_id"] == "r.claim_1" and kw["pair"] == (f"{KF}_m1", "claim_1") and kw["panel_id"] == c.PanelId.TRUNK_LID
+    rec = claim.ClaimAnswers.model_validate_json(claim.answers_path("r", "claim_1").read_text())
+    (look,) = [v for k, v in rec.spark.items() if k.startswith("look:")]
+    assert look.engine is c.SparkEngine.BASETEN and look.request_id == "chatcmpl-claim"
+    assert claim.rebuild_claim("r", "claim_1", th=TH, write=False).match.reasons == ["L4", "L3", "K7"]  # replayed, no call
+
+
+def test_a_run_with_the_walk_look_off_keeps_the_hosted_claim_look(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r", offsets=((0.05, 0.0),))
+    _sam, spark = install(monkeypatch)
+    monkeypatch.setattr(claim.second_look, "look_images", lambda *a, **k: pytest.fail("the engine is off"), raising=False)
+    off = copy.deepcopy(TH)
+    off["spark"]["second_look_engine"] = "off"
+    out = asyncio.run(claim.derive_claim("r", image=upload("r", photo()), text="", tire_code=None, th=off))
+    assert out.match.reasons == ["L3"] and spark.names() == ["claim_name_v1", "marks_v1", "look_v1"]

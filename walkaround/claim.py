@@ -24,7 +24,7 @@ import io
 import math
 import re
 import statistics
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -34,7 +34,7 @@ from meta_sam_parser import FramePrompt, PromptObject, SegmentationMask
 from PIL import Image, ImageOps
 from pydantic import Field
 
-from . import geometry, match, panels, paths, privacy, ruler, sam_client, sheet, spark_client, video
+from . import geometry, match, panels, paths, privacy, ruler, sam_client, second_look, sheet, spark_client, video
 from . import marks as marks_mod
 from .config import redact
 from .contracts import (
@@ -133,6 +133,7 @@ _CAP_TEXT = {
     "K12": "Muse Spark's confidence in a mark is low",
     "K13": "the mark search on a pickup frame was cut short",
     "K14": "Muse Spark boxed the mark because the renter named it",
+    "K15": "every usable pickup frame of this panel is flagged for glare, water or dirt, which could have hidden a mark there",
 }
 
 
@@ -392,6 +393,47 @@ def panel_detection(sam: dict[str, SamAnswer], noun: Noun, center: tuple[float, 
     if index is None:
         return None
     return masks.get(noun.value, index, sam[noun.value].detections[index])
+
+
+def _boxes(sam: dict[str, SamAnswer], noun: Noun) -> list[Box4]:
+    answer = sam.get(noun.value)
+    return [d.box for d in answer.detections] if answer is not None and answer.status == "completed" else []
+
+
+def photo_twin_check(
+    sam: dict[str, SamAnswer], noun: Noun | None, center: tuple[float, float], plates: list[Box4], masks: _Masks, th: dict[str, Any]
+) -> tuple[Noun | None, dict[str, Any]] | None:
+    """panels' twin check on the photo when the SAM vote names a hood or a trunk lid: the lid is the winning detection
+    (with the twin lane's detection on the same lid, box IoU >= panels.anchor_absorb_iou_min), the cues are the plate
+    boxes of the privacy check and the vote's own mirror, light and glass detections, one frame of evidence each.
+    (the lid the photo shows, or None when its evidence is split, and the record kept on the vote row); None when
+    the vote is no lid or the run's thresholds predate the check."""
+    cfg = panels.twin_settings(th)
+    if cfg is None or noun not in panels.LID_NOUNS:
+        return None
+    answer = sam.get(noun.value)
+    cs = [d.c for a in sam.values() if a.status == "completed" for d in a.detections if d.c is not None]
+    _, index = _scored(noun.value, answer, center, masks, statistics.median(cs) if cs else 0.5)
+    if answer is None or index is None:
+        return None
+    lid = answer.detections[index].box
+    twin = NOUN_TWINS[noun]
+    iou_min = float(th["panels"]["anchor_absorb_iou_min"])
+    nouns = [noun] + ([twin] if any(panels.box_iou(box, lid) >= iou_min for box in _boxes(sam, twin)) else [])
+    seen = {Noun.LICENSE_PLATE: {0: list(plates)}}
+    seen.update({n: {0: _boxes(sam, n)} for n in (Noun.SIDE_MIRROR, Noun.HEADLIGHT, Noun.TAIL_LIGHT, Noun.WINDSHIELD, Noun.REAR_WINDOW)})
+    votes, numbers = panels.twin_cues({0: lid}, seen, cfg, min_frames=1)
+    end, score = panels.twin_decision(votes, nouns, cfg)
+    found = panels.END_LID[end] if end is not None else None
+    record = {
+        "lid_nouns": [n.value for n in nouns],
+        "votes": votes,
+        "numbers": numbers,
+        "score": score,
+        "decided": end is not None,
+        "panel_id": found.value if found is not None else None,
+    }
+    return (PANEL_NOUN[found] if found is not None else None), record
 
 
 def cut_windows(windows: SamAnswer, mask: np.ndarray, masks: _Masks, th: dict[str, Any]) -> tuple[np.ndarray, bool]:
@@ -756,6 +798,15 @@ def _decide(view: RunView, answers: ClaimAnswers, img: np.ndarray, th: dict[str,
     vote_noun, rows = sam_vote(answers.sam, center, ctx.masks)
     spark_noun = naming.noun if naming.noun not in NO_PANEL_NOUNS else None
     sam_noun = vote_noun if vote_noun not in NO_PANEL_NOUNS else None
+    # The hood and the trunk lid can look alike (the 10/31 claim on pair C: the vote named the hood on the rear deck),
+    # so a lid vote goes through the walk's twin check on what the photo itself shows; split evidence names no lid.
+    twin = photo_twin_check(answers.sam, sam_noun, center, list(answers.blur.plate_boxes), ctx.masks, th)
+    twin_split = False
+    if twin is not None:
+        lid, record = twin
+        next(row for row in rows if row["winner"])["twin_check"] = record
+        twin_split = lid is None
+        sam_noun = lid if lid is not None else sam_noun
     text_side, text_pos = side_from_text(answers.text, th), position_from_text(answers.text)
     spark_side = naming.side if naming.side is not Side.NONE else None
     spark_pos = naming.position if naming.position is not Position.NONE else None
@@ -766,7 +817,7 @@ def _decide(view: RunView, answers: ClaimAnswers, img: np.ndarray, th: dict[str,
         row["panel_id"] = cands[0].value if len(cands) == 1 else None
     spark_cands = panel_candidates(spark_noun, spark_side or text_side, spark_pos or text_pos)  # what Spark itself named
     vote_complete = all(row["status"] == "completed" for row in rows if row["noun"] != Noun.CAR.value)  # an unfinished one might have won
-    agreed = spark_noun is not None and spark_noun == sam_noun and vote_complete
+    agreed = spark_noun is not None and spark_noun == sam_noun and vote_complete and not twin_split
     claim.naming = ClaimNaming(spark=spark_cands[0] if len(spark_cands) == 1 else None, sam_votes=rows, agreed=agreed)
 
     if answers.panel_id is not None:
@@ -785,8 +836,12 @@ def _decide(view: RunView, answers: ClaimAnswers, img: np.ndarray, th: dict[str,
         unfinished = sum(1 for row in rows if row["status"] != "completed" and row["noun"] != Noun.CAR.value)
         note = f" {unfinished} of the SAM 3.1 requests did not finish." if unfinished else ""
         spark_part = f"Muse Spark named {a}" if naming.valid else "Muse Spark gave no usable answer"
-        twin = " (the same shape from the other end)" if sam_noun is not None and NOUN_TWINS.get(sam_noun) == spark_noun else ""
-        claim.paragraph = f"{spark_part}; the SAM 3.1 vote named {b}{twin}.{note} Pick the panel the bill means; your pick is recorded as your input." + _tail(view, answers)
+        if twin_split:
+            vote_part = "the SAM 3.1 vote found the hood or the trunk lid, and the photo does not show which end of the car it is"
+        else:
+            same_shape = " (the same shape from the other end)" if sam_noun is not None and NOUN_TWINS.get(sam_noun) == spark_noun else ""
+            vote_part = f"the SAM 3.1 vote named {b}{same_shape}"
+        claim.paragraph = f"{spark_part}; {vote_part}.{note} Pick the panel the bill means; your pick is recorded as your input." + _tail(view, answers)
         return claim
     else:
         noun = spark_noun
@@ -864,21 +919,42 @@ def _flagged(kf: Keyframe) -> bool:
     return kf.conditions.wet or kf.conditions.dirty or kf.conditions.glare
 
 
+def _view_flags_cap(th: dict[str, Any]) -> bool:
+    """thresholds claim.view_flag_caps (lead decision 10/31, G2 retired): a wet, dirty or glare pickup frame caps the
+    claim verdict (K15) instead of stopping the comparison. Absent, as in every run frozen before it, the old refusal
+    stands, so those claims rebuild from the answers they recorded."""
+    return bool(th.get("claim", {}).get("view_flag_caps", False))
+
+
+def _pickup_view_flags(view: RunView, pid: PanelId, th: dict[str, Any]) -> list[str]:
+    """The wet, dirty and glare flags of the panel's pickup view when none of its complete, sharp pickup keyframes is
+    clean (match.VIEW_FLAGS order); empty when one is clean, since then the pickup walk's silence at a spot means
+    something. K15 caps a claim mark the pickup walk shows nothing at when this is not empty."""
+    sharp_min = float(th["matching"]["sharpness_rel_min"])
+    kfs = [k for k in view.keyframes.values() if k.panel_id == pid and PICKUP_SIDE.match(k.role) and k.marks_status is MarksStatus.COMPLETE and k.score.sharpness >= sharp_min]
+    if not kfs or any(not match.view_flags(k) for k in kfs):
+        return []
+    found = {f for k in kfs for f in match.view_flags(k)}
+    return [f for f in match.VIEW_FLAGS if f in found]
+
+
 def _pickup_unread(view: RunView, pid: PanelId, th: dict[str, Any]) -> str | None:
     """Why the panel's pickup marks cannot be compared with, or None. The pickup side's own gates of section 6 (G6 side
-    uncertain, G2 glare, water or dirt, G3 blurry, G10 every search cut short), marks never read (a claim sent before
-    the marks stage, or after it failed) and a pickup mark with no place in the panel's frame all mean an absence of
-    pickup marks proves nothing. One complete, clean and sharp pickup-side keyframe is enough."""
+    uncertain, G3 blurry, G10 every search cut short), marks never read (a claim sent before the marks stage, or after
+    it failed) and a pickup mark with no place in the panel's frame all mean an absence of pickup marks proves nothing.
+    One complete and sharp pickup-side keyframe is enough. A wet, dirty or glare flag on it caps the verdict (K15,
+    thresholds claim.view_flag_caps); a run frozen without that key keeps the old rule (G2: one clean frame needed)."""
     panel = view.panels.get(pid)
     if panel is not None and panel.side_uncertain:
         return "The pickup walk could not tell which side this panel is on, so nothing was compared."
     kfs = [k for k in view.keyframes.values() if k.panel_id == pid and PICKUP_SIDE.match(k.role)]
     sharp_min = float(th["matching"]["sharpness_rel_min"])
     read = [k for k in kfs if k.marks_status is MarksStatus.COMPLETE]
-    if not any(not _flagged(k) and k.score.sharpness >= sharp_min for k in read):
+    caps_flags = _view_flags_cap(th)  # since 10/31 a flagged pickup frame caps (K15) instead of stopping the comparison
+    if not any((caps_flags or not _flagged(k)) and k.score.sharpness >= sharp_min for k in read):
         if not kfs:
             return "The pickup walk kept no frame of this panel to search for marks, so nothing was compared."
-        if any(_flagged(k) for k in read):
+        if not caps_flags and any(_flagged(k) for k in read):
             return "The pickup frame shows glare, water or dirt, so Walkaround does not compare marks on it. Look at that frame yourself."
         if read:
             return "The pickup frames of this panel are too blurry to compare marks on. Look at that frame yourself."
@@ -1022,6 +1098,7 @@ class _Compared:
     nearest: MatchCandidate | None  # the placed pickup mark nearest by cost (the pair, when one was made)
     partner: Mark | None  # that pickup mark
     ambiguous: bool  # the ratio test failed inside the band
+    pair_view_flags: list[str] = field(default_factory=list)  # a near pair on a flagged pickup view: the note's flags
 
 
 def _compare(ctx: _Ctx, pid: PanelId, claim_mark: Mark, wc: WhitenedMark, r_claim: float, box: tuple[int, int, int, int], kf: Keyframe | None) -> _Compared:
@@ -1050,9 +1127,13 @@ def _compare(ctx: _Ctx, pid: PanelId, claim_mark: Mark, wc: WhitenedMark, r_clai
     kf_status = {k.kf_id: k.marks_status for k in view.keyframes.values() if k.panel_id == pid and PICKUP_SIDE.match(k.role)}
     tau_pre_r = pair.tau_pre_r if pair is not None else match.tau_r(cal.tau_pre, wc.r, th) + r_claim
     tau_eye_r = pair.tau_eye_r if pair is not None else match.tau_r(cal.tau_eye, wc.r, th) + r_claim
+    # K15 (lead 10/31): with every usable pickup frame flagged, a claim mark the pickup walk shows nothing near may have
+    # been hidden there; a pickup mark near it is no less there for the flag, so a near pair only gets the note
+    view_flags = _pickup_view_flags(view, pid, th) if _view_flags_cap(th) else []
+    view_flagged = bool(view_flags) and not near
 
     def judge(look: LookVerdict | None) -> tuple[VerdictLabel, list[str]]:
-        flags = match.flags_for(pair, claim_mark, partner if near else None, match.staysput_caps(view.mark_tracks, th), look, kf_status, return_mark=True)
+        flags = match.flags_for(pair, claim_mark, partner if near else None, match.staysput_caps(view.mark_tracks, th), look, kf_status, return_mark=True, view_flagged=view_flagged)
         update = {}
         if ambiguous:
             update["K1"] = True
@@ -1078,7 +1159,7 @@ def _compare(ctx: _Ctx, pid: PanelId, claim_mark: Mark, wc: WhitenedMark, r_clai
         unmatched_pickup=[],
         unmatched_return=[] if near else [claim_mark.mark_id],
     )
-    return _Compared(pm, label, ids, nearest, partner, ambiguous)
+    return _Compared(pm, label, ids, nearest, partner, ambiguous, view_flags if near else [])
 
 
 def _second_look(ctx: _Ctx, pid: PanelId, partner: Mark, claim_mark: Mark, box: tuple[int, int, int, int]) -> LookVerdict | None:
@@ -1103,16 +1184,18 @@ def _verdict_text(view: RunView, cmp: _Compared, th: dict[str, Any]) -> str:
     caps = _caps_text([i for i in ids if i.startswith("K") and i != "K1"])
     original = ids[1] if ids[0] == "L4" and len(ids) > 1 and ids[1] in ("L2", "L3", "L5") else ids[0]
     lowered = label is VerdictLabel.NEEDS_YOUR_EYE and original != "L4"
+    flagged = " and ".join(cmp.pair_view_flags)
+    note = f" The pickup frame was flagged {flagged}, but a mark shows at this spot on it, so something was there at pickup." if flagged else ""
     if cmp.ambiguous:
         tail = f" Also: {caps}." if caps else ""
-        return f"Needs your eye: two pickup marks lie about as close to the claim mark; the nearest, {kind}{where}, is {dist} away.{tail}"
+        return f"Needs your eye: two pickup marks lie about as close to the claim mark; the nearest, {kind}{where}, is {dist} away.{tail}{note}"
     if original == "L3":
         if lowered:
-            return f"Needs your eye: {kind}{where} sits {dist} from the claim mark, but {caps or 'a check lowered the answer'}."
-        return f"Already there at pickup: the claim mark sits {dist} from {kind}{where}."
+            return f"Needs your eye: {kind}{where} sits {dist} from the claim mark, but {caps or 'a check lowered the answer'}.{note}"
+        return f"Already there at pickup: the claim mark sits {dist} from {kind}{where}.{note}"
     if original == "L4":
         band = f"Needs your eye: the nearest pickup mark, {kind}{where}, is {dist} from the claim mark, inside the band where Walkaround does not decide."
-        return band + (f" Also: {caps}." if caps else "")
+        return band + (f" Also: {caps}." if caps else "") + note
     nearest = f" The nearest pickup mark, {kind}, is {dist} away." if near is not None else " No pickup mark was found on this panel."
     if lowered:
         return f"Needs your eye: no pickup mark at that spot, but {caps}.{nearest}"
@@ -1211,7 +1294,39 @@ def _spark_call(ask: Ask, img: np.ndarray, view: RunView, answers: ClaimAnswers,
     a = marks_mod.draw_outline(pickup, partner.bbox_crop)  # type: ignore[arg-type]
     b = marks_mod.draw_outline(crop, ask.claim_bbox) if ask.claim_bbox is not None else crop
     refs = [InputRef(path=kf.crop.path, sha256=kf.crop.sha256), ref] if kf.crop is not None and kf.crop.sha256 else [ref]
-    return spark_client.second_look(a, b, panel_id=ask.panel, run_id=rid, effort=effort, input_refs=refs).record  # type: ignore[arg-type]
+    return _look_record(a, b, panel_id=ask.panel, run_id=answers.run_id, ledger_run_id=rid, effort=effort, input_refs=refs, pair=(partner.mark_id, answers.claim_id), th=th)  # type: ignore[arg-type]
+
+
+def _look_record(
+    image_a: np.ndarray,
+    image_b: np.ndarray,
+    *,
+    panel_id: PanelId,
+    run_id: str,
+    ledger_run_id: str,
+    effort: str,
+    input_refs: list[InputRef],
+    pair: tuple[str, str],
+    th: dict[str, Any],
+) -> SparkRequestRecord:
+    """The claim's look (K7), asked in second_look's engine order: Muse Spark Open on Baseten first (the hackathon key,
+    then the account key), hosted Muse Spark 1.3 when Baseten gives no answer, hosted only under engine "spark". The
+    calls bill under the claim's ledger id; Baseten's provenance lines go to claim/<claim_id>.open_weights.ndjson (the
+    run's own open_weights.ndjson is sealed at run end, so a claim never appends to it). When the run asks no look in
+    its walks, the claim keeps its hosted Muse Spark look. The record that stands is kept; with none, the last one (it
+    reads as unsure, a downgrade); a look nothing answered raises, as a failed hosted call always did."""
+    if second_look.engine_of(th) != "off":
+        claim_id = pair[1]
+        standing, records, notes = second_look.look_images(
+            image_a, image_b, panel_id=panel_id, run_id=run_id, ledger_run_id=ledger_run_id, input_refs=input_refs, th=th, pair=pair,
+            provenance=paths.claim_open_weights_log(run_id, claim_id),
+        )
+        if standing is not None:
+            return standing
+        if records:
+            return records[-1]
+        raise RuntimeError("the second look got no answer: " + ("; ".join(notes) or "no engine answered"))
+    return spark_client.second_look(image_a, image_b, panel_id=panel_id, run_id=ledger_run_id, effort=effort, input_refs=input_refs).record
 
 
 async def fetch(asks: list[Ask], answers: ClaimAnswers, img: np.ndarray, view: RunView, th: dict[str, Any]) -> ClaimAnswers:

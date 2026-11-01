@@ -228,11 +228,13 @@ def tire_diameter_in(code: str | None) -> float | None:
 
 
 def size_line(size: SizeEstimate | None) -> str:
-    """'about 0.9 in, between 0.6 and 1.3 in (ruler: the license plate, 12 in)' or 'size not stated: <reason>'."""
+    """'about 0.9 in, between 0.6 and 1.3 in (ruler: the license plate, 12 in)' or 'size not stated: <reason>', each
+    followed by why every other ruler next to the mark did not size it (SizeEstimate.ruler_notes)."""
     if size is None:
         return NO_RULER_LINE
+    notes = "".join(f"; {note}" for note in size.ruler_notes)
     if size.refused_reason:
-        return f"size not stated: {size.refused_reason}"
+        return f"size not stated: {size.refused_reason}{notes}"
     if size.inches is None:
         return "size not stated: no ruler qualified"
     if size.ruler == RulerKind.PLATE:
@@ -245,7 +247,7 @@ def size_line(size: SizeEstimate | None) -> str:
     text = f"about {size.inches:.1f} in"
     if size.bound_lo is not None and size.bound_hi is not None:
         text += f", between {size.bound_lo:.1f} and {size.bound_hi:.1f} in"
-    return f"{text} (ruler: {ruler})"
+    return f"{text} (ruler: {ruler}{notes})"
 
 
 def threshold_line(size: SizeEstimate | None, th: dict[str, Any]) -> str | None:
@@ -282,10 +284,42 @@ def _num(value: float | None) -> str:
 STAYSPUT_UNCALIBRATED = "recorded only: Stays Put is not calibrated yet and changes no label"
 
 
+def neighbour_line(mt: MarkTrack | None) -> str | None:
+    """Stays Put by neighbours in words (docs/STAYS_PUT_ANCHORS.md; web/src/lib/neighbours.ts says the same): 'neighbour
+    test: moves with its 6 neighbours, 0.6x their wobble over the clip and 0.8x within 0.5 s; fixed'. None when the
+    clip has no neighbour test or its lane gave no answer."""
+    nt = mt.neighbour_test if mt is not None else None
+    if nt is None or nt.verdict == StaysPutVerdict.NOT_RUN:
+        return None
+    if nt.verdict == StaysPutVerdict.NO_TRACK:
+        return "neighbour test: SAM did not follow the mark through enough of the clip"
+    if nt.ratio_full is None or nt.ratio_near is None:
+        return f"neighbour test: {nt.reason or 'too few frames to measure'}; inconclusive"
+    ratios = f"{nt.ratio_full:.1f}x {{}} over the clip and {nt.ratio_near:.1f}x within {nt.near_s:g} s"
+    if nt.verdict == StaysPutVerdict.FIXED:
+        words = f"moves with its {nt.used} neighbours, " + ratios.format("their wobble")
+    elif nt.verdict == StaysPutVerdict.SLIDING:
+        words = f"slides against its {nt.used} neighbours, " + ratios.format("their wobble")
+    else:
+        words = ratios.format(f"its {nt.used} neighbours' wobble")
+    return f"neighbour test: {words}; {nt.verdict.value}"
+
+
 def staysput_line(mt: MarkTrack | None, *, calibrated: bool = True) -> str | None:
     """'drift 0.03, b1 0.20, b2 0.01, not panned; fixed'; an inconclusive track says which test it stopped at: the
     camera's motion (section 14 item 18), too few whitened frames, or a drift between fixed and sliding. Uncalibrated
-    (thresholds staysput.cap_enabled off, docs/D1_MEMO.md note 2) the numbers only, said to change no label."""
+    (thresholds staysput.cap_enabled off, docs/D1_MEMO.md note 2) the numbers only, said to change no label. A clip
+    with the neighbour test adds neighbour_line before that note (or at the end, calibrated)."""
+    line = _staysput_drift_line(mt, calibrated=calibrated)
+    near = neighbour_line(mt) if line is not None and mt is not None and mt.verdict != StaysPutVerdict.NO_TRACK else None
+    if near is None or line is None:
+        return line
+    if not calibrated and line.endswith(f"; {STAYSPUT_UNCALIBRATED}"):
+        return f"{line[: -len(STAYSPUT_UNCALIBRATED) - 2]}; {near}; {STAYSPUT_UNCALIBRATED}"
+    return f"{line}; {near}"
+
+
+def _staysput_drift_line(mt: MarkTrack | None, *, calibrated: bool = True) -> str | None:
     if mt is None or mt.verdict == StaysPutVerdict.NOT_RUN:
         return None
     if mt.verdict == StaysPutVerdict.NO_TRACK:
@@ -424,10 +458,11 @@ def glossary_md() -> str:
         "Glossary\n"
         "\n"
         "already there: the same mark was found at pickup within tau_pre of its return position (rule L3).\n"
-        "needs your eye: a human should look; the pair sat in the band between tau_pre and tau_eye, or a cap (K1 to K14) applied (L4).\n"
+        "needs your eye: a human should look; the pair sat in the band between tau_pre and tau_eye, or a cap (K1 to K15) applied (L4).\n"
         "new or unseen: a return mark with no pickup mark near it; new, or not filmed at pickup (L2).\n"
         "not seen at return: a pickup mark with no return mark near it (L1).\n"
-        "not comparable: a panel gate failed (G1 to G10); both best frames still show with the reason (L6).\n"
+        "not comparable: a panel gate failed (G1, G3 to G10); both best frames still show with the reason (L6).\n"
+        "view flagged: Muse Spark said a frame shows water, dirt or glare. That is a model's judgment, so it no longer blocks a panel (gate G2 did that until Oct 31). A mark seen in one walk only is capped at needs your eye (K15); a mark in the same place in both walks keeps its label, with a note.\n"
         "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"
@@ -751,7 +786,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
         for v in [v for v in verdicts if v.panel_id == pid]:
             first = next((marks_by_id[i] for i in v.mark_ids if i in marks_by_id), None)
             sp = next((s for s in (staysput_line(mt_by_mark[i], calibrated=staysput_calibrated) for i in v.mark_ids if i in mt_by_mark) if s), None)
-            size_text = size_line(v.size)
+            size_text = size_line(v.size) if v.size is not None or v.rule_id != "L6" else None  # not comparable: no size, no ruler line
             extra = threshold_line(v.size, th)
             lines.append(
                 SheetVerdictLine(
@@ -760,6 +795,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
                     distance_units=v.distance_units, distance_cm_est=v.distance_cm_est, staysput_line=sp,
                     size_line=f"{size_text}; {extra}" if extra else size_text,
                     ordinary_wear_line=ordinary_wear_line(first.type if first else None, pid),
+                    view_line=v.view_note,
                 )
             )
         chips: list[SheetChip] = []

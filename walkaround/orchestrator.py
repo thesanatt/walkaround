@@ -579,11 +579,13 @@ class Orchestrator:
         prompts: dict[str, str] | None = None,
         keep: bool = False,
         footage_credit: str | None = None,
+        tire_code: str | None = None,
     ) -> c.RunManifest:
         """ULID run_id (or a chosen one that does not exist yet), the layout on disk, thresholds frozen with their hash,
         run.json, run.created. noun_list narrows the lanes (car, license plate and face always stay); prompts gives a
         lane stand-in text for a test clip that has no car (see prompt_text). keep (sample and eval runs) survives the
-        retention sweep and makes the run public; footage_credit is the credit line shown under the walk player."""
+        retention sweep and makes the run public; footage_credit is the credit line shown under the walk player;
+        tire_code (already normalized, ruler.normalize_tire_code) is the sidewall size the wheel ruler reads."""
         nouns, prompts = _check_nouns(noun_list, prompts)
         if run_id is not None:
             _check_new_run_id(run_id)
@@ -609,6 +611,7 @@ class Orchestrator:
             prompts=prompts,
             keep=keep,
             footage_credit=" ".join(footage_credit.split()) if footage_credit else None,
+            tire_code=tire_code or None,
         )
         self.save_run(run)
         payload: dict[str, Any] = {"kind": kind.value, "mode": mode.value, "keep_plate": keep_plate, "config_hash": run.config_hash}

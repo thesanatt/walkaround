@@ -17,7 +17,8 @@ Shared ground, read first:
   `contracts.load_thresholds()` (plain nested values, `_meta` stripped) and passes the dict down as `th`;
   `contracts.config_hash(th)` is the config hash on run.json, every trace and the sheet. Pure rule functions take
   `th` as an argument; nothing reads the file inside a rule.
-- `walkaround/rules.py`: the rule id table (G1 to G10 gates, K1 to K13 caps, L1 to L6 labels, E1 to E8 claim exits).
+- `walkaround/rules.py`: the rule id table (G1 to G10 gates, G2 retired 10/31; K1 to K15 caps; L1 to L6 labels; E1 to E8
+  claim exits).
   `rules.rule(id)` raises KeyError on an unknown id, so no sheet prints an id outside the table.
 - Ledger: every model call goes through `walkaround.ledger.record(kind, model, *, note, run_id, **usage)` exactly
   once. Kinds: `sam_video` (frames=...), `sam_image` (images=1), `spark` (input_tokens, output_tokens,
@@ -26,7 +27,7 @@ Shared ground, read first:
   `retries` so the row matches `contracts.LedgerRow` (`usd` is the row's dollars column).
 - Live calls: only inside functions this file marks LIVE, and tests reach them only behind `LIVE=1`. Every
   `/v1/responses` request carries `store=False`.
-- Verdicts: deterministic code owns every label; a model answer can only lower one (K4, K7, K12, K13, G2, G10).
+- Verdicts: deterministic code owns every label; a model answer can only lower one (K4, K7, K12, K13, K15, G10).
 - Types used below: `Box4 = list[float]` of x1, y1, x2, y2 with half-open right and bottom; `Point2 = list[float]`;
   `media_size = tuple[int, int]` (width, height after rotation); `th = dict[str, Any]` from `load_thresholds()`;
   `role: str` matches `contracts.Role` (pickup, return, topup_<n>, claim_<n>).
@@ -743,3 +744,341 @@ web). Accepted deviations are in each module's section above; what the integrati
 Still open: the claim's second look runs on hosted Spark; SheetMethod.eval_lines is empty; there is no run-level tire
 code; Claim has no work_w/work_h and ClaimNaming no Spark noun, side and position (the web mirrors 2048 and offers the
 bill's slots only); count mode on Spark Open is not wired.
+
+## Match lane, round 3 (2026-10-31 night): K15 replaces gate G2
+
+Lead decision, Oct 31: Muse Spark's view conditions (wet, dirty, glare) are model judgments, and a model may only
+lower a verdict, never block a panel. What is binding from here:
+
+- G2 is retired. `match.panel_gates` never returns it; the order is G1, G3..G10, each unchanged. The G2 row stays in
+  rules.py as "crop condition (retired)" so older files that name it still print.
+- The keyframe pair prefers a clean view. `match.pair_keyframes(kfs_pickup, kfs_return, *, th=None)` first narrows
+  each walk with `match.prefer_clean(kfs, th)`: when one of the walk's keyframes carries a view flag and the walk has
+  a clean usable keyframe (marks_status complete, no wet, dirty or glare, crop, moments and front_sign present,
+  sharpness at least matching.sharpness_rel_min), only those compete; otherwise all of them, so a walk with no flag
+  pairs exactly as before. Then the smallest |ln aspect ratio| as before. The choice is made in match: panels picks
+  keyframes before Muse Spark has seen them.
+- K15 "view flagged". A walk's view is its paired keyframe plus the keyframe each involved mark was placed in. A mark
+  found in one walk only (L1, L2, and both marks of an L5 pair) gets K15 when a view of either walk is flagged, and
+  verdict() lowers it to needs your eye like any K flag. `match.flags_for(..., view_flagged=False)` sets it (a
+  keyword with a default, so claim.py's call is unchanged). `match.view_flags(kf)` gives wet, dirty, glare in that
+  order; dark is not a view flag (it never gated).
+- A pair inside tau_eye_r never gets K15. It keeps what the distance and its own caps give (L3 already there, L4 with
+  K1 in the band) and carries the note: a mark in the same place in both walks was there at pickup, damage or dirt.
+  It still gets the second look when it is a provisional already there.
+- `Verdict.view_note: str | None` (contracts, additive) is the reason in words. One walk: "return view flagged dirty:
+  could be dirt" for the view the mark was found in (wet: water, glare: a reflection), "pickup view flagged glare:
+  could have hidden the mark" for the view it is missing from, joined by "; ". A pair: "return view flagged dirty:
+  the mark is in the same place in both walks, so it was there at pickup, whatever it is" (L3), "...: a mark shows
+  near this place in both walks" (in the band). `Verdict.reasons` stays rules.describe of the K ids.
+- Sheet: `SheetVerdictLine.view_line` copies view_note and templates/sheet.html prints it in the detail column. The
+  glossary says "K1 to K15", "G1, G3 to G10" and has a "view flagged" line.
+- File bytes: view_note and view_line are left out of the JSON when None (a wrap serializer, as
+  MarkTrack.neighbour_test does), so a run with no view flag keeps its matches.json and verdicts.json bytes; its
+  sheet.json changes only through the glossary.
+- Older runs: `match.why_rebuild_differs(run_id, name)` reads the stored file. derived/matches.json or
+  derived/verdicts.json naming G2, or a sheet.json naming G2 in its not-comparable list or with a glossary that does
+  not name K15, gives `match.RULE_CHANGE_1031`. `walkaround verify` appends it to the "rebuild differs" line, once,
+  then "the same rule change". A tampered file keeps the bare line.
+- Superseded wording above: "a model answer can only lower one (K4, K7, K12, K13, G2, G10)" now reads K15 for G2, and
+  rules.py holds K1 to K15.
+- Web, for the integrator: web/src/lib/rules.ts needs the K15 row and the new G2 text (the mirror), types.ts Verdict
+  `view_note?: string | null`, and the verdict card and list should print view_note.
+
+Replayed on pairC_core1 with the rebuild path (`walkaround rebuild pairC_core1 --out DIR`), no model call, keyframes
+unchanged: 0 of 21 panels comparable before, 1 of 21 after (the windshield; gates G1 15, G3 3, G4 11, G6 4, G8 1,
+G9 2, no G2). The windshield gives 10 verdicts, all needs your eye: one reflection pair in the band (0.46 units) with
+the note, 6 pickup marks not seen at return and 3 return marks new or unseen, each with K15 (8 of the 9 are also K4).
+The trunk lid still fails G4 (mask IoU 0.50, the twin swap). Rebuilding the rebuilt copy again gives the same bytes
+for every derived file and sheet.json.
+
+## Polish lane (2026-10-31 night): Baseten key slots, Voice speaker markers, the ruler's best view and the tire code
+
+Second look on the Baseten hackathon key (walkaround/open_weights.py, second_look.py, config.py, .env.example):
+- `open_weights.KEY_SLOTS`, tried in order: `KeySlot("hackathon", "BASETEN_HACKATHON_API_KEY",
+  "meta-models/muse-spark-open-1026")`, then `KeySlot("account", "BASETEN_API_KEY", "meta-models/muse-spark-open")`,
+  then the hosted Muse Spark fallback in second_look as before. The id is fixed per key; GET /v1/models is no longer
+  asked (with the hackathon key it lists both ids and the plain one answers 403, LEDGER row 22). A slot with no key is
+  skipped. A 401, 402, 403 or 404 rests the slot for FAILURE_TTL_S and the next slot is asked in the same call; a
+  timeout, a dropped connection, a 400 not about the format and 408/409/429/5xx past three tries still raise
+  OpenWeightsError at once. No key at all raises `open_weights.NO_KEY`; every slot resting raises "no Baseten key
+  slot answered in the last 10 minutes (hackathon key: 403; account key: 401)".
+- Additive field `key_slot` ("hackathon" or "account", the slot name, never the key) on every open_weights.ndjson
+  line, failed calls included, on every spark_open ledger row, and on derived/looks.json rows
+  (`LookRecord.key_slot`, null when hosted Spark answered or the look did not run). `open_weights.key_slot_of(record)`
+  gives the slot of a Spark Open record that came back in this process.
+- Gone: `open_weights.list_models`, `model_candidates`, `api_key` (no caller outside the module). New:
+  `HACKATHON_MODEL`, `ACCOUNT_MODEL`, `KeySlot`, `SLOT_FAILURES`, `key_slots()`, `slot_order()`, `slot_key(slot)`.
+  `set_client(client, *, slots=None)` answers for every slot, or only the slots named.
+- config: `_SECRET_ENV` holds BASETEN_HACKATHON_API_KEY; `redact` also replaces Baseten-shaped tokens (b10_, 8
+  characters, a dot, 32 or more); an empty value in walkaround/.env or ~/meta2026/.keys sets nothing, so the empty
+  `BASETEN_HACKATHON_API_KEY=` line .env.example now carries never hides a value in the second file.
+- Superseded above: "model id from GET /v1/models (meta-models/muse-spark-open answered every call)" in the
+  second_look row.
+
+Voice speaker markers (walkaround/narration.py):
+- `narration.SPEAKER_MARKER` matches `<|...|>`. Turns are still cut on the raw words, so pieces, est_ms, pins and the
+  seed questions (seeds.json phrases, the text Spark reads) are unchanged and stored answers still match. The words
+  shown leave the marker out, also when a cut falls inside one: `Piece.shown`, `NarrationTurn.text`,
+  `NarrationRole.transcript` (no-turns case, `narration.shown_text`) and a found seed mark's `description`.
+  SeedOutcome.phrase in narration_pieces.json keeps the raw phrase (what Spark read).
+- pairC_core1: the rebuilt derived/narration.json differs from the stored one in two texts (t1_3 "front door like
+  scratch near the handle", t1_4 "trunk lid two small chips by the edge"; the stored ones end in "<|speaker_" and
+  start with "A|>"), and sheet.json's chips with it. narration_pieces.json, marks.json and both claims rebuild
+  byte-identical.
+
+The ruler (walkaround/ruler.py, contracts, config/thresholds.json, sheet.py, __main__.py):
+- A walk mark is sized on its best view: every keyframe of the walk whose frame lies inside the mark's Stays Put clip
+  (frame times from clips/<role>/staysput.json, `ClipPlan.pts_src`) is a candidate; the plate or wheel is the one
+  measured on that keyframe and the mark's extent comes from its own track within 3 clip frames of it (median, at
+  least 3 boxes), so ruler and mark stay on one frame. The most frontal ruler that sizes the mark wins (ties: the
+  frame nearest the mark's keyframe), the plate before the wheel. With no plan (a sample copy, an older run) only the
+  mark's own keyframe counts, with the track's median extent over the clip, as before. The crop flag of the mark's
+  own keyframe still refuses first.
+- `ruler.plate_hw_min` 0.35 (thresholds, estimate; the module default for runs frozen without it): a plate flatter
+  than that is refused as "the license plate is flatter than a 12 by 6 in plate, so its size is not known"
+  (`ruler.NOT_A_US_PLATE`). Without it a European or Indian strip plate (pair C's front plate reads h / w 0.06 to
+  0.25) passed as a frontal 12 in plate and would have sized marks about 40% small.
+- `SizeEstimate.ruler_notes: list[str]` (additive, left out of the JSON when empty): why each other ruler next to the
+  mark did not size it ("the wheel: tire size not given", "the license plate is turned more than 30 degrees from the
+  camera", `ruler.NO_WHEEL`, `ruler.NO_PLATE`). `sheet.size_line` prints them inside the ruler parentheses after the
+  ruler used, or after the reason a size was not stated. best_size (claims) is unchanged and gives no notes.
+- `RunManifest.tire_code: str | None` (additive, left out of run.json when None), normalized. `walkaround run
+  --tire-code 155/80R13` reads it with ruler.normalize_tire_code before anything is spent (an unreadable code exits
+  2) and stores it on a new run's run.json (integrator 10/31: `pipeline.run_pair_async(..., tire_code=)` passes it to
+  `Orchestrator.create_run(..., tire_code=)`; the `__main__.stamp_tire_code` wrapper is gone; a resumed run keeps its
+  own code). `ruler.run_tire_code(run_id)` reads it; size_marks and
+  size_verdicts use it when no tire_code is passed (tire_code="" means none), so the match stage and rebuild need no
+  change.
+- sheet: a not comparable verdict (L6) gets no size line; it printed "size not stated: no ruler within 0.6 m of this
+  mark", which was not the reason.
+- Superseded above: "There is no run-level tire code yet" in the ruler section and the integration notes.
+
+## Privacy lane (2026-10-31 night): blocks that grow with the box, tracks carried past their sightings, the display video re-derived
+
+The release agent found on pairC_core1 that 5 px blocks on the 960 px display videos left a close plate readable (return
+walk, 4.4 s; the privacy lane found 5.4 to 5.8 s too, where uCO3D's own grey patch is also missing), and that the pickup
+walk's rear plate shows edge-on from frame 185 (12.33 s), 30 frames before its plate track starts at frame 215. What is
+binding from here (walkaround/privacy.py, one keyword in video.py, config/thresholds.json):
+
+- Block size. `privacy.block_for_box(box, *, block_px, blocks_across)` is at least block_px and big enough that the box's
+  long side spans at most `privacy.box_blocks_across` (4) blocks. `pixelate(..., blocks_across=4.0)` (new keyword; the
+  default comes from PRIVACY_DEFAULTS, None keeps the old fixed block) applies it per box, and boxes that touch share the
+  coarsest block of their connected region. `blur_frame` does the same for boxes and masks (a mask's block from its
+  detection box). Crops, keyframes, sheet frames and claim photos (blur_frame) and Stays Put clips (video._clip_frames
+  calls pixelate with the default) all get it with no change in those modules.
+- Margin. A box is dilated by track_box_dilation_frac of its long side (it was each side's own length) plus
+  track_box_dilation_px, the rule `_dilate_mask` already used for masks, so a plate seen edge-on still gets a margin
+  across its thin side.
+- Track boxes. `track_boxes_at(..., carried=None)` returns every sighting within `track_box_union_s` (0.1 s) of the frame,
+  so a one-frame box glitch (pairC_core1 return frame 70, a 14 x 18 px box) no longer uncovers the plate; the last box
+  held for track_gap_bridge_s after a sighting, as before, so every box the old rule gave is still there; and, for up to
+  `track_carry_s` (2.0 s) before each run of sightings and after it, a carried box. By default it is extrapolated from
+  the run's edge (size no smaller than the edge box or the median over `track_carry_fit_s`, speed the median step
+  capped at `track_carry_speed_max_frac_per_s` of the frame width per second) and grows by `track_carry_grow_per_s`
+  (0.5) of its size per second carried. A gap between two runs is carried from both sides. Keyframes, Stays Put clips,
+  owner frames and make_sample get this with no change.
+- Display video. `privacy.render_display(proxy, dst, tracks, *, fps, frames, th)` pixelates `display_boxes`:
+  track_boxes_at with `carried` from `flow_carry`, which moves each carried box frame by frame with the median
+  Lucas-Kanade flow of a 10 x 10 grid around it on the unblurred proxy (gray, 480 px), checked forward and backward,
+  never smaller than the edge box, growing by `track_flow_grow_per_s` (0.2); where the flow loses it, it goes on at its
+  last step and grows at track_carry_grow_per_s. render_blurred_proxy (the blur stage) calls it and keeps its signature.
+  `video.render_blurred_proxy(..., blocks_across=None)` is the one additive keyword in video.py, passed to pixelate.
+- Thresholds (privacy, new leaves): box_blocks_across 4, track_box_union_s 0.1, track_carry_s 2.0, track_carry_fit_s 0.4,
+  track_carry_grow_per_s 0.5, track_carry_speed_max_frac_per_s 1.0, track_flow_grow_per_s 0.2. `privacy.PRIVACY_DEFAULTS`
+  holds the same values (`privacy_params(th)`), so a run frozen before them blurs with today's rule, never a weaker one.
+- Derived file. `privacy.rederive_display(run_id, role, original, out_dir, *, th=None)` checks the original against the
+  sealed sha256_server, cuts the proxy again with the run's media settings and compares it with the sealed proxy hash,
+  rebuilds the walk's plate and face tracks from the stored lanes (`privacy.walk_privacy_tracks`, the same
+  panels.privacy_tracks call as orchestrator._privacy_tracks), renders with render_display, deletes its unblurred proxy
+  and returns the hashes with `matches_sealed`. It never writes inside the run. For a run made with this code it matches
+  byte for byte on the same ffmpeg and OpenCV builds (tests/test_privacy.py builds one; the proxy cut and the x264
+  encode depend on those builds too). `scripts/rederive_display.py RUN_ID ORIGINAL --role R --out DIR` wraps it.
+- Rebuild and verify call no blur, so their outputs do not change. A sealed run's display videos are never rewritten
+  in place.
+
+Measured on pairC_core1 with no model call: both proxies cut again from the uCO3D originals match their sealed hashes;
+the old blur code gives back both sealed display videos byte for byte (051ff573, 8c38d3b4); the new code gives pickup
+f9a90802 and return 38c012b6, the same bytes on two separate runs, about 4 s a walk. The frames where a plate shows in
+the source with no grey patch over it (return frame 66 at 4.4 s and frames 81 to 87 at 5.4 to 5.8 s, pickup frames 185
+to 190 at 12.33 to 12.67 s) now sit under blocks of 33, 23 to 25 and 37 to 39 px (5 px before), with no character
+readable on side-by-side sheets checked by eye; so does every frame in the 2 s carried around each of the 8 plate
+tracks. On pairC_core1's 61 keyframes the union and the carry would add blur to parts of 2 of 97 marks (a
+reflection on the front bumper, 36% of its box, and dirt on the rear bumper, 61%), none on the trunk lid.
+
+For the release lane: make_sample.py's --plate-block and --cover hand fix can give way to copying the two files
+rederive_display writes. They then match the hashes rederive_display prints, not the ones the run sealed, and the
+README's sample paragraph should say that.
+
+## Stays Put neighbours lane (2026-10-31 night): the neighbour test of docs/STAYS_PUT_ANCHORS.md, built in
+
+Owned: walkaround/staysput.py, tests/test_staysput.py, tests/fixtures/staysput/, web/src/lib/neighbours.ts,
+web/src/components/ClipTrail.tsx, StaysPutPair.tsx, StaysPutList.tsx, web/test/staysput_neighbours.test.ts. Small
+additive edits in shared files: contracts.py, config/thresholds.json, sheet.py, web/src/contracts/types.ts,
+web/src/lib/lines.ts (staysPutLine), web/src/styles.css.
+
+- Planning. Each clip still starts from its mark-centred window (5.9 item 1). `neighbour_candidates(walk_marks,
+  tracks, kf, *, th, src_size, proxy_size)` lists what it may also track: other marks on the same crop whose type sits
+  on the paint (scratch, scuff, chip, dent, crack, dirt; never reflection or unsure), the lane parts on the keyframe's
+  own proxy frame (side mirror, wheel, headlight, tail light, license plate, car window, windshield, rear window; never
+  a face, the car or a panel; not when the frame edge cuts the box) and the keyframe's door handle (a box from
+  `handle.point_src`). `pick_neighbours(...)` takes them nearest first: all the base window holds, then the window
+  grows until the clip holds `neighbours_target` (6, the clip's own paint marks count), within
+  `neighbour_window_max_panel_frac` x the panel's long side and never shrinking a mark under
+  `neighbour_mark_min_clip_px`; at most `neighbours_max` (12) and 16 objects per clip. A window that grew but still
+  holds fewer than `neighbours_min` (4) goes back to its base side. A group whose marks all ride as neighbours in an
+  earlier clip of the same keyframe gets no clip: its marks are tested there, so each mark is tested in exactly one
+  clip (fewer requests than before on a keyframe with spread-out marks).
+- Plan file: `ClipPlan.neighbours: list[PlanNeighbour]` (object ids after the marks: kind, ref, box_src, box_clip) and
+  `ClipPlan.neighbour_rule` (1; None on plans made before tonight). Both are in the resume key. Same SAM request, no
+  extra cost.
+- Analysis, pure: `neighbour_test(track_frames, object_id, neighbours, *, n_frames, prompt_frame, fps, th) ->
+  contracts.NeighbourTest`. A neighbour is in the fit when SAM returned it on the prompt frame and on at least 80% of
+  the clip. Per window (whole clip; +/- round(0.5 s x fps) frames): the mark's median residual against the
+  least-squares affine of the neighbours' centres (prompt frame to frame f), over the median of each neighbour's own
+  leave-one-out median (floored at 0.5 clip px); fixed when both ratios are under 1.5, sliding when both are over 2.5,
+  else inconclusive; fewer than 4 neighbours in the fit is inconclusive; the mark itself on under
+  `no_track_box_share_below` of the clip is no_track; frames whose anchors lie on one line are skipped. A mark's
+  neighbours are the plan's neighbours plus the clip's other paint marks. On the two stored lanes it gives the lead's
+  numbers exactly (trunk paint 0.59 and 0.84x; S550 reflection 4.77 and 3.83x; crease 0.68 and 0.35x).
+- Rows: `MarkTrack.neighbour_test: NeighbourTest | None` (verdict, ratio_full, ratio_near, mark and neighbour
+  medians in clip px, near_s, near_frames, used, reason, and per neighbour: object id, kind, ref, frames, used, its
+  leave-one-out medians and its centres per frame for the page's markers). None on plans made before the test, and a
+  model_serializer drops the key then, so older runs (pairC_core1 checked) rebuild byte-identical. not_run with the
+  planned neighbour list when the clip lane gave no answer. `MarkTrack.verdict` is still the drift test's; K6 is
+  untouched and staysput.cap_enabled stays false.
+- Sheet: `sheet.neighbour_line(mt)` ("neighbour test: moves with its 6 neighbours, 0.6x their wobble over the clip and
+  0.8x within 0.5 s; fixed"); `staysput_line` puts it before the "recorded only ... changes no label" note. The web
+  mirrors it (lib/neighbours.ts neighbourLine, lines.ts staysPutLine), shows a plain caption under each clip ("Slides
+  against its 6 neighbours, 4.8x their wobble (3.8x within 0.5 s). Recorded only: it changes no verdict yet.") and a
+  small ring on each tracked neighbour (dashed when it was not in the fit).
+- Thresholds (staysput, each with its source): neighbours_enabled, neighbours_max, neighbours_target, neighbours_min,
+  neighbour_track_share_min, neighbour_fixed_below, neighbour_sliding_above, neighbour_near_half_window_s,
+  neighbour_window_margin, neighbour_window_max_panel_frac, neighbour_mark_min_clip_px,
+  neighbour_part_max_window_frac, neighbour_residual_floor_px, neighbour_dedupe_iou, neighbour_handle_half_w_frac,
+  neighbour_handle_half_h_frac. `neighbour_window_max_growth` (a cap on the window as a multiple of its base side) is
+  only in staysput.DEFAULTS, off; set it to keep faint marks sharp (see the pair C result).
+- Measured live on 10/31 ($0.078; ledger run ids sp_neigh_pairC_1031 and sp_neigh_s550_1031): on the S550 the
+  reflection slides in both clips (3.85 and 3.70x on the lead's clip, 5.14 and 4.01x on a square product clip cut by
+  video.cut_clip at 24 fps) while the crease and the S550 badge read fixed (0.88 and 0.65x; 0.94 and 1.07x; badge 0.83
+  and 0.73x, inconclusive once at 1.29 and 1.69x); two thin chrome edges were never followed by SAM. On pair C's
+  pickup trunk lid the windows grew to 969 and 1181 px and SAM dropped the faint marks on 13 to 84 of 89 frames (in
+  pairC_core1's 400 px windows the chip, the scratch and one dirt mark held all 89), so under the 80% rule no trunk mark
+  got a ratio; with the coverage rules loosened the paint reads 0.4 to 1.0x and the chip 2.2 and 1.1x, none sliding.
+
+## Panels lane (2026-11-01): the twin check, fast keyframe masks, the claim's look
+
+Offline work on runs/pairC_core1's stored lanes; no model call, $0.
+
+- Twin check (panels.twin_check, apply_twin_check, twin_cues, twin_decision, lid_groups). The lane noun of a hood or
+  trunk-lid track is only the prior: on pair C the "hood" lane held the trunk lid whenever the camera was at the rear
+  and the "trunk lid" lane the hood at the front. Before keyframes are picked, the lid tracks of both lanes that show
+  one lid (median box IoU >= panels.anchor_absorb_iou_min on shared frames) are judged together from cues the walk
+  already tracked, each +1 front, -1 rear or 0: plate (a plate box on the lid box marks the rear), mirror (near the lid
+  front, far rear, in lid sizes = the box's longer side), lights and glass (headlight or tail light, windshield or rear
+  window, beside the lid on clearly more frames for one lane than the other). Weights plate 2, mirror 2, lights 1,
+  glass 1; a sum reaching margin_min decides. Under it the lane noun stands when the lid's tracks all come from one
+  lane and no cue points the other way; otherwise twin_check.decided is false, the tracks keep their lane slot as a
+  placeholder, candidate_slots lists hood and trunk lid, the panel is side_uncertain (G6) and coverage prints "front or
+  rear uncertain". Then each light and glass track takes the end of the placed lid it sits beside (on >= min_frames and
+  >= neighbour_share_min of its frames, neighbour_majority to 1), with no record and its lane noun when there is no such
+  evidence. Only the placed lids, not lights or glass, also anchor the side vote (_RoleContext ends): with lights and
+  glass as anchors too, pair C's wheels and fenders moved both ways.
+- Contracts: `PanelTrack.twin_check: TwinCheck | None` (dropped from the JSON when None, so earlier tracks.json files
+  round-trip byte for byte; pairC_core1 checked) and `TwinCheck {lid, votes, numbers, score, decided}`. thresholds
+  panels.twin_check (one dict leaf); absent, as in every run frozen before 11/1, the check is off and those runs vote,
+  derive and rebuild as before. A relabelled track keeps its lane noun, so the keyframe pass decodes its masks from its
+  own lane (t.noun), never the panel's noun.
+- Proof on pairC_core1 (scripts in the lane report; tests/fixtures/twin/pairC_core1_lane_boxes.json.gz holds the lane
+  boxes, no pixel or mask, for tests/test_panels.py): 15 tracks move. Lids: pickup_hood_01 (frames 155 to 295) to the
+  trunk lid, score -3 (plate on it in 94% of 96 plate frames, tail lights beside it); return_hood_00 (0 to 103) to the
+  trunk lid, -4 (plate 91%, mirror 2.57 lid sizes away); return_trunk_lid_01 (184 to 303) to the hood, +3 (mirror 0.37,
+  windshield beside it); the other four lids stay. Lights and glass: pickup_headlight_03, return_headlight_00 and _01 to
+  tail lights, return_tail_light_03 and _04 to headlights, pickup_windshield_02, return_windshield_00 and _01 to the rear
+  window. Side vote: pickup_wheel_02 and pickup_fender_01 leave their side-uncertain placeholders for the right rear
+  slots, return_car_door_00 (frames 0 to 15, the rear and the left side) goes from right rear to left rear door; the
+  side_uncertain panels go from 2 to 0. Replayed keyframes put every hood and trunk-lid crop on the right lid; G4 on the
+  paired keyframes: trunk lid 0.50 to 0.92 (passes 0.7), hood 0.68 to 0.73 (passes G4, still under G8's 0.8). The old
+  windshield pair compared the pickup's rear window with the return's windshield at IoU 0.81 and would have passed G4;
+  the pickup windshield now has no keyframe (its two real tracks touch the frame edge), so that panel is not compared.
+- Still wrong on pair C, not from this lane: the "tail light" lane's id 2 on the return walk is the orange mud flap by
+  the front wheel; it stays a tail light (beside the hood on only 37% of its frames) and still gives the return
+  tail-light keyframes (G4 0.71 against a real tail light). pickup_car_door_04 and _05 (frames 262 to 295, the left
+  side at the end of the walk) still vote right, because the confused glass and light lanes stay noun anchors.
+- Claim (claim.photo_twin_check): a vote for the hood or the trunk lid goes through the same cues on the photo (the
+  plate boxes of the privacy check, the vote's own mirror, light and glass detections, one frame of evidence), and
+  the decided lid is what must agree with Spark; split evidence names no lid and the paragraph says the photo does not
+  show which end (E2). The record rides on the winning vote row as sam_votes[i]["twin_check"]. claim_1 of pairC_core1
+  keeps E2 under the check: its photo has no plate the check found (the plate was already pixelated), no mirror, and
+  both light lanes and both glass lanes on the same lamp and glass. Both claims rebuild byte-identical with the run's
+  frozen thresholds.
+- Fast keyframe masks (walkaround/fastmask.py, new): a port of meta_sam_parser's one_bit range decoder with the context
+  of the two rows above built per row in numpy, the coder inlined, and the library's canonical re-encode replaced by a
+  check that the payload is used up exactly; rows= stops early. Full sweep of pairC_core1's lanes: 10,547 masks, 455
+  million pixels, 0 differences (lossless Stays Put lanes go to the library). One_bit decode about 7x faster
+  (0.22 against 1.6 us per pixel). tests/test_fastmask.py checks the fixtures, the conformance corpus, encoded rasters,
+  rows=, refusals and a sample of the stored lanes (skipped when runs/ is absent).
+- Keyframe pass (panels._Masks, _CarTest, _KeyframeRun): one_bit masks decode in process through fastmask, the
+  DecodePool only takes what it refuses (thresholds panels.fast_mask_decode, true when absent). The car masks, 80% of
+  the old decode (101 and 106 per walk, 61 and 64 s CPU), are decoded only for the candidates a panel is about to keep
+  and only down to the panel mask's last row; the containment test reads no pixel below it, so the answer is the whole
+  decode's. Against HEAD's eager pass, with the budget out of the way and the twin check off, both keep the same 71
+  keyframes (ids, frames, scores and crop sha256 equal). Up to panels.keyframe_panels_in_flight (4; 1 when absent)
+  panels are scored and blurred at once; a frame two panels keep is blurred once and both keyframes carry that answer.
+  tracks.json per_frame area_frac is now the mask's share before the car test except for candidates that failed it (0).
+- Timings (offline replay of panels.derive on pairC_core1 with a no-call blur; M4 Max, 2 decode workers before):
+  decode CPU 78.1 and 79.9 s per walk before, 4.7 and 4.8 s after; derive wall 48.9 and 44.4 s before, 9.0 and 6.4 s
+  after (16.2 and 10.3 s with one panel at a time); keyframes 27 and 34 before (over the 60 s budget, top 2), 28 and 42
+  after (top 3). 90 s projection: decoding scales with candidates (9 per panel, at most 21 panels) and mask sizes, not
+  with frames; lane text reads are 0.03 s for 16 lanes at 304 frames (about 0.15 s at 1350). A 90 s walk at 15 fps
+  should stay near 5 s of decode CPU, about 12 s in the worst case (every car mask a full 960x540 frame), under the
+  60 s budget, so it keeps the top 3; the old pass would have needed about 80 to 130 s and fallen to top 2. The live
+  blur (two image requests per kept frame) was most of the 3 min 13 s panels stage on 10/31; four panels in flight
+  should cut it to about a quarter (not measured live).
+- The claim's second look (claim._look_record): asked through second_look.look_images when second_look has it (Muse
+  Spark Open on Baseten first, hosted Muse Spark 1.3 when Baseten gives no answer; proposed signature
+  look_images(image_a, image_b, *, panel_id, run_id, ledger_run_id, input_refs, th, pair) -> (standing record or None,
+  records, notes)), keeping hosted Muse Spark otherwise and whenever thresholds spark.second_look_engine is "off". The
+  record that stands is the one kept in claim_<n>.answers.json, so rebuild replays it with no call.
+
+## Integration notes, round 3 (2026-10-31 night)
+
+What the integrator changed on top of the five lanes (panels, match, privacy, polish, Stays Put neighbours):
+
+- `second_look.look_images(image_a, image_b, *, panel_id, run_id, ledger_run_id=None, input_refs, th, pair=None,
+  provenance=None) -> (standing record or None, records, notes)`: the lead's signature plus one keyword. Same engine
+  order and breaker as SecondLook._ask (one breaker per run id, BASETEN_FAILURES_MAX failures in a row send the rest
+  to hosted Spark); "off" asks nothing. Ledger rows carry ledger_run_id (default run_id); hosted Spark's rows too.
+- `open_weights.ask`, `ask_attempts` and `second_look` take `ledger_run_id` (the run id on the ledger rows) and
+  `log_path` (where the provenance line goes; default runs/<run_id>/open_weights.ndjson). A line whose ledger id
+  differs from run_id carries it as `ledger_run_id`; a walk's lines keep their shape byte for byte.
+- A claim's look writes its provenance to `claim/<claim_id>.open_weights.ndjson` (`paths.claim_open_weights_log`), not
+  to the run's open_weights.ndjson as the lead's note of 10/31 said: a claim always comes after the run is sealed, and
+  the run's open_weights.ndjson is hashed into bundle/manifest_run.json whenever a look ran in the walk, so an appended
+  line would make `walkaround verify` print "run manifest: hash differs: open_weights.ndjson". No folder is named after
+  the claim's ledger id ("<run>.<claim>"). The claim file is not served (claim/ serves only claim_<n>.blurred.jpg and
+  claim_<n>.json); the standing record (engine, model) is in claim_<n>.answers.json, so rebuild replays it with no
+  call. `claim._look_record` calls look_images directly. The run's privacy line is not touched by a claim (the sheet
+  is sealed first).
+- Claim and the G2 decision: with thresholds `claim.view_flag_caps` true, a wet, dirty or glare pickup frame no longer
+  stops a claim comparison. A claim mark the pickup walk shows nothing near gets K15 when none of the panel's complete,
+  sharp pickup keyframes is clean (`claim._pickup_view_flags`); a near pair gets no K15 and the paragraph says "The
+  pickup frame was flagged <flags>, but a mark shows at this spot on it, so something was there at pickup." Absent (every
+  run frozen before 10/31) the old refusal stands, so those claims rebuild from the answers they recorded (a compare
+  would need a marks call they never made).
+- Tire code: `pipeline.run_pair_async(..., tire_code=)` and `Orchestrator.create_run(..., tire_code=)` carry it to
+  run.json; `__main__.stamp_tire_code` is gone. The app's POST /api/runs still takes none.
+- verify: `__main__.why_differs` also asks `narration.why_rebuild_differs`, so pairC_core1's narration.json line gets
+  its reason.
+- spark_client and voice_client redact through `config.redact` (their copies missed BASETEN_HACKATHON_API_KEY and the
+  b10_ shape).
+- thresholds: `staysput.neighbour_window_max_growth` 2.0 (the lane left it in DEFAULTS at 1000, off). Measured on the
+  pair C trunk lid: windows grown to 969 and 1181 px (2.4x and 3x the 400 px base) lost the faint marks on 13 to 84 of
+  89 frames, while the 400 px windows of pairC_core1 held three of them on all 89. 2x is an estimate between the two;
+  the S550 case may then find fewer than 4 neighbours. `claim.view_flag_caps` true (above).
+- Web: rules.ts carries K15 and the retired G2 (a test now checks its id set against rules.py); the verdict card and
+  the verdict list print `view_note`; sizeLine prints `ruler_notes` as sheet.size_line does; looks.json and
+  open_weights.ndjson rows read `key_slot`; the second-look line names the Baseten model id after the engine; types
+  for `PanelTrack.twin_check`, `RunManifest.tire_code`, `SizeEstimate.ruler_notes`, `Verdict.view_note`.
+- Allowlist: unchanged. No lane added a served file; the new claim provenance file and the unblurred proxy that
+  `privacy.rederive_display` cuts outside the run are never served.
