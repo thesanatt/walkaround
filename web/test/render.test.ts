@@ -88,6 +88,27 @@ describe('the changed components render against the fixture run', () => {
     expect(page).not.toMatch(/days? later|minutes later/);
   });
 
+  it('prints the type note of a tight pair and how the panel was checked (11/1)', async () => {
+    const state = await finalState();
+    const door = state.matches.find((m) => m.panel_id === 'right_rear_door')!;
+    const note = 'Muse Spark typed both marks dirt (K4), with low confidence on both marks (K12): a note here, since the mark sits in the same place in both walks and the second look compared the two crops and said same';
+    const verdicts: Verdict[] = state.verdicts.map((v) => (v.panel_id === 'right_rear_door' && v.label === 'already_there' ? { ...v, type_note: note, trace: { ...v.trace, note_ids: ['K4', 'K12'] } } : v));
+    const tried: PanelMatch = {
+      ...door,
+      kf_pairs_tried: [
+        { kf_pair: ['kf_pickup_right_rear_door', 'kf_return_x'], gates: ['G3'], mask_iou: 0.81, frames_agree: true },
+        { kf_pair: door.kf_pair!, gates: [], mask_iou: 0.84, frames_agree: true },
+      ],
+    };
+    const page = html(createElement(MatchPane, paneProps(state, 'right_rear_door', { verdicts, match: tried })));
+    expect(page).toContain(note);
+    expect(page).toContain(`How it was checked: compared on keyframes ${door.kf_pair![0]} with ${door.kf_pair![1]}; tried first: kf_pickup_right_rear_door with kf_return_x (G3 blurry keyframe)`);
+    const before = html(createElement(MatchPane, paneProps(state, 'right_rear_door')));
+    expect(before).not.toContain('How it was checked');
+    const moment = html(createElement(MatchPane, paneProps(state, 'right_rear_door', { match: tried, moment: true })));
+    expect(moment).not.toContain('How it was checked');
+  });
+
   it('labels a failed delete as failed on the privacy card', async () => {
     const state = await finalState();
     expect(html(createElement(PrivacyCard, { state }))).toContain('were deleted by Walkaround when the run ended');

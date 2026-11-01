@@ -2,15 +2,26 @@
 
 Deterministic code owns every label. verdict() is the single entry point and takes numbers and booleans only; a
 model answer (the second look, K7; a wet, dirty or glare view, K15) can only lower a label to needs_your_eye, never
-raise one. Every rule id printed here exists in walkaround.rules. Calibration follows 5.10: tau_pre0 = max(floor,
-2.5 sqrt(2) sigma_within), the pseudo pair may raise tau_pre to its 90th percentile up to the cap, tau_eye = 2
-tau_pre, tau_fix = max(0.08, 3 sigma_frame), and the band widens with the radius: tau(r) = tau0 (1 + 0.5 r^2).
+raise one above what the distance gives. Every rule id printed here exists in walkaround.rules. Calibration follows
+5.10: tau_pre0 = max(floor, 2.5 sqrt(2) sigma_within), the pseudo pair may raise tau_pre to its 90th percentile up
+to the cap, tau_eye = 2 tau_pre, tau_fix = max(0.08, 3 sigma_frame), and the band widens with the radius: tau(r) =
+tau0 (1 + 0.5 r^2).
+
+Lead decisions of 11/1, each behind a thresholds leaf that runs frozen before it lack (so they rebuild as they were):
+- matching.tight_pair_second_look (rule 1): on a pair inside tau_pre_r, K4 (type dirt, reflection or unsure) and K12
+  (Spark confidence low) are notes, not caps, and the pair goes to the second look, which may lower it (K7). With no
+  usable answer (not asked, or every engine failed) they cap as before. An already-there call rests on geometry, the
+  same spot in both walks, not on what the mark is; the second look compares the two crops and is the veto.
+- matching.next_keyframe_pair (rule 2): when the chosen keyframe pair fails a view gate (G3, G4, G5, G8, G9), the
+  panel's other keyframe pairs are tried in a fixed order and the first that passes every gate is compared on; every
+  pair tried is recorded with its gates (PanelMatch.kf_pairs_tried, how_checked). G1, G6, G7 and G10 stay panel-level.
 """
 
 from __future__ import annotations
 
 import json
 import math
+import re
 from typing import Any, Callable
 
 import numpy as np
@@ -23,6 +34,7 @@ from .contracts import (
     CoverageState,
     FrameUsed,
     Keyframe,
+    KeyframePairTry,
     LaneRecord,
     LaneStatus,
     LookVerdict,
@@ -54,6 +66,19 @@ Point2 = list[float]
 ROLES = ("pickup", "return")
 CAP_IDS_FROM_MARK = ("K2", "K3", "K4", "K8", "K9", "K10", "K11", "K12", "K14")
 LOWERABLE = (VerdictLabel.ALREADY_THERE, VerdictLabel.NEW_OR_UNSEEN, VerdictLabel.NOT_SEEN_AT_RETURN)
+VIEW_GATES = ("G3", "G4", "G5", "G8", "G9")  # gates of the keyframe pair: another pair of the panel may pass them (rule 2)
+PANEL_GATES = ("G1", "G6", "G7", "G10")  # gates of the panel: no other keyframe pair changes them, so none is tried
+TYPE_CAPS = ("K4", "K12")  # what Muse Spark typed and how sure it was: notes on a tight pair the second look answered (rule 1)
+
+
+def tight_pair_look(th: dict | None) -> bool:
+    """Rule 1 of 11/1 is on (thresholds matching.tight_pair_second_look); off when absent, as in runs frozen before."""
+    return bool((th or {}).get("matching", {}).get("tight_pair_second_look", False))
+
+
+def next_keyframe_pair(th: dict | None) -> bool:
+    """Rule 2 of 11/1 is on (thresholds matching.next_keyframe_pair); off when absent, as in runs frozen before."""
+    return bool((th or {}).get("matching", {}).get("next_keyframe_pair", False))
 
 
 # Calibration (5.10) --------------------------------------------------------------------------------------------------
@@ -179,6 +204,29 @@ def prefer_clean(kfs: list[Keyframe], th: dict | None = None) -> list[Keyframe]:
     return clean or kfs
 
 
+_KF_INDEX = re.compile(r"_kf(\d+)$")
+
+
+def _kf_index(kf: Keyframe) -> tuple[int, str]:
+    """The keyframe's number within its walk (panels names keyframes <role>_<panel>_kf<n>, best score first), then the
+    id, so every tie has one order whatever order keyframes.json lists them in."""
+    found = _KF_INDEX.search(kf.kf_id)
+    return (int(found.group(1)) if found else 1 << 30, kf.kf_id)
+
+
+def keyframe_pair_order(kfs_pickup: list[Keyframe], kfs_return: list[Keyframe], *, th: dict | None = None) -> list[tuple[Keyframe, Keyframe]]:
+    """Every keyframe pair of a panel in the order match tries them (lead 11/1, rule 2): the pair pair_keyframes chooses
+    first, then the others with clean views first (how many of the two keyframes prefer_clean would not offer: 0, 1
+    or 2), then the product of the two keyframe scores, highest first (a pair needs both views good; a sum would rank
+    one sharp view with one poor view above two fair ones), then the keyframe numbers, pickup first."""
+    first_p, first_r, _ = pair_keyframes(kfs_pickup, kfs_return, th=th)
+    clean_p = {kf.kf_id for kf in prefer_clean(kfs_pickup, th)}
+    clean_r = {kf.kf_id for kf in prefer_clean(kfs_return, th)}
+    others = [(a, b) for a in kfs_pickup for b in kfs_return if (a.kf_id, b.kf_id) != (first_p.kf_id, first_r.kf_id)]
+    others.sort(key=lambda ab: ((ab[0].kf_id not in clean_p) + (ab[1].kf_id not in clean_r), -(ab[0].score.total * ab[1].score.total), _kf_index(ab[0]), _kf_index(ab[1])))
+    return [(first_p, first_r), *others]
+
+
 def _joined(items: list[str], last: str) -> str:
     return items[0] if len(items) == 1 else ", ".join(items[:-1]) + f" {last} " + items[-1]
 
@@ -213,6 +261,100 @@ def both_walks_note(flags: dict[str, list[str]], *, same_place: bool) -> str | N
     if same_place:
         return f"{views}: the mark is in the same place in both walks, so it was there at pickup, whatever it is"
     return f"{views}: a mark shows near this place in both walks"
+
+
+# Tight pairs (lead 11/1, rule 1: K4 and K12 are notes on a pair inside tau_pre_r once the second look answered) -------
+
+
+def _spark_words(a: Mark, b: Mark, deferred: list[str], roles: tuple[str, str] = ROLES) -> str:
+    """What K4 and K12 stand for on this pair, in words with their ids. roles names the two marks (a claim passes
+    ("pickup", "claim"))."""
+    typed = None
+    if "K4" in deferred:
+        typed = f"both marks {a.type.value}" if a.type == b.type else f"the {roles[0]} mark {a.type.value} and the {roles[1]} mark {b.type.value}"
+    low = [role for role, m in zip(roles, (a, b)) if "K12" in m.caps]
+    where = f"the {low[0]} mark" if len(low) == 1 else "both marks"
+    if typed and "K12" in deferred:
+        return f"Muse Spark typed {typed} (K4), with low confidence on {where} (K12)"
+    if typed:
+        return f"Muse Spark typed {typed} (K4)"
+    return f"Muse Spark's confidence was low on {where} (K12)"
+
+
+def tight_pair_flags(
+    pair: MatchCandidate, a: Mark, b: Mark, flags: VerdictFlags, look: LookVerdict | None, *, asked: bool, roles: tuple[str, str] = ROLES
+) -> tuple[VerdictFlags, list[str], str | None]:
+    """Rule 1 on a pair inside tau_pre_r (the caller checks d < tau_pre_r): once the second look answered (same,
+    different or unsure), K4 and K12 are notes and lower nothing, so only the look (K7) or another cap can lower the
+    pair; with no usable answer they cap as before. asked says the look was put to a model (its answer may be None:
+    every engine failed or the look could not be built) rather than not asked at all (spend ceiling, deadline, look
+    budget, the look turned off). Returns the flags for verdict(), the note ids and the type note; ([], None) when
+    neither K4 nor K12 is set. roles names the two marks in the note: a claim passes ("pickup", "claim") (integration
+    11/1: claims follow rule 1 under the same leaf)."""
+    deferred = [k for k in TYPE_CAPS if getattr(flags, k)]
+    if not deferred:
+        return flags, [], None
+    what = _spark_words(a, b, deferred, roles)
+    if look is not None:
+        if look == LookVerdict.SAME:
+            place = "the mark sits in the same place in both walks" if tuple(roles) == ROLES else f"the {roles[1]} mark sits where the {roles[0]} mark is"
+            tail = f"a note here, since {place} and the second look compared the two crops and said same"
+        else:
+            said = "said different" if look == LookVerdict.DIFFERENT else "was unsure"
+            tail = f"a note here; the second look compared the two crops and {said} (K7)"
+        return flags.model_copy(update={k: False for k in deferred}), deferred, f"{what}: {tail}"
+    ids, verb = _joined(deferred, "and"), ("caps" if len(deferred) == 1 else "cap")
+    others = flags.model_copy(update={**{k: False for k in deferred}, "K7": False})
+    if verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, others)[0] != VerdictLabel.ALREADY_THERE:
+        tail = f"another cap already lowers this pair, so no second look was asked and {ids} {verb} it too"
+    elif asked:
+        tail = f"the second look gave no usable answer, so {ids} {verb} the pair as before"
+    else:
+        tail = f"the second look was not asked, so {ids} {verb} the pair as before"
+    return flags, [], f"{what}: {tail}"
+
+
+# The sheet's how-checked line (lead 11/1, rule 2) -------------------------------------------------------------------
+
+
+def _gate_words(gate: str, tried: KeyframePairTry) -> str:
+    """A failed gate in words: G4 and G8 with the IoU, or why none was taken (a keyframe whose marks are compared
+    turned its panel axis too far from the pair's pickup keyframe, or there was no mask or frame to take it in)."""
+    label = rules.rule(gate).label
+    if gate in ("G4", "G8"):
+        if tried.mask_iou is not None:
+            return f"{gate} {label} {tried.mask_iou:.2f}"
+        return f"{gate} {label}: {'not measured' if tried.frames_agree else 'panel axes disagree'}"
+    return f"{gate} {label}"
+
+
+def how_checked(pm: PanelMatch) -> str | None:
+    """The sheet's how-it-was-checked line for a panel: the keyframe pair it was compared on and every pair tried
+    before it with the gates each failed; for a panel no pair passed, every pair tried. None when the match recorded
+    no tries (keyframes in one walk only, or a run frozen before 11/1)."""
+    tries = pm.kf_pairs_tried
+    if not tries:
+        return None
+
+    def pair_words(t: KeyframePairTry) -> str:
+        return f"{t.kf_pair[0]} with {t.kf_pair[1]}"
+
+    def tried(t: KeyframePairTry) -> str:
+        return f"{pair_words(t)} ({', '.join(_gate_words(g, t) for g in t.gates)})"
+
+    used = next((t for t in tries if not t.gates), None)
+    if used is not None:
+        before = [t for t in tries if t is not used]
+        if not before:
+            return f"compared on keyframes {pair_words(used)}, the first pair tried"
+        return f"compared on keyframes {pair_words(used)}; tried first: " + "; ".join(tried(t) for t in before)
+    panel_level = [g for g in tries[0].gates if g in PANEL_GATES]
+    if panel_level:
+        which = f"{panel_level[0]} is a panel gate" if len(panel_level) == 1 else f"{_joined(panel_level, 'and')} are panel gates"
+        return f"not compared: keyframes {tried(tries[0])}; {which}, so no other pair was tried"
+    if len(tries) == 1:
+        return f"not compared: keyframes {tried(tries[0])}, and the panel has no other keyframe pair"
+    return f"not compared: none of the {len(tries)} keyframe pairs passed every gate; tried: " + "; ".join(tried(t) for t in tries)
 
 
 def _handle_whitened(kf: Keyframe) -> tuple[float, float] | None:
@@ -710,7 +852,7 @@ def flags_for(
     return VerdictFlags(return_mark=return_mark, **values)
 
 
-def _trace(trace_base: Trace, rule_ids: list[str], marks: list[Mark], mark_tracks: dict[str, MarkTrack], thresholds: dict[str, Any]) -> Trace:
+def _trace(trace_base: Trace, rule_ids: list[str], marks: list[Mark], mark_tracks: dict[str, MarkTrack], thresholds: dict[str, Any], note_ids: list[str] | None = None) -> Trace:
     spark_ids = sorted({m.spark_request_id for m in marks if m.spark_request_id})
     sam_ids = sorted({mark_tracks[m.mark_id].request_id for m in marks if m.mark_id in mark_tracks and mark_tracks[m.mark_id].request_id})
     return Trace(
@@ -720,6 +862,7 @@ def _trace(trace_base: Trace, rule_ids: list[str], marks: list[Mark], mark_track
         spark_request_ids=sorted({*trace_base.spark_request_ids, *spark_ids}),
         event_seqs=list(trace_base.event_seqs),
         config_hash=trace_base.config_hash,
+        note_ids=list(note_ids or []),
     )
 
 
@@ -753,7 +896,7 @@ def verdicts_for(
     pm: PanelMatch,
     marks: dict[str, Mark],
     mark_tracks: dict[str, MarkTrack],
-    looks: dict[tuple[str, str], LookVerdict],
+    looks: dict[tuple[str, str], LookVerdict | None],
     keyframes: dict[str, Keyframe],
     calibration: Calibration,
     trace_base: Trace,
@@ -766,7 +909,12 @@ def verdicts_for(
     View flags (lead 10/31, K15): a walk's view is its paired keyframe plus the keyframe each involved mark was placed
     in. A mark found in one walk only (L1, L2, and both marks of an L5 pair) carries K15 when a view of either walk
     is flagged wet, dirty or glare; a pair inside tau_eye_r gets no K15 (a mark in the same place in both walks was
-    there at pickup) and only the note. view_note says which view and why."""
+    there at pickup) and only the note. view_note says which view and why.
+
+    Tight pairs (lead 11/1, rule 1, while thresholds matching.tight_pair_second_look is on): on a pair inside tau_pre_r
+    K4 and K12 are notes (trace.note_ids, type_note) when looks holds an answer for it, and cap as before when it holds
+    none. A key in looks with the value None is a look put to a model that gave no usable answer; a missing key is a
+    look never asked. Marks seen in one walk only and pairs in the band keep K4 and K12 as caps."""
     cm_per_unit = float(th["matching"]["cm_per_unit_for_print"])
     panel_marks = [marks[i] for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in marks]
     kf_status = {kf.kf_id: kf.marks_status for kf in keyframes.values() if kf.panel_id == pm.panel_id}
@@ -803,7 +951,9 @@ def verdicts_for(
         )
         return out
 
-    def emit(label: VerdictLabel, ids: list[str], mark_ids: list[str], d_pos: float | None, pair: MatchCandidate | None, view_note: str | None = None) -> None:
+    def emit(
+        label: VerdictLabel, ids: list[str], mark_ids: list[str], d_pos: float | None, pair: MatchCandidate | None, view_note: str | None = None, *, type_note: str | None = None, note_ids: list[str] | None = None
+    ) -> None:
         involved = [marks[i] for i in mark_ids if i in marks]
         thresholds = _thresholds_used(calibration, th, tau_pre_r=pair.tau_pre_r if pair else None, tau_eye_r=pair.tau_eye_r if pair else None)
         if pair is not None:
@@ -820,20 +970,27 @@ def verdicts_for(
                 distance_units=d_pos,
                 distance_cm_est=None if d_pos is None else d_pos * cm_per_unit,
                 reasons=rules.describe([i for i in ids[1:] if i.startswith("K")]),
-                trace=_trace(trace_base, ids, involved, mark_tracks, thresholds),
+                trace=_trace(trace_base, ids, involved, mark_tracks, thresholds, note_ids),
                 view_note=view_note,
+                type_note=type_note,
             )
         )
 
+    tight = tight_pair_look(th)
     for pair in pm.pairs:
         a, b = marks.get(pair.pickup_mark), marks.get(pair.return_mark)
         if a is None or b is None:
             continue
-        look = looks.get((pair.pickup_mark, pair.return_mark))
+        key = (pair.pickup_mark, pair.return_mark)
+        look = looks.get(key)
         if pair.d < pair.tau_eye_r:
             flags = flags_for(pair, a, b, caps, look, kf_status, return_mark=False)
+            notes: list[str] = []
+            type_note = None
+            if tight and pair.d < pair.tau_pre_r:
+                flags, notes, type_note = tight_pair_flags(pair, a, b, flags, look, asked=key in looks)
             label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
-            emit(label, ids, [a.mark_id, b.mark_id], pair.d_pos, pair, both_walks_note(flags_by_role([a, b]), same_place=pair.d < pair.tau_pre_r))
+            emit(label, ids, [a.mark_id, b.mark_id], pair.d_pos, pair, both_walks_note(flags_by_role([a, b]), same_place=pair.d < pair.tau_pre_r), type_note=type_note, note_ids=notes)
         else:
             for mark, is_return in ((a, False), (b, True)):
                 view = flags_by_role([mark])
@@ -872,10 +1029,19 @@ def _load_mask(run_id: str, kf: Keyframe) -> np.ndarray | None:
     return None if m is None else m > 0
 
 
-def _mask_iou(run_id: str, kf_p: Keyframe, kf_r: Keyframe) -> float | None:
+def _mask_iou(run_id: str, kf_p: Keyframe, kf_r: Keyframe, masks: dict[str, np.ndarray | None] | None = None) -> float | None:
+    """The whitened mask IoU of a keyframe pair; masks caches each keyframe's mask across the pairs of a panel."""
     if kf_p.moments is None or kf_r.moments is None or kf_p.front_sign is None or kf_r.front_sign is None:
         return None
-    a, b = _load_mask(run_id, kf_p), _load_mask(run_id, kf_r)
+
+    def load(kf: Keyframe) -> np.ndarray | None:
+        if masks is None:
+            return _load_mask(run_id, kf)
+        if kf.kf_id not in masks:
+            masks[kf.kf_id] = _load_mask(run_id, kf)
+        return masks[kf.kf_id]
+
+    a, b = load(kf_p), load(kf_r)
     if a is None or b is None:
         return None
     try:
@@ -916,16 +1082,52 @@ def _lane_status(run_id: str) -> dict[str, dict[Noun, LaneStatus]]:
     return out
 
 
-def _provisional_already_there(pair: MatchCandidate, a: Mark, b: Mark, mark_tracks: dict[str, MarkTrack], kf_status: dict[str, MarksStatus]) -> bool:
+def _provisional_already_there(pair: MatchCandidate, a: Mark, b: Mark, mark_tracks: dict[str, MarkTrack], kf_status: dict[str, MarksStatus], *, deferred: tuple[str, ...] = ()) -> bool:
+    """Already there before the second look, with the deferred caps (K4 and K12 under rule 1) left out: they wait for
+    the look, so they alone never keep a pair from it."""
     flags = flags_for(pair, a, b, mark_tracks, None, kf_status, return_mark=False)
+    if deferred:
+        flags = flags.model_copy(update={k: False for k in deferred})
     label, _ = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
     return label == VerdictLabel.ALREADY_THERE
+
+
+def _pair_gates(
+    run_id: str,
+    panel: Panel,
+    kf_p: Keyframe,
+    kf_r: Keyframe,
+    kfs: dict[str, list[Keyframe]],
+    panel_marks: dict[str, list[Mark]],
+    *,
+    lane_status: dict[str, dict[Noun, LaneStatus]],
+    truncated_all: dict[str, bool],
+    calibration: Calibration,
+    th: dict,
+    masks: dict[str, np.ndarray | None],
+) -> KeyframePairTry:
+    """One keyframe pair of the panel put through the gates: the failing ids, the whitened mask IoU (None when the
+    frames disagree) and whether they agreed."""
+    mask_iou = _mask_iou(run_id, kf_p, kf_r, masks)
+    agree = panel.panel_id in WHEEL_PANELS or _frames_agree(kf_p, _compared_keyframes(kf_p, kf_r, kfs, panel_marks), calibration, th)
+    if not agree:
+        # TODO(contracts): G4 stands in for "the whitened frames disagree" until that gate has its own id;
+        # the IoU is dropped because it cannot vouch for frames that picked different axes.
+        mask_iou = None
+    residual = handle_residual(kf_p, kf_r)
+    gates = panel_gates(panel, kf_p, kf_r, mask_iou=mask_iou, residual=residual, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
+    return KeyframePairTry(kf_pair=[kf_p.kf_id, kf_r.kf_id], gates=gates, mask_iou=mask_iou, frames_agree=agree)
 
 
 def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate], LookVerdict | None] | None = None) -> tuple[list[PanelMatch], list[Verdict], Calibration]:
     """Read panels, keyframes, marks, mark_tracks and calibration; gate, pair and match every panel with a keyframe
     in either walk; ask the optional second look on provisional already_there pairs (at most
-    second_looks_per_pair_max); write matches.json and verdicts.json. Under a second without the second look."""
+    second_looks_per_pair_max); write matches.json and verdicts.json. Under a second without the second look.
+
+    With thresholds matching.next_keyframe_pair (rule 2) a panel whose chosen keyframe pair fails only view gates is
+    compared on the first pair in keyframe_pair_order that passes every gate, and kf_pairs_tried records each pair
+    tried; when none passes, the panel keeps the chosen pair and its gates. With matching.tight_pair_second_look
+    (rule 1) K4 and K12 alone never keep a pair inside tau_pre_r from the second look."""
     from .marks import whitened_from_marks
 
     panels = _read_list(paths.panels_json(run_id), Panel)
@@ -946,6 +1148,9 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
     trace_base = Trace(config_hash=config_hash(th))
     looks_budget = int(th["spark"]["second_looks_per_pair_max"])
     looks_used = 0
+    retry = next_keyframe_pair(th)
+    deferred = TYPE_CAPS if tight_pair_look(th) else ()
+    masks: dict[str, np.ndarray | None] = {}
     matches: list[PanelMatch] = []
     verdicts: list[Verdict] = []
     for panel in panels:
@@ -955,16 +1160,20 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
         panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role] for role in ROLES}
         truncated_all = {role: bool(kfs[role]) and all(kf.marks_status == MarksStatus.TRUNCATED for kf in kfs[role]) for role in ROLES}
         if kfs["pickup"] and kfs["return"]:
-            kf_p, kf_r, _ = pair_keyframes(kfs["pickup"], kfs["return"], th=th)
-            mask_iou = _mask_iou(run_id, kf_p, kf_r)
-            if panel.panel_id not in WHEEL_PANELS and not _frames_agree(kf_p, _compared_keyframes(kf_p, kf_r, kfs, panel_marks), calibration, th):
-                # TODO(contracts): G4 stands in for "the whitened frames disagree" until that gate has its own id;
-                # the IoU is dropped because it cannot vouch for frames that picked different axes.
-                mask_iou = None
-            residual = handle_residual(kf_p, kf_r)
-            gates = panel_gates(panel, kf_p, kf_r, mask_iou=mask_iou, residual=residual, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
-            pm = match_panel(panel, panel_marks["pickup"], panel_marks["return"], whitened, (kf_p, kf_r), gates, calibration, th)
-            pm = pm.model_copy(update={"mask_iou": mask_iou})
+            order = keyframe_pair_order(kfs["pickup"], kfs["return"], th=th)
+            inputs: dict[str, Any] = {"lane_status": lane_status, "truncated_all": truncated_all, "calibration": calibration, "th": th, "masks": masks}
+            kf_p, kf_r = order[0]
+            used = _pair_gates(run_id, panel, kf_p, kf_r, kfs, panel_marks, **inputs)
+            tries = [used]
+            if retry and used.gates and set(used.gates) <= set(VIEW_GATES):
+                for cand_p, cand_r in order[1:]:
+                    cand = _pair_gates(run_id, panel, cand_p, cand_r, kfs, panel_marks, **inputs)
+                    tries.append(cand)
+                    if not cand.gates:
+                        kf_p, kf_r, used = cand_p, cand_r, cand
+                        break
+            pm = match_panel(panel, panel_marks["pickup"], panel_marks["return"], whitened, (kf_p, kf_r), list(used.gates), calibration, th)
+            pm = pm.model_copy(update={"mask_iou": used.mask_iou, "kf_pairs_tried": tries if retry else []})
         else:
             gates = panel_gates(panel, kfs["pickup"][0] if kfs["pickup"] else None, kfs["return"][0] if kfs["return"] else None, mask_iou=None, residual=None, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
             pm = PanelMatch(
@@ -974,14 +1183,14 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
                 unmatched_pickup=[m.mark_id for m in panel_marks["pickup"]],
                 unmatched_return=[m.mark_id for m in panel_marks["return"]],
             )
-        looks: dict[tuple[str, str], LookVerdict] = {}
+        looks: dict[tuple[str, str], LookVerdict | None] = {}  # None: asked, no usable answer
         if second_look is not None and pm.state == MatchState.COMPARABLE:
             kf_status = {kf.kf_id: kf.marks_status for kf in keyframes if kf.panel_id == pm.panel_id}
             for pair in pm.pairs:
                 a, b = marks_by_id.get(pair.pickup_mark), marks_by_id.get(pair.return_mark)
                 if a is None or b is None or looks_used >= looks_budget:
                     continue
-                if _provisional_already_there(pair, a, b, staysput_caps(mark_tracks, th), kf_status):
+                if _provisional_already_there(pair, a, b, staysput_caps(mark_tracks, th), kf_status, deferred=deferred):
                     looks[(pair.pickup_mark, pair.return_mark)] = second_look(pair)
                     looks_used += 1
         matches.append(pm)
@@ -1023,12 +1232,15 @@ def _stored_keyframes(root: Any) -> list[Keyframe]:
 
 
 def _paired_before_1031(root: Any, matches: list[dict[str, Any]]) -> bool:
-    """A stored keyframe pair that today's clean-view preference would not pick (keyframes.json is frozen)."""
+    """A stored keyframe pair that today's clean-view preference would not pick (keyframes.json is frozen). Under the
+    next-pair rule (11/1) the pair chosen is the first one tried, not the pair compared on."""
     keyframes = _stored_keyframes(root)
     run = _stored(root / "run.json")
     th = run.get("thresholds") if isinstance(run, dict) else None
     for pm in matches:
-        stored = pm.get("kf_pair")
+        tried = pm.get("kf_pairs_tried")
+        first = tried[0] if isinstance(tried, list) and tried and isinstance(tried[0], dict) else None
+        stored = first.get("kf_pair") if first is not None else pm.get("kf_pair")
         walks = [[kf for kf in keyframes if kf.panel_id.value == pm.get("panel_id") and kf.role == role] for role in ROLES]
         if isinstance(stored, list) and len(stored) == 2 and all(walks):
             kf_p, kf_r, _ = pair_keyframes(walks[0], walks[1], th=th or None)

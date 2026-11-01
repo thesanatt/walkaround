@@ -3,13 +3,14 @@ slides with the camera.
 
 Per walk, every mark and one reflection control get a square window that follows the mark's panel box through a 3 s
 clip (91 frames at 30 fps, 73 at 24) cut from the original around the mark's keyframe; marks whose windows overlap
-share one clip, up to 16. A walk whose plate or face lane did not complete gets no clip. Each clip's prompt frame is
-checked for plates and faces on the unblurred pixels first, and a find the walk's own plate and face tracks do not
-cover refuses the clip; then every frame is pixelated and encoded. SAM 3.1 tracks each mark box as its own object
-(propagation both) and code measures how far the track moves in the panel's whitened frame: fixed, sliding,
-inconclusive or no_track. The curvature and highlight caps come from the keyframe crop alone, for every mark, clip or
-not. Nothing here raises a verdict. match.py may turn these rows into K6, and only while thresholds
-staysput.cap_enabled is on; that check lives in match, not here.
+share one clip, up to 16. Past 16 clips a walk keeps the reflection control, then the clips of marks paired across the
+walks, then of marks a narration seed named, then by Spark's confidence (lead 11/1). A walk whose plate or face lane
+did not complete gets no clip. Each clip's prompt frame is checked for plates and faces on the unblurred pixels first,
+and a find the walk's own plate and face tracks do not cover refuses the clip; then every frame is pixelated and
+encoded. SAM 3.1 tracks each mark box as its own object (propagation both) and code measures how far the track moves
+in the panel's whitened frame: fixed, sliding, inconclusive or no_track. The curvature and highlight caps come from
+the keyframe crop alone, for every mark, clip or not. Nothing here raises a verdict. match.py may turn these rows into
+K6, and only while thresholds staysput.cap_enabled is on; that check lives in match, not here.
 
 What a walk asked is frozen in clips/<role>/staysput.json (windows, panel boxes per clip frame, prompts, the image
 check, the clip record, the lane id, the marks that got no clip). derived/mark_tracks.json is recomputed from those
@@ -36,12 +37,14 @@ from typing import Any, Literal, Optional
 import cv2
 import numpy as np
 from PIL import Image
-from pydantic import Field
+from pydantic import Field, model_serializer
 
 from . import contracts, geometry, paths, privacy, sam_client, video
+from . import match as match_mod  # the match's gate ids; cross_walk_pairs calls its public functions
 from .config import redact
 from .contracts import (
     Box4,
+    Calibration,
     ClipRecord,
     Confidence,
     Contract,
@@ -53,10 +56,14 @@ from .contracts import (
     LaneStatus,
     Mark,
     MarkKind,
+    MarkSource,
+    MarksStatus,
     MarkTrack,
     Moments,
+    Narration,
     NeighbourTest,
     Noun,
+    Panel,
     PanelId,
     PanelTrack,
     Point2,
@@ -119,7 +126,10 @@ DEFAULTS: dict[str, float] = {
     "neighbour_handle_half_w_frac": 0.08,
     "neighbour_handle_half_h_frac": 0.02,
 }
-NEIGHBOUR_RULE = 1  # the neighbour test as built 10/31; a plan without it was made before the test existed
+# The neighbour test's version on a plan: 1 as built 10/31; 2 from 11/1, whose reason counts one neighbour in the
+# singular ("1 neighbour tracked through the clip"). A plan without one was made before the test existed. A plan made
+# under 1 keeps its words, so a run frozen before rebuilds byte for byte.
+NEIGHBOUR_RULE = 2
 RIGID_MARK_KINDS = frozenset({MarkKind.SCRATCH, MarkKind.SCUFF, MarkKind.CHIP, MarkKind.DENT, MarkKind.CRACK, MarkKind.DIRT})
 HANDLE_KIND = "door handle"  # from the keyframe's handle check (a point), never a lane
 NEIGHBOUR_NOUNS: tuple[Noun, ...] = (
@@ -226,6 +236,18 @@ class RolePlans(Contract):
     unclipped: list[SkippedMark] = Field(default_factory=list)
     skipped: list[str] = Field(default_factory=list)  # walk-level notes: no proxy, a control that got no clip
     earlier_request_ids: list[str] = Field(default_factory=list)  # checks and lanes of plans a later derive replaced
+    paired: list[str] = Field(default_factory=list)  # the walk's marks with a cross-walk candidate: first under the cap
+    seeded: list[str] = Field(default_factory=list)  # the walk's marks a narration seed named: next under the cap
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_ranks(self, handler: Any) -> Any:
+        """A walk planned before the clip cap's order of 11/1, or with nothing ranked first, keeps the file it had."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in ("paired", "seeded"):
+                if not data.get(key):
+                    data.pop(key, None)
+        return data
 
 
 def _role_key(role: str) -> tuple[int, int, str]:
@@ -389,6 +411,8 @@ class _Walk:
     keyframes: dict[str, Keyframe]
     marks: list[Mark]
     times: list[float] = field(default_factory=list)  # source frame times, read only when a clip is planned
+    paired: frozenset[str] = frozenset()  # marks of this walk with a cross-walk candidate (cross_walk_pairs)
+    seeded: frozenset[str] = frozenset()  # marks of this walk a narration seed named (seeded_marks)
 
 
 @dataclass(frozen=True)
@@ -1048,15 +1072,119 @@ def _plan(
         return plan.model_copy(update={"status": "failed", "error": f"object prompt refused: {getattr(exc, 'code', type(exc).__name__)}"})
 
 
+# ----------------------------------------------------------------------------------------------------------------
+# The clip cap's order (lead 11/1): marks paired across the walks and marks a narration seed named come first
+# ----------------------------------------------------------------------------------------------------------------
+
+
+def seeded_marks(run_id: str) -> frozenset[str]:
+    """Marks a narration seed named: every narration_seed row of marks.json (the box Muse Spark found where the renter
+    named a mark) and every mark a turn's seed landed on (narration.json seed_mark_id: found or on_existing_mark)."""
+    ids = {m.mark_id for m in _read_list(paths.marks_json(run_id), Mark) if m.source is MarkSource.NARRATION_SEED}
+    path = paths.narration_json(run_id)
+    if path.is_file() and path.stat().st_size > 0:
+        narration = contracts.read_json(path, Narration)
+        ids |= {t.seed_mark_id for part in narration.per_role.values() for t in part.turns if t.seed_mark_id}
+    return frozenset(ids)
+
+
+PANEL_LEVEL_GATES = match_mod.PANEL_GATES  # gates no other keyframe pair of the panel changes (match, 11/1)
+
+
+def _lane_statuses(run_id: str, roles: tuple[str, ...]) -> dict[str, dict[Noun, LaneStatus]]:
+    """Each walk's lane statuses from sam/<role>/<lane>.summary.json, as the match reads them for G7."""
+    out: dict[str, dict[Noun, LaneStatus]] = {}
+    for role in roles:
+        statuses: dict[Noun, LaneStatus] = {}
+        for noun in Noun:
+            path = paths.run_dir(run_id) / "sam" / role / f"{paths.lane_id(noun)}.summary.json"
+            if path.is_file() and path.stat().st_size > 0:
+                statuses[noun] = contracts.read_json(path, LaneRecord).status
+        out[role] = statuses
+    return out
+
+
+def cross_walk_pairs(run_id: str, *, th: dict[str, Any]) -> list[tuple[str, str]]:
+    """(pickup mark, return mark): the closest cross-walk candidates, worked out before the match stage runs (the stages
+    go marks, narration, Stays Put, match). On every panel with keyframes and marks in both walks and no panel-level
+    gate failing (G1, G6, G7, G10, which no keyframe pair changes), the match's own cost and mutual nearest neighbours
+    (seed marks last) on the whitened marks, kept when d is under the eye band tau_eye_r, with the stored calibration or
+    the one the match computes when there is none. Left out: the view gates of a keyframe pair (G3, G4, G5, G8, G9),
+    because the match may compare the panel on another pair (thresholds matching.next_keyframe_pair), the door handle's
+    residual and the group pairs. So a pair here is a strong candidate, not the match's own pair: on pair C it finds the
+    trunk chips the match pairs plus three hood pairs on a panel the match did not compare. Nothing is written."""
+    from . import match  # public functions only: the pairing below must not depend on how match picks keyframes
+    from .marks import whitened_from_marks
+
+    roles = match.ROLES
+    panels = _read_list(paths.panels_json(run_id), Panel)
+    keyframes = _read_list(paths.keyframes_json(run_id), Keyframe)
+    marks = _read_list(paths.marks_json(run_id), Mark)
+    if not panels or not set(roles) <= {m.role for m in marks}:
+        return []
+    cal_path = paths.calibration_json(run_id)
+    if cal_path.is_file() and cal_path.stat().st_size > 0:
+        calibration = contracts.read_json(cal_path, Calibration)
+    else:  # the calibration derive_match computes (and writes) when the file is missing; nothing is written here
+        sigma_frame, sigma_spark = match.measured_sigmas(th)
+        calibration = match.calibrate(sigma_frame=sigma_frame, sigma_spark=sigma_spark, sigma_view=None, pseudo_pair_d=None, th=th)
+    whitened = whitened_from_marks(marks)
+    lanes: dict[str, dict[Noun, LaneStatus]] | None = None
+    out: list[tuple[str, str]] = []
+    for panel in panels:
+        kfs = {role: [kf for kf in keyframes if kf.panel_id == panel.panel_id and kf.role == role] for role in roles}
+        placed = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role and m.mark_id in whitened] for role in roles}
+        if not all(kfs[role] and placed[role] for role in roles):
+            continue
+        if lanes is None:
+            lanes = _lane_statuses(run_id, roles)
+        kf_p, kf_r, _ = match.pair_keyframes(kfs["pickup"], kfs["return"], th=th)
+        truncated = {role: all(kf.marks_status == MarksStatus.TRUNCATED for kf in kfs[role]) for role in roles}
+        gates = match.panel_gates(panel, kf_p, kf_r, mask_iou=None, residual=None, lane_status=lanes, marks_truncated_all=truncated, calibration=calibration, th=th)
+        if set(gates) & set(PANEL_LEVEL_GATES):
+            continue
+        cands = [match.cost(a, b, whitened[a.mark_id], whitened[b.mark_id], calibration, th) for a in placed["pickup"] for b in placed["return"]]
+        pairs = match.seeds_last_nn(cands, match.seeded_ids(placed["pickup"], placed["return"]), th, tau_pre=calibration.tau_pre)
+        out += [(p.pickup_mark, p.return_mark) for p in pairs if p.d < p.tau_eye_r]
+    return out
+
+
+def _priorities(run_id: str, walk: _Walk, th: dict[str, Any]) -> tuple[frozenset[str], frozenset[str], list[str]]:
+    """(the walk's marks in a cross-walk pair, its marks a narration seed named, walk notes). The order is a preference:
+    when a file cannot be read the cap ranks without it and the plan says why, and no clip is lost."""
+    own = {m.mark_id for m in walk.marks}
+    notes: list[str] = []
+    try:
+        paired = frozenset(i for pair in cross_walk_pairs(run_id, th=th) for i in pair if i in own)
+    except Exception as exc:  # a preference only: never fail a walk's clips over it
+        paired = frozenset()
+        notes.append(_error("the clip cap ranked without cross-walk pairs", exc))
+    try:
+        seeded = frozenset(i for i in seeded_marks(run_id) if i in own)
+    except Exception as exc:
+        seeded = frozenset()
+        notes.append(_error("the clip cap ranked without narration seeds", exc))
+    return paired, seeded, notes
+
+
+def _priority(it: _Item, walk: _Walk) -> tuple[int, int, int]:
+    """Where an item stands under the per-walk clip cap, lowest first: the glare control (one clip, the test's own check
+    of 5.9 item 4), then a mark paired across the walks (cross_walk_pairs), then a mark a narration seed named (a paired
+    mark a seed also names before every other), then the rest; each by Spark's confidence."""
+    if it.rank < 0:
+        return (-1, -1, -1)
+    return (0 if it.mark_id in walk.paired else 1, 0 if it.mark_id in walk.seeded else 1, it.rank)
+
+
 def _plans(walk: _Walk, items: list[_Item], th: dict[str, Any]) -> tuple[list[ClipPlan], list[tuple[_Item, str]]]:
     """Clips per keyframe (controls group last), each with its neighbours when the test is on, then the per-walk clip
-    cap: controls, then by mark confidence."""
+    cap: a clip stands where its best item does (_priority), ties by clip id."""
     times_us = [_us(t) for t in walk.times]
     frames = clip_frames(walk.times, th)
     by_kf: dict[str, list[_Item]] = {}
     for it in items:
         by_kf.setdefault(it.kf_id, []).append(it)
-    ranked: list[tuple[tuple[int, int, str], ClipPlan, list[_Item]]] = []
+    ranked: list[tuple[tuple[tuple[int, int, int], str], ClipPlan, list[_Item]]] = []
     dropped: list[tuple[_Item, str]] = []
     for kf_id in sorted(by_kf):
         kf = walk.keyframes[kf_id]
@@ -1073,7 +1201,7 @@ def _plans(walk: _Walk, items: list[_Item], th: dict[str, Any]) -> tuple[list[Cl
             layout = [(g, members, centre, side, None) for g, (members, centre, side) in enumerate(groups, start=1)]
         for g, members, centre, side, near in layout:
             plan = _plan(walk, kf, members, centre, side, span, panels, g, th, near)
-            ranked.append(((min(it.rank for it in members), 0, plan.clip_id), plan, members))
+            ranked.append(((min(_priority(it, walk) for it in members), plan.clip_id), plan, members))
     cap = int(_sp(th, "max_clips_per_walk"))
     ranked.sort(key=lambda r: r[0])
     for _, _plan_over, members in ranked[cap:]:
@@ -1565,6 +1693,7 @@ def neighbour_test(
     prompt_frame: int,
     fps: float | None,
     th: dict[str, Any],
+    rule: int | None = NEIGHBOUR_RULE,
 ) -> NeighbourTest:
     """Stays Put by neighbours (docs/STAYS_PUT_ANCHORS.md) for one object of a clip lane. neighbours are (object id,
     kind, ref) in prompt order. A neighbour is in the fit when SAM returned it on its prompt frame and on at least
@@ -1574,7 +1703,8 @@ def neighbour_test(
     neighbour_residual_floor_px); the ratio is the first over the second. fixed when both ratios are under
     neighbour_fixed_below, sliding when both are over neighbour_sliding_above, else inconclusive. no_track when the
     mark itself has a box on fewer than no_track_box_share_below of the clip; inconclusive with fewer than
-    neighbours_min neighbours in the fit. Pure: the same lane gives the same numbers, live and in rebuild."""
+    neighbours_min neighbours in the fit. rule is the plan's neighbour_rule; it only picks the reason's words (under 1,
+    the words of 10/31). Pure: the same lane gives the same numbers, live and in rebuild."""
     sp = th["staysput"]
     near_s = _sp(th, "neighbour_near_half_window_s")
     rate = float(fps) if fps else float(th["media"]["source_fps_assumed"])
@@ -1591,7 +1721,7 @@ def neighbour_test(
     if n <= 0 or k not in mark or len(mark) / n < float(sp["no_track_box_share_below"]):
         verdict, reason = StaysPutVerdict.NO_TRACK, "SAM did not follow the mark through enough of the clip"
     elif len(used) < least:
-        reason = f"{len(used)} neighbours tracked through the clip, {least} needed"
+        reason = f"{_count(len(used), 'neighbour', rule)} tracked through the clip, {least} needed"
     else:
         floor = _sp(th, "neighbour_residual_floor_px")
         ratios: dict[str, float | None] = {}
@@ -1630,6 +1760,11 @@ def neighbour_test(
     return NeighbourTest(verdict=verdict, near_s=near_s, near_frames=near, used=len(used), reason=reason, neighbours=rows, **numbers)
 
 
+def _count(n: int, noun: str, rule: int | None = NEIGHBOUR_RULE) -> str:
+    """'1 neighbour', '0 neighbours', '6 neighbours'; a plan made under rule 1 keeps the plural it printed then."""
+    return f"{n} {noun}" if n == 1 and rule is not None and rule >= 2 else f"{n} {noun}s"
+
+
 def _neighbour_refs(plan: ClipPlan, obj: PlanObject) -> list[tuple[str, str, str]]:
     """obj's neighbours in its clip: the plan's neighbours, then the clip's other marks that sit on the paint."""
     refs = [(nb.object_id, nb.kind, nb.ref) for nb in plan.neighbours]
@@ -1646,7 +1781,7 @@ def _neighbour_row(frames: list[IndexFrame] | None, plan: ClipPlan, obj: PlanObj
     if frames is None:
         near_s = _sp(th, "neighbour_near_half_window_s")
         return NeighbourTest(near_s=near_s, neighbours=[StaysPutNeighbour(object_id=oid, kind=kind, ref=ref) for oid, kind, ref in refs])
-    return neighbour_test(frames, obj.object_id, refs, n_frames=len(plan.windows_src), prompt_frame=plan.prompt_frame, fps=_fps(plan.pts_src), th=th)
+    return neighbour_test(frames, obj.object_id, refs, n_frames=len(plan.windows_src), prompt_frame=plan.prompt_frame, fps=_fps(plan.pts_src), th=th, rule=plan.neighbour_rule)
 
 
 def _lane_frames(run_id: str, record: LaneRecord) -> list[IndexFrame]:
@@ -1778,6 +1913,7 @@ async def derive_staysput(run_id: str, role: str, *, th: dict, stop: Callable[[]
     gap = _privacy_gap(run_id, role) if items else None
     plans: list[ClipPlan] = []
     dropped: list[tuple[_Item, str]] = []
+    rank_notes: list[str] = []
     if gap is not None:
         dropped = [(it, gap) for it in items]
     elif items and not walk.src.is_file():
@@ -1788,11 +1924,12 @@ async def derive_staysput(run_id: str, role: str, *, th: dict, stop: Callable[[]
         dropped = [(it, "the original is gone, so no clip can be cut") for it in items]
     elif items:
         walk.times = await asyncio.to_thread(video.frame_times, walk.src)
+        walk.paired, walk.seeded, rank_notes = await asyncio.to_thread(_priorities, run_id, walk, th)
         plans, dropped = _plans(walk, items, th)
-    notes = [f"{it.mark_id}, the reflection control: {why}" for it, why in dropped if it.rank < 0]
+    notes = rank_notes + [f"{it.mark_id}, the reflection control: {why}" for it, why in dropped if it.rank < 0]
     unclipped = sorted(unclipped + [_skip(it, why) for it, why in dropped if it.rank >= 0], key=lambda s: s.mark_id)
     plans, earlier = _resume(run_id, stored, plans)
-    base = RolePlans(role=role, clips=plans, unclipped=unclipped, skipped=notes, earlier_request_ids=earlier)
+    base = RolePlans(role=role, clips=plans, unclipped=unclipped, skipped=notes, earlier_request_ids=earlier, paired=sorted(walk.paired), seeded=sorted(walk.seeded))
     _write_plans(run_id, base)
     todo = [i for i, p in enumerate(plans) if p.status == "planned"]
     if todo:

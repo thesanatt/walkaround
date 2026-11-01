@@ -1,5 +1,6 @@
-import type { FfprobeInfo, Mark, MarkTrack, RunManifest, SizeEstimate, VideoRecord } from '../contracts/types.ts';
+import type { FfprobeInfo, KeyframePairTry, Mark, MarkTrack, PanelMatch, RunManifest, SizeEstimate, VideoRecord } from '../contracts/types.ts';
 import { neighbourLine } from './neighbours.ts';
+import { ruleLabel } from './rules.ts';
 
 // sheet._TIRE_CODE and sheet.tire_diameter_in: D = 2 x (SW x AR / 2540 + RD / 2) inches from a code like 225/60R16.
 const TIRE_CODE = /^\s*(\d{3})\s*\/\s*(\d{2})\s*[A-Za-z]*\s*(\d{2}(?:\.\d)?)\s*$/;
@@ -111,4 +112,44 @@ export function controlName(calibrated: boolean): string {
 // "scuff, S", and "from your words" on a mark Muse Spark boxed because the renter named it.
 export function markLabel(m: Mark): string {
   return `${m.type}, ${m.size_class}${m.source === 'narration_seed' ? ', from your words' : ''}`;
+}
+
+// match.how_checked word for word (the sheet's "how it was checked" line, thresholds matching.next_keyframe_pair,
+// 11/1): the keyframe pair a panel was compared on and every pair tried before it with the gates each failed; for a
+// panel no pair passed, every pair tried. null when the match recorded no tries (keyframes in one walk only, or a run
+// matched before 11/1).
+const PANEL_GATES = ['G1', 'G6', 'G7', 'G10'];
+
+function joined(items: string[], last: string): string {
+  return items.length === 1 ? items[0]! : `${items.slice(0, -1).join(', ')} ${last} ${items[items.length - 1]!}`;
+}
+
+function gateWords(gate: string, t: KeyframePairTry): string {
+  const label = ruleLabel(gate);
+  if (gate === 'G4' || gate === 'G8') {
+    if (t.mask_iou !== null) return `${gate} ${label} ${t.mask_iou.toFixed(2)}`;
+    return `${gate} ${label}: ${t.frames_agree ? 'not measured' : 'panel axes disagree'}`;
+  }
+  return `${gate} ${label}`;
+}
+
+export function keyframePairLine(match: PanelMatch | null | undefined): string | null {
+  const tries = match?.kf_pairs_tried ?? [];
+  if (!tries.length) return null;
+  const pairWords = (t: KeyframePairTry) => `${t.kf_pair[0]} with ${t.kf_pair[1]}`;
+  const tried = (t: KeyframePairTry) => `${pairWords(t)} (${t.gates.map((g) => gateWords(g, t)).join(', ')})`;
+  const used = tries.find((t) => !t.gates.length);
+  if (used) {
+    const before = tries.filter((t) => t !== used);
+    if (!before.length) return `compared on keyframes ${pairWords(used)}, the first pair tried`;
+    return `compared on keyframes ${pairWords(used)}; tried first: ${before.map(tried).join('; ')}`;
+  }
+  const first = tries[0]!;
+  const panelLevel = first.gates.filter((g) => PANEL_GATES.includes(g));
+  if (panelLevel.length) {
+    const which = panelLevel.length === 1 ? `${panelLevel[0]!} is a panel gate` : `${joined(panelLevel, 'and')} are panel gates`;
+    return `not compared: keyframes ${tried(first)}; ${which}, so no other pair was tried`;
+  }
+  if (tries.length === 1) return `not compared: keyframes ${tried(first)}, and the panel has no other keyframe pair`;
+  return `not compared: none of the ${tries.length} keyframe pairs passed every gate; tried: ${tries.map(tried).join('; ')}`;
 }

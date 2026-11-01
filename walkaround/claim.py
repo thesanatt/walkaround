@@ -84,6 +84,7 @@ from .contracts import (
     SparkEngine,
     SparkRequestRecord,
     Timestamp,
+    VerdictFlags,
     VerdictLabel,
     VideoRecord,
     WhitenedMark,
@@ -1138,6 +1139,7 @@ class _Compared:
     pair_view_flags: list[str] = field(default_factory=list)  # a near pair on a flagged pickup view: the note's flags
     near: bool = False  # a pickup mark within tau_eye_r of the claim mark
     photo_view_flags: list[str] = field(default_factory=list)  # a near pair on a flagged claim photo: the note's flags
+    type_note: str | None = None  # rule 1 of 11/1: K4 and K12 on a near pair inside tau_pre_r and what the look made of them
 
 
 def _compare(
@@ -1174,8 +1176,12 @@ def _compare(
     # been hidden there; a pickup mark near it is no less there for the flag, so a near pair only gets the note
     view_flags = _pickup_view_flags(view, pid, th) if _view_flags_cap(th) else []
     view_flagged = bool(view_flags) and not near
+    # Rule 1 of 11/1 (match.tight_pair_look, read from the run's frozen thresholds): on a near pair inside tau_pre_r, K4
+    # and K12 wait for the second look as on a walk pair, and cap as before when it gives no answer. Runs frozen before
+    # lack the leaf, so their claims rebuild unchanged.
+    tight = match.tight_pair_look(th) and near and not ambiguous and partner is not None and pair is not None and pair.d < pair.tau_pre_r
 
-    def judge(look: LookVerdict | None) -> tuple[VerdictLabel, list[str]]:
+    def flags_of(look: LookVerdict | None) -> VerdictFlags:
         flags = match.flags_for(pair, claim_mark, partner if near else None, match.staysput_caps(view.mark_tracks, th), look, kf_status, return_mark=True, view_flagged=view_flagged)
         update = {}
         if ambiguous:
@@ -1184,15 +1190,23 @@ def _compare(
             update["K10"] = True
         if photo_flags and not near:
             update["K11"] = True
-        if update:
-            flags = flags.model_copy(update=update)
+        return flags.model_copy(update=update) if update else flags
+
+    def judge(look: LookVerdict | None, *, defer: bool = False) -> tuple[VerdictLabel, list[str]]:
+        flags = flags_of(look)
+        if defer:
+            flags = flags.model_copy(update={k: False for k in match.TYPE_CAPS})
         return match.verdict(pair.d if pair is not None else None, tau_pre_r, tau_eye_r, flags)
 
     label, ids = judge(None)
-    if label is VerdictLabel.ALREADY_THERE and near and partner is not None:
+    look: LookVerdict | None = None
+    if judge(None, defer=tight)[0] is VerdictLabel.ALREADY_THERE and near and partner is not None:
         look = _second_look(ctx, pid, partner, claim_mark, box)
         if look is not None:
-            label, ids = judge(look)
+            label, ids = judge(look, defer=tight)
+    type_note = None
+    if tight and partner is not None and pair is not None:
+        _, _, type_note = match.tight_pair_flags(pair, partner, claim_mark, flags_of(look), look, asked=look is not None, roles=("pickup", "claim"))
     kf_pickup = view.keyframes.get(partner.kf_id) if near and partner is not None else kf
     pm = PanelMatch(
         panel_id=pid,
@@ -1204,7 +1218,7 @@ def _compare(
         unmatched_pickup=[],
         unmatched_return=[] if near else [claim_mark.mark_id],
     )
-    return _Compared(pm, label, ids, nearest, partner, ambiguous, view_flags if near else [], near=near, photo_view_flags=list(photo_flags) if near else [])
+    return _Compared(pm, label, ids, nearest, partner, ambiguous, view_flags if near else [], near=near, photo_view_flags=list(photo_flags) if near else [], type_note=type_note)
 
 
 def _second_look(ctx: _Ctx, pid: PanelId, partner: Mark, claim_mark: Mark, box: tuple[int, int, int, int]) -> LookVerdict | None:
@@ -1241,9 +1255,10 @@ def _verdict_text(view: RunView, cmp: _Compared, th: dict[str, Any]) -> str:
         tail = f" Also: {caps}." if caps else ""
         return f"Needs your eye: two pickup marks lie about as close to the claim mark; the nearest, {kind}{where}, is {dist} away.{tail}{note}"
     if original == "L3":
+        typed = f" {_cap(cmp.type_note)}." if cmp.type_note else ""
         if lowered:
-            return f"Needs your eye: {kind}{where} sits {dist} from the claim mark, but {caps or 'a check lowered the answer'}.{note}"
-        return f"Already there at pickup: the claim mark sits {dist} from {kind}{where}.{note}"
+            return f"Needs your eye: {kind}{where} sits {dist} from the claim mark, but {caps or 'a check lowered the answer'}.{note}{typed}"
+        return f"Already there at pickup: the claim mark sits {dist} from {kind}{where}.{note}{typed}"
     if original == "L4":
         band = f"Needs your eye: the nearest pickup mark, {kind}{where}, is {dist} from the claim mark, inside the band where Walkaround does not decide."
         return band + (f" Also: {caps}." if caps else "") + note

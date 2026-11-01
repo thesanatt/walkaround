@@ -3,9 +3,9 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import type { DeletionRecord, Keyframe, Mark, MarkTrack, PanelMatch, PanelTrack, RunManifest, SizeEstimate, Verdict } from '../src/contracts/types.ts';
+import type { DeletionRecord, Keyframe, KeyframePairTry, Mark, MarkTrack, PanelMatch, PanelTrack, RunManifest, SizeEstimate, Verdict } from '../src/contracts/types.ts';
 import { drawnPairs, focusTrack, joinedPairs, offPaneMarks, paneKeyframes, panelFocus, panelObjectKeys } from '../src/lib/focus.ts';
-import { sizeLine, staysPutLine, tireDiameterIn, wallClock } from '../src/lib/lines.ts';
+import { keyframePairLine, sizeLine, staysPutLine, tireDiameterIn, wallClock } from '../src/lib/lines.ts';
 import { deleteFailed, PRIVACY_BEFORE, storageLine, uploadedFileIds } from '../src/lib/privacy.ts';
 import { RULES } from '../src/lib/rules.ts';
 import { replayBadgeDate, sheetFileHash } from '../src/lib/runview.ts';
@@ -233,5 +233,27 @@ describe('lines copied from sheet.py', () => {
     expect(staysPutLine({ ...fixed!, verdict: 'inconclusive', panned: true }, false)).toBe('drift 0.03, b1 0.21, b2 0.02, panned');
     expect(staysPutLine({ ...fixed!, verdict: 'no_track' }, false)).toBe('no track (SAM did not follow the mark through the clip)');
     expect(staysPutLine({ ...fixed!, verdict: 'not_run' }, false)).toBeNull();
+  });
+});
+
+describe('keyframePairLine is match.how_checked word for word (11/1)', () => {
+  const t = (p: string, r: string, gates: string[], iou: number | null = null, agree = true): KeyframePairTry => ({ kf_pair: [p, r], gates, mask_iou: iou, frames_agree: agree });
+  const text = (...tries: KeyframePairTry[]) => keyframePairLine({ kf_pairs_tried: tries } as unknown as PanelMatch);
+
+  it('words every case as tests/test_match_1101.py does', () => {
+    expect(keyframePairLine(null)).toBeNull();
+    expect(text()).toBeNull();
+    expect(text(t('p1', 'r1', []))).toBe('compared on keyframes p1 with r1, the first pair tried');
+    expect(text(t('p1', 'r1', ['G3']), t('p1', 'r2', ['G4'], 0.62), t('p2', 'r1', []))).toBe(
+      'compared on keyframes p2 with r1; tried first: p1 with r1 (G3 blurry keyframe); p1 with r2 (G4 mask IoU 0.62)',
+    );
+    expect(text(t('p1', 'r1', ['G4', 'G8'], null, false), t('p2', 'r1', ['G8'], 0.75))).toBe(
+      'not compared: none of the 2 keyframe pairs passed every gate; tried: p1 with r1 (G4 mask IoU: panel axes disagree, G8 hood IoU: panel axes disagree); p2 with r1 (G8 hood IoU 0.75)',
+    );
+    expect(text(t('p1', 'r1', ['G1', 'G4'], 0.5))).toBe('not compared: keyframes p1 with r1 (G1 not filmed, G4 mask IoU 0.50); G1 is a panel gate, so no other pair was tried');
+    expect(text(t('p1', 'r1', ['G1', 'G6']))).toMatch(/\(G1 not filmed, G6 side uncertain\); G1 and G6 are panel gates, so no other pair was tried$/);
+    expect(text(t('p1', 'r1', ['G9']))).toBe('not compared: keyframes p1 with r1 (G9 mask definition differs), and the panel has no other keyframe pair');
+    expect(text(t('p1', 'r1', ['G4']))).toBe('not compared: keyframes p1 with r1 (G4 mask IoU: not measured), and the panel has no other keyframe pair');
+    expect(text(t('p1', 'r1', ['G5', 'G10']))).toMatch(/G10 is a panel gate, so no other pair was tried$/);
   });
 });

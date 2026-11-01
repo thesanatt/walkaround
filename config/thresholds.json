@@ -135,7 +135,9 @@
     "wheel_min_marks_for_shift": {"value": 2, "source": "5.8 item 8"},
     "chance_match_density_formula": {"value": "pi * tau_pre^2 / 12 * mark_density", "source": "5.10 (method page)"},
     "cm_per_unit_for_print": {"value": 35, "source": "5.5 (about-cm beside units)", "unit": "cm"},
-    "sigma_spark": {"value": 0.117, "source": "D1 E6 re-run on real marks at effort low, 5 calls per crop (runs/d1/uco3d_pairC/spark_redo/gate_spark.json): uCO3D pair C trunk chips 0.073 and 0.090 units, uCO3D Alto hood dent 0.117; the largest is kept. With it match.calibrate gives tau_pre0 0.4 (the cap) and tau_eye 0.8, the band lead note 3 on docs/D1_MEMO.md keeps. sigma_frame stays absent: E8's door-handle 0.11 to 0.17 would print a Stays Put tau_fix of 0.507, which note 2 refuses", "unit": "whitened units"}
+    "sigma_spark": {"value": 0.117, "source": "D1 E6 re-run on real marks at effort low, 5 calls per crop (runs/d1/uco3d_pairC/spark_redo/gate_spark.json): uCO3D pair C trunk chips 0.073 and 0.090 units, uCO3D Alto hood dent 0.117; the largest is kept. With it match.calibrate gives tau_pre0 0.4 (the cap) and tau_eye 0.8, the band lead note 3 on docs/D1_MEMO.md keeps. sigma_frame stays absent: E8's door-handle 0.11 to 0.17 would print a Stays Put tau_fix of 0.507, which note 2 refuses", "unit": "whitened units"},
+    "tight_pair_second_look": {"value": true, "source": "lead decision 11/1, rule 1: on a pair inside tau_pre_r (L3) K4 (type dirt, reflection or unsure) and K12 (Spark confidence low) are notes, not caps, and the pair goes to the second look (Spark Open on the hackathon key, then the account key, then hosted Muse Spark 1.3), which may lower it (K7); with no usable answer (not asked, or every engine failed) they cap as before. Marks seen in one walk only and pairs in the band keep them as caps. An already-there call rests on geometry, the same spot in both walks, not on what the mark is; the second look compares the two crops and is the veto; without it, stay conservative. Absent (runs frozen before 11/1): K4 and K12 cap every pair"},
+    "next_keyframe_pair": {"value": true, "source": "lead decision 11/1, rule 2: when a panel's chosen keyframe pair fails a view gate (G3, G4, G5, G8, G9), match tries the panel's other keyframe pairs (clean views first as prefer_clean picks them, then the product of the two keyframe scores, highest first, ties by keyframe index) and compares on the first that passes every gate; G1, G6, G7 and G10 stay panel-level. Each pair tried is recorded with its gates (matches.json kf_pairs_tried, the sheet's how-checked line). Absent (runs frozen before 11/1): one pair per panel"}
   },
   "staysput": {
     "window_frac_of_panel_width": {"value": 0.3, "source": "5.9 item 1"},
@@ -293,7 +295,8 @@
     "body_scuff_ordinary_wear": {"value": true, "source": "5.12 (no size comparison for a body scuff)"},
     "tire_diameter_formula": {"value": "D = 2 * (SW * AR / 2540 + RD / 2)", "source": "5.12 (inches from the sidewall code)"},
     "d1_plate_wheel_ppi_agreement": {"value": 0.15, "source": "11 E11 (estimate)"},
-    "camera_hfov_deg": {"value": 70, "source": "estimate (the camera distance behind the ruler's depth term)", "unit": "deg"}
+    "camera_hfov_deg": {"value": 70, "source": "estimate (the camera distance behind the ruler's depth term)", "unit": "deg"},
+    "view_flag_sizes": {"value": true, "source": "lead decision 11/1 (2): Muse Spark's wet, dirty and glare flags are model judgments, so a flagged crop no longer refuses a size; the size prints with a note in the K15 words (return view flagged dirty: the size may include dirt) for the mark's keyframe and the keyframe the size was measured on. A dark crop and the geometric refusals stay (plate turned past 30 degrees, no wheel measured, no tire code). Absent (runs frozen before 11/1): any flagged crop refuses, so their sheets rebuild byte for byte"}
   },
   "claim": {
     "low_res_px": {"value": 480, "source": "5.11", "unit": "px"},

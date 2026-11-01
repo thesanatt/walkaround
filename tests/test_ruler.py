@@ -654,3 +654,53 @@ def test_the_new_fields_round_trip_and_stay_out_of_the_bytes_when_empty() -> Non
     run = c.RunManifest(run_id="r", created_at="2026-10-31T23:00:00Z")
     typed = run.model_copy(update={"tire_code": "155/80R13"})
     assert "tire_code" not in run.to_json() and c.RunManifest.from_json(typed.to_json()).tire_code == "155/80R13"
+
+
+# A size on a flagged view (lead 11/1): printed with a note in K15's words; darkness and the geometry still refuse -------
+
+
+FROZEN = {**TH, "ruler": {k: v for k, v in TH["ruler"].items() if k != "view_flag_sizes"}}  # a run frozen before 11/1
+
+
+def flag(run_id: str, kf_id: str, **flags: bool) -> None:
+    kfs = c.read_json_list(paths.keyframes_json(run_id), c.Keyframe)
+    c.write_json(paths.keyframes_json(run_id), [k.model_copy(update={"conditions": c.Conditions(**flags)}) if k.kf_id == kf_id else k for k in kfs])
+
+
+def test_the_view_note_speaks_like_k15() -> None:
+    assert ruler.view_note("return", ["dirty"]) == "return view flagged dirty: the size may include dirt"
+    assert ruler.view_note("pickup", ["dirty", "glare"]) == "pickup view flagged dirty and glare: the size may include dirt or a reflection"
+    assert ruler.view_note("pickup", []) is None
+    assert TH["ruler"]["view_flag_sizes"] is True and ruler.sizes_on_view_flags(TH) and not ruler.sizes_on_view_flags(FROZEN)
+
+
+def test_a_flagged_crop_prints_its_size_with_a_view_note(runs: Path) -> None:
+    mark_id = write_clip_run("vf1")
+    clean = ruler.size_marks("vf1", th=TH)[mark_id]
+    flag("vf1", "return_trunk_lid_kf1", dirty=True)  # the mark's own keyframe
+    s = ruler.size_marks("vf1", th=TH)[mark_id]
+    assert s.inches == clean.inches and s.ruler_source_kf == "return_rear_bumper_kf1"
+    assert s.ruler_notes == ["return view flagged dirty: the size may include dirt"]
+    assert sheet.size_line(s).endswith("in (ruler: the license plate, 12 in; return view flagged dirty: the size may include dirt)")
+    flag("vf1", "return_rear_bumper_kf1", wet=True, glare=True)  # and the keyframe the size was measured on
+    s = ruler.size_marks("vf1", th=TH)[mark_id]
+    assert s.inches == clean.inches and s.ruler_notes == ["return view flagged wet, dirty and glare: the size may include water, dirt or a reflection"]
+    flag("vf1", "return_rear_window_kf1", glare=True)  # outside the mark's clip: not a view of this size
+    assert ruler.size_marks("vf1", th=TH)[mark_id].ruler_notes == s.ruler_notes
+    assert ruler.size_marks("vf1", th=FROZEN)[mark_id].refused_reason == ruler.CROP_FLAG  # a run frozen before 11/1 rebuilds as it was
+
+
+def test_a_dark_crop_and_the_geometric_refusals_still_refuse(runs: Path) -> None:
+    mark_id = write_clip_run("vf2")
+    flag("vf2", "return_trunk_lid_kf1", dark=True, dirty=True)
+    assert ruler.size_marks("vf2", th=TH)[mark_id].refused_reason == ruler.DARK_FRAME
+    mark_id = write_clip_run("vf3", with_plan=False)  # only the mark's own keyframe counts, and its plate is turned 40 degrees
+    flag("vf3", "return_trunk_lid_kf1", glare=True)
+    s = ruler.size_marks("vf3", th=TH)[mark_id]
+    assert s.refused_reason == "the license plate is turned more than 30 degrees from the camera" and s.ruler_notes == []  # no view note without a size
+    assert ruler.size_marks("vf3", th=FROZEN)[mark_id].refused_reason == ruler.CROP_FLAG
+    write_run("vf4")  # a wheel mark with no tire code: still the reason the renter can fix
+    flag("vf4", "return_left_rear_wheel_kf0", dirty=True)
+    assert ruler.size_marks("vf4", th=TH)["return_left_rear_wheel_kf0_m1"].refused_reason == ruler.TIRE_NOT_GIVEN
+    sized = ruler.size_marks("vf4", th=TH, tire_code="225/60R16")["return_left_rear_wheel_kf0_m1"]
+    assert sized.ruler == c.RulerKind.WHEEL and sized.ruler_notes == ["return view flagged dirty: the size may include dirt"]

@@ -17,6 +17,12 @@ keyframe and the mark's extent measured by its own track around the same frame, 
 ruler_notes: why each other ruler next to the mark did not size it, which the sheet prints after the ruler used. A plate
 flatter than a 12 by 6 in plate seen from 45 degrees above (ruler.plate_hw_min) is not this ruler: a European or Indian
 strip plate would read as frontal and size every mark too small.
+
+Muse Spark's wet, dirty and glare flags on a crop are model judgments, so since 11/1 (thresholds ruler.view_flag_sizes)
+they no longer refuse a size: the size prints with a note in the words of the match's K15 ("return view flagged dirty:
+the size may include dirt") for the flags of the mark's own keyframe and of the keyframe the size was measured on, last
+among the ruler_notes. A dark crop and every geometric refusal still refuse. Runs frozen without the leaf keep the old
+refusal of any flagged crop, so they rebuild byte for byte.
 """
 
 from __future__ import annotations
@@ -53,6 +59,7 @@ from .contracts import (
     read_json_list,
     write_json,
 )
+from .match import VIEW_FLAGS
 
 Box4 = list[float]
 
@@ -72,7 +79,10 @@ NOT_A_US_PLATE = "the license plate is flatter than a 12 by 6 in plate, so its s
 TIRE_NOT_GIVEN = "tire size not given"
 TIRE_UNREADABLE = "the tire code typed could not be read"
 NO_MARK_MASK = "no SAM mask of this mark; a Spark box is never used for a size"
-CROP_FLAG = "glare, water, dirt or darkness on that frame"
+CROP_FLAG = "glare, water, dirt or darkness on that frame"  # any flag refused a size until 11/1 (runs frozen before)
+DARK_FRAME = "darkness on that frame"  # since 11/1 the one flag that still refuses; wet, dirty and glare add a note
+# What a flagged view may have added to the measured length, in the words of match.one_walk_note (K15)
+VIEW_FLAG_ADDS = {"wet": "water", "dirty": "dirt", "glare": "a reflection"}
 DRAWN_BOX = "a drawn box overlaps the mark"
 PROXY_FRAME = "the mark was measured on a proxy frame"
 NO_CAMERA_DISTANCE = "the frame size is not recorded, so the camera distance is unknown"
@@ -469,6 +479,26 @@ def _adjacent_panels(kind: RulerKind) -> frozenset[PanelId]:
     return PLATE_PANELS if kind == RulerKind.PLATE else WHEEL_RULER_PANELS
 
 
+def _joined(items: list[str], last: str) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + f" {last} " + items[-1]
+
+
+def view_note(role: str, flags: list[str]) -> str | None:
+    """A size measured on a flagged view, in the words of K15 (lead 11/1): "return view flagged dirty: the size may
+    include dirt", "pickup view flagged dirty and glare: the size may include dirt or a reflection". flags are wet,
+    dirty and glare in that order (match.view_flags); None when there is none."""
+    if not flags:
+        return None
+    adds = _joined([VIEW_FLAG_ADDS[f] for f in flags], "or")
+    return f"{role} view flagged {_joined(flags, 'and')}: the size may include {adds}"
+
+
+def sizes_on_view_flags(th: dict[str, Any]) -> bool:
+    """thresholds ruler.view_flag_sizes (11/1): a wet, dirty or glare crop prints its size with a view note. Absent, as
+    in every run frozen before, any flagged crop refuses the size."""
+    return bool(th["ruler"].get("view_flag_sizes", False))
+
+
 # A run's marks and verdicts -------------------------------------------------------------------------------------------
 
 
@@ -597,13 +627,22 @@ def _note(kind: RulerKind, reason: str, th: dict[str, Any]) -> str:
     return f"{name}: {reason}"
 
 
+def _view_flags_used(kf: Keyframe, source_kf: str | None, views: list[_View]) -> list[str]:
+    """The wet, dirty and glare flags of the mark's own keyframe and of the keyframe its size was measured on."""
+    frames = [kf, *(v.kf for v in views if v.kf.kf_id == source_kf and v.kf.kf_id != kf.kf_id)]
+    return [f for f in VIEW_FLAGS if any(getattr(k.conditions, f) for k in frames)]
+
+
 def _size_mark(m: Mark, kf: Keyframe, views: list[_View], tracks: list[PanelTrack], video: VideoRecord | None, *, tire_code: str | None, th: dict[str, Any], frame_w: int | None) -> SizeEstimate:
-    """5.12 for one walk mark over its candidate frames: a crop flag on the mark's own keyframe refuses first; then the
-    plate (plate-adjacent panels) and the wheel (wheel, fender and lower-bumper marks) each on their most frontal view,
-    the plate first. The refusal follows best_size: with a ruler that qualified, the mark side speaks; else a tire
-    code the renter can fix, the plate's reason, the wheel's, or no ruler near."""
-    if kf.conditions.any_flag():
-        return SizeEstimate(refused_reason=CROP_FLAG)
+    """5.12 for one walk mark over its candidate frames: a dark crop on the mark's own keyframe refuses first (any flag
+    in a run frozen before 11/1); then the plate (plate-adjacent panels) and the wheel (wheel, fender and lower-bumper
+    marks) each on their most frontal view, the plate first. A size measured where the mark's keyframe or the size's
+    keyframe is flagged wet, dirty or glare carries the view note last among its ruler_notes. The refusal follows
+    best_size: with a ruler that qualified, the mark side speaks; else a tire code the renter can fix, the plate's
+    reason, the wheel's, or no ruler near."""
+    flagged_sizes = sizes_on_view_flags(th)
+    if kf.conditions.dark if flagged_sizes else kf.conditions.any_flag():
+        return SizeEstimate(refused_reason=DARK_FRAME if flagged_sizes else CROP_FLAG)
     kinds = [k for k, ok in ((RulerKind.PLATE, m.panel_id in PLATE_PANELS), (RulerKind.WHEEL, m.panel_id in WHEEL_RULER_PANELS)) if ok]
     if not kinds:
         return SizeEstimate(refused_reason=no_ruler_reason(th))
@@ -621,7 +660,9 @@ def _size_mark(m: Mark, kf: Keyframe, views: list[_View], tracks: list[PanelTrac
             why[kind] = (reason, qualified)
     used = next((k for k in kinds if k in sized), None)
     if used is not None:
-        return sized[used].model_copy(update={"ruler_notes": [_note(k, why[k][0], th) for k in kinds if k in why]})
+        notes = [_note(k, why[k][0], th) for k in kinds if k in why]
+        flagged = view_note(kf.role, _view_flags_used(kf, sized[used].ruler_source_kf, views)) if flagged_sizes else None
+        return sized[used].model_copy(update={"ruler_notes": notes + ([flagged] if flagged else [])})
     qualified = [why[k][0] for k in kinds if why[k][1]]
     if qualified:
         near = [x for x in qualified if x != no_ruler_reason(th)]
@@ -638,7 +679,8 @@ def size_marks(run_id: str, *, th: dict[str, Any], tire_code: str | None = None)
     """One SizeEstimate per mark of marks.json: the plate (plate-adjacent panels) and the wheels (wheel, fender and
     lower-bumper marks; they need the tire code: tire_code, else the run's own) on the most frontal of the walk's
     keyframes inside the mark's Stays Put clip, the mark's extent from its own track on that frame. A mark with no
-    track is refused, never sized from its Spark box."""
+    track is refused, never sized from its Spark box. A wet, dirty or glare crop sizes with a view note
+    (ruler.view_flag_sizes); a dark one refuses."""
     code = run_tire_code(run_id) if tire_code is None else tire_code
     marks: list[Mark] = _read_list(paths.marks_json(run_id), Mark)
     keyframes = {k.kf_id: k for k in _read_list(paths.keyframes_json(run_id), Keyframe)}
@@ -691,6 +733,8 @@ def size_verdicts(run_id: str, *, th: dict[str, Any], tire_code: str | None = No
 
 __all__ = [
     "CAMERA_HFOV_DEG",
+    "CROP_FLAG",
+    "DARK_FRAME",
     "MarkExtent",
     "NOT_A_US_PLATE",
     "NO_MARK_MASK",
@@ -716,10 +760,12 @@ __all__ = [
     "size_estimate",
     "size_marks",
     "size_verdicts",
+    "sizes_on_view_flags",
     "threshold_in",
     "threshold_type_for",
     "tilt_from_aspect",
     "tire_diameter_in",
+    "view_note",
     "wheel_ruler",
     "wheel_ruler_from_box",
     "wheel_scale",

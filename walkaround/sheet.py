@@ -29,7 +29,7 @@ import cv2
 import numpy as np
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
 
-from . import ledger, paths, privacy, rules, seal
+from . import ledger, match, paths, privacy, rules, seal
 from .contracts import (
     BODY_PANELS,
     LOWER_BUMPERS,
@@ -472,7 +472,21 @@ def certification_md(sheet: SheetModel) -> str:
     )
 
 
-def glossary_md() -> str:
+GLOSSARY_TIGHT_PAIR = (  # match.tight_pair_look, lead 11/1 rule 1
+    "tight pair: a pair inside tau_pre is already there because the mark sits in the same place in both walks, whatever Muse Spark called it. "
+    "So Spark's type (dirt, reflection or unsure, K4) and its low confidence (K12) are notes on that pair, and the second look compares the two crops and may lower it (K7). "
+    "If the second look gives no answer, K4 and K12 cap the pair at needs your eye as before. A mark seen in one walk only, or a pair in the band, keeps K4 and K12 as caps.\n"
+)
+GLOSSARY_KEYFRAME_PAIR = (  # match.next_keyframe_pair, lead 11/1 rule 2
+    "keyframe pair: each panel is compared on one pickup keyframe and one return keyframe. When that pair fails a gate of the pair (G3, G4, G5, G8 or G9), "
+    "the panel's other keyframe pairs are tried in a fixed order (clean views first, then the two keyframe scores, then keyframe number) and the first that passes every gate is used. "
+    "The panel page says which pair was used and what each pair tried failed. G1, G6, G7 and G10 belong to the panel, so no other pair can pass them.\n"
+)
+
+
+def glossary_md(th: dict[str, Any] | None = None) -> str:
+    """The glossary appendix. The 11/1 lines print only for a run whose thresholds turn those rules on, so a sheet
+    frozen before them rebuilds byte for byte."""
     return (
         "Glossary\n"
         "\n"
@@ -482,7 +496,9 @@ def glossary_md() -> str:
         "not seen at return: a pickup mark with no return mark near it (L1).\n"
         "not comparable: a panel gate failed (G1, G3 to G10); both best frames still show with the reason (L6).\n"
         "view flagged: Muse Spark said a frame shows water, dirt or glare. That is a model's judgment, so it no longer blocks a panel (gate G2 did that until Oct 31). A mark seen in one walk only is capped at needs your eye (K15); a mark in the same place in both walks keeps its label, with a note.\n"
-        "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
+        + (GLOSSARY_TIGHT_PAIR if match.tight_pair_look(th) else "")
+        + (GLOSSARY_KEYFRAME_PAIR if match.next_keyframe_pair(th) else "")
+        + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"
         "sha256: the fingerprint of a file; one changed byte changes it.\n"
@@ -815,6 +831,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
                     size_line=f"{size_text}; {extra}" if extra else size_text,
                     ordinary_wear_line=ordinary_wear_line(first.type if first else None, pid),
                     view_line=v.view_note,
+                    type_line=v.type_note,
                 )
             )
         chips: list[SheetChip] = []
@@ -829,6 +846,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
                 coverage_seconds=dict(sorted(cov_seconds.items(), key=lambda kv: _role_order(kv[0]))),
                 coverage_states=dict(sorted(cov_states.items(), key=lambda kv: _role_order(kv[0]))),
                 verdicts=lines, group_lines=[g.text for g in pm.groups] if pm else [], chips=chips,
+                how_checked=match.how_checked(pm) if pm else None,
             )
         )
     if coverage is not None and coverage.odometer.frame_path:
@@ -913,7 +931,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
         sheet.footage_credit = _ascii(run.footage_credit)
         sheet.footage_license_url = footage_license_url(run.footage_credit)
     sheet.note_lines = note_lines(sheet)
-    appendices = {"A certification": certification_md(sheet), "B glossary": glossary_md(), "C verify it yourself": verify_md(sheet)}
+    appendices = {"A certification": certification_md(sheet), "B glossary": glossary_md(th), "C verify it yourself": verify_md(sheet)}
     if claim is not None:
         appendices["D claim check"] = _claim_text(claim, th)
     sheet.appendices = appendices

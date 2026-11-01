@@ -1356,6 +1356,18 @@ class MarkGroup(Contract):
     text: str
 
 
+class KeyframePairTry(Contract):
+    """One keyframe pair match.derive_match tried on a panel (lead 11/1, rule 2): the gates it failed (empty when it
+    passed every gate) and its whitened mask IoU (None when there was none to take)."""
+
+    kf_pair: Annotated[list[str], Field(min_length=2, max_length=2)]  # [kf_pickup, kf_return]
+    gates: list[str] = Field(default_factory=list)
+    mask_iou: float | None = None
+    # False: a keyframe whose marks are compared turned its panel axis too far from this pair's pickup keyframe, so the
+    # IoU was not taken and G4 fires (match._frames_agree)
+    frames_agree: bool = True
+
+
 class PanelMatch(Contract):
     panel_id: PanelId
     state: MatchState
@@ -1369,6 +1381,17 @@ class PanelMatch(Contract):
     unmatched_pickup: list[str] = Field(default_factory=list)
     unmatched_return: list[str] = Field(default_factory=list)
     groups: list[MarkGroup] = Field(default_factory=list)
+    # every keyframe pair tried in order, the chosen pair first (thresholds matching.next_keyframe_pair, lead 11/1)
+    kf_pairs_tried: list[KeyframePairTry] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_no_tries(self, handler: Any) -> Any:
+        """A panel matched without the next-pair rule serializes as it did before the field existed (11/1), so every
+        run frozen before it rebuilds byte-identical."""
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("kf_pairs_tried"):
+            data.pop("kf_pairs_tried", None)
+        return data
 
 
 class VerdictFlags(Contract):
@@ -1402,6 +1425,16 @@ class Trace(Contract):
     spark_request_ids: list[str] = Field(default_factory=list)
     event_seqs: list[int] = Field(default_factory=list)
     config_hash: str | None = None
+    # K ids that applied as notes and lowered nothing: K4 and K12 on a tight pair the second look answered (lead 11/1)
+    note_ids: list[str] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_no_notes(self, handler: Any) -> Any:
+        """A trace with no note id serializes as it did before the field existed (11/1)."""
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("note_ids"):
+            data.pop("note_ids", None)
+        return data
 
 
 class SizeEstimate(Contract):
@@ -1438,14 +1471,19 @@ class Verdict(Contract):
     trace: Trace = Field(default_factory=Trace)
     size: SizeEstimate | None = None
     view_note: str | None = None  # the flagged view in words: why K15 capped it, or the note on a pair seen in both walks
+    # K4 and K12 on a pair inside tau_pre_r in words (lead 11/1): what Muse Spark typed and how sure it was, and what the
+    # second look made of it (a note when it answered, the reason they still cap when it did not)
+    type_note: str | None = None
 
     @model_serializer(mode="wrap")
     def _omit_absent_view_note(self, handler: Any) -> Any:
-        """A verdict with no flagged view serializes as it did before the field existed (10/31), so a run with no view
-        flag rebuilds byte-identical."""
+        """A verdict with no flagged view and no type note serializes as it did before the fields existed (10/31 and
+        11/1), so a run with neither rebuilds byte-identical."""
         data = handler(self)
-        if isinstance(data, dict) and data.get("view_note") is None:
-            data.pop("view_note", None)
+        if isinstance(data, dict):
+            for key in ("view_note", "type_note"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
 
@@ -1602,13 +1640,16 @@ class SheetVerdictLine(Contract):
     size_line: str | None = None  # "about 0.9 in, between 0.6 and 1.3 in (ruler: ...)" or "size not stated: ..."
     ordinary_wear_line: str | None = None
     view_line: str | None = None  # Verdict.view_note: a flagged view named (K15, or the note on a pair seen in both walks)
+    type_line: str | None = None  # Verdict.type_note: K4 and K12 on a tight pair and what the second look made of them (11/1)
 
     @model_serializer(mode="wrap")
     def _omit_absent_view_line(self, handler: Any) -> Any:
-        """A line with no flagged view serializes as it did before the field existed (10/31)."""
+        """A line with no flagged view and no type note serializes as it did before the fields existed (10/31, 11/1)."""
         data = handler(self)
-        if isinstance(data, dict) and data.get("view_line") is None:
-            data.pop("view_line", None)
+        if isinstance(data, dict):
+            for key in ("view_line", "type_line"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
 
@@ -1632,6 +1673,15 @@ class SheetPanelBlock(Contract):
     group_lines: list[str] = Field(default_factory=list)
     chips: list[SheetChip] = Field(default_factory=list)
     odometer_path: str | None = None
+    how_checked: str | None = None  # match.how_checked: the keyframe pair compared on and each pair tried with its gates (11/1)
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_how_checked(self, handler: Any) -> Any:
+        """A block with no recorded keyframe pair tries serializes as it did before the field existed (11/1)."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("how_checked") is None:
+            data.pop("how_checked", None)
+        return data
 
 
 class SheetNotComparable(Contract):

@@ -2,7 +2,7 @@ import type { Keyframe, LookRow, Mark, Panel, PanelMatch, RunManifest, Verdict, 
 import { useFileUrl } from '../lib/files.tsx';
 import { drawnPairs, offPaneMarks, paneKeyframes, panelFocus } from '../lib/focus.ts';
 import { daysBetween, formatClock, formatDateTime, formatDay, formatTime, minutesBetween } from '../lib/format.ts';
-import { markLabel, sizeLine, wallClock } from '../lib/lines.ts';
+import { keyframePairLine, markLabel, sizeLine, wallClock } from '../lib/lines.ts';
 import { lookFor, loweredByLook } from '../lib/looks.ts';
 import { colorForPanel, familyNoun, hexToUnit, panelName, VERDICT_LABEL } from '../lib/panels.ts';
 import { ruleLabel, ruleTitle } from '../lib/rules.ts';
@@ -91,6 +91,7 @@ export function VerdictCard({ v, marks, panel, looks = [] }: { v: Verdict; marks
       {windowLine ? <p className="small">{windowLine}</p> : null}
       {size ? <p className="small">{size}</p> : null}
       {v.view_note ? <p className="small">{v.view_note}</p> : null}
+      {v.type_note ? <p className="small">{v.type_note}</p> : null}
       {look ? <SecondLookLine look={look} lowered={loweredByLook(v)} /> : null}
     </div>
   );
@@ -251,6 +252,7 @@ export function MatchPane(props: MatchPaneProps) {
         </p>
       ) : null}
       {match?.state === 'comparable' && !match.pairs.length && !panelVerdicts.length ? <p className="small muted">Compared: no marks on either frame.</p> : null}
+      {!moment && keyframePairLine(match) ? <p className="small muted">How it was checked: {keyframePairLine(match)}</p> : null}
       {!moment && hidden.length ? (
         <p className="small muted">
           {hidden.length === 1 ? 'One mark of this panel was' : `${hidden.length} marks of this panel were`} found on another frame of its walk:{' '}

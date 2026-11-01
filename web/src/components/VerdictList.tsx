@@ -39,6 +39,7 @@ export function VerdictList({ verdicts, marks, looks = [] }: { verdicts: Verdict
                     })
                     .join('; ')}
                   {v.view_note ? <p className="small">{v.view_note}</p> : null}
+                  {v.type_note ? <p className="small">{v.type_note}</p> : null}
                   {look ? <SecondLookLine look={look} lowered={loweredByLook(v)} /> : null}
                 </td>
                 <td className="mono small">

@@ -1297,3 +1297,161 @@ def test_a_clip_lane_that_never_answers_lists_its_planned_neighbours(offline: di
         assert r.verdict == c.StaysPutVerdict.NOT_RUN and r.neighbour_test is not None
         assert r.neighbour_test.verdict == c.StaysPutVerdict.NOT_RUN and len(r.neighbour_test.neighbours) == 4
         assert all(nb.frames == 0 and not nb.used for nb in r.neighbour_test.neighbours)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# The clip cap's order (lead 11/1): paired across the walks, then named by a narration seed, then confidence
+# ----------------------------------------------------------------------------------------------------------------
+
+
+SPREAD = [(60.0, 80.0), (260.0, 80.0), (460.0, 80.0), (60.0, 260.0), (260.0, 260.0)]  # 200 px apart: no shared window
+CONFIDENCE = [c.Confidence.HIGH, c.Confidence.HIGH, c.Confidence.MEDIUM, c.Confidence.LOW, c.Confidence.LOW]
+
+
+def cap_walk() -> tuple[staysput._Walk, list[Any], dict[str, Any]]:
+    """Five chips on one still hood keyframe of the synthetic walk, one clip each, and a cap of two clips."""
+    times = [i / 30 for i in range(N_SRC)]
+    track = track_of(lambda i: [20.0, 20.0, 620.0, 340.0], N_SRC // 2, times)
+    kf = c.Keyframe(kf_id="k", role="pickup", panel_id=c.PanelId.HOOD, track_id=track.track_id, f_proxy=37, pts=times[74],
+                    score=c.KeyframeScore(area=1, completeness=1, sharpness=1, glare=0, frontality=1, total=1), aspect_ratio=1.9,
+                    box_src=[20.0, 20.0, 620.0, 340.0])
+    marks = [chip(f"k_m{i}", bbox_src=[x - 5, y - 5, x + 5, y + 5]).model_copy(update={"confidence": conf})
+             for i, ((x, y), conf) in enumerate(zip(SPREAD, CONFIDENCE), start=1)]
+    walk = staysput._Walk(role="pickup", src=Path("unused"), src_size=SRC, proxy_size=PROXY, proxy_fps=15.0, proxy_pts=[], tracks={track.track_id: track},
+                          privacy_tracks=[], keyframes={"k": kf}, marks=marks, times=times)
+    th = copy.deepcopy(TH)
+    th["staysput"]["neighbours_enabled"] = False  # the order alone: no clip folds into another
+    th["staysput"]["max_clips_per_walk"] = 2
+    return walk, [staysput._item(m, staysput._mark_box(m, 2.0)[0]) for m in marks], th
+
+
+def kept(walk: staysput._Walk, items: list[Any], th: dict[str, Any], *, paired: tuple[str, ...] = (), seeded: tuple[str, ...] = ()) -> list[str]:
+    walk.paired, walk.seeded = frozenset(paired), frozenset(seeded)
+    plans, dropped = staysput._plans(walk, items, th)
+    assert all(why == "over the 2-clip cap for one walk" for _it, why in dropped) and len(plans) + len(dropped) == len(items)
+    return sorted(o.mark_id for p in plans for o in p.objects)
+
+
+def test_the_clip_cap_takes_paired_marks_then_seeded_marks_then_confidence() -> None:
+    walk, items, th = cap_walk()
+    assert len(staysput._group(items, staysput._base_side(walk.keyframes["k"], th), th)) == 5
+    assert kept(walk, items, th) == ["k_m1", "k_m2"]  # nothing ranked first: Spark's confidence, as before 11/1
+    assert kept(walk, items, th, paired=("k_m5",)) == ["k_m1", "k_m5"]  # a low-confidence mark in a cross-walk pair
+    assert kept(walk, items, th, seeded=("k_m4",)) == ["k_m1", "k_m4"]  # a mark the renter named
+    assert kept(walk, items, th, paired=("k_m5",), seeded=("k_m4",)) == ["k_m4", "k_m5"]
+    assert kept(walk, items, th, paired=("k_m3", "k_m4", "k_m5"), seeded=("k_m5",)) == ["k_m3", "k_m5"]  # paired and seeded first of all
+    th["staysput"]["max_clips_per_walk"] = 16
+    walk.paired = walk.seeded = frozenset()
+    assert len(staysput._plans(walk, items, th)[0]) == 5  # under the cap the order changes nothing
+
+
+def test_the_glare_control_still_ranks_first() -> None:
+    walk, items, th = cap_walk()
+    control = staysput._Item(mark_id="k_ctrl", kf_id="k", panel_id=c.PanelId.HOOD, type=c.MarkKind.REFLECTION, is_control=True,
+                             box_src=(455.0, 255.0, 465.0, 265.0), point_crop=None, bbox_crop=None, rank=-1)
+    walk.paired = walk.seeded = frozenset({"k_m5"})
+    plans, _dropped = staysput._plans(walk, [*items, control], th)
+    assert sorted(o.mark_id for p in plans for o in p.objects) == ["k_ctrl", "k_m5"]
+
+
+def pair_panel(panel_id: c.PanelId, noun: c.Noun, *, glimpsed: str | None = None) -> c.Panel:
+    roles = {role: c.PanelRole(state=c.CoverageState.GLIMPSED if role == glimpsed else c.CoverageState.FILMED) for role in ("pickup", "return")}
+    return c.Panel(panel_id=panel_id, noun=noun, front_sign=1, per_role=roles)
+
+
+def pair_kf(role: str, panel_id: c.PanelId) -> c.Keyframe:
+    return c.Keyframe(kf_id=f"{role}_{panel_id.value}_kf1", role=role, panel_id=panel_id, track_id=f"{role}_{panel_id.value}_00", f_proxy=10, pts=0.7,
+                      score=c.KeyframeScore(area=1, completeness=1, sharpness=1, glare=0, frontality=1, total=1), aspect_ratio=1.5,
+                      box_src=[100.0, 100.0, 500.0, 300.0], front_sign=1, marks_status=c.MarksStatus.COMPLETE)
+
+
+def placed(mark_id: str, role: str, panel_id: c.PanelId, w: tuple[float, float], **kw: Any) -> c.Mark:
+    return c.Mark(mark_id=mark_id, role=role, panel_id=panel_id, kf_id=f"{role}_{panel_id.value}_kf1", source=kw.pop("source", c.MarkSource.SPARK_BOX),
+                  type=kw.pop("type", c.MarkKind.CHIP), confidence=c.Confidence.LOW, size_class=c.SizeClass.S, w=list(w), r=math.hypot(*w), **kw)
+
+
+def test_cross_walk_pairs_are_the_closest_candidates_inside_the_eye_band(offline: dict[str, Any]) -> None:
+    hood, lid, door = c.PanelId.HOOD, c.PanelId.TRUNK_LID, c.PanelId.LEFT_FRONT_DOOR
+    c.write_json(paths.panels_json("xw1"), [pair_panel(hood, c.Noun.HOOD), pair_panel(lid, c.Noun.TRUNK_LID), pair_panel(door, c.Noun.CAR_DOOR, glimpsed="return")])
+    c.write_json(paths.keyframes_json("xw1"), [pair_kf(role, pid) for role in ("pickup", "return") for pid in (hood, lid, door)])
+    marks = [
+        placed("p_hood_a", "pickup", hood, (0.10, 0.20)), placed("r_hood_a", "return", hood, (0.13, 0.22)),  # the same chip, 0.04 units apart
+        placed("p_hood_b", "pickup", hood, (-0.60, 0.10)),  # nothing near it at return
+        placed("r_hood_far", "return", hood, (0.90, -0.70)),
+        placed("p_lid", "pickup", lid, (0.0, 0.0)), placed("r_lid", "return", lid, (2.5, 0.0)),  # nearest to each other, past tau_eye_r
+        placed("p_door", "pickup", door, (0.2, 0.0)), placed("r_door", "return", door, (0.2, 0.0)),  # G1: glimpsed at return, never compared
+    ]
+    c.write_json(paths.marks_json("xw1"), marks)
+    assert staysput.cross_walk_pairs("xw1", th=TH) == [("p_hood_a", "r_hood_a")]
+    assert not paths.calibration_json("xw1").exists()  # the match's calibration, worked out and not written
+    c.write_json(paths.marks_json("xw1"), [m for m in marks if m.role == "pickup"])
+    assert staysput.cross_walk_pairs("xw1", th=TH) == []  # one walk has no pair
+
+
+def test_seeded_marks_are_the_seed_rows_and_the_marks_a_seed_landed_on(offline: dict[str, Any]) -> None:
+    hood = c.PanelId.HOOD
+    c.write_json(paths.marks_json("sd1"), [placed("pickup_hood_kf1_m1", "pickup", hood, (0.1, 0.1)), placed("pickup_hood_kf1_seed_t2", "pickup", hood, (0.5, 0.1), source=c.MarkSource.NARRATION_SEED)])
+    assert staysput.seeded_marks("sd1") == {"pickup_hood_kf1_seed_t2"}
+    turns = [c.NarrationTurn(turn_id="t1", start_ms=0, end_ms=900, text="hood two chips", seed_mark_id="pickup_hood_kf1_m1"), c.NarrationTurn(turn_id="t2", start_ms=900, end_ms=1500, text="and the bumper")]
+    c.write_json(paths.narration_json("sd1"), c.Narration(per_role={"pickup": c.NarrationRole(turns=turns)}))
+    assert staysput.seeded_marks("sd1") == {"pickup_hood_kf1_m1", "pickup_hood_kf1_seed_t2"}
+
+
+def test_derive_records_what_the_cap_ranked_first(offline: dict[str, Any], walks: dict[str, Any]) -> None:
+    scene, src = walks["moving"]
+    for role in ("pickup", "return"):
+        build_walk("spr1", role, scene, src)
+    marks = c.read_json_list(paths.marks_json("spr1"), c.Mark)
+    c.write_json(paths.marks_json("spr1"), [m.model_copy(update={"w": [0.10, 0.05], "r": 0.112}) for m in marks])
+    c.write_json(paths.panels_json("spr1"), [pair_panel(c.PanelId.HOOD, c.Noun.HOOD)])
+    derive("spr1")
+    plans = staysput._read_plans("spr1", "pickup")
+    assert plans is not None and plans.paired == ["pickup_hood_kf1_m1"] and plans.seeded == [] and plans.skipped == []
+    text = (paths.run_dir("spr1") / "clips" / "pickup" / staysput.PLAN_NAME).read_text()
+    assert '"paired":["pickup_hood_kf1_m1"]' in text and '"seeded"' not in text  # an empty list stays out of the file
+    assert "paired" not in staysput.RolePlans(role="pickup").to_json()  # a walk planned before 11/1 keeps its bytes
+
+
+SAMPLE = Path(__file__).resolve().parent.parent / "samples" / "pairC_core2"
+
+
+@pytest.mark.skipif(not (SAMPLE / "derived" / "marks.json").is_file(), reason="no pairC_core2 sample in this checkout")
+def test_on_pair_c_the_trunk_chips_get_a_clip_in_both_walks(offline: dict[str, Any]) -> None:
+    """The sample's own files (marks with the seed rows, keyframes, panels, the lane summaries, the pts maps) and a
+    29.58 fps timeline like the uCO3D original's: the narrated chip and its return twin were over the cap on 10/31."""
+    run = paths.run_dir("pc2")
+    shutil.copytree(SAMPLE, run, dirs_exist_ok=True, ignore=shutil.ignore_patterns("*.mp4", "*.ndjson.gz", "*.pdf", "*.m4a", "*.jpg", "bundle", "sheet", "clips", "chips"))
+    th = json.loads((run / "run.json").read_text())["thresholds"]
+    pairs = staysput.cross_walk_pairs("pc2", th=th)
+    assert ("pickup_trunk_lid_kf1_m1", "return_trunk_lid_kf1_m2") in pairs  # the match's own pair on 10/31 (matches.json)
+    stored = [(p["pickup_mark"], p["return_mark"]) for pm in json.loads((run / "derived" / "matches.json").read_text()) for p in pm["pairs"] if p["d"] < p["tau_eye_r"]]
+    assert set(stored) <= set(pairs)
+    assert staysput.seeded_marks("pc2") == {"pickup_right_front_door_kf1_seed_t2", "pickup_trunk_lid_kf1_m1"}
+    for role, chip_id in (("pickup", "pickup_trunk_lid_kf1_m1"), ("return", "return_trunk_lid_kf1_m2")):
+        walk = staysput._load_walk("pc2", role)
+        assert walk is not None
+        probe = json.loads((run / "videos" / f"{role}.json").read_text())["ffprobe"]
+        walk.times = [i / probe["fps_avg"] for i in range(int(probe["duration_s"] * probe["fps_avg"]))]
+        items = [staysput._item(m, box) for m in walk.marks if staysput._why_not(walk.keyframes.get(m.kf_id), walk) is None and (box := staysput._mark_box(m, staysput._min_box_px(th, walk.src_size))[0]) is not None]
+        before = {o.mark_id for p in staysput._plans(walk, items, th)[0] for o in p.objects}
+        walk.paired, walk.seeded, notes = staysput._priorities("pc2", walk, th)
+        plans, _dropped = staysput._plans(walk, items, th)
+        after = {o.mark_id for p in plans for o in p.objects}
+        assert notes == [] and chip_id not in before and chip_id in after and len(plans) == 16
+        if role == "pickup":
+            assert {"pickup_right_front_door_kf1_seed_t2", "pickup_trunk_lid_kf1_m2"} & after == {"pickup_right_front_door_kf1_seed_t2"}  # the door seed in, a dirt mark out
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# The neighbour reason's words (11/1)
+# ----------------------------------------------------------------------------------------------------------------
+
+
+def test_the_reason_counts_one_neighbour_in_the_singular_on_new_plans_only() -> None:
+    frames = synthetic_lane(rigid_scene(), drop={f"n{i}": {45} for i in range(1, 6)})  # only n0 is on the prompt frame
+    nt = run_neighbours(frames, "glint", [f"n{i}" for i in range(6)])
+    assert nt.used == 1 and nt.reason == "1 neighbour tracked through the clip, 4 needed"
+    assert run_neighbours(frames, "glint", [f"n{i}" for i in range(6)], rule=1).reason == "1 neighbours tracked through the clip, 4 needed"  # frozen words
+    none = synthetic_lane(rigid_scene(), drop={f"n{i}": {45} for i in range(6)})
+    assert run_neighbours(none, "glint", [f"n{i}" for i in range(6)]).reason == "0 neighbours tracked through the clip, 4 needed"
+    assert staysput.NEIGHBOUR_RULE == 2

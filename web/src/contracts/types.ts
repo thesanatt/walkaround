@@ -413,6 +413,16 @@ export interface MarkGroup {
   text: string;
 }
 
+// One keyframe pair the match tried on a panel (thresholds matching.next_keyframe_pair, 11/1): the gates it failed
+// (empty when it passed every gate) and its whitened mask IoU; frames_agree false means the IoU was not taken because
+// a keyframe whose marks are compared turned its panel axis too far.
+export interface KeyframePairTry {
+  kf_pair: [string, string];
+  gates: string[];
+  mask_iou: number | null;
+  frames_agree: boolean;
+}
+
 export interface PanelMatch {
   panel_id: PanelId;
   state: 'comparable' | 'not_comparable';
@@ -426,6 +436,7 @@ export interface PanelMatch {
   unmatched_pickup: string[];
   unmatched_return: string[];
   groups: MarkGroup[];
+  kf_pairs_tried?: KeyframePairTry[]; // every pair tried in order, the chosen pair first; absent in runs matched before 11/1
 }
 
 export interface Trace {
@@ -435,6 +446,7 @@ export interface Trace {
   spark_request_ids: string[];
   event_seqs: number[];
   config_hash: string | null;
+  note_ids?: string[]; // K ids that applied as notes and lowered nothing (K4 and K12 on a tight pair the look answered, 11/1)
 }
 
 export interface SizeEstimate {
@@ -461,6 +473,7 @@ export interface Verdict {
   trace: Trace;
   size: SizeEstimate | null;
   view_note?: string | null; // a flagged view in words (K15, or the note on a mark seen in both walks); absent when none
+  type_note?: string | null; // K4 and K12 on a pair inside tau_pre in words and what the second look made of them (11/1)
 }
 
 export interface PanelCoverage {

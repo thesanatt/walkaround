@@ -159,6 +159,7 @@
   <p class="sub">coverage: {% for role, s in block.coverage_seconds.items() %}{{ role }} {{ "%.1f"|format(s) }} s ({{ block.coverage_states.get(role).value if block.coverage_states.get(role) else "state unknown" }}){% if not loop.last %}; {% endif %}{% else %}not measured{% endfor %}</p>
   <div class="frames">{{ frame_block(block.pickup, "pickup") }}{{ frame_block(block.return_, "return") }}</div>
   {% endif %}
+  {% if block.how_checked %}<p class="sub">how it was checked: {{ block.how_checked }}</p>{% endif %}
 
   {% if block.verdicts %}
   <h3>Verdicts</h3>
@@ -175,6 +176,7 @@
         {% if v.size_line %}<div>{{ v.size_line }}</div>{% endif %}
         {% if v.ordinary_wear_line %}<div>{{ v.ordinary_wear_line }}</div>{% endif %}
         {% if v.view_line %}<div>{{ v.view_line }}</div>{% endif %}
+        {% if v.type_line %}<div>{{ v.type_line }}</div>{% endif %}
       </td>
     </tr>
     {% endfor %}

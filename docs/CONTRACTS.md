@@ -1142,3 +1142,187 @@ Ten findings from two reviewers of round 3, each checked before it was fixed. Al
 - Evidence (README numbers): docs/evidence/events_pairC_core1.ndjson.gz (pairC_core1's event log, the same bytes as
   the old sample's at bfa0448) for its 6 min 49 s and 3 min 13 s; docs/evidence/voice_turns_pairC.json (the Voice turns
   of the D1 gate, pairC_core1 and pairC_core2 on the same narration) for the 11.2 s and 16.1 s turns.
+
+## Stays Put ranking and ruler notes lane (2026-11-01)
+
+Owned: walkaround/staysput.py, walkaround/ruler.py, tests/test_staysput.py, tests/test_ruler.py. Shared: one leaf in
+config/thresholds.json (ruler.view_flag_sizes) and this section. No model call, $0.
+
+The clip cap's order (lead decision 1):
+- Past 16 clips a walk keeps clips in this order, each clip standing where its best item does
+  (`staysput._priority`): the glare control (one clip, 5.9 item 4), then a clip holding a mark paired across the walks,
+  then one holding a mark a narration seed named (a paired mark a seed also names comes first of all), then the rest;
+  inside each tier by Spark's confidence, ties by clip id. With nothing paired or seeded the order is the old one.
+- Stage order: marks, narration, Stays Put, match. Stays Put plans the pickup walk after the marks and narration of
+  both walks, so marks.json (with the seed rows), keyframes.json, panels.json and the lane summaries of both walks are
+  there; matches.json is not (the match runs later) and calibration.json is first written by the match. So the match's
+  own mark ids are not available when the cap is applied.
+- `staysput.cross_walk_pairs(run_id, *, th) -> list[tuple[str, str]]` (pickup mark, return mark): the closest
+  cross-walk candidates in the match's own metric. On each panel with keyframes and placed marks in both walks and no
+  panel-level gate failing (`staysput.PANEL_LEVEL_GATES` G1, G6, G7, G10, from match.panel_gates on the pair
+  pair_keyframes picks): match.cost and match.seeds_last_nn on the whitened marks, kept when d < tau_eye_r, with the
+  stored calibration or the one match.calibrate gives when there is none (nothing written). Left out on purpose: the
+  view gates of a keyframe pair (G3, G4, G5, G8, G9), since the match may compare the panel on another pair
+  (matching.next_keyframe_pair), the door handle's residual and the group pairs. Public match functions only.
+- `staysput.seeded_marks(run_id) -> frozenset[str]`: the narration_seed rows of marks.json plus every narration.json
+  turn's seed_mark_id (found or on_existing_mark).
+- `RolePlans.paired`, `RolePlans.seeded` (additive, left out of clips/<role>/staysput.json when empty): the walk's
+  marks that ranked first. A file that cannot be read leaves the order to confidence with a walk note in
+  `RolePlans.skipped`; no clip is lost over it. Neither is in the plan key.
+
+The neighbour reason (lead decision 3):
+- `staysput.NEIGHBOUR_RULE` 2: the reason reads "1 neighbour tracked through the clip, 4 needed" ("0 neighbours", "3
+  neighbours" as before). `neighbour_test(..., rule=NEIGHBOUR_RULE)` takes the plan's neighbour_rule; a plan made under
+  rule 1 keeps "1 neighbours", so pairC_core2's mark_tracks.json and sheet rebuild byte for byte (`walkaround verify
+  pairC_core2`: rebuild identical). neighbour_rule is in the plan key, so a walk planned under rule 1 and resumed
+  under rule 2 asks its clips again.
+
+Sizes on a flagged view (lead decision 2):
+- thresholds `ruler.view_flag_sizes` true. A walk mark whose keyframe Muse Spark flagged wet, dirty or glare is sized
+  like any other, and the size carries a note in K15's words, last among its `ruler_notes`: "return view flagged dirty:
+  the size may include dirt", "pickup view flagged dirty and glare: the size may include dirt or a reflection"
+  (`ruler.view_note(role, flags)`), for the flags of the mark's own keyframe and of the keyframe the size was measured
+  on. sheet.size_line and the web's sizeLine already print ruler_notes inside the ruler parentheses, so neither changed.
+- Still refused: a dark keyframe (`ruler.DARK_FRAME`, "darkness on that frame"; dark is no view flag, as in the match)
+  and every geometric reason (plate turned past 30 degrees, a strip plate, no wheel measured, no tire code, no ruler
+  within 0.6 m, no track). A refused size carries no view note.
+- Absent leaf (every run frozen before 11/1): any flag refuses with `ruler.CROP_FLAG` as before. best_size (claims) is
+  unchanged.
+- Superseded above for runs with the leaf: "The crop flag of the mark's own keyframe still refuses first" (polish
+  lane); ruler_notes is no longer only about the other ruler.
+
+Replay of pairC_core2 offline (scratch copy, source frame times from the two data/ originals, whose sha256 match the
+sealed ones; $0). The 10/31 order reproduces both walks' stored plans in every key field but the rule number.
+- Ranked first: pickup paired pickup_trunk_lid_kf1_m1 and pickup_hood_kf1_m1, kf2_m8, kf2_m9 (the hood fails only view
+  gates on its first pair); seeded pickup_trunk_lid_kf1_m1 and pickup_right_front_door_kf1_seed_t2. Return paired
+  return_trunk_lid_kf1_m2 and return_hood_kf1_m2, m8, m11.
+- Clips gained: pickup_trunk_lid_kf1_sp01 (the chip, alone, 400 px, no neighbour), pickup_right_front_door_kf1_sp02
+  (the door seed); return_trunk_lid_kf1_sp01 (return_trunk_lid_kf1_m1 and the chip m2, 400 px, no neighbour).
+- Clips lost: pickup_trunk_lid_kf1_sp02 (m2 scratch, m3 dirt) and pickup_trunk_lid_kf2_sp01 (kf2_m2 dirt), three
+  needs-your-eye verdicts on the compared trunk lid (not seen at return, L1, lowered by K15), while the hood (not
+  compared, G4 and G8) keeps 9 of the 16 pickup clips; return_left_front_wheel_kf1_sp01 (an unsure mark).
+- Sizes: none would print. The flag no longer refuses, but every mark then meets a geometric refusal: 40 no ruler
+  within 0.6 m, 37 the front strip plate (flatter than 12 by 6 in), 12 the rear plate turned past 30 degrees, 2 a
+  wheel at the frame edge, 1 a wheel turned past 30 degrees, 1 no tire code. Every keyframe inside the chips' new clips
+  reads the rear plate box at h / w 0.60 to 0.74 (33 to 48 degrees), so the chips would get no size either; that box
+  is uCO3D's grey patch, not a 12 by 6 in plate.
+
+## Match lane, round 4 (2026-11-01): tight pairs go to the second look; the next keyframe pair on view gates
+
+Lead decisions, Nov 1, with the lead's reasons. Both sit behind thresholds leaves under `matching` that every run frozen
+before 11/1 lacks, so those runs match, rebuild and verify as they did (pairC_core2 checked: its frozen rebuild gives back
+matches.json, verdicts.json and sheet.json byte for byte). Offline, no model call, $0.
+
+1. Tight pairs go to the second look (`matching.tight_pair_second_look` true; `match.tight_pair_look(th)`). For a pair
+   inside tau_pre_r (L3), K4 (type dirt, reflection or unsure) and K12 (Spark confidence low on either mark) no longer cap
+   the label by themselves. They become notes on the pair, and the pair is sent to the second look as any L3 pair is
+   (engine order unchanged: Spark Open on the hackathon key with meta-models/muse-spark-open-1026, then the account key,
+   then hosted Muse Spark 1.3), which may lower it to needs your eye (K7). If the second look gives no usable answer (not
+   asked because of the spend ceiling, the deadline, the look budget or the look turned off, or every engine failed), K4
+   and K12 cap as before. Marks seen in one walk only (L1, L2, L5) and pairs in the band (K1) keep K4 and K12 as caps.
+   Reason: an already-there call rests on geometry, the same spot in both walks, not on what the mark is; the second look
+   compares the two crops directly and is the veto; without it, stay conservative. No model answer raises a label above
+   what the distance gives: L3 comes from d < tau_pre_r, and with a usable look only K7 or another cap can lower it.
+   - `match.derive_match`: `_provisional_already_there(..., deferred=match.TYPE_CAPS)` leaves K4 and K12 out when it
+     decides which pairs are asked, so they alone never keep a pair from the look. Any other cap (K2, K3, K5, K13, K14,
+     and K6 once Stays Put caps) still does, as before.
+   - `match.verdicts_for`: `looks` maps (pickup mark, return mark) to the answer. A key whose value is None is a look put
+     to a model that gave no usable answer; a missing key is a look never asked. `match.tight_pair_flags(pair, a, b,
+     flags, look, *, asked)` returns the flags verdict() takes, the note ids and the note.
+   - Records: `Trace.note_ids` (the K ids that applied as notes and lowered nothing, ["K4", "K12"] in that order; left
+     out of the JSON when empty) and `Verdict.type_note` (left out when None), on every tight pair carrying K4 or K12:
+     what Muse Spark said with the ids ("Muse Spark typed both marks dirt (K4), with low confidence on both marks (K12)"),
+     then one of "a note here, since the mark sits in the same place in both walks and the second look compared the two
+     crops and said same"; "a note here; the second look compared the two crops and said different (K7)" (or "was unsure
+     (K7)"); "the second look gave no usable answer, so K4 and K12 cap the pair as before"; "the second look was not
+     asked, so K4 and K12 cap the pair as before"; "another cap already lowers this pair, so no second look was asked and
+     K4 and K12 cap it too".
+   - Rebuild: replay_second_look answers from looks.json, and a row whose look did not run replays as None with the key
+     present, so a live run and its rebuild print the same note (tested).
+   - Claims are not changed: claim._compare keeps K4 and K12 as caps on a near pair, so a claim's look still runs only on
+     a pair already there after them. The claim owner may follow.
+
+2. Next keyframe pair on view gates (`matching.next_keyframe_pair` true; `match.next_keyframe_pair(th)`). When a panel's
+   chosen keyframe pair (pair_keyframes, unchanged) fails a view gate (`match.VIEW_GATES`: G3 sharpness, G4 mask IoU, G5
+   handle residual, G8 hood IoU, G9 window subtraction) and no panel gate, match tries the panel's other keyframe pairs in
+   `match.keyframe_pair_order(kfs_pickup, kfs_return, *, th)` and compares on the first that passes every gate. The order:
+   the chosen pair; then clean views first (how many of the two keyframes prefer_clean would not offer: 0, 1 or 2); then
+   the product of the two keyframe scores, highest first (a pair needs both views good; a sum would rank one sharp view
+   with one poor view above two fair ones); then the keyframe numbers (kf<n>, pickup first), then the ids, so the order
+   never depends on how keyframes.json lists them. G1, G6, G7 and G10 (`match.PANEL_GATES`) stay panel-level: when the
+   chosen pair fails one, no other pair is tried; a candidate that fails one of its own (a keyframe with no front_sign,
+   G6) is skipped. When no pair passes, the panel keeps the chosen pair, its gates and its IoU, as before.
+   - Records: `PanelMatch.kf_pairs_tried: list[KeyframePairTry]` (new model: kf_pair, gates, mask_iou, frames_agree),
+     every pair tried in order, the chosen pair first, on every panel with keyframes in both walks (one entry when the
+     chosen pair passes); left out of the JSON when empty, so a run matched without the rule keeps its bytes.
+     `PanelMatch.kf_pair` and `mask_iou` are the pair compared on. `frames_agree` false says the IoU was not taken because
+     a keyframe whose marks are compared turned its panel axis too far from the pair's pickup keyframe
+     (match._frames_agree, still reported as G4).
+   - Sheet: `match.how_checked(pm)` gives the panel's line, `SheetPanelBlock.how_checked` carries it (left out when None)
+     and templates/sheet.html prints "how it was checked: ..." under the frames. Examples: "compared on keyframes
+     pickup_trunk_lid_kf2 with return_trunk_lid_kf1, the first pair tried"; "compared on keyframes A with C; tried first:
+     A with B (G3 blurry keyframe)"; "not compared: none of the 6 keyframe pairs passed every gate; tried: ... (G4 mask
+     IoU 0.69, G8 hood IoU 0.69); ... (G4 mask IoU: panel axes disagree, ...)"; "not compared: keyframes A with B (G1 not
+     filmed); G1 is a panel gate, so no other pair was tried".
+   - `match.why_rebuild_differs`: `_paired_before_1031` compares today's chosen pair with the first try, not with the
+     pair compared on.
+
+- Sheet: `SheetVerdictLine.type_line` copies Verdict.type_note and the detail column prints it under the view line.
+  `sheet.glossary_md(th=None)` adds two lines (`sheet.GLOSSARY_TIGHT_PAIR`, `sheet.GLOSSARY_KEYFRAME_PAIR`) only when the
+  run's thresholds turn the rules on; build_sheet passes the run's thresholds, so a sheet frozen before 11/1 rebuilds
+  byte for byte.
+- rules.py and web/src/lib/rules.ts are unchanged: no new rule id, and the rule texts are stored in verdicts.json reasons,
+  so editing the K4 or K12 text would change every frozen run's bytes.
+- Superseded wording above: derive_match's row ("the optional second look on already_there pairs") now reads "on
+  provisional already_there pairs, with K4 and K12 left out under rule 1"; pair_keyframes' pair is the first pair tried,
+  and the pair compared on is PanelMatch.kf_pair.
+- Web, for the integrator: types.ts `Verdict.type_note?: string | null`, `Trace.note_ids?: string[]`,
+  `PanelMatch.kf_pairs_tried?: {kf_pair: [string, string]; gates: string[]; mask_iou: number | null; frames_agree:
+  boolean}[]`; VerdictList and MatchPane print type_note where they print view_note; the run page may print the
+  how-checked line per panel (match.how_checked's words from kf_pairs_tried).
+
+Replayed on runs/pairC_core2 with the rebuild path (orchestrator.rebuild into a scratch --out, the run's thresholds plus
+the two leaves; no model call, outbound sockets refused):
+- Panels compared: 3 of 21 before and 3 of 21 after rule 2 (trunk lid, rear bumper, right rear wheel). Three panels
+  failed only view gates on their chosen pair and tried every other pair, none passing: the hood (6 pairs, G4 and G8 on
+  each; IoU 0.69 and 0.66 on the two pairs with pickup kf2, the panel axes disagreeing on the other four: pickup kf3 sits
+  at 26 degrees and kf1 at -12, with marks placed on both), the front bumper (2 pairs, IoU 0.48 and 0.54) and the right
+  front door (2 pairs: G4 with the axes disagreeing, return kf1 holds marks 59 degrees from the pickup keyframe, and G9 on
+  both, the return keyframes had the window cut out and the pickup keyframe did not). The other 15 fail a panel gate (G1
+  on all 15, G6 as well on the roof and the mirrors), so no other pair was tried (7 of them have keyframes in one walk
+  only, so no pair at all).
+- The trunk chips (pickup_trunk_lid_kf1_m1 with return_trunk_lid_kf1_m2, d 0.078 inside tau_pre_r 0.695): L3 by
+  distance; K4 and K12 wait for the look and no other cap applies (the flagged views give the pair a note, not K15), so
+  they are the one pair sent to the second look. Labels before the look: already there, provisional. Same would give L3
+  with note_ids K4 and K12; different or unsure L4 with K7; no usable answer L4, L3, K12, K4, as stored. Offline no look
+  is asked, so the rebuild prints L4, L3, K12, K4 with "...: the second look was not asked, so K4 and K12 cap the pair as
+  before".
+
+## Integration notes, round 4 (2026-11-01)
+
+What the integrator changed on top of the match lane and the Stays Put ranking and ruler notes lane:
+
+- Claims follow rule 1 (`claim._compare`), under the same leaf `matching.tight_pair_second_look` read from the run's
+  frozen thresholds. A claim mark within tau_pre_r of a pickup mark (near, not ambiguous) no longer has its look kept
+  away by K4 or K12 alone: the provisional label leaves them out, the claim's look is asked (Spark Open first, as
+  before), same keeps the claim already there with K4 and K12 as notes, different or unsure lowers it (K7); with no look
+  (the pickup crop is gone) they cap as before, and any other cap (K1, K3, K5, K10, ...) still keeps the look away. The
+  claim paragraph adds the note in the walk's words with the claim named ("Muse Spark typed both marks dirt (K4), with
+  low confidence on both marks (K12): a note here, since the claim mark sits where the pickup mark is and the second
+  look compared the two crops and said same."). `_Compared.type_note` carries it; no Claim field changed. A claim's
+  unusable look answer still reads as unsure (look_from_record), so it lowers. Runs frozen before 11/1 lack the leaf:
+  their claims rebuild as stored (pairC_core1, claim_smoke_pairc). Superseded: "Claims are not changed" in the match
+  lane's section above. Tests: tests/test_claim_1101.py.
+- `match.tight_pair_flags(..., roles=("pickup", "return"))` and `match._spark_words(..., roles)`: a claim passes
+  ("pickup", "claim"); the walk's words are unchanged.
+- `staysput.PANEL_LEVEL_GATES` is now `match.PANEL_GATES` (one list of panel-level gates).
+- Web: types.ts `KeyframePairTry`, `PanelMatch.kf_pairs_tried?`, `Trace.note_ids?`, `Verdict.type_note?`; the verdict
+  card and the verdict list print `type_note` under `view_note`; the match pane prints "How it was checked: ..." per
+  panel from `lib/lines.ts keyframePairLine`, match.how_checked word for word (not in the video's moment view).
+  web/dist rebuilt. rules.ts unchanged (no new id).
+- Kept as the lanes left them, for the lead: the Stays Put cap ranks by the closest cross-walk candidate, not the
+  match's own pairs (the match runs after Stays Put); a dark walk crop still refuses a size; the view note on a size is
+  the last of its ruler_notes, so contracts, sheet.size_line and the web needed no change; claims (best_size) still
+  refuse a size on a flagged claim photo.
+- A server process started before this change freezes new runs' thresholds from the config it loaded, so restart
+  `walkaround serve` after pulling; the CLI loads the config fresh on every run.
