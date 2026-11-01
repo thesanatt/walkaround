@@ -87,8 +87,9 @@ def test_live_asks_each_look_once_and_logs_it(runs_dir: Path, monkeypatch: pytes
         open_weights.reset()
     out = capsys.readouterr().out
     assert "p_paw vs r_paw: now same (meta-models/muse-spark-open), stored same" in out
+    assert out.count("  hackathon key, ") == 3  # the slot that asked and the latency, under each answer
     requests = client.chat.completions.requests
-    assert len(requests) == 3
+    assert len(requests) == 3 and {r["model"] for r in requests} == {"meta-models/muse-spark-open-1026"}
     images = [part for part in requests[0]["messages"][-1]["content"] if part.get("type") == "image_url"]
     assert len(images) == 2
     rows = [json.loads(line) for line in (runs_dir / "ledger.jsonl").read_text().splitlines()]

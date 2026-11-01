@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 from openai import APIConnectionError
 
-from tests.test_open_weights import DIFFERENT, SAME, SUFFIX, FakeBaseten, chat, status_error, timeout
+from tests.test_open_weights import ACCOUNT, DIFFERENT, HACKATHON, SAME, SUFFIX, FakeBaseten, chat, status_error, timeout
 from walkaround import config, geometry, ledger, match, open_weights, paths, second_look, spark_client
 from walkaround.contracts import (
     Confidence,
@@ -260,6 +260,7 @@ def test_spark_open_answers_and_the_row_follows_the_binding_shape(baseten, hoste
         "fallback_from": None,
         "valid": True,
     }
+    assert raw["key_slot"] == "hackathon"  # the hackathon key answered with meta-models/muse-spark-open-1026
     (row,) = rows()
     assert isinstance(row.latency_ms, int) and row.latency_ms == row.records[0].ms and row.fallback is None
     assert [r.request_id for r in row.records] == ["chatcmpl-look1"] and row.records[0].input_refs == row.input_refs
@@ -326,9 +327,29 @@ def test_a_baseten_failure_falls_back_to_hosted_spark_and_says_why(baseten, host
     assert [(r["kind"], r["status"]) for r in ledger.rows()] == [("spark_open", "failed"), ("spark", "completed")]
 
 
+def test_the_account_key_answers_when_the_hackathon_key_is_refused_and_the_row_says_so(baseten, hosted, th):
+    seed()
+    baseten.reply(status_error(403), chat(DIFFERENT, model=ACCOUNT, rid="chatcmpl-acct"))
+    assert second_look.make_second_look(RUN, th=th)(pair("0")) is LookVerdict.DIFFERENT
+    (row,) = rows()
+    assert (row.engine, row.model, row.key_slot, row.request_id) == (SparkEngine.BASETEN, ACCOUNT, "account", "chatcmpl-acct")
+    assert row.fallback is None and row.fallback_from is None and hosted.requests == []
+    assert [r["model"] for r in baseten.requests] == [HACKATHON, ACCOUNT]
+    assert [(line["key_slot"], line["status"]) for line in provenance()] == [("hackathon", "failed"), ("account", "completed")]
+
+
+def test_a_hosted_answer_has_no_key_slot(baseten, hosted, th):
+    seed()
+    baseten.reply(timeout())
+    hosted.replies.append(hosted_answer(SAME, rid="resp_h"))
+    second_look.make_second_look(RUN, th=th)(pair("0"))
+    (raw,) = raw_rows()
+    assert raw["engine"] == "meta-model-api" and raw["key_slot"] is None
+
+
 def test_hosted_gets_the_same_jpeg_bytes_as_baseten_would(baseten, hosted, th):
     seed()
-    baseten.reply(status_error(401))
+    baseten.reply(status_error(401), status_error(401))
     hosted.replies.append(hosted_answer(SAME))
     second_look.make_second_look(RUN, th=th)(pair("0"))
     (row,) = rows()
@@ -389,7 +410,7 @@ def test_a_hosted_crash_after_a_bad_spark_open_answer_keeps_that_answer(baseten,
 
 def test_a_hosted_crash_with_no_spark_open_answer_does_not_run(baseten, hosted, th, monkeypatch):
     seed()
-    baseten.reply(status_error(401))
+    baseten.reply(status_error(401), status_error(401))
 
     def boom(*args, **kwargs):
         raise RuntimeError("no key")
@@ -399,7 +420,7 @@ def test_a_hosted_crash_with_no_spark_open_answer_does_not_run(baseten, hosted, 
     (row,) = rows()
     assert row.verdict is None and row.engine is None and row.valid is False and row.records == [] and row.panel_id is TRUNK
     assert row.reason == "not run: Muse Spark 1.3 failed: RuntimeError: no key"
-    assert row.fallback.startswith("Spark Open gave no answer: Baseten answered 401")
+    assert row.fallback.startswith("Spark Open gave no answer: no Baseten key slot answered in the last 10 minutes (hackathon key: 401; account key: 401)")
 
 
 def test_both_engines_down_does_not_run_and_a_resume_asks_again(baseten, hosted, th):
@@ -509,7 +530,7 @@ def test_replay_answers_from_looks_json_with_no_call_and_no_write(baseten, hoste
     hosted.replies.append(hosted_answer({"verdict": "unsure", "reason": "glare"}))
     look = second_look.make_second_look(RUN, th=th)
     first_two = [look(pair("0")), look(pair("1"))]
-    baseten.reply(status_error(401))
+    baseten.reply(status_error(401), status_error(401))
     live = [*first_two, look(pair("2"))]
     assert live == [LookVerdict.SAME, LookVerdict.DIFFERENT, LookVerdict.UNSURE]
     files = {p: p.read_bytes() for p in (paths.looks_json(RUN), paths.open_weights_log(RUN), ledger.LEDGER_PATH)}
@@ -573,3 +594,64 @@ def test_a_look_that_did_not_run_leaves_the_deterministic_label(baseten, hosted,
     assert [r.verdict for r in rows()] == [None, None] and baseten.requests == [] and hosted.requests == []
     match.derive_match(RUN, th=th, second_look=second_look.replay_second_look(RUN, th=th))
     assert (paths.matches_json(RUN).read_bytes(), paths.verdicts_json(RUN).read_bytes()) == plain
+
+
+# look_images: two outlined images the caller already holds (a claim's look), lead's signature of 10/31 ------------------
+
+CLAIM_BILL = f"{RUN}.claim_1"
+
+
+def _two_images() -> tuple[np.ndarray, np.ndarray]:
+    a = np.full((H, W, 3), 200, np.uint8)
+    a[140:160, 190:210] = 70
+    return a, a.copy()
+
+
+def test_look_images_asks_spark_open_first_bills_the_claim_and_logs_where_told(baseten, hosted, th, monkeypatch):
+    monkeypatch.setattr(second_look, "_IMAGE_BREAKERS", {})
+    paths.ensure_run_layout(RUN)
+    baseten.reply(chat(SAME, model=HACKATHON, rid="chatcmpl-claimlook"))
+    target = paths.claim_open_weights_log(RUN, "claim_1")
+    a, b = _two_images()
+    standing, records, notes = second_look.look_images(
+        a, b, panel_id=TRUNK, run_id=RUN, ledger_run_id=CLAIM_BILL, input_refs=[], th=th, pair=("p0", "claim_1"), provenance=target
+    )
+    assert standing is not None and standing.engine is SparkEngine.BASETEN and standing.model == HACKATHON and notes == []
+    assert [r.request_id for r in records] == ["chatcmpl-claimlook"] and open_weights.key_slot_of(standing) == "hackathon"
+    assert [(row["kind"], row["run_id"]) for row in ledger.rows()] == [("spark_open", CLAIM_BILL)]
+    (line,) = [json.loads(text) for text in target.read_text().splitlines()]
+    assert (line["run_id"], line["ledger_run_id"], line["pickup_mark"], line["return_mark"], line["verdict"]) == (RUN, CLAIM_BILL, "p0", "claim_1", "same")
+    assert not paths.open_weights_log(RUN).is_file()  # the run's own file, sealed at run end, is never appended to
+    assert not (paths.runs_root() / CLAIM_BILL).exists()  # and no folder is named after the ledger id
+    assert hosted.requests == []
+
+
+def test_look_images_falls_back_to_hosted_spark_under_the_claims_ledger_id(baseten, hosted, th, monkeypatch):
+    monkeypatch.setattr(second_look, "_IMAGE_BREAKERS", {})
+    paths.ensure_run_layout(RUN)
+    baseten.reply(timeout())
+    hosted.replies.append(hosted_answer(DIFFERENT, rid="resp_claim_fb"))
+    target = paths.claim_open_weights_log(RUN, "claim_1")
+    a, b = _two_images()
+    standing, records, notes = second_look.look_images(
+        a, b, panel_id=TRUNK, run_id=RUN, ledger_run_id=CLAIM_BILL, input_refs=[], th=th, pair=("p0", "claim_1"), provenance=target
+    )
+    assert standing is not None and standing.engine is SparkEngine.META_MODEL_API and standing.request_id == "resp_claim_fb"
+    assert notes and notes[0].startswith("Spark Open gave no answer: Baseten call failed: APITimeoutError")
+    assert [(row["kind"], row["status"], row["run_id"]) for row in ledger.rows()] == [("spark_open", "failed", CLAIM_BILL), ("spark", "completed", CLAIM_BILL)]
+    assert [json.loads(text)["status"] for text in target.read_text().splitlines()] == ["failed"]
+    assert [r.request_id for r in records] == ["resp_claim_fb"]
+
+
+def test_look_images_keeps_one_breaker_per_run_and_asks_nothing_when_off(baseten, hosted, th, monkeypatch):
+    monkeypatch.setattr(second_look, "_IMAGE_BREAKERS", {})
+    paths.ensure_run_layout(RUN)
+    a, b = _two_images()
+    baseten.reply(timeout(), timeout())
+    hosted.replies.extend([hosted_answer(SAME, rid="h1"), hosted_answer(SAME, rid="h2"), hosted_answer(SAME, rid="h3")])
+    for _ in range(3):
+        second_look.look_images(a, b, panel_id=TRUNK, run_id=RUN, input_refs=[], th=th)
+    assert len(baseten.requests) == 2 and len(hosted.requests) == 3  # two failures in a row: the third goes to hosted only
+    off = dict(th, spark={**th["spark"], "second_look_engine": "off"})
+    assert second_look.look_images(a, b, panel_id=TRUNK, run_id=RUN, input_refs=[], th=off) == (None, [], ["the second look is off (thresholds spark.second_look_engine)"])
+    assert len(hosted.requests) == 3

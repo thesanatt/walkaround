@@ -9,25 +9,29 @@ prompt also carries the schema and every answer is checked here with spark_clien
 JSON object can be the answer, and two that disagree make the answer unusable. A 400 or 422 whose text names the
 response format steps the format down (json_schema, then json_object, then none); any other 400 is final.
 
-Model id: GET /v1/models once per process, then meta-models/muse-spark-open before meta-models/muse-spark-open-1026
-(ids the listing shows come first); a 404 moves on to the next id, because other teams saw 404 on one and 200 on the
-other. An id that returned 404 and a stepped-down format are tried again after FAILURE_TTL_S, so one bad minute does
-not switch Spark Open off for the life of the server. The response's own model field goes on the ledger row and the
-provenance line.
+Key slots: each request goes to the first slot that has a key and is not resting. First the hackathon key
+(BASETEN_HACKATHON_API_KEY) with meta-models/muse-spark-open-1026, the id the hackathon guide names and the only one
+that key may call (10/31, LEDGER row 22: -1026 answered 200, the plain id 403, although GET /v1/models lists both),
+then the account key (BASETEN_API_KEY) with meta-models/muse-spark-open. Ids are fixed per key, never picked from the
+listing. A 401, 402, 403 or 404 means this key cannot call this id now: the slot rests for FAILURE_TTL_S and the next
+slot is asked inside the same call. A resting slot and a stepped-down format are tried again after FAILURE_TTL_S, so
+one bad minute does not switch Spark Open off for the life of the server. The response's own model field goes on the
+ledger row and the provenance line, and both name the slot that asked (key_slot "hackathon" or "account", never the
+key); key_slot_of(record) gives it for a record that came back in this process.
 
-Failures: 401, 403, a timeout, a dropped connection, a 400 not about the format, or a 408, 409, 429 or 5xx past three
-tries raise OpenWeightsError, and so do two attempts that both came back with no answer (an error object, no
-choices); the caller then falls back to hosted Spark 1.3. Every chat request writes one ledger row (kind spark_open)
-and, with a run id, one line of runs/<run_id>/open_weights.ndjson in the CONTRACTS.md "Phase 2 file shapes" form:
-{ts, run_id, engine, model, request_id, latency_ms, pickup_mark, return_mark, panel_id, verdict, reason, valid,
-error}, plus purpose, status, model_requested, http_status and baseten_request_id (the x-baseten-request-id header,
-the id Baseten's own logs use). A failed call names the requested model; verdict is set only on a valid answer.
-Neither file ever holds image bytes or a key.
+Failures: a timeout, a dropped connection, a 400 not about the format, or a 408, 409, 429 or 5xx past three tries
+raise OpenWeightsError, and so do two attempts that both came back with no answer (an error object, no choices), no
+key set and every slot resting; the caller then falls back to hosted Spark 1.3. Every chat request writes one ledger
+row (kind spark_open) and, with a run id, one line of runs/<run_id>/open_weights.ndjson in the CONTRACTS.md "Phase 2
+file shapes" form: {ts, run_id, engine, model, request_id, latency_ms, pickup_mark, return_mark, panel_id, verdict,
+reason, valid, error}, plus purpose, status, model_requested, http_status, baseten_request_id (the
+x-baseten-request-id header, the id Baseten's own logs use) and key_slot. A failed call names the requested model;
+verdict is set only on a valid answer. Neither file ever holds image bytes or a key.
 
-The client is injectable for the offline tests: set_client() takes a fake with .models.list() and
-.chat.completions.create(**kwargs); reset() forgets the probe, the dead ids, the format and the throttle clock. Inside
-a pytest run no real client is built unless LIVE=1, so an offline test that forgot its fake cannot spend credits with
-the key in walkaround/.env.
+The client is injectable for the offline tests: set_client() takes a fake with .chat.completions.create(**kwargs) that
+answers for every slot (or only the slots named), whatever keys are set; reset() forgets the resting slots, the format,
+the throttle clock and the slots of past records. Inside a pytest run no real client is built unless LIVE=1, so an
+offline test that forgot its fake cannot spend credits with the keys in walkaround/.env.
 """
 
 from __future__ import annotations
@@ -43,6 +47,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -65,7 +70,24 @@ from .contracts import (
 )
 
 BASE_URL = "https://inference.baseten.co/v1"
-MODEL_CANDIDATES = ("meta-models/muse-spark-open", "meta-models/muse-spark-open-1026")
+HACKATHON_MODEL = "meta-models/muse-spark-open-1026"  # the hackathon guide's id; the hackathon key may call only this one
+ACCOUNT_MODEL = "meta-models/muse-spark-open"  # the account key's id (every B11 call, LEDGER row 23); 403 on the hackathon key
+
+
+@dataclass(frozen=True)
+class KeySlot:
+    """One way to reach Spark Open: a key, named by its slot and its variable (never its value), and the one id it calls."""
+
+    name: str
+    env: str
+    model: str
+
+
+KEY_SLOTS = (KeySlot("hackathon", "BASETEN_HACKATHON_API_KEY", HACKATHON_MODEL), KeySlot("account", "BASETEN_API_KEY", ACCOUNT_MODEL))
+MODEL_CANDIDATES = tuple(slot.model for slot in KEY_SLOTS)
+SLOT_FAILURES = (401, 402, 403, 404)  # this key cannot call this id now: the next slot is asked and this one rests
+SLOT_MEMORY = 4096  # request ids whose slot key_slot_of still knows
+NO_KEY = "no Baseten key is set: put BASETEN_HACKATHON_API_KEY or BASETEN_API_KEY in walkaround/.env"
 LEDGER_KIND = "spark_open"
 ENGINE = SparkEngine.BASETEN
 DEFAULT_EFFORT = spark_client.DEFAULT_EFFORT
@@ -77,7 +99,7 @@ RATE_LIMIT_TRIES = 3  # tries in all on 408, 409, 429, 5xx (529 is Baseten's "ov
 BACKOFF_BASE_S = 0.5
 MAX_BACKOFF_S = 8.0
 MAX_RETRY_AFTER_S = 30.0
-FAILURE_TTL_S = 600.0  # an id that returned 404, or a format a 400 refused, is tried again after this
+FAILURE_TTL_S = 600.0  # a slot that returned 401, 402, 403 or 404, or a format a 400 refused, is tried again after this
 DEFAULT_RPM = 12.0  # thresholds orchestrator.baseten_rpm; the account allows 120 (x-ratelimit-limit-requests, 10/31)
 FORMATS = ("json_schema", "json_object", "none")
 FORMAT_ERROR = re.compile(r"response_format|json_schema|json_object|schema|guided|structured", re.IGNORECASE)
@@ -97,10 +119,7 @@ class OpenWeightsError(RuntimeError):
 
 @dataclass
 class _State:
-    probed: bool = False
-    listed: list[str] | None = None  # ids from GET /v1/models; None when the listing failed
-    answered: str | None = None  # the id that answered last; it leads the next call
-    dead: dict[str, float] = field(default_factory=dict)  # id -> clock time of its 404
+    resting: dict[str, tuple[float, str]] = field(default_factory=dict)  # slot name -> (clock time, status) of its refusal
     fmt: str = FORMATS[0]
     fmt_at: float | None = None  # clock time of the last step down
     last_start: float | None = None
@@ -109,46 +128,95 @@ class _State:
 _LOCK = threading.Lock()
 _LOG_LOCK = threading.Lock()
 _STATE = _State()
-_CLIENT: Any = None
+_CLIENTS: dict[str, Any] = {}  # slot name -> the real client, built on first use from that slot's key
+_FAKE: Any = None  # set_client: a client that answers for the slots in _FAKE_SLOTS
+_FAKE_SLOTS: tuple[str, ...] = ()
+_SLOT_OF: dict[str, str] = {}  # request id of a record that came back -> the slot that asked it
 _sleep = time.sleep  # tests replace both
 _clock = time.monotonic
 
 
-def api_key() -> str:
-    """BASETEN_API_KEY from the environment, walkaround/.env or ~/meta2026/.keys."""
+def slot_key(slot: KeySlot) -> str | None:
+    """The slot's key from the environment, walkaround/.env or ~/meta2026/.keys; None when it is not set."""
     load_env()
-    key = os.environ.get("BASETEN_API_KEY")
-    if not key:
-        raise OpenWeightsError("BASETEN_API_KEY is not set; put it in walkaround/.env")
-    return key
+    return os.environ.get(slot.env) or None
 
 
-def _client() -> Any:
-    global _CLIENT
+def key_slots() -> list[KeySlot]:
+    """The slots that can be asked, in order: those an injected client answers for, else those whose key is set."""
     with _LOCK:
-        if _CLIENT is None:
+        fake, named = _FAKE, _FAKE_SLOTS
+    if fake is not None:
+        return [s for s in KEY_SLOTS if s.name in named]
+    return [s for s in KEY_SLOTS if slot_key(s)]
+
+
+def slot_order(slots: list[KeySlot] | None = None) -> list[KeySlot]:
+    """slots (default key_slots()) less those resting after a 401, 402, 403 or 404 in the last FAILURE_TTL_S."""
+    slots = key_slots() if slots is None else slots
+    with _LOCK:
+        if _STATE.resting:
+            now = _clock()
+            _STATE.resting = {n: v for n, v in _STATE.resting.items() if now - v[0] < FAILURE_TTL_S}
+        return [s for s in slots if s.name not in _STATE.resting]
+
+
+def _client(slot: KeySlot) -> Any:
+    with _LOCK:
+        if _FAKE is not None:
+            return _FAKE
+        client = _CLIENTS.get(slot.name)
+        if client is None:
             if os.environ.get("PYTEST_CURRENT_TEST") and os.environ.get("LIVE") != "1":
-                # an offline test with no fake must never reach Baseten with the real key that load_env finds
+                # an offline test with no fake must never reach Baseten with the real keys that load_env finds
                 raise OpenWeightsError("no Baseten client in an offline test: inject one with set_client, or set LIVE=1")
+            key = slot_key(slot)
+            if not key:
+                raise OpenWeightsError(f"{slot.env} is not set; put it in walkaround/.env")
             from openai import OpenAI
 
             # max_retries 0: this module owns the backoff, so a timeout is never repeated by the SDK as well
             timeout = httpx.Timeout(TIMEOUT_S, connect=CONNECT_TIMEOUT_S)
-            _CLIENT = OpenAI(base_url=BASE_URL, api_key=api_key(), timeout=timeout, max_retries=0)
-        return _CLIENT
+            client = _CLIENTS[slot.name] = OpenAI(base_url=BASE_URL, api_key=key, timeout=timeout, max_retries=0)
+        return client
 
 
-def set_client(client: Any) -> None:
-    """Inject a client; None goes back to the real one on the next call."""
-    global _CLIENT
-    _CLIENT = client
+def set_client(client: Any, *, slots: tuple[str, ...] | list[str] | None = None) -> None:
+    """Inject a client for the offline tests. It answers for every key slot, or only the slots named, whatever keys
+    are set. None goes back to the real clients, built per slot from its key on the next call."""
+    global _FAKE, _FAKE_SLOTS
+    names = tuple(s.name for s in KEY_SLOTS) if slots is None else tuple(slots)
+    unknown = [n for n in names if n not in {s.name for s in KEY_SLOTS}]
+    if unknown:
+        raise ValueError(f"no key slot named {', '.join(unknown)}")
+    with _LOCK:
+        _FAKE, _FAKE_SLOTS = client, names
+        if client is None:
+            _CLIENTS.clear()
 
 
 def reset() -> None:
-    """Forget the model probe, the dead ids, the response format and the throttle clock."""
+    """Forget the resting slots, the response format, the throttle clock and the slots of past records."""
     global _STATE
     with _LOCK:
         _STATE = _State()
+        _SLOT_OF.clear()
+
+
+def key_slot_of(record: SparkRequestRecord) -> str | None:
+    """The slot ("hackathon" or "account") that asked a Spark Open record that came back in this process; None for a
+    hosted Muse Spark record or one this process did not see."""
+    if record.engine is not ENGINE:
+        return None
+    with _LOCK:
+        return _SLOT_OF.get(record.request_id)
+
+
+def _remember(request_id: str, slot: KeySlot) -> None:
+    with _LOCK:
+        _SLOT_OF[request_id] = slot.name
+        while len(_SLOT_OF) > SLOT_MEMORY:
+            _SLOT_OF.pop(next(iter(_SLOT_OF)))
 
 
 def _as_dict(obj: Any) -> dict[str, Any]:
@@ -195,43 +263,7 @@ def plain_reason(text: str, limit: int = REASON_MAX) -> str:
     return _cap(_SENTENCE_END.split(_flat(text), maxsplit=1)[0], limit)
 
 
-# Model id and response format ----------------------------------------------------------------------------------------
-
-
-def list_models() -> list[str] | None:
-    """Ids from GET /v1/models, or None when the listing fails (the candidates are then tried in their fixed order)."""
-    client = _client()
-    try:
-        page = client.models.list()
-    except (OpenAIError, httpx.HTTPError, OSError):
-        return None
-    data = getattr(page, "data", None)
-    if data is None:
-        data = _as_dict(page).get("data")
-    ids = [item.get("id") if isinstance(item, dict) else getattr(item, "id", None) for item in data or []]
-    return [i for i in ids if isinstance(i, str)]
-
-
-def model_candidates() -> list[str]:
-    """The ids to try, in order: the one that answered last, then listed ids, then the rest, each in MODEL_CANDIDATES
-    order; an id that returned 404 in the last FAILURE_TTL_S is left out. The listing runs once per process."""
-    with _LOCK:
-        probed = _STATE.probed
-    if not probed:
-        listed = list_models()
-        with _LOCK:
-            if not _STATE.probed:
-                _STATE.listed, _STATE.probed = listed, True
-    with _LOCK:
-        if _STATE.dead:
-            now = _clock()
-            _STATE.dead = {m: t for m, t in _STATE.dead.items() if now - t < FAILURE_TTL_S}
-        listed = _STATE.listed or []
-        order = [m for m in MODEL_CANDIDATES if m in listed] + [m for m in MODEL_CANDIDATES if m not in listed]
-        if _STATE.answered in order:
-            order.remove(_STATE.answered)
-            order.insert(0, _STATE.answered)
-        return [m for m in order if m not in _STATE.dead]
+# Response format -----------------------------------------------------------------------------------------------------
 
 
 def _response_format() -> str:
@@ -410,8 +442,18 @@ def look_answer(record: SparkRequestRecord) -> tuple[LookVerdict, str]:
     return LookVerdict.UNSURE, f"second look unusable: {record.incomplete_reason or 'the answer did not fit look_v1'}"
 
 
-def _log(run_id: str | None, context: dict[str, str | None] | None, **fields: Any) -> None:
-    """Append one provenance line to runs/<run_id>/open_weights.ndjson."""
+def _log(
+    run_id: str | None,
+    context: dict[str, str | None] | None,
+    slot: KeySlot,
+    *,
+    ledger_run_id: str | None = None,
+    log_path: Path | None = None,
+    **fields: Any,
+) -> None:
+    """Append one provenance line to runs/<run_id>/open_weights.ndjson, or to log_path when the caller names another
+    file (a claim's look goes to claim/<claim_id>.open_weights.ndjson: the run's own file is sealed at run end). A line
+    whose ledger rows carry another run id (a claim bills as "<run_id>.<claim_id>") names it as ledger_run_id."""
     if not run_id:
         return
     where = context or {}
@@ -419,19 +461,24 @@ def _log(run_id: str | None, context: dict[str, str | None] | None, **fields: An
         "ts": _now_iso(),
         "run_id": run_id,
         "engine": ENGINE.value,
+        "key_slot": slot.name,
         "pickup_mark": where.get("pickup_mark"),
         "return_mark": where.get("return_mark"),
         "panel_id": where.get("panel_id"),
         **fields,
     }
+    if ledger_run_id and ledger_run_id != run_id:
+        line["ledger_run_id"] = ledger_run_id
     text = json.dumps(line, sort_keys=True, ensure_ascii=True) + "\n"
+    target = Path(log_path) if log_path is not None else paths.open_weights_log(run_id)
     with _LOG_LOCK:
-        with paths.open_weights_log(run_id).open("a", encoding="utf-8") as fh:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8") as fh:
             fh.write(text)
 
 
 def _failed(
-    model: str,
+    slot: KeySlot,
     *,
     purpose: SparkPurpose,
     run_id: str | None,
@@ -441,13 +488,16 @@ def _failed(
     error: str,
     baseten_id: str | None = None,
     context: dict[str, str | None] | None = None,
+    ledger_run_id: str | None = None,
+    log_path: Path | None = None,
 ) -> None:
-    """The ledger row and the provenance line of a request that got no answer."""
+    """The ledger row (under ledger_run_id when given) and the provenance line of a request that got no answer."""
+    model = slot.model
     ledger.record(
         LEDGER_KIND,
         model,
         note=purpose.value,
-        run_id=run_id,
+        run_id=ledger_run_id or run_id,
         input_tokens=0,
         output_tokens=0,
         cached_tokens=0,
@@ -464,10 +514,14 @@ def _failed(
         baseten_request_id=baseten_id,
         http_status=http_status,
         error=error,
+        key_slot=slot.name,
     )
     _log(
         run_id,
         context,
+        slot,
+        ledger_run_id=ledger_run_id,
+        log_path=log_path,
         purpose=purpose.value,
         model=model,
         model_requested=model,
@@ -485,7 +539,7 @@ def _failed(
 
 def _answered(
     data: dict[str, Any],
-    model: str,
+    slot: KeySlot,
     *,
     purpose: SparkPurpose,
     schema_name: str,
@@ -498,9 +552,12 @@ def _answered(
     ms: int,
     baseten_id: str | None,
     context: dict[str, str | None] | None = None,
+    ledger_run_id: str | None = None,
+    log_path: Path | None = None,
 ) -> SparkRequestRecord:
-    """Ledger row, record and provenance line of a request that came back. finish_reason length is a cut
-    (incomplete_reason max_output_tokens, as on the hosted path), never an answer."""
+    """Ledger row (under ledger_run_id when given), record and provenance line of a request that came back.
+    finish_reason length is a cut (incomplete_reason max_output_tokens, as on the hosted path), never an answer."""
+    model = slot.model
     text, finish = _message(data)
     error = _as_dict(data.get("error") or {})
     status = SparkStatus.INCOMPLETE if finish in CUT_FINISH_REASONS or error or not data.get("choices") else SparkStatus.COMPLETED
@@ -530,7 +587,7 @@ def _answered(
         LEDGER_KIND,
         returned or model,
         note=purpose.value,
-        run_id=run_id,
+        run_id=ledger_run_id or run_id,
         input_tokens=usage.input,
         output_tokens=usage.output,
         cached_tokens=usage.cached,
@@ -545,6 +602,7 @@ def _answered(
         retries=retry,
         model_requested=model,
         baseten_request_id=baseten_id,
+        key_slot=slot.name,
     )
     record = SparkRequestRecord(
         request_id=request_id or f"local-{uuid.uuid4().hex[:12]}",
@@ -567,10 +625,14 @@ def _answered(
         dollars=float(row["usd"]),
         ms=ms,
     )
+    _remember(record.request_id, slot)
     answer = parsed if isinstance(parsed, dict) else {}
     _log(
         run_id,
         context,
+        slot,
+        ledger_run_id=ledger_run_id,
+        log_path=log_path,
         purpose=purpose.value,
         model=returned or model,
         model_requested=model,
@@ -601,23 +663,30 @@ def ask(
     schema: dict[str, Any] | None = None,
     rpm: float | None = DEFAULT_RPM,
     context: dict[str, str | None] | None = None,
+    ledger_run_id: str | None = None,
+    log_path: Path | None = None,
 ) -> SparkRequestRecord:
-    """One answer from Spark Open: the next model id on a 404, the next response format on a 400 or 422 about the
-    format, the backoff on 408, 409, 429 and 5xx. A ledger row and a provenance line per request (context gives the
-    line its pickup_mark, return_mark and panel_id). Raises OpenWeightsError when no response came."""
+    """One answer from Spark Open: the next key slot on a 401, 402, 403 or 404, the next response format on a 400 or
+    422 about the format, the backoff on 408, 409, 429 and 5xx. A ledger row and a provenance line per request (context
+    gives the line its pickup_mark, return_mark and panel_id; ledger rows carry ledger_run_id when given, else run_id;
+    the line goes to log_path when given, else the run's open_weights.ndjson). Raises OpenWeightsError when no
+    response came."""
     effort = spark_client.validate_effort(effort)
     schema = schema if schema is not None else spark_client.SCHEMAS[schema_name]
     tries = 0
-    misses: list[str] = []
     while True:
-        candidates = model_candidates()
-        if not candidates:
-            gone = "; ".join(misses) if misses else f"every id returned 404 in the last {FAILURE_TTL_S / 60:.0f} minutes"
-            raise OpenWeightsError(f"no Muse Spark Open id answered on Baseten ({gone})")
-        model = candidates[0]
+        slots = key_slots()
+        if not slots:
+            raise OpenWeightsError(NO_KEY)
+        order = slot_order(slots)
+        if not order:
+            with _LOCK:
+                why = "; ".join(f"{s.name} key: {_STATE.resting[s.name][1]}" for s in slots if s.name in _STATE.resting)
+            raise OpenWeightsError(f"no Baseten key slot answered in the last {FAILURE_TTL_S / 60:.0f} minutes ({why})")
+        slot = order[0]
         fmt = _response_format()
-        body = request_body(prompt, image_urls, model=model, schema_name=schema_name, schema=schema, effort=effort, max_tokens=max_tokens, fmt=fmt)
-        client = _client()
+        body = request_body(prompt, image_urls, model=slot.model, schema_name=schema_name, schema=schema, effort=effort, max_tokens=max_tokens, fmt=fmt)
+        client = _client(slot)
         _throttle(rpm)
         started = _clock()
         try:
@@ -625,11 +694,14 @@ def ask(
         except APIStatusError as exc:
             ms = int(round((_clock() - started) * 1000))
             error = f"{exc.status_code}: {_short(str(exc))}"
-            _failed(model, purpose=purpose, run_id=run_id, ms=ms, retry=retry, http_status=exc.status_code, error=error, baseten_id=_header_id(exc), context=context)
-            if exc.status_code == 404:
+            _failed(
+                slot, purpose=purpose, run_id=run_id, ms=ms, retry=retry, http_status=exc.status_code, error=error, baseten_id=_header_id(exc), context=context,
+                ledger_run_id=ledger_run_id, log_path=log_path,
+            )
+            if exc.status_code in SLOT_FAILURES:
                 with _LOCK:
-                    _STATE.dead[model] = _clock()
-                misses.append(f"{model}: 404")
+                    _STATE.resting[slot.name] = (_clock(), str(exc.status_code))
+                tries = 0  # the next slot gets its own tries
                 continue
             if fmt != FORMATS[-1] and _format_refused(exc):
                 with _LOCK:
@@ -645,14 +717,12 @@ def ask(
         except (OpenAIError, httpx.HTTPError, OSError) as exc:
             ms = int(round((_clock() - started) * 1000))
             error = f"{type(exc).__name__}: {_short(str(exc))}"
-            _failed(model, purpose=purpose, run_id=run_id, ms=ms, retry=retry, http_status=None, error=error, context=context)
+            _failed(slot, purpose=purpose, run_id=run_id, ms=ms, retry=retry, http_status=None, error=error, context=context, ledger_run_id=ledger_run_id, log_path=log_path)
             raise OpenWeightsError(f"Baseten call failed: {error}") from exc
         ms = int(round((_clock() - started) * 1000))
-        with _LOCK:
-            _STATE.answered = model
         return _answered(
             data,
-            model,
+            slot,
             purpose=purpose,
             schema_name=schema_name,
             schema=schema,
@@ -664,6 +734,8 @@ def ask(
             ms=ms,
             baseten_id=baseten_id,
             context=context,
+            ledger_run_id=ledger_run_id,
+            log_path=log_path,
         )
 
 
@@ -681,11 +753,16 @@ def ask_attempts(
     max_tokens: int = MAX_TOKENS,
     retry_max_tokens: int = RETRY_MAX_TOKENS,
     context: dict[str, str | None] | None = None,
+    ledger_run_id: str | None = None,
+    log_path: Path | None = None,
 ) -> list[SparkRequestRecord]:
     """The hosted path's outcomes in order: valid -> done; a cut -> one retry at retry_max_tokens; any other miss ->
     one retry at max_tokens. Two answers at most. OpenWeightsError when the retry gets no response (it carries the
-    first answer) or when neither attempt came back with an answer."""
-    common: dict[str, Any] = dict(purpose=purpose, schema_name=schema_name, run_id=run_id, input_refs=input_refs, effort=effort, schema=schema, rpm=rpm, context=context)
+    first answer) or when neither attempt came back with an answer. ledger_run_id and log_path as in ask."""
+    common: dict[str, Any] = dict(
+        purpose=purpose, schema_name=schema_name, run_id=run_id, input_refs=input_refs, effort=effort, schema=schema, rpm=rpm, context=context,
+        ledger_run_id=ledger_run_id, log_path=log_path,
+    )
     first = ask(prompt, image_urls, max_tokens=max_tokens, retry=0, **common)
     if first.valid:
         return [first]
@@ -719,10 +796,13 @@ def second_look(
     pair: tuple[str, str] | None = None,
     max_tokens: int = MAX_TOKENS,
     retry_max_tokens: int = RETRY_MAX_TOKENS,
+    ledger_run_id: str | None = None,
+    log_path: Path | None = None,
 ) -> spark_client.LookResult:
     """spark_client.second_look on Spark Open: the same question on the same two outlined crops (pickup, return).
     pair (pickup_mark, return_mark) goes on every provenance line. The last attempt that came back stands; a bad or
-    cut answer is unsure, a downgrade; no answer at all raises OpenWeightsError."""
+    cut answer is unsure, a downgrade; no answer at all raises OpenWeightsError. ledger_run_id and log_path as in
+    ask (a claim's look bills under the claim and logs into the claim folder)."""
     effort = spark_client.validate_effort(effort)
     urls = [spark_client.prepare_image(crop)[0] for crop in (crop_a, crop_b)]
     attempts = ask_attempts(
@@ -737,6 +817,8 @@ def second_look(
         max_tokens=max_tokens,
         retry_max_tokens=retry_max_tokens,
         context=_context(panel_id, pair),
+        ledger_run_id=ledger_run_id,
+        log_path=log_path,
     )
     record = next(a for a in reversed(attempts) if came_back(a))
     verdict, reason = look_answer(record)
@@ -777,28 +859,35 @@ def count_marks(
 
 
 __all__ = [
+    "ACCOUNT_MODEL",
     "BASE_URL",
     "DEFAULT_RPM",
     "ENGINE",
     "FAILURE_TTL_S",
+    "HACKATHON_MODEL",
+    "KEY_SLOTS",
+    "KeySlot",
     "LEDGER_KIND",
     "MODEL_CANDIDATES",
+    "NO_KEY",
     "OpenWeightsError",
     "REASON_MAX",
-    "api_key",
+    "SLOT_FAILURES",
     "ask",
     "ask_attempts",
     "came_back",
     "count_marks",
     "extract_json",
     "json_instruction",
-    "list_models",
+    "key_slot_of",
+    "key_slots",
     "look_answer",
-    "model_candidates",
     "plain_reason",
     "plain_text",
     "request_body",
     "reset",
     "second_look",
     "set_client",
+    "slot_key",
+    "slot_order",
 ]

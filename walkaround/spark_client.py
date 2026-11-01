@@ -26,9 +26,7 @@ from __future__ import annotations
 import base64
 import io
 import json
-import os
 import random
-import re
 import threading
 import time
 import uuid
@@ -45,7 +43,7 @@ from PIL import Image
 from pydantic import ValidationError
 
 from . import ledger
-from .config import BASE_URL, SPARK_MODEL, api_key
+from .config import BASE_URL, SPARK_MODEL, api_key, redact
 from .contracts import (
     PANEL_NOUNS,
     Confidence,
@@ -484,18 +482,9 @@ def set_client(client: Any) -> None:
     _CLIENT = client
 
 
-_KEY_SHAPES = re.compile(r"\bLLM[_|][A-Za-z0-9_|-]{6,}|\bhf_[A-Za-z0-9]{10,}")  # LLM_{digits}_{secret}, HF tokens
-_BEARER = re.compile(r"(?i)\b(bearer\s+)\S+")
-_SECRET_ENV = ("MODEL_API_KEY", "BASETEN_API_KEY", "HF_TOKEN")
-
-
 def _redact(text: str) -> str:
-    """Error text with every configured key value and key-shaped token replaced, before it is stored anywhere."""
-    for name in _SECRET_ENV:
-        value = os.environ.get(name) or ""
-        if len(value) >= 8:
-            text = text.replace(value, "[redacted]")
-    return _BEARER.sub(r"\1[redacted]", _KEY_SHAPES.sub("[redacted]", text))
+    """Error text with every configured key value and key-shaped token replaced, before it is stored anywhere (config.redact: every key variable, Baseten's two included, and every key shape)."""
+    return redact(text)
 
 
 def _retry_delay(exc: APIStatusError, tries: int) -> float | None:

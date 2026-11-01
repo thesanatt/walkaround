@@ -70,18 +70,20 @@ def _load_env_file(path: Path) -> None:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        os.environ.setdefault(key, value)
+        if value:  # an empty line such as BASETEN_HACKATHON_API_KEY= sets nothing, so a later file can still give it
+            os.environ.setdefault(key, value)
 
 
 def load_env() -> None:
-    """Read walkaround/.env, then ~/meta2026/.keys. Existing environment wins."""
+    """Read walkaround/.env, then ~/meta2026/.keys. Existing environment wins; an empty value in a file is skipped."""
     _load_env_file(REPO_DIR / ".env")
     _load_env_file(Path.home() / "meta2026" / ".keys")
 
 
-_KEY_SHAPES = re.compile(r"\bLLM[_|][A-Za-z0-9_|-]{6,}|\bhf_[A-Za-z0-9]{10,}")  # LLM_{digits}_{secret}, HF tokens
+# LLM_{digits}_{secret} (Meta), hf_ tokens, and Baseten's b10_ keys: 8 characters, a dot, 32 characters
+_KEY_SHAPES = re.compile(r"\bLLM[_|][A-Za-z0-9_|-]{6,}|\bhf_[A-Za-z0-9]{10,}|\bb10_[A-Za-z0-9]{8}\.[A-Za-z0-9]{32,}")
 _BEARER = re.compile(r"(?i)\b(bearer\s+)\S+")
-_SECRET_ENV = ("MODEL_API_KEY", "BASETEN_API_KEY", "HF_TOKEN")
+_SECRET_ENV = ("MODEL_API_KEY", "BASETEN_API_KEY", "BASETEN_HACKATHON_API_KEY", "HF_TOKEN")
 
 
 def redact(text: str) -> str:

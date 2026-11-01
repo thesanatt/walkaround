@@ -6,8 +6,10 @@ on), "spark" (hosted Muse Spark 1.3 only) or "spark_open" (Spark Open on Baseten
 with hosted Spark answering when Baseten gives no answer). For each provisional already_there pair the two candidate
 marks are outlined on their blurred crops (marks.draw_outline) and the JPEGs are kept as sent
 (crops/<role>/<pickup_mark>__<return_mark>.look.jpg), so the provenance can show what the model saw. Each look is a
-derived/looks.json row in the CONTRACTS.md "Phase 2 file shapes" form, plus fallback (why hosted Spark answered, or
-why nothing did), outlines, input_refs, question_sha256 and every record.
+derived/looks.json row in the CONTRACTS.md "Phase 2 file shapes" form, plus key_slot (which Baseten key answered:
+"hackathon" for meta-models/muse-spark-open-1026, "account" for meta-models/muse-spark-open; null when hosted Spark
+answered or nothing did), fallback (why hosted Spark answered, or why nothing did), outlines, input_refs,
+question_sha256 and every record.
 
 Nothing here raises a label. same changes nothing; different or unsure become K7 (needs your eye); an answer that came
 back but failed look_v1 or was cut is unsure (valid false). A look that did not run (a mark or a crop missing, or no
@@ -26,6 +28,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -77,6 +80,7 @@ class LookRecord(Contract):
     reason: str = ""  # one plain ASCII sentence, at most 200 characters
     engine: SparkEngine | None = None
     model: str | None = None
+    key_slot: Literal["hackathon", "account"] | None = None  # the Baseten key that answered (open_weights.KEY_SLOTS), never the key
     request_id: str | None = None
     latency_ms: int | None = None
     fallback_from: Literal["baseten"] | None = None  # Baseten failed or was skipped and hosted Muse Spark 1.3 answered
@@ -209,6 +213,7 @@ def _row(pair: MatchCandidate, panel_id: PanelId, shown: _Shown, question: str, 
         reason=open_weights.plain_reason(reason),
         engine=standing.engine,
         model=standing.model,
+        key_slot=open_weights.key_slot_of(standing),
         request_id=None if standing.request_id.startswith("local-") else standing.request_id,
         latency_ms=standing.ms,
         fallback_from="baseten" if baseten_failed and standing.engine is SparkEngine.META_MODEL_API else None,
@@ -314,6 +319,86 @@ class SecondLook:
         return records, notes, self.engine == "spark_open"
 
 
+_IMAGE_BREAKERS: dict[str, _Breaker] = {}  # look_images: one breaker per run, as SecondLook keeps one per match stage
+_IMAGE_BREAKERS_LOCK = threading.Lock()
+
+
+def _image_breaker(run_id: str) -> _Breaker:
+    with _IMAGE_BREAKERS_LOCK:
+        return _IMAGE_BREAKERS.setdefault(run_id, _Breaker(BASETEN_FAILURES_MAX))
+
+
+def look_images(
+    image_a: np.ndarray,
+    image_b: np.ndarray,
+    *,
+    panel_id: PanelId,
+    run_id: str,
+    ledger_run_id: str | None = None,
+    input_refs: list[InputRef],
+    th: dict,
+    pair: tuple[str, str] | None = None,
+    provenance: Path | None = None,
+) -> tuple[SparkRequestRecord | None, list[SparkRequestRecord], list[str]]:
+    """The second look on two images already outlined (pickup first): a claim's mark is never in marks.json, so the
+    claim hands its two crops here. Same engine order and breaker as SecondLook._ask: under "spark_open", Muse Spark
+    Open on Baseten (the hackathon key, then the account key), hosted Muse Spark 1.3 when Baseten gives no answer or
+    its breaker is open; under "spark", hosted only; under "off", nothing. Ledger rows carry ledger_run_id (a claim
+    bills as "<run_id>.<claim_id>"; default run_id). Baseten's provenance lines go to provenance when given (a claim
+    passes claim/<claim_id>.open_weights.ndjson, since the run's own open_weights.ndjson is sealed at run end), else
+    to the run's open_weights.ndjson; no folder named after ledger_run_id is ever made. Returns (the record that
+    stands: the last that came back, or None; every record in order; notes on why hosted Spark answered or nothing
+    did)."""
+    engine = engine_of(th)
+    if engine == "off":
+        return None, [], ["the second look is off (thresholds spark.second_look_engine)"]
+    effort = str(th["spark"]["effort"])
+    max_tokens = int(th["spark"]["max_output_tokens"])
+    retry_max_tokens = int(th["spark"]["retry_max_output_tokens"])
+    rpm = float(th["orchestrator"]["baseten_rpm"])
+    bill = ledger_run_id or run_id
+    records: list[SparkRequestRecord] = []
+    notes: list[str] = []
+    if engine == "spark_open":
+        breaker = _image_breaker(run_id)
+        if breaker.open:
+            notes.append(f"Spark Open skipped after {breaker.failures} failed looks in a row (last: {breaker.last})")
+        else:
+            try:
+                result = open_weights.second_look(
+                    image_a,
+                    image_b,
+                    panel_id=panel_id,
+                    run_id=run_id,
+                    ledger_run_id=bill,
+                    log_path=provenance,
+                    input_refs=list(input_refs),
+                    effort=effort,
+                    rpm=rpm,
+                    pair=pair,
+                    max_tokens=max_tokens,
+                    retry_max_tokens=retry_max_tokens,
+                )
+            except open_weights.OpenWeightsError as exc:
+                breaker.fail(str(exc))
+                records.extend(exc.attempts)
+                notes.append(f"Spark Open gave no answer: {exc}")
+            else:
+                breaker.ok()
+                attempts = list(result.attempts or [result.record])
+                return next((r for r in reversed(attempts) if open_weights.came_back(r)), None), attempts, []
+    try:
+        hosted = spark_client.second_look(image_a, image_b, panel_id=panel_id, run_id=bill, input_refs=list(input_refs), effort=effort)
+    except Exception as exc:  # a missing key or a bug; what Spark Open already answered stays in records
+        notes.append(f"Muse Spark 1.3 failed: {type(exc).__name__}: {redact(str(exc))}")
+    else:
+        attempts = list(hosted.attempts or [hosted.record])
+        records.extend(attempts)
+        if not any(open_weights.came_back(r) for r in attempts):
+            notes.append(f"Muse Spark 1.3 gave no answer: {attempts[-1].incomplete_reason}")
+    return next((r for r in reversed(records) if open_weights.came_back(r)), None), records, notes
+
+
 def make_second_look(run_id: str, *, th: dict, engine: str | None = None) -> Callable[[MatchCandidate], LookVerdict | None] | None:
     """The callable match.derive_match takes, or None when the engine is "off". engine None reads thresholds
     spark.second_look_engine ("off" when the key is missing). Each call outlines the pair on both walks' blurred
@@ -342,4 +427,4 @@ def replay_second_look(run_id: str, *, th: dict | None = None) -> Callable[[Matc
     return replay
 
 
-__all__ = ["BASETEN_FAILURES_MAX", "ENGINES", "LookRecord", "SecondLook", "engine_of", "make_second_look", "replay_second_look", "stored_looks"]
+__all__ = ["BASETEN_FAILURES_MAX", "ENGINES", "LookRecord", "SecondLook", "engine_of", "look_images", "make_second_look", "replay_second_look", "stored_looks"]

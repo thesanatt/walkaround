@@ -1,5 +1,6 @@
 """Offline tests for walkaround.open_weights (Muse Spark Open on Baseten): a fake OpenAI-compatible client, the ledger
-and the runs directory on temp paths. The model id probe, its fallback order and the 404 expiry, the request shape,
+and the runs directory on temp paths. The key slots (the hackathon key with -1026 first, then the account key with the
+plain id; a refusal rests a slot and moves on; the listing is never consulted), the request shape,
 the response format step-down (only on a refusal that names the format) and its expiry, schema checks on answers
 Baseten does not constrain (top-level objects only; two that disagree are unusable), the cut and retry rules, the
 bounded backoff, no-answer responses, the ledger row and price, the provenance lines in the binding shape (no image
@@ -16,19 +17,20 @@ from types import SimpleNamespace
 import httpx
 import numpy as np
 import pytest
-from openai import APIConnectionError, APIStatusError, APITimeoutError, AuthenticationError, BadRequestError, InternalServerError, NotFoundError, RateLimitError
+from openai import APIStatusError, APITimeoutError, AuthenticationError, BadRequestError, InternalServerError, NotFoundError, RateLimitError
 
 from walkaround import config, ledger, open_weights, paths, spark_client
 from walkaround.contracts import InputRef, LedgerRow, LookVerdict, PanelId, SparkEngine, SparkPurpose, SparkStatus
 
-NO_SUFFIX, SUFFIX = open_weights.MODEL_CANDIDATES
+HACKATHON, ACCOUNT = open_weights.HACKATHON_MODEL, open_weights.ACCOUNT_MODEL
+SUFFIX, NO_SUFFIX = HACKATHON, ACCOUNT  # by spelling: meta-models/muse-spark-open-1026 is the hackathon key's id
 SAME = {"verdict": "same", "reason": "Both outlines sit on one chip by the lock."}
 DIFFERENT = {"verdict": "different", "reason": "The return outline is on a leaf."}
 FAKE_KEY = "bt-test-key-0123456789abcdef"
 FORMAT_REFUSAL = "Error code: 400 - response_format json_schema is not supported for this model"
 # CONTRACTS.md, Phase 2 file shapes: every open_weights.ndjson line carries these
 BINDING_LINE = {"ts", "run_id", "engine", "model", "request_id", "latency_ms", "pickup_mark", "return_mark", "panel_id", "verdict", "reason", "valid", "error"}
-LOG_KEYS = BINDING_LINE | {"purpose", "model_requested", "baseten_request_id", "http_status", "status"}
+LOG_KEYS = BINDING_LINE | {"purpose", "model_requested", "baseten_request_id", "http_status", "status", "key_slot"}
 
 
 def chat(payload, *, rid: str = "chatcmpl-1", model: str = NO_SUFFIX, finish: str | None = "stop", prompt: int = 1800, completion: int = 420, reasoning: int = 300, cached: int = 0) -> dict:
@@ -177,47 +179,117 @@ def provenance(run_id: str) -> list[dict]:
     return [json.loads(line) for line in path.read_text().splitlines()] if path.is_file() else []
 
 
-# Model id: the probe, the fallback order and the 404 expiry ----------------------------------------------------------
+# Key slots: the hackathon key and its -1026 id first, then the account key, a refusal rests a slot -----------------
 
 
-def test_listing_fails_so_the_no_suffix_id_goes_first_and_a_404_moves_to_1026(fake):
-    fake.models.listed = APIConnectionError(request=httpx.Request("GET", "https://inference.baseten.co/v1/models"))
-    fake.reply(status_error(404), chat(SAME, model=SUFFIX, rid="r2"))
+class ByModel(FakeChat):
+    """Baseten as the hackathon key saw it on 10/31 (LEDGER row 22): -1026 answers, the plain id is forbidden."""
+
+    def create(self, **kwargs):
+        self.requests.append(kwargs)
+        if kwargs["model"] != HACKATHON:
+            raise status_error(403, message="Error code: 403 - this key may not call that model")
+        return chat(SAME, model=HACKATHON, rid=f"chatcmpl-{len(self.requests)}")
+
+
+def test_the_hackathon_key_goes_first_with_its_own_id(fake):
+    fake.reply(chat(SAME, model=HACKATHON, rid="chatcmpl-h"))
+    result = look(run_id="run1", pair=("p0", "r0"))
+    assert result.verdict is LookVerdict.SAME and result.record.model == HACKATHON
+    assert [r["model"] for r in fake.requests] == [HACKATHON]
+    (row,) = ledger.rows()
+    assert (row["key_slot"], row["model_requested"], row["model"], row["status"]) == ("hackathon", HACKATHON, HACKATHON, "completed")
+    (line,) = provenance("run1")
+    assert (line["key_slot"], line["model"], line["model_requested"]) == ("hackathon", HACKATHON, HACKATHON)
+    assert open_weights.key_slot_of(result.record) == "hackathon"
+    assert fake.models.calls == 0  # GET /v1/models is never asked: the ids are fixed per key
+
+
+def test_the_listing_bug_is_gone_the_hackathon_key_never_asks_the_plain_id(fake):
+    """The listing shows both ids to the hackathon key, and the old order picked the plain id first and got 403."""
+    fake.models.listed = (ACCOUNT, HACKATHON)
+    fake.chat = SimpleNamespace(completions=ByModel())
+    open_weights.set_client(fake, slots=("hackathon",))
     result = look(run_id="run1")
-    assert result.verdict is LookVerdict.SAME and result.record.model == SUFFIX and result.record.engine is SparkEngine.BASETEN
-    assert [r["model"] for r in fake.requests] == [NO_SUFFIX, SUFFIX]
+    assert result.verdict is LookVerdict.SAME and [r["model"] for r in fake.requests] == [HACKATHON]
+    assert [line["status"] for line in provenance("run1")] == ["completed"] and fake.models.calls == 0
+
+
+@pytest.mark.parametrize("status", [401, 402, 403, 404])
+def test_a_refused_hackathon_key_rests_and_the_account_key_answers(fake, clock, status):
+    fake.reply(status_error(status), chat(SAME, model=ACCOUNT, rid="chatcmpl-a"))
+    result = look(run_id="run1")
+    assert result.verdict is LookVerdict.SAME and result.record.model == ACCOUNT
+    assert [r["model"] for r in fake.requests] == [HACKATHON, ACCOUNT]
     rows = ledger.rows()
-    assert [(r["status"], r["model_requested"], r["http_status"] if "http_status" in r else None) for r in rows] == [("failed", NO_SUFFIX, 404), ("completed", SUFFIX, None)]
-    fake.reply(chat(DIFFERENT, model=SUFFIX, rid="r3"))
-    assert look(run_id="run1").verdict is LookVerdict.DIFFERENT
-    assert fake.requests[-1]["model"] == SUFFIX  # the 404 id is out and the id that answered leads
-    assert fake.models.calls == 1  # GET /v1/models once per process
-
-
-@pytest.mark.parametrize(
-    "listed, first",
-    [((SUFFIX,), SUFFIX), ((NO_SUFFIX, SUFFIX), NO_SUFFIX), ((SUFFIX, NO_SUFFIX), NO_SUFFIX), ((), NO_SUFFIX), (("meta-models/other",), NO_SUFFIX)],
-)
-def test_the_listing_orders_the_candidates(fake, listed, first):
-    fake.models.listed = listed
-    fake.reply(chat(SAME, model=first))
+    assert [(r["key_slot"], r["status"], r["model_requested"], r.get("http_status")) for r in rows] == [("hackathon", "failed", HACKATHON, status), ("account", "completed", ACCOUNT, None)]
+    assert [(line["key_slot"], line["status"], line["model"]) for line in provenance("run1")] == [("hackathon", "failed", HACKATHON), ("account", "completed", ACCOUNT)]
+    assert open_weights.key_slot_of(result.record) == "account"
+    fake.reply(chat(DIFFERENT, model=ACCOUNT))
+    assert look().verdict is LookVerdict.DIFFERENT and fake.requests[-1]["model"] == ACCOUNT  # the hackathon slot rests
+    clock[0] += open_weights.FAILURE_TTL_S  # ten minutes later it leads again
+    fake.reply(chat(SAME, model=HACKATHON))
     look()
-    assert fake.requests[0]["model"] == first
+    assert fake.requests[-1]["model"] == HACKATHON
 
 
-def test_every_id_404_raises_and_later_calls_ask_nothing_until_the_ttl(fake, clock):
-    fake.models.listed = ()
-    fake.reply(status_error(404), status_error(404))
-    with pytest.raises(open_weights.OpenWeightsError, match="no Muse Spark Open id answered"):
+def test_every_slot_refused_raises_and_later_calls_ask_nothing_until_the_ttl(fake, clock):
+    fake.reply(status_error(404), status_error(403))
+    with pytest.raises(open_weights.OpenWeightsError, match=r"no Baseten key slot answered in the last 10 minutes \(hackathon key: 404; account key: 403\)"):
         look()
     clock[0] += open_weights.FAILURE_TTL_S - 1
-    with pytest.raises(open_weights.OpenWeightsError, match="every id returned 404 in the last 10 minutes"):
+    with pytest.raises(open_weights.OpenWeightsError, match=r"hackathon key: 404; account key: 403"):
         look()
     assert len(fake.requests) == 2
-    clock[0] += 1  # both 404s are ten minutes old: the ids are tried again
-    fake.reply(chat(SAME))
+    clock[0] += 1  # both refusals are ten minutes old: the slots are tried again, in order
+    fake.reply(chat(SAME, model=HACKATHON))
     assert look().verdict is LookVerdict.SAME
-    assert [r["model"] for r in fake.requests] == [NO_SUFFIX, SUFFIX, NO_SUFFIX]
+    assert [r["model"] for r in fake.requests] == [HACKATHON, ACCOUNT, HACKATHON]
+
+
+def test_the_error_names_every_resting_slot(fake, clock):
+    fake.reply(status_error(403), chat(SAME, model=ACCOUNT))
+    look()  # the hackathon key rests after its 403 and the account key answers
+    fake.reply(status_error(401))
+    with pytest.raises(open_weights.OpenWeightsError, match=r"\(hackathon key: 403; account key: 401\)"):
+        look()
+
+
+def test_only_the_slots_with_a_key_are_asked(runs_dir, monkeypatch):
+    monkeypatch.setattr(open_weights, "load_env", lambda: None)  # no .env and no ~/meta2026/.keys, like a fresh clone
+    open_weights.reset()
+    open_weights.set_client(None)
+    cases = [
+        ({"BASETEN_HACKATHON_API_KEY": "b10_hk", "BASETEN_API_KEY": "acct"}, ["hackathon", "account"]),
+        ({"BASETEN_API_KEY": "acct"}, ["account"]),
+        ({"BASETEN_HACKATHON_API_KEY": "b10_hk"}, ["hackathon"]),
+        ({}, []),
+    ]
+    for env, names in cases:
+        for name in ("BASETEN_HACKATHON_API_KEY", "BASETEN_API_KEY"):
+            monkeypatch.delenv(name, raising=False)
+        for name, value in env.items():
+            monkeypatch.setenv(name, value)
+        assert [s.name for s in open_weights.key_slots()] == names
+    assert [(s.name, s.env, s.model) for s in open_weights.KEY_SLOTS] == [("hackathon", "BASETEN_HACKATHON_API_KEY", HACKATHON), ("account", "BASETEN_API_KEY", ACCOUNT)]
+
+
+def test_a_client_for_one_slot_answers_only_for_it(fake):
+    open_weights.set_client(fake, slots=("account",))
+    fake.reply(chat(SAME, model=ACCOUNT))
+    look(run_id="run1")
+    assert [r["model"] for r in fake.requests] == [ACCOUNT] and provenance("run1")[0]["key_slot"] == "account"
+    with pytest.raises(ValueError, match="no key slot named spare"):
+        open_weights.set_client(fake, slots=("spare",))
+
+
+def test_key_slot_of_knows_only_spark_open_records_seen_here(fake):
+    fake.reply(chat(SAME, model=HACKATHON, rid="chatcmpl-seen"))
+    record = look().record
+    assert open_weights.key_slot_of(record) == "hackathon"
+    assert open_weights.key_slot_of(record.model_copy(update={"engine": SparkEngine.META_MODEL_API})) is None
+    open_weights.reset()
+    assert open_weights.key_slot_of(record) is None
 
 
 # The request ------------------------------------------------------------------------------------------------------
@@ -388,13 +460,21 @@ def test_a_long_retry_after_fails_at_once(fake):
     assert len(fake.requests) == 1
 
 
-@pytest.mark.parametrize("error", [timeout(), status_error(401), status_error(403)])
-def test_timeouts_and_auth_errors_raise_at_once(fake, error):
-    fake.reply(error)
-    with pytest.raises(open_weights.OpenWeightsError):
+def test_a_timeout_raises_at_once(fake):
+    fake.reply(timeout())
+    with pytest.raises(open_weights.OpenWeightsError, match="Baseten call failed: APITimeoutError"):
         look(run_id="run1")
     assert len(fake.requests) == 1
-    assert [line["status"] for line in provenance("run1")] == ["failed"]
+    assert [(line["status"], line["key_slot"]) for line in provenance("run1")] == [("failed", "hackathon")]
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_auth_errors_on_both_keys_raise_after_one_request_each(fake, status):
+    fake.reply(status_error(status), status_error(status))
+    with pytest.raises(open_weights.OpenWeightsError, match=f"hackathon key: {status}; account key: {status}"):
+        look(run_id="run1")
+    assert [r["model"] for r in fake.requests] == [HACKATHON, ACCOUNT]
+    assert [(line["status"], line["key_slot"]) for line in provenance("run1")] == [("failed", "hackathon"), ("failed", "account")]
 
 
 def test_a_failed_retry_raises_with_the_first_answer(fake):
@@ -407,11 +487,12 @@ def test_a_failed_retry_raises_with_the_first_answer(fake):
 def test_no_key_raises_before_any_request(runs_dir, monkeypatch):
     monkeypatch.setenv("LIVE", "1")  # past the offline guard, to reach the key check
     monkeypatch.delenv("BASETEN_API_KEY", raising=False)
+    monkeypatch.delenv("BASETEN_HACKATHON_API_KEY", raising=False)
     monkeypatch.setattr(open_weights, "load_env", lambda: None)
     open_weights.reset()
     open_weights.set_client(None)
     try:
-        with pytest.raises(open_weights.OpenWeightsError, match="BASETEN_API_KEY is not set"):
+        with pytest.raises(open_weights.OpenWeightsError, match="no Baseten key is set: put BASETEN_HACKATHON_API_KEY or BASETEN_API_KEY"):
             look(run_id="run1")
     finally:
         open_weights.set_client(None)
@@ -427,7 +508,7 @@ def test_no_real_client_is_built_in_an_offline_test(runs_dir, monkeypatch):
     try:
         with pytest.raises(open_weights.OpenWeightsError, match="no Baseten client in an offline test"):
             look(run_id="run1")
-        assert open_weights._CLIENT is None
+        assert open_weights._CLIENTS == {}
     finally:
         open_weights.set_client(None)
         open_weights.reset()
@@ -444,7 +525,7 @@ def test_the_ledger_row_carries_the_response_model_tokens_and_list_price(fake):
     (row,) = ledger.rows()
     LedgerRow.model_validate(row)
     assert row["kind"] == "spark_open" and row["engine"] == "baseten" and row["note"] == "second_look" and row["run_id"] == "run1"
-    assert row["model"] == "meta-models/muse-spark-open-816b" and row["model_requested"] == NO_SUFFIX
+    assert row["model"] == "meta-models/muse-spark-open-816b" and row["model_requested"] == HACKATHON and row["key_slot"] == "hackathon"
     assert row["request_id"] == "chatcmpl-abc" and row["status"] == "completed" and row["retries"] == 0
     assert row["tokens"] == {"in": 1800, "out": 420, "reasoning": 300, "cached": 200}
     assert row["latency_ms"]["done"] >= 0 and row["unit"] == "tokens" and row["quantity"] == 2220
@@ -467,8 +548,9 @@ def test_provenance_lines_follow_the_binding_shape_and_hold_no_image_bytes_or_ke
     lines = provenance("run1")
     assert [set(line) for line in lines] == [LOG_KEYS, LOG_KEYS]
     failed, answered = lines
-    assert failed["status"] == "failed" and failed["http_status"] == 404 and failed["model"] == NO_SUFFIX and failed["model_requested"] == NO_SUFFIX
+    assert failed["status"] == "failed" and failed["http_status"] == 404 and failed["model"] == HACKATHON and failed["model_requested"] == HACKATHON
     assert failed["verdict"] is None and failed["reason"] == "" and failed["valid"] is False and failed["request_id"] is None
+    assert (failed["key_slot"], answered["key_slot"]) == ("hackathon", "account")
     assert answered["engine"] == "baseten" and answered["model"] == SUFFIX and answered["request_id"] == "chatcmpl-9"
     assert answered["verdict"] == "same" and answered["reason"] == SAME["reason"] and answered["valid"] is True and answered["error"] is None
     assert answered["ts"].endswith("Z") and isinstance(answered["latency_ms"], int) and answered["run_id"] == "run1"
@@ -533,7 +615,7 @@ def test_count_marks_on_spark_open_clamps_points(fake):
 
 
 def test_count_marks_falls_back_to_hosted_spark(fake, monkeypatch):
-    fake.reply(status_error(401))
+    fake.reply(status_error(401), status_error(401))
     hosted = []
 
     def fake_hosted(crop_rgb, panel_id, **kw):
@@ -558,6 +640,28 @@ def test_live_second_look_on_spark_open():
         rgb[136:164, 186:188] = rgb[136:164, 212:214] = (255, 0, 255)
         rgb[136:138, 186:214] = rgb[162:164, 186:214] = (255, 0, 255)
     result = open_weights.second_look(a, b, panel_id=PanelId.TRUNK_LID, run_id="smoke_b11_unit", pair=("p_unit", "r_unit"))
-    print("live spark open:", result.verdict.value, result.reason, result.record.model, result.record.ms, "ms", result.record.usage.model_dump())
+    print("live spark open:", result.verdict.value, result.reason, result.record.model, open_weights.key_slot_of(result.record), result.record.ms, "ms", result.record.usage.model_dump())
     assert result.record.engine is SparkEngine.BASETEN and result.record.model
     assert result.verdict in LookVerdict
+
+
+# A claim's look: ledger rows under the claim's id, provenance where the caller says (integrator 10/31) ---------------
+
+
+def test_ledger_run_id_and_log_path_keep_a_claim_out_of_the_runs_sealed_file(fake, runs_dir):
+    fake.reply(status_error(403), chat(SAME, model=ACCOUNT, rid="chatcmpl-claim"))
+    target = paths.claim_open_weights_log("run1", "claim_1")
+    result = look(run_id="run1", ledger_run_id="run1.claim_1", log_path=target, pair=("p0", "claim_1"))
+    assert result.verdict is LookVerdict.SAME and result.record.model == ACCOUNT
+    assert [(r["run_id"], r["status"], r["key_slot"]) for r in ledger.rows()] == [("run1.claim_1", "failed", "hackathon"), ("run1.claim_1", "completed", "account")]
+    lines = [json.loads(text) for text in target.read_text().splitlines()]
+    assert [(x["run_id"], x["ledger_run_id"], x["status"], x["return_mark"]) for x in lines] == [("run1", "run1.claim_1", "failed", "claim_1"), ("run1", "run1.claim_1", "completed", "claim_1")]
+    assert provenance("run1") == [] and not (runs_dir / "run1.claim_1").exists()
+
+
+def test_a_walk_look_keeps_its_line_shape(fake):
+    fake.reply(chat(SAME, model=HACKATHON, rid="chatcmpl-walk"))
+    look(run_id="run1", pair=("p0", "r0"))
+    (line,) = provenance("run1")
+    assert "ledger_run_id" not in line and set(line) == LOG_KEYS
+    assert [r["run_id"] for r in ledger.rows()] == ["run1"]

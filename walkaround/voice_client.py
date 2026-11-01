@@ -24,7 +24,6 @@ everything after, with any key value or key-shaped token redacted from the serve
 from __future__ import annotations
 
 import json
-import os
 import re
 import time
 import wave
@@ -37,7 +36,7 @@ from typing import Any
 import httpx
 
 from . import ledger
-from .config import VOICE_MODEL, VOICE_TRANSCRIBE_URL, api_key
+from .config import VOICE_MODEL, VOICE_TRANSCRIBE_URL, api_key, redact
 from .contracts import PANEL_NOUNS, Noun, VoiceRecord, VoiceRequest, VoiceResponse
 
 # config/thresholds.json nouns.voice_keywords: the 14 panel nouns plus 7 words (21, under the cookbook's 50 cap).
@@ -182,18 +181,9 @@ def _request_json(mode: str, keywords: list[str] | None) -> dict[str, Any]:
     return body
 
 
-_KEY_SHAPES = re.compile(r"\bLLM[_|][A-Za-z0-9_|-]{6,}|\bhf_[A-Za-z0-9]{10,}")  # LLM_{digits}_{secret}, HF tokens
-_BEARER = re.compile(r"(?i)\b(bearer\s+)\S+")
-_SECRET_ENV = ("MODEL_API_KEY", "BASETEN_API_KEY", "HF_TOKEN")
-
-
 def _redact(text: str) -> str:
-    """Server text with every configured key value and key-shaped token replaced, before it goes into an exception."""
-    for name in _SECRET_ENV:
-        value = os.environ.get(name) or ""
-        if len(value) >= 8:
-            text = text.replace(value, "[redacted]")
-    return _BEARER.sub(r"\1[redacted]", _KEY_SHAPES.sub("[redacted]", text))
+    """Server text with every configured key value and key-shaped token replaced, before it goes into an exception (config.redact: every key variable, Baseten's two included, and every key shape)."""
+    return redact(text)
 
 
 def _retry_after_s(response: httpx.Response) -> float:
