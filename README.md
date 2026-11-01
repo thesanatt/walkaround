@@ -71,8 +71,8 @@ browser while it uploads. The claim page (`/claim`) places a photo from a damage
 walk.
 
 The sample pair cost $3.3083 in 325 model calls and took 4 min 39 s end to end (its ledger rows in
-`docs/evidence/ledger_rows.jsonl`, its event log in `samples/pairC_core2/events.ndjson.gz`). Add `--tire-code
-155/80R13` (the size on the sidewall) so the wheel ruler can state sizes.
+`docs/evidence/ledger_rows.jsonl`, its event log in `samples/pairC_core2/events.ndjson.gz`). Pass `--tire-code` with
+the size printed on the tire's sidewall (for example 225/60R16) so the wheel ruler can state sizes.
 
 Optional: `uv pip install -e ".[seal,pdf]"` and `.venv/bin/playwright install chromium` add the OpenTimestamps stamp and
 the evidence PDF. Without them the seal keeps its RFC 3161 token and the run page offers a PDF retry. The second look
