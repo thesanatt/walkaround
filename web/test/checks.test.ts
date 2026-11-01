@@ -14,6 +14,7 @@ import { conditionsText, DatesCard, gapText, MatchPane } from '../src/components
 import { NarrationChips } from '../src/components/NarrationChips.tsx';
 import { SecondLookLine } from '../src/components/SecondLookLine.tsx';
 import { StaysPutList } from '../src/components/StaysPutList.tsx';
+import { ClipMissing } from '../src/components/ClipTrail.tsx';
 import { controlTrack, StaysPutPair } from '../src/components/StaysPutPair.tsx';
 import { topupErrorText, topupGains } from '../src/components/TopUpBanner.tsx';
 import type { Claim, ClaimExit, Keyframe, MarkTrack } from '../src/contracts/types.ts';
@@ -314,6 +315,8 @@ describe('Stays Put captions', () => {
     expect(pair).toContain('a reflection, tracked the same way');
     expect(pair).toContain('drift 0.03, b1 0.21, b2 0.02, not panned; fixed');
     expect(html(createElement(StaysPutPair, { track: undefined, control: undefined, mark: undefined, color: '#000', calibrated: true }))).toContain('No Stays Put clip for this panel');
+    expect(html(createElement(ClipMissing, { caption: 'pickup chip on the hood' }))).toContain('This clip is not on this server.');
+    expect(html(createElement(ClipMissing, { caption: 'pickup chip on the hood', bare: true }))).not.toContain('<figcaption>');
     expect(markLabel(state.marks.find((m) => m.mark_id === mark.mark_id)!)).toBe('scuff, S');
     expect(markLabel(state.marks.find((m) => m.mark_id === 'kf_pickup_right_rear_door_m2')!)).toBe('chip, S, from your words');
   });
