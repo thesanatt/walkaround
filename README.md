@@ -95,7 +95,8 @@ tries `BASETEN_HACKATHON_API_KEY` first (it may call only `meta-models/muse-spar
    Each block grows with the box (a plate spans at most 4 blocks), and each track is carried 3 s before its first
    sighting and after its last. On the display video the carried box follows the plate with optical flow and also
    covers its path back to the sighting it left, since on a small box the flow can follow the ground instead.
-4. Muse Spark 1.3 marks each blurred panel crop. Muse Voice turns the renter's narration into turns, and code pins each
+4. Muse Spark 1.3 marks each blurred panel crop, told that factory fixtures (parking sensors, badges, handles and the
+   like) are not damage. Muse Voice turns the renter's narration into turns, and code pins each
    turn that names a panel to the seconds SAM shows that panel.
 5. Stays Put: SAM 3.1 follows each mark through its own short clip, with up to 12 rigid neighbours (other marks, the
    lights, the plate, the door handle) in the same request; paint moves with its neighbours and a reflection slides
@@ -107,8 +108,9 @@ tries `BASETEN_HACKATHON_API_KEY` first (it may call only `meta-models/muse-spar
    dirt or being unsure of it (K4, K12) no longer lowers a pair in the same place in both walks by itself: that pair
    goes to the second look. A mark seen in one walk only that would be "new or unseen" also goes to it, shown beside
    the other walk's view of the same spot; "same" or "unsure" makes it "needs your eye" (K16). When a panel's chosen
-   keyframe pair fails a gate of the pair, the next pair is tried. The ids show on the page and the sheet. The second
-   look can only lower a label.
+   keyframe pair fails a gate of the pair, the next pair is tried. A mark whose box sits on a fixture point the run
+   has (one Spark pointed at, or the door handle SAM found) is left out of matching and named under "how it was
+   checked". The ids show on the page and the sheet. The second look can only lower a label.
 7. The sheet (HTML, PDF, JSON) shows both frames, the hashes, the coverage list, the deletions and the privacy line. A
    closing manifest seals it.
 
@@ -222,18 +224,29 @@ panel labels by the developer from the frames, not yet reviewed; no mark labels 
 | NHTSA test 15759, before and after the side impact (D) | eval_nhtsa15759_r6 | Changed panels called new: 1 of 2, the left front door's crush (L2); the counter-look saw a clean door at that spot in the pickup walk, so it stays new. The struck left rear door is "needs your eye" (L7, outline changed in place: mask IoU 0.698, box aspect ratios 0.988 and 0.988, largest blob 64% of the outline difference). Needs your eye: 4 of 5 verdicts on compared panels. Panel calls right: 4 of 4. Coverage state right: 22 of 35 (63%) |
 | Pexels 4228872 split at 29 s, nothing changed (C, fit) | eval_px4228872_front | 1 panel compared (front bumper, no marks on either frame), 9 not comparable (G1 on all 9). False "new": 0 of 0. Coverage state right: 8 of 12 |
 | Pexels 4228872 split at its scene cut, nothing changed (C) | eval_px4228872_cut | No panel compared: 16 not comparable (G1 on all 16; the two halves barely overlap), 6 not compared. False "new": 0 of 0. Coverage state right: 14 of 26 (54%) |
-| Pexels 4228872 and 4281322, two takes from one shoot, nothing changed (C) | eval_px_two_takes_r6 | No panel compared: 10 not comparable (G1 8, G4 4, G6 2, G9 1). This time the return walk's rear bumper counted as glimpsed (its SAM score fell under the run's own lower quartile), so the first run's false alarm (below) was never reached. False "new": 0 of 0. Coverage state right: 24 of 34 (71%) |
+| Pexels 4228872 and 4281322, two takes from one shoot, nothing changed (C) | eval_px_two_takes_r7 | The rear bumper compared; 9 not comparable (G1 7, G4 4, G6 2, G9 1). False "new": 0 of 3 return-mark verdicts. Needs your eye: 3 of 3 (Spark flagged glare on the return view, so a mark seen in one walk only is capped, K15). Coverage state right: 23 of 34 (68%) |
 
-The five runs cost $3.3055, $3.4848, $1.7397, $2.5255 and $1.6393 (the snapshots' `ledger.jsonl`). The NHTSA and
-two-takes rows are re-runs of Nov 1 with the code of that day; the first runs (eval_nhtsa15759, eval_px_two_takes) stay
-in `eval/snapshots/`.
+The five runs cost $3.3055, $3.4848, $1.7397, $2.5255 and $1.6968 (the snapshots' `ledger.jsonl`). The NHTSA and
+two-takes rows are re-runs of Nov 1 with the code of that day; the earlier runs (eval_nhtsa15759, eval_px_two_takes,
+eval_px_two_takes_r6) stay in `eval/snapshots/`.
 
 The first two-takes run made the one false alarm in the eval so far: on a car where nothing changed, a return mark
 Spark typed a chip came out "new or unseen" (by my eye a parking-sensor dot; not a reviewed label). Since Nov 1 a mark
 seen in one walk only that would be "new or unseen" goes to a counter-look: Muse Spark Open sees the mark in its own
 walk beside the other walk's view of the same spot, and "same" or "unsure" lowers it to "needs your eye" (rule K16).
-Asked live on a copy of that run, it said the pickup spot shows intact paint, so the dot is still "new or unseen"
+Asked live on a copy of that run, it said the pickup spot shows intact paint, so the dot stayed "new or unseen"
 (`docs/evidence/counter_look_1101/`). The rule did not fix this false alarm.
+
+Later on Nov 1, factory fixtures stopped counting as damage: Spark's marks prompt now says not to box parking sensors,
+badges, door handles and locks, washer nozzles, fuel door edges, panel gaps and trim seams, and code leaves out of
+matching a mark whose box sits on a fixture point the run has (a sensor, badge, handle, lock, nozzle, valve, hub or
+plate corner Spark pointed at, or the door handle SAM found), naming it on the panel page. The third two-takes run
+above compared the rear bumper and made no false "new", but not because of the fix. Spark did not box the dot that
+time, and it flagged glare on the view, which capped its three marks there. Asked five times on the first run's crop
+with the new sentence and five times without it, Spark boxed a chip or scuff at the dot (within 75 source pixels of it)
+in all ten answers (`docs/evidence/fixtures_1101/prompt_ab.json`). The code part had nothing to work with either: the
+bumper's landmark list stops at the four plate corners, so Spark is never asked to point at a sensor. This false alarm
+is not fixed; that run just did not reach it.
 
 The reshaped-panel rule of Nov 1 (a panel that fails only the mask IoU gate on every keyframe pair, with its box shape
 unchanged and the outline difference in one place, is "needs your eye", rule L7) came after the first NHTSA run, which

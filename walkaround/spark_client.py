@@ -361,8 +361,17 @@ def panel_display_name(panel_id: PanelId) -> str:
     return _DISPLAY_NAMES.get(panel_id, panel_id.value.replace("_", " "))
 
 
-def marks_prompt(panel_id: PanelId, landmarks: list[str]) -> str:
-    """The marks_v1 grounding instruction of section 5 step 8: expert framing, grid, point plus bbox, do not miss."""
+# Lead decision 4 of 11/1 (thresholds matching.fixtures_not_damage): one plain sentence after "do not miss", sent only
+# when the run's thresholds have the leaf, so a run frozen before it asks (and replays) the prompt it always did.
+FIXTURES_SENTENCE = (
+    "Do not box factory fixtures: parking sensors, badges and emblems, door locks and handles, washer nozzles, fuel "
+    "door edges, panel gaps and trim seams are part of the car, not damage. "
+)
+
+
+def marks_prompt(panel_id: PanelId, landmarks: list[str], *, fixtures: bool = False) -> str:
+    """The marks_v1 grounding instruction of section 5 step 8: expert framing, grid, point plus bbox, do not miss; with
+    fixtures, the sentence that factory fixtures are not damage."""
     panel = panel_display_name(panel_id)
     names = ", ".join(landmarks)  # the whole closed list; LANDMARKS_MAX caps how many come back, not the names
     landmark_line = (
@@ -373,8 +382,8 @@ def marks_prompt(panel_id: PanelId, landmarks: list[str]) -> str:
     return (
         f"You are an object grounding expert. This image is a close crop of the {panel} of a car, cut from a rental "
         f"walkaround video. Find every scratch, scuff, chip, dent and crack on the painted, plastic or glass surface "
-        f"of the {panel}. Do not miss any mark, including small ones. For each mark give one point at its centre and "
-        f"one bbox that covers it. {_GRID_SENTENCE} type is scratch, scuff, chip, dent or crack for damage; dirt or "
+        f"of the {panel}. Do not miss any mark, including small ones. {FIXTURES_SENTENCE if fixtures else ''}For each "
+        f"mark give one point at its centre and one bbox that covers it. {_GRID_SENTENCE} type is scratch, scuff, chip, dent or crack for damage; dirt or "
         "reflection when a spot is dirt, a water drop, a shadow or a reflection that could pass for damage; unsure "
         "when you cannot tell. size_class: S is smaller than a coin, M up to a hand, L larger than a hand. confidence "
         "is low, medium or high. note is a few words on what you see. conditions describe the whole crop: wet, dirty, "
@@ -856,8 +865,10 @@ def find_marks(
     run_id: str | None = None,
     input_ref: InputRef | None = None,
     max_edge: int = IMAGE_LONG_EDGE,
+    fixtures: bool = False,
 ) -> MarksResult:
-    """The marks_v1 grounding call on one blurred crop. Points and boxes stay in the grid of the sent image.
+    """The marks_v1 grounding call on one blurred crop. Points and boxes stay in the grid of the sent image. fixtures
+    adds the factory-fixtures sentence to the prompt (thresholds matching.fixtures_not_damage); the schema is the same.
 
     The schema sent carries the panel's whole closed landmark list as the enum (strict, so the server enforces it)
     and the prompt asks for up to LANDMARKS_MAX of them; `valid` is checked against marks_v1 with the landmark name
@@ -868,7 +879,7 @@ def find_marks(
     data_url, sent_width, sent_height, scale = prepare_image(crop_rgb, max_edge)
     names = [str(n) for n in dict.fromkeys(landmarks) if n]  # order kept, duplicates dropped (an enum lists each once)
     parts = [
-        {"type": "input_text", "text": marks_prompt(panel_id, names)},
+        {"type": "input_text", "text": marks_prompt(panel_id, names, fixtures=fixtures)},
         {"type": "input_image", "image_url": data_url},
     ]
     attempts = _ask_attempts(
@@ -893,6 +904,14 @@ def find_marks(
         orig_height=int(orig_height),
         attempts=attempts,
     )
+
+
+def answer_landmarks(record: SparkRequestRecord, landmarks: list[str]) -> list[dict[str, Any]]:
+    """The landmarks of a stored marks_v1 answer, read exactly as find_marks reads them (names outside the panel's list
+    dropped, at most LANDMARKS_MAX, points clamped to the grid); empty for an answer that is not valid."""
+    names = [str(n) for n in dict.fromkeys(landmarks) if n]
+    answer = _marks_answer(record.parsed, landmark_names=names) if record.valid else None
+    return [lm.model_dump() for lm in answer.landmarks] if answer is not None else []
 
 
 def marks_result_from_record(

@@ -1356,7 +1356,7 @@ def _spark_call(ask: Ask, img: np.ndarray, view: RunView, answers: ClaimAnswers,
     x1, y1, x2, y2 = ask.box or (0, 0, img.shape[1], img.shape[0])
     crop = np.ascontiguousarray(img[y1:y2, x1:x2])
     if ask.purpose == "marks":
-        return spark_client.find_marks(crop, ask.panel, landmarks=marks_mod.landmarks_for(ask.panel, th), effort=effort, run_id=rid, input_ref=ref).record  # type: ignore[arg-type]
+        return spark_client.find_marks(crop, ask.panel, landmarks=marks_mod.landmarks_for(ask.panel, th), effort=effort, run_id=rid, input_ref=ref, fixtures=match.fixtures_not_damage(th)).record  # type: ignore[arg-type]
     partner = next(m for m in view.marks if m.mark_id == ask.pickup_mark)
     kf = view.keyframes[partner.kf_id]
     pickup = _read_rgb(paths.run_dir(view.run_id) / kf.crop.path)  # type: ignore[union-attr]

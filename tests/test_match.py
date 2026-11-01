@@ -828,9 +828,11 @@ async def test_derive_marks_with_a_fake_spark_writes_marks_keyframes_and_sigma_v
     kfs = [write_crop(run_id, k, with_mask=False) for k in three_keyframes()]
     write_json(paths.keyframes_json(run_id), kfs)
     calls: list[tuple[PanelId, list[str], str]] = []
+    fixture_flags: list[bool] = []
 
-    def fake_find_marks(crop_rgb: np.ndarray, panel_id: PanelId, *, landmarks: list[str], effort: str, run_id: str | None, input_ref: Any) -> spark_client.MarksResult:
+    def fake_find_marks(crop_rgb: np.ndarray, panel_id: PanelId, *, landmarks: list[str], effort: str, run_id: str | None, input_ref: Any, fixtures: bool = False) -> spark_client.MarksResult:
         calls.append((panel_id, landmarks, effort))
+        fixture_flags.append(fixtures)
         n = len(calls)
         if n == 3:
             return marks_result(None, truncated=True, request_id=f"req{n}")
@@ -840,6 +842,7 @@ async def test_derive_marks_with_a_fake_spark_writes_marks_keyframes_and_sigma_v
     monkeypatch.setattr(spark_client, "find_marks", fake_find_marks)
     out, updated, records = await marks.derive_marks(run_id, "pickup", kfs, th=th)
     assert len(calls) == 3 and calls[0] == (DOOR, ["handle", "lock", "mirror_base", "window_front_corner"], "low")
+    assert fixture_flags == [True, True, True]  # thresholds matching.fixtures_not_damage: the prompt's fixture sentence
     assert [k.marks_status for k in updated] == [MarksStatus.COMPLETE, MarksStatus.COMPLETE, MarksStatus.TRUNCATED]
     assert updated[1].conditions.glare and not updated[0].conditions.glare
     assert [r.request_id for r in records] == ["req1", "req2", "req3"]

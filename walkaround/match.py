@@ -15,6 +15,9 @@ Lead decisions of 11/1, each behind a thresholds leaf that runs frozen before it
 - matching.next_keyframe_pair (rule 2): when the chosen keyframe pair fails a view gate (G3, G4, G5, G8, G9), the
   panel's other keyframe pairs are tried in a fixed order and the first that passes every gate is compared on; every
   pair tried is recorded with its gates (PanelMatch.kf_pairs_tried, how_checked). G1, G6, G7 and G10 stay panel-level.
+- matching.fixtures_not_damage (lead decision 4): a mark whose box sits on a factory fixture the run already has (a
+  fixture landmark Muse Spark pointed at in the same crop, or the SAM door-handle point of its keyframe) by at least
+  matching.fixture_overlap_min of its box is left out of matching and named in how_checked (PanelMatch.fixtures).
 """
 
 from __future__ import annotations
@@ -34,6 +37,7 @@ from .contracts import (
     Calibration,
     Confidence,
     CoverageState,
+    FixtureDrop,
     FrameUsed,
     Keyframe,
     KeyframePairTry,
@@ -53,6 +57,8 @@ from .contracts import (
     Panel,
     PanelId,
     PanelMatch,
+    SparkPurpose,
+    SparkRequestRecord,
     StaysPutVerdict,
     Trace,
     Verdict,
@@ -103,6 +109,12 @@ def one_walk_counter_look(th: dict | None) -> bool:
 def counter_looks_max(th: dict | None) -> int:
     """At most this many counter-looks per run (thresholds matching.counter_looks_max), surest marks first."""
     return int((th or {}).get("matching", {}).get("counter_looks_max", 0))
+
+
+def fixtures_not_damage(th: dict | None) -> bool:
+    """Lead decision 4 of 11/1 (thresholds matching.fixtures_not_damage): factory fixtures are not damage, in the marks
+    prompt and in matching; off when absent, as in every run frozen before it."""
+    return bool((th or {}).get("matching", {}).get("fixtures_not_damage", False))
 
 
 def next_keyframe_pair(th: dict | None) -> bool:
@@ -499,12 +511,16 @@ def _gate_words(gate: str, tried: KeyframePairTry) -> str:
 
 def how_checked(pm: PanelMatch) -> str | None:
     """The sheet's how-it-was-checked line for a panel: the keyframe pair it was compared on and every pair tried
-    before it with the gates each failed; for a panel no pair passed, every pair tried. None when the match recorded
-    no tries (keyframes in one walk only, or a run frozen before 11/1)."""
-    line = _how_checked_tries(pm)
-    if pm.reshape is not None:
-        return f"{line}; {reshape_words(pm.reshape)}" if line else reshape_words(pm.reshape)
-    return line
+    before it with the gates each failed; for a panel no pair passed, every pair tried; then the reshaped-panel test and
+    the marks left out as factory fixtures, when there are any. None when the match recorded none of these (keyframes
+    in one walk only, or a run frozen before 11/1)."""
+    parts = [
+        _how_checked_tries(pm),
+        reshape_words(pm.reshape) if pm.reshape is not None else None,
+        fixture_words(pm.fixtures) if pm.fixtures else None,
+    ]
+    line = "; ".join(p for p in parts if p)
+    return line or None
 
 
 def _how_checked_tries(pm: PanelMatch) -> str | None:
@@ -546,6 +562,117 @@ def handle_residual(kf_pickup: Keyframe, kf_return: Keyframe) -> Point2 | None:
     if a is None or b is None:
         return None
     return [b[0] - a[0], b[1] - a[1]]
+
+
+# Factory fixtures (lead decision 4 of 11/1, thresholds matching.fixtures_not_damage) -----------------------------------
+
+FIXTURE_WORDS = {
+    "sensor": "a parking sensor",
+    "badge": "a badge",
+    "handle": "the door handle",
+    "lock": "the door lock",
+    "washer_nozzle": "a washer nozzle",
+    "valve": "the tire valve",
+    "hub": "the wheel hub",
+    "plate_corner_tl": "a plate corner",
+    "plate_corner_tr": "a plate corner",
+    "plate_corner_bl": "a plate corner",
+    "plate_corner_br": "a plate corner",
+}
+FIXTURE_SOURCE_WORDS = {"spark": "Muse Spark's landmark", "sam_handle": "SAM's door handle"}
+
+
+@dataclass(frozen=True)
+class FixtureZone:
+    """A fixture's box on Spark's 0 to 1000 grid of one keyframe crop: its point plus the name's half width and height
+    from thresholds matching.fixture_half_grid."""
+
+    name: str
+    source: str  # "spark" or "sam_handle"
+    box: tuple[float, float, float, float]
+
+
+def fixture_halves(th: dict | None) -> dict[str, tuple[float, float]]:
+    raw = (th or {}).get("matching", {}).get("fixture_half_grid") or {}
+    return {str(k): (float(v[0]), float(v[1])) for k, v in raw.items()}
+
+
+def _zone(name: str, source: str, x: float, y: float, half: tuple[float, float]) -> FixtureZone:
+    return FixtureZone(name, source, (x - half[0], y - half[1], x + half[0], y + half[1]))
+
+
+def fixture_zones(kf: Keyframe, records: list[SparkRequestRecord], th: dict) -> list[FixtureZone]:
+    """The fixtures the run already has on this keyframe's crop, in Spark's grid of that crop: every fixture landmark
+    of a valid marks answer on the crop (read as find_marks reads it, so only the panel's own list), then the SAM
+    door-handle point carried from source pixels into the same grid. A name without a half size is not a fixture."""
+    from . import spark_client
+    from .marks import landmarks_for
+
+    if kf.crop is None:
+        return []
+    halves = fixture_halves(th)
+    names = landmarks_for(kf.panel_id, th)
+    zones: list[FixtureZone] = []
+    for rec in records:
+        if rec.purpose != SparkPurpose.MARKS or len(rec.input_refs) != 1 or rec.input_refs[0].path != kf.crop.path:
+            continue
+        for lm in spark_client.answer_landmarks(rec, names):
+            if lm["name"] in halves:
+                zones.append(_zone(lm["name"], "spark", float(lm["point"]["x"]), float(lm["point"]["y"]), halves[lm["name"]]))
+    if kf.handle.point_src is not None and "handle" in halves and kf.crop.w > 0 and kf.crop.h > 0:
+        px, py = geometry.src_to_crop(kf.handle.point_src, kf.crop)
+        gx, gy = px / kf.crop.w * 1000.0, py / kf.crop.h * 1000.0
+        if 0.0 <= gx <= 1000.0 and 0.0 <= gy <= 1000.0:
+            zones.append(_zone("handle", "sam_handle", gx, gy, halves["handle"]))
+    return zones
+
+
+def fixture_overlap(box: tuple[float, float, float, float], zone: FixtureZone) -> float:
+    """The share of the mark's box inside the fixture's box; a box with no area counts as its centre point."""
+    x1, y1, x2, y2 = box
+    zx1, zy1, zx2, zy2 = zone.box
+    if x2 <= x1 or y2 <= y1:
+        cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+        return 1.0 if zx1 <= cx <= zx2 and zy1 <= cy <= zy2 else 0.0
+    ix = max(0.0, min(x2, zx2) - max(x1, zx1))
+    iy = max(0.0, min(y2, zy2) - max(y1, zy1))
+    return ix * iy / ((x2 - x1) * (y2 - y1))
+
+
+def fixture_drops(marks: list[Mark], keyframes: list[Keyframe], records: list[SparkRequestRecord], th: dict) -> dict[str, FixtureDrop]:
+    """Every mark whose box sits on a fixture zone of its own crop by at least matching.fixture_overlap_min of its box,
+    by mark id; the fixture covering most of the box names it (the first one on a tie). A mark the renter named
+    (narration seed) is never dropped: the renter pointed at it, so the sheet answers it. Empty with the leaf off."""
+    if not fixtures_not_damage(th):
+        return {}
+    overlap_min = float(th["matching"]["fixture_overlap_min"])
+    kf_by_id = {kf.kf_id: kf for kf in keyframes}
+    zones_by_kf: dict[str, list[FixtureZone]] = {}
+    drops: dict[str, FixtureDrop] = {}
+    for m in marks:
+        kf = kf_by_id.get(m.kf_id)
+        if m.source == MarkSource.NARRATION_SEED or m.grid_bbox is None or kf is None:
+            continue
+        if kf.kf_id not in zones_by_kf:
+            zones_by_kf[kf.kf_id] = fixture_zones(kf, records, th)
+        box = (float(m.grid_bbox.x_min), float(m.grid_bbox.y_min), float(m.grid_bbox.x_max), float(m.grid_bbox.y_max))
+        best: tuple[float, FixtureZone] | None = None
+        for zone in zones_by_kf[kf.kf_id]:
+            share = fixture_overlap(box, zone)
+            if best is None or share > best[0]:
+                best = (share, zone)
+        if best is not None and best[0] >= overlap_min:
+            drops[m.mark_id] = FixtureDrop(mark_id=m.mark_id, fixture=best[1].name, source=best[1].source, overlap=round(best[0], 4))  # type: ignore[arg-type]
+    return drops
+
+
+def fixture_words(drops: list[FixtureDrop]) -> str:
+    """how_checked's words for the marks left out as fixtures, one clause each."""
+    return "; ".join(
+        f"ignored: {d.mark_id} sits on {FIXTURE_WORDS.get(d.fixture, d.fixture.replace('_', ' '))} "
+        f"({FIXTURE_SOURCE_WORDS.get(d.source, d.source)}, {math.floor(d.overlap * 100 + 0.5)}% of its box), so it was not matched"
+        for d in drops
+    )
 
 
 # Panel gates (section 6, G1 and G3 to G10; G2 retired 10/31) ----------------------------------------------------------
@@ -1400,7 +1527,11 @@ def derive_match(
     With matching.one_walk_counter_look (lead 11/1, third), once every panel is matched, each mark seen in one walk only
     whose label came out new_or_unseen or not_seen_at_return with no cap goes to counter_look (default: the second
     look's own counter method, when it has one), surest first and at most matching.counter_looks_max per run; same or
-    unsure caps it at needs your eye (K16)."""
+    unsure caps it at needs your eye (K16).
+
+    With matching.fixtures_not_damage (lead decision 4 of 11/1) a mark whose box sits on a factory fixture of its own
+    crop (fixture_drops) is left out of every panel's marks before the gates and the match, so it gets no verdict, and is
+    recorded on PanelMatch.fixtures, which how_checked prints."""
     from .marks import whitened_from_marks
 
     panels = _read_list(paths.panels_json(run_id), Panel)
@@ -1417,6 +1548,7 @@ def derive_match(
     whitened = whitened_from_marks(marks)
     marks_by_id = {m.mark_id: m for m in marks}
     kf_by_id = {kf.kf_id: kf for kf in keyframes}
+    fixtures = fixture_drops(marks, keyframes, _read_list(paths.spark_json(run_id), SparkRequestRecord), th) if fixtures_not_damage(th) else {}
     lane_status = _lane_status(run_id)
     trace_base = Trace(config_hash=config_hash(th))
     looks_budget = int(th["spark"]["second_looks_per_pair_max"])
@@ -1432,7 +1564,7 @@ def derive_match(
         kfs = {role: [kf for kf in keyframes if kf.panel_id == panel.panel_id and kf.role == role] for role in ROLES}
         if not kfs["pickup"] and not kfs["return"]:
             continue
-        panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role] for role in ROLES}
+        panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role and m.mark_id not in fixtures] for role in ROLES}
         truncated_all = {role: bool(kfs[role]) and all(kf.marks_status == MarksStatus.TRUNCATED for kf in kfs[role]) for role in ROLES}
         if kfs["pickup"] and kfs["return"]:
             order = keyframe_pair_order(kfs["pickup"], kfs["return"], th=th)
@@ -1460,6 +1592,9 @@ def derive_match(
                 unmatched_pickup=[m.mark_id for m in panel_marks["pickup"]],
                 unmatched_return=[m.mark_id for m in panel_marks["return"]],
             )
+        dropped = [fixtures[m.mark_id] for m in marks if m.panel_id == panel.panel_id and m.mark_id in fixtures]
+        if dropped:
+            pm = pm.model_copy(update={"fixtures": dropped})
         looks: dict[tuple[str, str], LookVerdict | None] = {}  # None: asked, no usable answer
         if second_look is not None and pm.state == MatchState.COMPARABLE:
             kf_status = {kf.kf_id: kf.marks_status for kf in keyframes if kf.panel_id == pm.panel_id}

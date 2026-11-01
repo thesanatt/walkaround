@@ -1381,6 +1381,19 @@ class ReshapeCheck(Contract):
     called: bool = False
 
 
+class FixtureDrop(Contract):
+    """A mark left out of matching because its box sits on a factory fixture the run already has (thresholds
+    matching.fixtures_not_damage, lead decision 4 of 11/1): a fixture landmark Muse Spark pointed at in the same crop
+    (source "spark"), or the SAM door-handle point of the mark's keyframe (source "sam_handle"). overlap is the share of
+    the mark's box inside the fixture's box, on Spark's 0 to 1000 grid of that crop. Printed in how_checked, never
+    dropped silently."""
+
+    mark_id: str
+    fixture: str  # the landmark name (sensor, badge, handle, ...) or "handle" for the SAM door handle
+    source: Literal["spark", "sam_handle"]
+    overlap: float
+
+
 class PanelMatch(Contract):
     panel_id: PanelId
     state: MatchState
@@ -1398,16 +1411,20 @@ class PanelMatch(Contract):
     kf_pairs_tried: list[KeyframePairTry] = Field(default_factory=list)
     # the reshaped-panel test where its precondition held (thresholds matching.reshaped_panel, lead 11/1, second)
     reshape: ReshapeCheck | None = None
+    # marks left out of matching as factory fixtures (thresholds matching.fixtures_not_damage, lead decision 4 of 11/1)
+    fixtures: list[FixtureDrop] = Field(default_factory=list)
 
     @model_serializer(mode="wrap")
     def _omit_no_tries(self, handler: Any) -> Any:
-        """A panel matched without the next-pair rule (or the reshaped-panel rule) serializes as it did before the field
-        existed (11/1), so every run frozen before it rebuilds byte-identical."""
+        """A panel matched without the next-pair rule (or the reshaped-panel rule, or the fixture rule) serializes as it
+        did before the field existed (11/1), so every run frozen before it rebuilds byte-identical."""
         data = handler(self)
         if isinstance(data, dict) and not data.get("kf_pairs_tried"):
             data.pop("kf_pairs_tried", None)
         if isinstance(data, dict) and data.get("reshape") is None:
             data.pop("reshape", None)
+        if isinstance(data, dict) and not data.get("fixtures"):
+            data.pop("fixtures", None)
         return data
 
 

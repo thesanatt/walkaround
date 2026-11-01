@@ -1,0 +1,394 @@
+{
+ "dollars": 0.048888,
+ "dot_bbox_src": [
+  1322,
+  910,
+  1371,
+  938
+ ],
+ "dot_mark": "return_rear_bumper_kf1_m1",
+ "keyframe": "return_rear_bumper_kf1",
+ "n_each": 5,
+ "rows": [
+  {
+   "dollars": 0.006134,
+   "i": 0,
+   "marks": [
+    {
+     "bbox_src": [
+      1314,
+      887,
+      1362,
+      908
+     ],
+     "confidence": "medium",
+     "note": "small light chip on bumper edge",
+     "on_dot": false,
+     "type": "chip"
+    },
+    {
+     "bbox_src": [
+      1763,
+      835,
+      1779,
+      842
+     ],
+     "confidence": "low",
+     "note": "tiny white speck on paint",
+     "on_dot": false,
+     "type": "unsure"
+    },
+    {
+     "bbox_src": [
+      1652,
+      906,
+      1668,
+      914
+     ],
+     "confidence": "low",
+     "note": "tiny light spot on trim",
+     "on_dot": false,
+     "type": "dirt"
+    }
+   ],
+   "ms": 5185,
+   "prompt": "old",
+   "request_id": "resp_6ae6f36d4ee2a3a903404333",
+   "valid": true
+  },
+  {
+   "dollars": 0.00507,
+   "i": 0,
+   "marks": [
+    {
+     "bbox_src": [
+      1290,
+      877,
+      1336,
+      900
+     ],
+     "confidence": "medium",
+     "note": "small dark chip with light edge",
+     "on_dot": false,
+     "type": "chip"
+    },
+    {
+     "bbox_src": [
+      1746,
+      832,
+      1773,
+      842
+     ],
+     "confidence": "low",
+     "note": "tiny white speck likely dirt",
+     "on_dot": false,
+     "type": "dirt"
+    }
+   ],
+   "ms": 4988,
+   "prompt": "fixtures",
+   "request_id": "resp_6ae6f37291cd3678fb114cf4",
+   "valid": true
+  },
+  {
+   "dollars": 0.003994,
+   "i": 1,
+   "marks": [
+    {
+     "bbox_src": [
+      1269,
+      881,
+      1312,
+      901
+     ],
+     "confidence": "medium",
+     "note": "small paint chip on bumper",
+     "on_dot": false,
+     "type": "chip"
+    },
+    {
+     "bbox_src": [
+      1717,
+      860,
+      1734,
+      866
+     ],
+     "confidence": "low",
+     "note": "tiny white speck like dirt",
+     "on_dot": false,
+     "type": "dirt"
+    }
+   ],
+   "ms": 3132,
+   "prompt": "old",
+   "request_id": "resp_6ae6f37570abe81f991a4744",
+   "valid": true
+  },
+  {
+   "dollars": 0.005554,
+   "i": 1,
+   "marks": [
+    {
+     "bbox_src": [
+      1323,
+      903,
+      1372,
+      928
+     ],
+     "confidence": "medium",
+     "note": "small paint chip on bumper corner",
+     "on_dot": true,
+     "type": "chip"
+    },
+    {
+     "bbox_src": [
+      1736,
+      856,
+      1753,
+      864
+     ],
+     "confidence": "low",
+     "note": "tiny white speck possible dust",
+     "on_dot": false,
+     "type": "dirt"
+    }
+   ],
+   "ms": 4603,
+   "prompt": "fixtures",
+   "request_id": "resp_6ae6f37a35aacc421f99472d",
+   "valid": true
+  },
+  {
+   "dollars": 0.003016,
+   "i": 2,
+   "marks": [
+    {
+     "bbox_src": [
+      1312,
+      872,
+      1358,
+      894
+     ],
+     "confidence": "medium",
+     "note": "light chip on rear bumper",
+     "on_dot": false,
+     "type": "chip"
+    },
+    {
+     "bbox_src": [
+      1426,
+      895,
+      1454,
+      913
+     ],
+     "confidence": "low",
+     "note": "small dark pit near sensor",
+     "on_dot": false,
+     "type": "unsure"
+    }
+   ],
+   "ms": 2760,
+   "prompt": "old",
+   "request_id": "resp_6ae6f37d268bc8fd55d64ca0",
+   "valid": true
+  },
+  {
+   "dollars": 0.005359,
+   "i": 2,
+   "marks": [
+    {
+     "bbox_src": [
+      1396,
+      912,
+      1436,
+      936
+     ],
+     "confidence": "medium",
+     "note": "small light chip on bumper",
+     "on_dot": false,
+     "type": "chip"
+    },
+    {
+     "bbox_src": [
+      1677,
+      848,
+      1691,
+      854
+     ],
+     "confidence": "low",
+     "note": "tiny white speck",
+     "on_dot": false,
+     "type": "dirt"
+    },
+    {
+     "bbox_src": [
+      1721,
+      857,
+      1735,
+      863
+     ],
+     "confidence": "low",
+     "note": "tiny white speck",
+     "on_dot": false,
+     "type": "dirt"
+    }
+   ],
+   "ms": 4578,
+   "prompt": "fixtures",
+   "request_id": "resp_6ae6f381a5289fac39c447c0",
+   "valid": true
+  },
+  {
+   "dollars": 0.00709,
+   "i": 3,
+   "marks": [
+    {
+     "bbox_src": [
+      1304,
+      924,
+      1358,
+      954
+     ],
+     "confidence": "medium",
+     "note": "light paint chip on bumper",
+     "on_dot": true,
+     "type": "chip"
+    },
+    {
+     "bbox_src": [
+      1687,
+      830,
+      1706,
+      837
+     ],
+     "confidence": "low",
+     "note": "tiny white speck dust",
+     "on_dot": false,
+     "type": "dirt"
+    }
+   ],
+   "ms": 4733,
+   "prompt": "old",
+   "request_id": "resp_6ae6f386945e7d609d024f34",
+   "valid": true
+  },
+  {
+   "dollars": 0.002329,
+   "i": 3,
+   "marks": [
+    {
+     "bbox_src": [
+      1264,
+      902,
+      1313,
+      929
+     ],
+     "confidence": "medium",
+     "note": "small paint chip on bumper",
+     "on_dot": false,
+     "type": "chip"
+    }
+   ],
+   "ms": 1880,
+   "prompt": "fixtures",
+   "request_id": "resp_6ae6f388ba1f441f01c94daf",
+   "valid": true
+  },
+  {
+   "dollars": 0.005998,
+   "i": 4,
+   "marks": [
+    {
+     "bbox_src": [
+      1302,
+      896,
+      1356,
+      934
+     ],
+     "confidence": "medium",
+     "note": "small paint chip with light edge",
+     "on_dot": true,
+     "type": "chip"
+    },
+    {
+     "bbox_src": [
+      1428,
+      921,
+      1453,
+      931
+     ],
+     "confidence": "low",
+     "note": "tiny dark speck near sensor",
+     "on_dot": false,
+     "type": "dirt"
+    },
+    {
+     "bbox_src": [
+      1730,
+      838,
+      1749,
+      847
+     ],
+     "confidence": "low",
+     "note": "tiny white speck on bumper",
+     "on_dot": false,
+     "type": "dirt"
+    }
+   ],
+   "ms": 4987,
+   "prompt": "old",
+   "request_id": "resp_6ae6f38dc38994e29d424026",
+   "valid": true
+  },
+  {
+   "dollars": 0.004344,
+   "i": 4,
+   "marks": [
+    {
+     "bbox_src": [
+      1312,
+      899,
+      1355,
+      920
+     ],
+     "confidence": "medium",
+     "note": "small dark scuff on bumper",
+     "on_dot": true,
+     "type": "scuff"
+    },
+    {
+     "bbox_src": [
+      1713,
+      880,
+      1732,
+      886
+     ],
+     "confidence": "low",
+     "note": "tiny light speck possibly dirt",
+     "on_dot": false,
+     "type": "dirt"
+    }
+   ],
+   "ms": 4142,
+   "prompt": "fixtures",
+   "request_id": "resp_6ae6f391013fba4af57f4f95",
+   "valid": true
+  }
+ ],
+ "run": "eval_px_two_takes",
+ "summary": {
+  "fixtures": {
+   "answers": 5,
+   "damage_mark_within_75px": 5,
+   "dot_boxed": 2,
+   "marks": 10
+  },
+  "old": {
+   "answers": 5,
+   "damage_mark_within_75px": 5,
+   "dot_boxed": 2,
+   "marks": 12
+  }
+ },
+ "summary_note": "dot_boxed: a mark box overlaps the first run's chip box in source pixels. damage_mark_within_75px: a chip, scuff, scratch, dent or crack whose box centre is within 75 source pixels of that box's centre (Spark's jitter on one spot). Added after the calls from the stored rows, no call."
+}

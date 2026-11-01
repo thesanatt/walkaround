@@ -501,6 +501,12 @@ GLOSSARY_COUNTER_LOOK = (  # match.one_walk_counter_look, lead 11/1 (third)
     "A model can only lower a label.\n"
 )
 
+GLOSSARY_FIXTURES = (  # match.fixtures_not_damage, lead decision 4 of 11/1
+    "factory fixture: parking sensors, badges, door handles and locks, washer nozzles, the tire valve, the wheel hub and the plate corners are part of the car, not damage. "
+    "Muse Spark is asked not to box them, and a mark whose box still sits mostly on one the run found in the same view (a point Muse Spark named, or the door handle SAM found) "
+    "is left out of matching. It gets no label; the panel page names it under how it was checked.\n"
+)
+
 
 def glossary_md(th: dict[str, Any] | None = None) -> str:
     """The glossary appendix. The 11/1 lines print only for a run whose thresholds turn those rules on, so a sheet
@@ -518,6 +524,7 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + (GLOSSARY_KEYFRAME_PAIR if match.next_keyframe_pair(th) else "")
         + (GLOSSARY_RESHAPED if match.reshaped_panel(th) else "")
         + (GLOSSARY_COUNTER_LOOK if match.one_walk_counter_look(th) else "")
+        + (GLOSSARY_FIXTURES if match.fixtures_not_damage(th) else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"

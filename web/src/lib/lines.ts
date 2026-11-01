@@ -1,4 +1,4 @@
-import type { FfprobeInfo, KeyframePairTry, Mark, MarkTrack, PanelMatch, ReshapeCheck, RunManifest, SizeEstimate, VideoRecord } from '../contracts/types.ts';
+import type { FfprobeInfo, FixtureDrop, KeyframePairTry, Mark, MarkTrack, PanelMatch, ReshapeCheck, RunManifest, SizeEstimate, VideoRecord } from '../contracts/types.ts';
 import { neighbourLine } from './neighbours.ts';
 import { ruleLabel } from './rules.ts';
 
@@ -140,10 +140,39 @@ export function reshapeWords(rc: ReshapeCheck): string {
   return `${head}: keyframes ${rc.kf_pair[0]} with ${rc.kf_pair[1]}, IoU ${rc.mask_iou.toFixed(2)}, box aspect ratios ${rc.aspect_ratios[0].toFixed(3)} and ${rc.aspect_ratios[1].toFixed(3)} (${(rc.aspect_off * 100).toFixed(1)}% apart), ${blob}`;
 }
 
+// match.FIXTURE_WORDS and match.fixture_words word for word (lead decision 4 of 11/1).
+const FIXTURE_WORDS: Record<string, string> = {
+  sensor: 'a parking sensor',
+  badge: 'a badge',
+  handle: 'the door handle',
+  lock: 'the door lock',
+  washer_nozzle: 'a washer nozzle',
+  valve: 'the tire valve',
+  hub: 'the wheel hub',
+  plate_corner_tl: 'a plate corner',
+  plate_corner_tr: 'a plate corner',
+  plate_corner_bl: 'a plate corner',
+  plate_corner_br: 'a plate corner',
+};
+const FIXTURE_SOURCE_WORDS: Record<string, string> = { spark: "Muse Spark's landmark", sam_handle: "SAM's door handle" };
+
+export function fixtureWords(drops: FixtureDrop[]): string {
+  return drops
+    .map((d) => {
+      const what = FIXTURE_WORDS[d.fixture] ?? d.fixture.split('_').join(' ');
+      const pct = Math.floor(d.overlap * 100 + 0.5);
+      return `ignored: ${d.mark_id} sits on ${what} (${FIXTURE_SOURCE_WORDS[d.source] ?? d.source}, ${pct}% of its box), so it was not matched`;
+    })
+    .join('; ');
+}
+
 export function keyframePairLine(match: PanelMatch | null | undefined): string | null {
-  const line = triesLine(match);
-  if (match?.reshape) return line ? `${line}; ${reshapeWords(match.reshape)}` : reshapeWords(match.reshape);
-  return line;
+  const parts = [
+    triesLine(match),
+    match?.reshape ? reshapeWords(match.reshape) : null,
+    match?.fixtures?.length ? fixtureWords(match.fixtures) : null,
+  ].filter((p): p is string => !!p);
+  return parts.length ? parts.join('; ') : null;
 }
 
 function triesLine(match: PanelMatch | null | undefined): string | null {

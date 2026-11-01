@@ -434,6 +434,15 @@ export interface ReshapeCheck {
   called: boolean;
 }
 
+// A mark left out of matching as a factory fixture (thresholds matching.fixtures_not_damage, lead decision 4 of 11/1):
+// its box sits on a fixture landmark Muse Spark pointed at in the same crop, or on the SAM door-handle point.
+export interface FixtureDrop {
+  mark_id: string;
+  fixture: string;
+  source: 'spark' | 'sam_handle';
+  overlap: number; // share of the mark's box inside the fixture's box
+}
+
 export interface PanelMatch {
   panel_id: PanelId;
   state: 'comparable' | 'not_comparable';
@@ -449,6 +458,7 @@ export interface PanelMatch {
   groups: MarkGroup[];
   kf_pairs_tried?: KeyframePairTry[]; // every pair tried in order, the chosen pair first; absent in runs matched before 11/1
   reshape?: ReshapeCheck | null; // absent unless the reshaped-panel precondition held
+  fixtures?: FixtureDrop[]; // absent unless a mark was left out as a factory fixture
 }
 
 export interface Trace {

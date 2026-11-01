@@ -1458,3 +1458,51 @@ door is needs your eye (L7) live. The two-takes re-run compared no panel (the re
 so the false alarm was asked on a non-kept copy of eval_px_two_takes (docs/evidence/counter_look_1101/): Spark Open said
 different (intact paint at the pickup spot), so the sensor dot stays new_or_unseen. Both new runs rebuild identical;
 pairC_core3, eval_px_two_takes and eval_nhtsa15759 (frozen without the leaves) still do.
+
+## Lead decision 4 (2026-11-01): factory fixtures are not damage
+
+Behind one thresholds leaf, `matching.fixtures_not_damage` (with `matching.fixture_overlap_min` 0.5 and
+`matching.fixture_half_grid`), so every run frozen before it sends the old prompt, drops nothing, and rebuilds and
+verifies as it did (checked on eval_px_two_takes, eval_px_two_takes_r6, eval_nhtsa15759_r6 and pairC_core3). Found on
+eval_px_two_takes: the eval's only false alarm is a parking-sensor dot Muse Spark typed chip in the return walk only.
+
+- The prompt (`spark_client.marks_prompt(panel_id, landmarks, fixtures=False)`, `spark_client.FIXTURES_SENTENCE`): with
+  the leaf on, marks_v1's instruction gets one sentence after "Do not miss any mark, including small ones.": "Do not box
+  factory fixtures: parking sensors, badges and emblems, door locks and handles, washer nozzles, fuel door edges, panel
+  gaps and trim seams are part of the car, not damage." With it off the text is byte for byte the old one (pinned by
+  sha256 in tests). `find_marks(..., fixtures=False)` passes it; `marks.derive_marks` and the claim's marks call pass
+  `match.fixtures_not_damage(th)`. The schema sent is unchanged. The stored-answer replay is untouched: the reuse key
+  is (crop sha256, panel) and the rebuild reads spark.json, so no call and no prompt is needed to rebuild.
+- Fixture zones (`match.fixture_zones(kf, records, th)`, `match.FixtureZone`): on a keyframe crop, every fixture
+  landmark of a valid marks answer (purpose marks, one input, that crop's path), read with
+  `spark_client.answer_landmarks(record, marks.landmarks_for(panel, th))` exactly as find_marks reads it, so only names
+  on the panel's own list; then the SAM door-handle point (`Keyframe.handle.point_src`) carried into the crop and onto
+  the grid. A fixture is a name in `fixture_half_grid` (sensor, badge, handle, lock, washer_nozzle, valve, hub,
+  plate_corner_tl, _tr, _bl, _br); its zone is its point plus that name's half width and half height on Spark's 0 to 1000
+  grid of the crop (the SAM point uses handle). mirror_base, window corners, wheel_arch, lower_trim, fog_lamp,
+  grille_corner, rim_lip and the hood's front corners are not fixtures.
+- Who is dropped (`match.fixture_drops(marks, keyframes, records, th)`): a mark with a grid box whose box has at least
+  `fixture_overlap_min` of its area inside a zone of its own crop (`match.fixture_overlap`; a box with no area counts as
+  its centre). The zone covering the most of the box names it, the first on a tie. A narration seed (the renter named
+  it) is never dropped. Empty with the leaf off.
+- In the match (`derive_match`): dropped marks are taken out of each panel's marks before the gates and the match, so
+  they are in no pair, no unmatched list, no group, no counter-look and no verdict. `PanelMatch.fixtures`
+  (list of `FixtureDrop`: mark_id, fixture, source "spark" or "sam_handle", overlap rounded to 4 places) records them,
+  left out of matches.json when empty so old files keep their bytes.
+- Never silent: `match.how_checked` adds `match.fixture_words` after the keyframe-pair and reshape words, one clause per
+  mark, for example "ignored: return_rear_bumper_kf1_m1 sits on a parking sensor (Muse Spark's landmark, 87% of its
+  box), so it was not matched" (the percent is floor(overlap x 100 + 0.5), the same in Python and the web). A panel with
+  no tries now gets a how-checked line when it has a fixture. The sheet frame still draws the mark, in the grey of a mark
+  with no label. `sheet.GLOSSARY_FIXTURES` prints when the leaf is on.
+- Web: types.ts `FixtureDrop` and `PanelMatch.fixtures?`; lines.ts `fixtureWords` and `keyframePairLine` add it word for
+  word; web/dist rebuilt.
+- No rule id: a dropped mark has no label, so nothing prints beside one. ARCHITECTURE section 6 has the paragraph.
+- Limits found while building it: `spark.landmarks_max` 4 cuts the bumper's list to the four plate corners, so Spark is
+  never asked for "sensor" and no run has a sensor landmark; no run records a SAM door-handle point yet; over every
+  kept eval run and pairC_core3 the zone test would drop nothing (the closest real marks, NHTSA dents beside a handle
+  landmark, sit 3% to 14% on it). Part (a) is a guard for when those landmarks are there; part (b) is what can reach
+  the sensor dot.
+- Tests: tests/test_fixtures.py (12: the leaf, the prompt's bytes on and off, the request sent, the overlap, who is
+  dropped and who stays, the panel's list, the SAM handle, derive_match end to end, a frozen run, the rebuild with no
+  call, how_checked with no tries, the glossary); web test/fixtures.test.ts (2). test_contracts has a FixtureDrop case;
+  test_match's derive_marks fake records the flag; test_match_1101's frozen leaves include the new one.
