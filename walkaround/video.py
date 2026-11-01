@@ -964,8 +964,10 @@ def render_blurred_proxy(
     dilate_px: int,
     preset: str = "medium",
     crf: int = 20,
+    blocks_across: float | None = None,
 ) -> VideoInfo:
-    """Decode the proxy, pixelate each frame's boxes (proxy pixels) through privacy.pixelate, re-encode it CFR."""
+    """Decode the proxy, pixelate each frame's boxes (proxy pixels) through privacy.pixelate, re-encode it CFR.
+    blocks_across, when given, is privacy.pixelate's: each box's block grows so the box spans at most that many."""
     proxy, dst = Path(proxy), Path(dst)
     # a key that is not a frame index (str after a JSON round trip) would blur nothing; fail closed instead. Keys past
     # the last frame are allowed: gate_sam carries a track's last box a bridge past the lane's end on purpose
@@ -974,6 +976,7 @@ def render_blurred_proxy(
         raise ValueError(f"boxes_by_frame keys must be 0-based proxy frame ints, got {bad[:5]}")
     info = probe(proxy)
     pixelate = _pixelate()
+    extra = {} if blocks_across is None else {"blocks_across": blocks_across}
     tmp = _tmp_for(dst)
     enc = _Encode(_encoder_cmd(info.width, info.height, info.fps or 15.0, tmp, preset=preset, crf=crf, like=info))
     try:
@@ -981,7 +984,7 @@ def render_blurred_proxy(
             for index, rgb in frames:
                 boxes = boxes_by_frame.get(index)
                 if boxes:
-                    rgb = pixelate(rgb, boxes, block_px=block_px, dilate_frac=dilate_frac, dilate_px=dilate_px)
+                    rgb = pixelate(rgb, boxes, block_px=block_px, dilate_frac=dilate_frac, dilate_px=dilate_px, **extra)
                 enc.write(np.ascontiguousarray(rgb).tobytes())
         enc.finish()
     except BaseException:

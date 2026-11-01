@@ -133,13 +133,15 @@ def test_pixelate_region_unrecognisable_rest_untouched() -> None:
 def test_pixelate_text_is_gone() -> None:
     frame = np.full((200, 400, 3), 230, dtype=np.uint8)
     cv2.putText(frame, "ABC 1234", (30, 130), cv2.FONT_HERSHEY_SIMPLEX, 3.0, (20, 20, 20), 8, cv2.LINE_AA)
-    out = privacy.pixelate(frame, [[0.0, 0.0, 400.0, 200.0]], block_px=24)
     gray_in = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-    gray_out = cv2.cvtColor(out, cv2.COLOR_RGB2GRAY)
     assert (gray_in < 100).sum() > 2000  # the strokes
-    assert gray_out.min() > 20  # no pixel keeps the stroke colour: every one is a block mean
-    blocks = gray_out[:192, :384].reshape(8, 24, 16, 24)
-    assert (blocks == blocks[:, :1, :, :1]).all()  # one value per block: no stroke shape survives
+    fixed = cv2.cvtColor(privacy.pixelate(frame, [[0.0, 0.0, 400.0, 200.0]], block_px=24, blocks_across=None), cv2.COLOR_RGB2GRAY)
+    assert fixed.min() > 20  # no pixel keeps the stroke colour: every one is a block mean
+    blocks = fixed[:192, :384].reshape(8, 24, 16, 24)
+    assert (blocks == blocks[:, :1, :, :1]).all()  # one value per 24 px block
+    grown = cv2.cvtColor(privacy.pixelate(frame, [[0.0, 0.0, 400.0, 200.0]], block_px=24), cv2.COLOR_RGB2GRAY)
+    big = grown.reshape(2, 100, 4, 100)
+    assert (big == big[:, :1, :, :1]).all()  # by default the 400 px box spans 4 blocks of 100 px (box_blocks_across)
 
 
 def test_pixelate_dilation_grows_the_region_and_keeps_the_rest() -> None:
@@ -281,15 +283,59 @@ def test_blur_frame_pixelates_track_boxes_scaled_from_the_proxy() -> None:
     assert np.array_equal(out[250:360, 300:640], frame[250:360, 300:640])
 
 
-def test_track_boxes_at_bridges_short_gaps_and_ignores_other_nouns() -> None:
+def _inside(inner: list[float], outer: list[float], tol: float = 1e-6) -> bool:
+    return outer[0] <= inner[0] + tol and outer[1] <= inner[1] + tol and inner[2] <= outer[2] + tol and inner[3] <= outer[3] + tol
+
+
+def test_track_boxes_at_holds_the_last_box_and_ignores_other_nouns() -> None:
     plate = _plate_track([0, 1, 2, 3, 10], [10.0, 20.0, 30.0, 40.0])
     car = _plate_track([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [0.0, 0.0, 100.0, 100.0], noun=c.Noun.CAR)
     kw = dict(fps=15.0, media_size_proxy=(100, 100), media_size_src=(400, 200), th=TH)
-    assert privacy.track_boxes_at(3, [plate, car], **kw) == [[40.0, 40.0, 120.0, 80.0]]
-    assert privacy.track_boxes_at(5, [plate, car], **kw) == [[40.0, 40.0, 120.0, 80.0]]  # 2 frames after the last sighting
-    assert privacy.track_boxes_at(11, [plate, car], **kw) == [[40.0, 40.0, 120.0, 80.0]]  # bridged from frame 10
-    assert privacy.track_boxes_at(19, [plate, car], **kw) == []  # 9 frames = 0.6 s, over track_gap_bridge_s
+    base = [40.0, 40.0, 120.0, 80.0]
+    assert privacy.track_boxes_at(3, [plate, car], **kw) == [base]  # a sighting, and its neighbours give the same box
+    at5 = privacy.track_boxes_at(5, [plate, car], **kw)  # 2 frames after a sighting, 5 before the next
+    assert at5[0] == base and len(at5) == 3  # the held box, then the carries from frame 3 (forward) and frame 10 (back)
+    assert all(_inside(base, b) for b in at5)
+    assert base in privacy.track_boxes_at(11, [plate, car], **kw)  # frame 10 is within track_box_union_s, and held
     assert privacy.track_boxes_at(5, [car], **kw) == []
+
+
+def test_track_boxes_at_carries_before_the_first_and_after_the_last_sighting() -> None:
+    th = TH
+    fps = 15.0
+    carry = math.ceil(th["privacy"]["track_carry_s"] * fps - 1e-9)
+    bridge = math.ceil(th["privacy"]["track_gap_bridge_s"] * fps)
+    plate = _plate_track(list(range(40, 61)), [100.0, 100.0, 140.0, 120.0])
+    kw = dict(fps=fps, media_size_proxy=(960, 540), media_size_src=(960, 540), th=th)
+    assert carry == 30 and bridge == 8
+    before = [privacy.track_boxes_at(40 - d, [plate], **kw) for d in range(1, carry + 1)]
+    assert all(len(b) == (2 if d <= 2 else 1) for d, b in enumerate(before, start=1))  # the first sighting is in reach for 2 frames
+    assert all(_inside([100.0, 100.0, 140.0, 120.0], b[-1]) for b in before)  # the carried box: an edge-on plate SAM missed
+    widths = [b[-1][2] - b[-1][0] for b in before]
+    assert widths == sorted(widths) and widths[-1] == pytest.approx(40 * (1 + th["privacy"]["track_carry_grow_per_s"] * carry / fps), abs=0.01)
+    assert privacy.track_boxes_at(40 - carry - 1, [plate], **kw) == []  # bounded in time
+    after = privacy.track_boxes_at(60 + bridge + 1, [plate], **kw)
+    assert len(after) == 1 and _inside([100.0, 100.0, 140.0, 120.0], after[0])  # past the hold, still carried
+    assert privacy.track_boxes_at(60 + carry + 1, [plate], **kw) == []
+
+
+def test_track_boxes_at_extrapolates_a_moving_box_and_takes_flow_boxes_when_given() -> None:
+    fps = 15.0
+    rows = list(range(30, 45))
+    track = _plate_track(rows, [0.0, 0.0, 1.0, 1.0])
+    for r in track.per_frame:  # moving right 4 px a frame
+        x = 200.0 + 4.0 * (r.frame - 30)
+        r.box = [x, 100.0, x + 40.0, 120.0]
+    kw = dict(fps=fps, media_size_proxy=(960, 540), media_size_src=(960, 540), th=TH)
+    [b] = privacy.track_boxes_at(20, [track], **kw)  # 10 frames before the first sighting
+    assert (b[0] + b[2]) / 2 == pytest.approx(220.0 - 40.0, abs=0.01)  # centre moved back 10 x 4 px
+    assert (b[1] + b[3]) / 2 == pytest.approx(110.0, abs=0.01)
+    flow = {(track.track_id, 20, -1): [10.0, 10.0, 50.0, 30.0]}
+    assert privacy.track_boxes_at(20, [track], carried=flow, **kw) == [[10.0, 10.0, 50.0, 30.0]]
+    glitch = _plate_track([0, 1, 2, 3, 4], [100.0, 100.0, 160.0, 130.0])
+    glitch.per_frame[2].box = [150.0, 120.0, 152.0, 122.0]  # one frame where the box shrank to a corner
+    at2 = privacy.track_boxes_at(2, [glitch], **kw)
+    assert [100.0, 100.0, 160.0, 130.0] in at2  # the neighbours' box still covers the plate on that frame
 
 
 # Quarantine, deletions, the sweeper ----------------------------------------------------------------------------------------
@@ -501,6 +547,169 @@ def test_privacy_line_word_for_word() -> None:
     assert "Walkaround's delete request failed, so that expiry applies." in line3 and "were deleted by Walkaround" not in line3
     done = failed.model_copy(update={"api_response": {"id": "file-1", "deleted": True}, "reason": "run end"})
     assert privacy.privacy_line(run, {"pickup": True}, [done]) == privacy.privacy_line(run, {"pickup": True})
+
+
+# Block size, carry and the display video (privacy lane, Oct 31) --------------------------------------------------------------
+
+
+def test_privacy_defaults_match_the_thresholds() -> None:
+    # a run sealed before Oct 31 has none of these keys in its snapshot; the code's defaults must be today's values
+    for key, value in privacy.PRIVACY_DEFAULTS.items():
+        assert TH["privacy"][key] == value, key
+    old = {"privacy": {k: v for k, v in TH["privacy"].items() if k not in privacy.PRIVACY_DEFAULTS}}
+    assert privacy.privacy_params(old)["track_carry_s"] == privacy.PRIVACY_DEFAULTS["track_carry_s"]
+
+
+def test_block_for_box_grows_with_the_box() -> None:
+    assert privacy.block_for_box([0, 0, 400, 200], block_px=5, blocks_across=4) == 100
+    assert privacy.block_for_box([0, 0, 127, 111], block_px=5, blocks_across=4) == 32  # pairC_core1 return, 4.4 s
+    assert privacy.block_for_box([0, 0, 12, 6], block_px=5, blocks_across=4) == 5  # never under the floor
+    assert privacy.block_for_box([0, 0, 400, 200], block_px=5, blocks_across=None) == 5
+
+
+def test_pixelate_overlapping_boxes_share_the_coarsest_block() -> None:
+    rgb = _noise(400, 600, seed=21)
+    big, small, far = [100.0, 100.0, 300.0, 200.0], [280.0, 180.0, 300.0, 196.0], [500.0, 300.0, 516.0, 316.0]
+    out = privacy.pixelate(rgb, [big, small, far], block_px=4)
+    region = out[100:200, 100:300].reshape(2, 50, 4, 50, 3)
+    assert (region == region[:, :1, :, :1]).all()  # one region, 50 px blocks from the 200 px box, small box included
+    lone = out[300:316, 500:516].reshape(4, 4, 4, 4, 3)
+    assert (lone == lone[:, :1, :, :1]).all()  # the far 16 px box keeps its own 4 px block
+    assert len(np.unique(out[300:316, 500:516].reshape(-1, 3), axis=0)) > 4
+
+
+def _plate_image(text: str, w: int) -> np.ndarray:
+    h = w // 2
+    img = np.full((h, w, 3), 235, np.uint8)
+    scale = w / 260.0
+    thick = max(1, int(round(scale * 3)))
+    (tw, th_), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, scale, thick)
+    cv2.putText(img, text, ((w - tw) // 2, (h + th_) // 2), cv2.FONT_HERSHEY_SIMPLEX, scale, (15, 15, 15), thick, cv2.LINE_AA)
+    return img
+
+
+def test_two_different_plates_look_alike_after_pixelation_at_any_size() -> None:
+    """The 5 px display block left a close plate readable on pairC_core1. With the block grown to a quarter of the box,
+    two plates with different text keep under a quarter of their raw difference at every size, while the fixed block
+    keeps most of it on a close plate."""
+    W, H, floor = 1920, 1080, 10  # pixel_block_px_at_4k 20 at 1080p
+    ratios_new, ratios_old = [], []
+    for w in (80, 160, 320, 640):
+        got = []
+        for text in ("ABC 1234", "XYZ 9876"):
+            frame = np.full((H, W, 3), 128, np.uint8)
+            plate = _plate_image(text, w)
+            x0, y0 = 600, 300
+            frame[y0 : y0 + plate.shape[0], x0 : x0 + w] = plate
+            box = [float(x0), float(y0), float(x0 + w), float(y0 + plate.shape[0])]
+            cut = (slice(y0, y0 + plate.shape[0]), slice(x0, x0 + w))
+            new = privacy.pixelate(frame, [box], block_px=floor, dilate_frac=0.1, dilate_px=floor)
+            old = privacy.pixelate(frame, [box], block_px=floor, dilate_frac=0.1, dilate_px=floor, blocks_across=None)
+            got.append((frame[cut].astype(float), new[cut].astype(float), old[cut].astype(float)))
+        (a0, a1, a2), (b0, b1, b2) = got
+        raw = np.abs(a0 - b0).mean()
+        ratios_new.append(np.abs(a1 - b1).mean() / raw)
+        ratios_old.append(np.abs(a2 - b2).mean() / raw)
+    assert max(ratios_new) < 0.25, ratios_new
+    assert ratios_old[-1] > 0.6, ratios_old  # a 640 px plate under 10 px blocks still shows its text
+
+
+def test_blur_frame_grows_the_block_for_a_close_plate_and_a_face() -> None:
+    frame = _noise(1080, 1920, seed=22)
+    plate_mask = _rect_mask((1080, 1920), (600, 500, 1000, 700))  # a 400 px plate at 1080p
+    face_box = [1500.0, 100.0, 1700.0, 340.0]
+    out = privacy.blur_frame(frame, track_boxes_src=[face_box], detections=[], keep_plate_region=False, th=TH, plate_detections=[_detection(plate_mask)])
+    inner = out[520:680, 620:980]
+    assert len(np.unique(inner.reshape(-1, 3), axis=0)) <= 4 * 3  # 100 px blocks: about 4 x 2 over the plate
+    face = out[110:330, 1510:1690]
+    assert len(np.unique(face.reshape(-1, 3), axis=0)) <= 5 * 5  # 60 px blocks over a 240 px face box
+    assert np.array_equal(out[900:1080, 0:300], frame[900:1080, 0:300])
+
+
+def _pan_frames(offsets: list[int], *, h: int = 270, w: int = 480, seed: int = 11) -> dict[int, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    tex = cv2.GaussianBlur(rng.integers(0, 256, (h, w + 400), dtype=np.uint8), (0, 0), 2.0)
+    tex = cv2.normalize(tex, None, 0, 255, cv2.NORM_MINMAX)
+    return {f: np.ascontiguousarray(tex[:, off : off + w]) for f, off in enumerate(offsets)}
+
+
+def test_flow_carry_follows_a_panning_plate_before_its_track_starts() -> None:
+    """A camera pan that slows down (10 px a frame, then 2): the plate track starts at frame 20; optical flow carries
+    its box back to frame 0 on the plate, where the extrapolated box (2 px a frame) is 80 px off."""
+    offsets = [10 * f if f <= 10 else 100 + 2 * (f - 10) for f in range(41)]
+    grays = _pan_frames(offsets)
+    true = {f: [300.0 - off, 120.0, 340.0 - off, 140.0] for f, off in enumerate(offsets)}
+    track = _plate_track(list(range(20, 31)), [0.0, 0.0, 1.0, 1.0])
+    for r in track.per_frame:
+        r.box = list(true[r.frame])
+    carried = privacy.flow_carry(grays, [track], fps=15.0, media_size_proxy=(480, 270), n_frames=41, th=TH)
+    assert sorted(f for (_tid, f, side) in carried if side < 0) == list(range(0, 20))
+    for f in range(20):
+        box = carried[(track.track_id, f, -1)]
+        assert _inside(true[f], box), (f, box, true[f])
+        assert abs((box[0] + box[2]) / 2 - (true[f][0] + true[f][2]) / 2) < 3.0
+    kw = dict(fps=15.0, media_size_proxy=(480, 270), media_size_src=(480, 270), th=TH)
+    [guess] = privacy.track_boxes_at(0, [track], **kw)  # no flow: the extrapolated box misses the plate
+    assert not _inside(true[0], guess)
+    assert privacy.track_boxes_at(0, [track], carried=carried, **kw) == [carried[(track.track_id, 0, -1)]]
+
+
+def test_flow_carry_goes_on_kinematically_where_frames_are_missing() -> None:
+    offsets = [2 * f for f in range(30)]
+    grays = _pan_frames(offsets)
+    track = _plate_track(list(range(15, 25)), [0.0, 0.0, 1.0, 1.0])
+    for r in track.per_frame:
+        r.box = [300.0 - offsets[r.frame], 120.0, 340.0 - offsets[r.frame], 140.0]
+    del grays[10]  # the flow loses the box at frame 10
+    carried = privacy.flow_carry(grays, [track], fps=15.0, media_size_proxy=(480, 270), n_frames=30, th=TH)
+    w11 = carried[(track.track_id, 11, -1)][2] - carried[(track.track_id, 11, -1)][0]
+    w5 = carried[(track.track_id, 5, -1)][2] - carried[(track.track_id, 5, -1)][0]
+    assert w5 > w11  # past the loss it grows at track_carry_grow_per_s
+    assert set(privacy.carry_frames_needed([track], fps=15.0, n_frames=30, th=TH)) == set(range(0, 16)) | set(range(24, 30))
+
+
+async def test_display_video_rederives_byte_for_byte_from_the_original(runs: Path, tmp_path: Path) -> None:
+    """The blur stage's display video is a derived file: from the sealed original and the stored lanes,
+    rederive_display makes the same bytes again, outside the run, and keeps no unblurred copy."""
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not on PATH")
+    from walkaround import video as video_mod
+
+    run_id, role = "r1", "pickup"
+    paths.ensure_run_layout(run_id)
+    original = tmp_path / "walk.mp4"
+    _make_clip(original, w=640, h=360, fps=30, seconds=1.0)
+    c.write_json(paths.run_json(run_id), c.RunManifest(run_id=run_id, created_at=NOW, thresholds=TH))
+    media = TH["media"]
+    proxy = paths.proxy_path(run_id, role)
+    video_mod.make_proxy(original, proxy, fps=float(media["proxy_fps"]), max_edge=int(media["proxy_max_edge"]), preset=media["proxy_preset"], crf=int(media["proxy_crf"]))
+    record = video_mod.proxy_record(run_id, role, proxy)
+    sha = hashlib.sha256(original.read_bytes()).hexdigest()
+    walk = c.VideoRecord(role=role, original_filename="walk.mp4", bytes=original.stat().st_size, sha256_server=sha, proxy=record)
+    c.write_json(paths.video_json(run_id, role), walk)
+    plate = [c.IndexFrame(frame=f, objects=[c.IndexObject(id="1", box=[200 + 6 * f, 150, 280 + 6 * f, 190], c=0.8)]) for f in range(6, 12)]
+    c.write_json(paths.lane_index_path(run_id, role, c.Noun.LICENSE_PLATE), plate)
+    c.write_json(paths.lane_index_path(run_id, role, c.Noun.FACE), [])
+    tracks = privacy.walk_privacy_tracks(run_id, role, th=TH)
+    assert [(t.noun, [r.frame for r in t.per_frame]) for t in tracks] == [(c.Noun.LICENSE_PLATE, list(range(6, 12)))]
+    blurred, _deletion = await privacy.render_blurred_proxy(run_id, role, tracks, fps=record.fps, th=TH)
+    assert not proxy.exists()
+    c.write_json(paths.video_json(run_id, role), walk.model_copy(update={"proxy_blurred": blurred}))
+    out = tmp_path / "again"
+    got = privacy.rederive_display(run_id, role, original, out)
+    assert got["proxy_matches_sealed"] and got["matches_sealed"], got
+    assert got["blurred_sha256"] == blurred.sha256 and (out / f"{role}.proxy_blurred.mp4").is_file()
+    assert sorted(p.name for p in out.iterdir()) == [f"{role}.proxy_blurred.mp4"]  # the unblurred proxy is gone
+    first = video_mod.read_frame_at(out / f"{role}.proxy_blurred.mp4", 0.0)
+    clean = video_mod.read_frame_at(original, 0.0)
+    clean = cv2.resize(clean, (first.shape[1], first.shape[0]), interpolation=cv2.INTER_AREA)
+    assert _changed(first[150:190, 236:316], clean[150:190, 236:316]) > 0.5  # frame 0 is carried from the frame 6 sighting
+    other = tmp_path / "other.mp4"
+    _make_clip(other, w=640, h=360, fps=30, seconds=0.6)
+    with pytest.raises(ValueError, match="not the sealed"):
+        privacy.rederive_display(run_id, role, other, out)
+    with pytest.raises(ValueError, match="never writes inside the run"):
+        privacy.rederive_display(run_id, role, original, paths.run_dir(run_id) / "media")
 
 
 # LIVE -----------------------------------------------------------------------------------------------------------------------
