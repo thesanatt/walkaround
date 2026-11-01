@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.test_claim import KF, TH, FakeSpark, answers, derive, install, make_run, marks_answer, photo, runs, upload  # noqa: F401
+from tests.test_claim import KF, PANEL, TH, FakeSam, FakeSpark, answers, default_dets, derive, install, make_run, marks_answer, photo, rect_mask, runs, upload  # noqa: F401
 from walkaround import claim, paths, spark_client
 from walkaround import contracts as c
 
@@ -101,3 +101,16 @@ def test_a_tight_claim_rebuilds_from_its_answers_with_no_call(runs: Path, monkey
     again = claim.rebuild_claim("r", out.claim_id, th=TH, write=False)
     assert again.model_dump(mode="json") == out.model_dump(mode="json")
     assert claim.rebuild_claim("r", out.claim_id, th=rule_off(), write=False).match.reasons == ["L4", "L3", "K12", "K4"]  # thresholds without the leaf: the old caps
+
+
+def test_a_claim_decides_on_its_stored_answers_so_it_rebuilds_byte_identical(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # integration 11/1: a SAM confidence kept at full precision put a vote score across a 6-place rounding step, so the
+    # live claim and its rebuild (which reads the stored answers) differed by 1e-6 (pairC_core3_claim claim_4)
+    make_run("r", offsets=((0.05, 0.0),))
+    dets = default_dets()
+    dets["trunk lid"] = [(rect_mask(PANEL), 0.600000633)]  # the lid covers half the photo: 0.5 x c sits on a rounding step
+    assert round(0.5 * 0.600000633, 6) != round(0.5 * round(0.600000633, 6), 6)
+    install(monkeypatch, sam=FakeSam(dets))
+    out = derive("r", photo())
+    stored = paths.claim_record_path("r", out.claim_id).read_bytes()
+    assert c.json_bytes(claim.rebuild_claim("r", out.claim_id, th=TH, write=False)) == stored

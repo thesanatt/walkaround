@@ -1588,6 +1588,9 @@ async def derive_claim(
         except NeedAnswers as need:
             answers = await fetch(need.asks, answers, img, view, th)
             await asyncio.to_thread(write_json, answers_path(run_id, claim_id), answers)  # a crash after a paid call keeps the answer
+            # decide on the answers as stored (floats at 6 places), as a rebuild does: a SAM confidence such as 49/81 kept
+            # at full precision put a vote score on the other side of a rounding step (pairC_core3_claim claim_4, 11/1)
+            answers = await asyncio.to_thread(read_json, answers_path(run_id, claim_id), ClaimAnswers)
     else:
         raise RuntimeError("claim decision kept asking for answers")
     await asyncio.to_thread(_write, view, answers, claim)
