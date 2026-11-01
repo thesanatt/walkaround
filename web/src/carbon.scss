@@ -1,0 +1,30 @@
+// Carbon, only what the app uses: the theme tokens (white light, g100 dark) and three component styles. Notification,
+// radio and checkbox were measured at 110, 24 and 26 kB of CSS, so those stay native, styled with the same tokens.
+// The fonts come from @fontsource in main.tsx, so Carbon's own @font-face rules are off.
+@use '@carbon/styles/scss/config' with (
+  $css--font-face: false,
+  $css--reset: false
+);
+@use '@carbon/styles/scss/themes';
+@use '@carbon/styles/scss/theme';
+@use '@carbon/styles/scss/utilities/layout';
+@use '@carbon/styles/scss/components/button';
+@use '@carbon/styles/scss/components/tag';
+@use '@carbon/styles/scss/components/progress-bar';
+
+:root {
+  @include theme.theme(themes.$white);
+  // the size tokens Carbon's button reads (height, padding), without the layout context classes
+  @include layout.emit-layout-tokens();
+}
+
+// Same switch as before: the system setting, unless a page pins data-theme (the kiosk pins light unless ?theme=dark).
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    @include theme.theme(themes.$g100);
+  }
+}
+
+:root[data-theme='dark'] {
+  @include theme.theme(themes.$g100);
+}

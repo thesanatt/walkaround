@@ -6,6 +6,7 @@ import { Link, matchPath, useLocation, type Location } from './lib/router.tsx';
 import { ClaimPage } from './pages/ClaimPage.tsx';
 import { HomePage } from './pages/HomePage.tsx';
 import { SheetPage } from './pages/SheetPage.tsx';
+import { UploadPage } from './pages/UploadPage.tsx';
 import { VerifyPage } from './pages/VerifyPage.tsx';
 import type { StatusResponse } from './contracts/types.ts';
 
@@ -14,10 +15,11 @@ const RunPage = lazy(() => import('./pages/RunPage.tsx').then((m) => ({ default:
 const KioskPage = lazy(() => import('./pages/KioskPage.tsx').then((m) => ({ default: m.KioskPage })));
 const loading = <p className="muted">loading</p>;
 
-// The routes app.py serves as this app: /, /run/{id}, /run/{id}/sheet, /claim, /kiosk/{id}, /verify.
+// The routes app.py serves as this app: /, /upload, /run/{id}, /run/{id}/sheet, /claim, /kiosk/{id}, /verify.
 function page(loc: Location, status: StatusResponse | null) {
   let m: Record<string, string> | null;
   if (loc.path === '/') return <HomePage status={status} />;
+  if (loc.path === '/upload') return <UploadPage status={status} />;
   if ((m = matchPath('/run/:id', loc.path)))
     return (
       <Suspense fallback={loading}>
@@ -31,7 +33,7 @@ function page(loc: Location, status: StatusResponse | null) {
     <div>
       <h1>Nothing at this address</h1>
       <p>
-        <Link to="/">Go to the upload page.</Link>
+        <Link to="/upload">Go to the upload page.</Link>
       </p>
     </div>
   );

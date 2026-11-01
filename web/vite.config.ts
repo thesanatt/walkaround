@@ -14,6 +14,8 @@ const proxy: Record<string, ProxyOptions> | undefined = backend
 
 export default defineConfig({
   plugins: [react(), ...(backend ? [] : [mockApi()])],
+  // Carbon's Sass still uses syntax newer Sass warns about; those warnings are about node_modules, not this app.
+  css: { preprocessorOptions: { scss: { quietDeps: true, silenceDeprecations: ['if-function', 'global-builtin', 'import'] } } },
   server: { port: 5173, proxy },
   preview: { port: 4173, proxy },
   build: {

@@ -60,13 +60,20 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
   return (
     <div className="sheet-page">
       {!kiosk ? (
-        <div className="run-head">
-          <h1>
-            sheet for run <span className="mono">{runId}</span>
-          </h1>
-          <div className="controls">
-            <Link to={`/run/${encodeURIComponent(runId)}`}>back to the run</Link>
-            {pdf === 'ready' ? <a href={routes.sheetPdf(runId)}>evidence.pdf</a> : <span className="muted">{pdf === 'checking' ? 'checking the PDF' : 'PDF retry'}</span>}
+        <div className="sheet-head">
+          <p className="result-meta">
+            <Link to={`/run/${encodeURIComponent(runId)}`}>Back to the result</Link>. Run <span className="mono">{runId}</span>
+          </p>
+          <h1>Your sealed evidence sheet</h1>
+          <p className="sheet-lead">It lists both walks' sealed hashes, when they were sealed, and every panel with the rule that decided it. Anyone can check it with the steps on the verify page.</p>
+          <div className="sheet-actions">
+            {pdf === 'ready' ? (
+              <a href={routes.sheetPdf(runId)} className="cds--btn cds--btn--primary">
+                Download the PDF
+              </a>
+            ) : (
+              <span className="muted">{pdf === 'checking' ? 'checking the PDF' : 'The PDF is being retried; the sheet below is complete.'}</span>
+            )}
             <a href={routes.bundleZip(runId)}>bundle.zip</a>
             <a href={routes.sheetJson(runId)}>sheet.json</a>
           </div>

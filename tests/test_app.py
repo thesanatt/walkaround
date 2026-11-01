@@ -328,7 +328,7 @@ def test_sample_endpoint_is_flagged_precomputed(client: TestClient, orch: Orches
 def test_healthz_and_spa_fallback(client: TestClient) -> None:
     health = client.get("/healthz").json()
     assert health["ok"] is True and health["engine"] == "meta-model-api" and health["probe_ok"] is None and health["free_bytes"] > 0
-    for route in ("/", "/run/abc", "/run/abc/sheet", "/claim", "/kiosk/abc", "/verify"):
+    for route in ("/", "/upload", "/run/abc", "/run/abc/sheet", "/claim", "/kiosk/abc", "/verify"):
         response = client.get(route)
         assert response.status_code == 200 and response.headers["content-type"].startswith("text/html") and "Walkaround" in response.text
 

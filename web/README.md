@@ -2,8 +2,9 @@
 
 The browser half of Walkaround:
 
-- **Upload page.** The phone hashes each walk with hash-wasm in a Web Worker while it uploads in 8 MB chunks, then shows the seal card with the SHA-256 prefix.
-- **Run page.** One pure reducer (`src/state/reducer.ts`) is fed by either driver: live server-sent events, or a stored run replayed with delays. Each SAM 3.1 lane is parsed by `@meta-sam/parser` in a worker. The outlines are drawn by frame index over the blurred walk, which plays through `@meta-sam/react` and `@meta-sam/video`. Below the walks: how the run was checked (each model and what it did, counted from the run's files), the coverage car with the top-up form, the crops, the match with its second looks and the two dates, a compare-in-place toggle (the match cut), the Stays Put clips, the narration chips and the latest claim placed against the run.
+- **Home page** (`/`). The problem in one line, the answer in one line, one button to start and one to open the sample pair, and one real frame from the sample. The design system and layout rules are in DESIGN.md (Carbon, through `@carbon/styles`).
+- **Upload page** (`/upload`). Two drop zones, pickup and return, or the pickup alone at the lot. The phone hashes each walk with hash-wasm in a Web Worker while it uploads in 8 MB chunks, then shows the seal card with the SHA-256 prefix.
+- **Run page.** It opens on the answer ("1 mark was already there at pickup. 0 new. 11 need your eye.", counted in `src/lib/result.ts`) and one card per mark, pickup and return frames side by side; everything below sits inside "How it was checked", closed by default. One pure reducer (`src/state/reducer.ts`) is fed by either driver: live server-sent events, or a stored run replayed with delays. Each SAM 3.1 lane is parsed by `@meta-sam/parser` in a worker. The outlines are drawn by frame index over the blurred walk, which plays through `@meta-sam/react` and `@meta-sam/video`. Below the walks: how the run was checked (each model and what it did, counted from the run's files), the coverage car with the top-up form, the crops, the match with its second looks and the two dates, a compare-in-place toggle (the match cut), the Stays Put clips, the narration chips and the latest claim placed against the run.
 - **Claim page.** A claim photo and the bill's words go to `POST /api/claims`; the answer is a `contracts.Claim`, shown with its exit in plain words and its rule id, the served pixelated copy of the claim photo beside the dated pickup frame, and a one-tap panel chooser after E2 or E2b (one button when only one panel fits; the tap is recorded as the renter's input).
 - **Kiosk route.** A 1920 x 1080 stage for screen capture, one scene per video beat.
 
@@ -15,7 +16,7 @@ Node 22.18 or newer.
 
 | command | what it does |
 |---|---|
-| `npm install` | installs the pinned packages |
+| `IBM_TELEMETRY_DISABLED=true npm install` | installs the pinned packages (the variable turns off the install-time telemetry of Carbon's `@ibm/telemetry-js`) |
 | `npm run dev` | Vite on port 5173 with the mock backend (no FastAPI needed) |
 | `WALKAROUND_API=http://127.0.0.1:8000 npm run dev` | the same, with `/api` and `/healthz` proxied to the FastAPI app |
 | `npm run build` | type-checks and builds `dist/`, which app.py serves (`/assets` plus the SPA routes) |

@@ -296,31 +296,31 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
 
   return (
     <div className="claim">
-      <h1>I have a claim photo</h1>
+      <h1>Place a claim photo</h1>
       <p className="lead">
-        Paste the photo and the words from the bill. Muse Spark names the panel, SAM 3.1 image requests check the name, and the dated pickup frame of that panel
-        comes back. A size is printed only when a ruler (the plate, or a wheel with its tire size) is in frame, and always with its range.
+        Add the photo from the damage bill and the bill's words. Muse Spark names the panel, SAM 3.1 checks the name, and your dated pickup frame of that panel
+        comes back next to the photo. A size is printed only when a ruler (the plate, or a wheel with its tire size) is in frame, and always with its range.
       </p>
       <form className="form-grid" onSubmit={submit}>
         <label>
-          run id (the end of your run page address)
+          Run id (the end of your result page address)
           <input value={runId} onChange={(e) => setRunId(e.target.value.trim())} required spellCheck={false} />
         </label>
         <label>
-          the claim photo
+          The claim photo
           <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] ?? null)} required />
         </label>
         <label>
-          the words on the bill
+          The words on the bill
           <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="scratch, right rear door" />
         </label>
         <label>
-          tire size from the sidewall, only for a wheel mark
+          Tire size from the sidewall, only for a wheel mark
           <input value={tire} onChange={(e) => setTire(e.target.value.trim())} placeholder="225/45R17" spellCheck={false} />
         </label>
         <div>
-          <button type="submit" className="btn primary" disabled={busy || !image || !runId}>
-            {busy ? 'placing the claim' : 'place the claim against the pickup walk'}
+          <button type="submit" className="cds--btn cds--btn--primary" disabled={busy || !image || !runId}>
+            {busy ? 'Placing the claim' : 'Place the claim against the pickup walk'}
           </button>
         </div>
       </form>

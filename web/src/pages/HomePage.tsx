@@ -1,122 +1,52 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { api, ApiError } from '../api/client.ts';
-import type { RunManifest, StatusResponse, WalkRole } from '../contracts/types.ts';
-import { Uploader, uploadBusy, type UploadUi } from '../components/Uploader.tsx';
-import { PRIVACY_BEFORE } from '../lib/privacy.ts';
+import { MarkFrame } from '../components/MarkCard.tsx';
+import type { Keyframe, Mark, StatusResponse, Verdict } from '../contracts/types.ts';
+import { RunFiles } from '../lib/files.tsx';
+import { panelName } from '../lib/panels.ts';
 import { Link, navigate } from '../lib/router.tsx';
-import { HashMismatch, limitsOf, newUploadId, sharedHashWorker, uploadFile } from '../lib/upload.ts';
 
-type Kind = 'pickup_check' | 'pair';
-
-function counterText(status: StatusResponse | null): string {
-  if (!status) return 'Checking how many live runs are left today.';
-  if (status.paused) return 'Live runs are off on this server right now (no API key, or the model API is not answering). The sample pair is precomputed and always opens.';
-  if (status.pickup_left <= 0 && status.pairs_left <= 0) return 'No live runs are left today. The sample pair is precomputed and always opens.';
-  return `${status.pickup_left} pickup ${status.pickup_left === 1 ? 'check' : 'checks'} and ${status.pairs_left} full ${status.pairs_left === 1 ? 'pair' : 'pairs'} left today.`;
+interface SampleFrame {
+  runId: string;
+  kf: Keyframe;
+  marks: Mark[];
+  credit: string | null;
 }
 
-// The first screen: the pickup drop zone, then the precomputed sample, the pair option, the plate choice and the counter.
-export function HomePage({ status }: { status: StatusResponse | null }) {
-  const [kind, setKind] = useState<Kind>('pickup_check');
-  const [keepPlate, setKeepPlate] = useState(false);
-  const [run, setRun] = useState<RunManifest | null>(null);
-  const [uploads, setUploads] = useState<Partial<Record<WalkRole, UploadUi>>>({});
-  const [error, setError] = useState<string | null>(null);
-  const [sampleNote, setSampleNote] = useState<string | null>(null);
-  const creating = useRef<Promise<RunManifest> | null>(null);
-  const uploadIds = useRef<Partial<Record<WalkRole, string>>>({});
-  const attempts = useRef<Record<WalkRole, number>>({ pickup: 0, return: 0 });
-
-  const ensureRun = (): Promise<RunManifest> => {
-    if (run) return Promise.resolve(run);
-    creating.current ??= api
-      .createRun({ mode: 'car', kind, keep_plate: keepPlate })
-      .then((r) => {
-        setRun(r);
-        return r;
-      })
-      .catch((err: unknown) => {
-        creating.current = null;
-        throw err;
-      });
-    return creating.current;
-  };
-
-  // One attempt. A retry keeps the upload id, so the server's chunks count and finalize names only what is missing.
-  const send = async (role: WalkRole, file: File, resume: boolean) => {
-    setError(null);
-    const attempt = ++attempts.current[role];
-    // PUTs still in flight from an earlier attempt report late; only the newest attempt writes the card.
-    const patch = (fn: (u: UploadUi) => UploadUi) =>
-      setUploads((prev) => {
-        const current = prev[role];
-        return current && attempts.current[role] === attempt ? { ...prev, [role]: fn(current) } : prev;
-      });
-    const uploadId = uploadIds.current[role] ?? newUploadId();
-    uploadIds.current[role] = uploadId;
-    setUploads((prev) => ({ ...prev, [role]: { file, progress: resume ? (prev[role]?.progress ?? null) : null, record: null, sha256Browser: null, error: null, mismatch: null } }));
-    try {
-      const r = await ensureRun();
-      const result = await uploadFile(file, {
-        runId: r.run_id,
-        role,
-        keepPlate,
-        worker: sharedHashWorker(),
-        uploadId,
-        resume,
-        limits: limitsOf(r),
-        onProgress: (progress) => patch((u) => ({ ...u, progress })),
-      });
-      patch((u) => ({ ...u, record: result.record, sha256Browser: result.sha256Browser }));
-    } catch (err) {
-      if (err instanceof HashMismatch) {
-        delete uploadIds.current[role]; // the server deleted those bytes: the next file starts a fresh upload
-        patch((u) => ({ ...u, mismatch: { browser: err.sha256Browser, server: err.sha256Server } }));
-      } else if (err instanceof ApiError && err.status === 429) {
-        const b = (err.body ?? {}) as { reason?: string; pickup_left?: number; pairs_left?: number };
-        setError(`${b.reason ?? 'Live runs are paused'}. ${b.pickup_left ?? 0} pickup checks and ${b.pairs_left ?? 0} full pairs left today. The sample pair is precomputed.`);
-        delete uploadIds.current[role];
-        setUploads((prev) => ({ ...prev, [role]: undefined }));
-      } else {
-        patch((u) => ({ ...u, error: err instanceof Error ? err.message : String(err) }));
+// One real frame from the sample pair: the pickup crop of its first "already there" mark, boxed. Read as a viewer who
+// is not the run owner, like the kiosk. Nothing shows when the server has no sample or the files do not load.
+function useSampleFrame(): SampleFrame | null {
+  const [frame, setFrame] = useState<SampleFrame | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const { run_id: runId } = await api.sample();
+        const [run, verdicts, marks, keyframes] = await Promise.all([
+          api.run(runId),
+          api.file<Verdict[]>(runId, 'derived/verdicts.json', 'kiosk'),
+          api.file<Mark[]>(runId, 'derived/marks.json', 'kiosk'),
+          api.file<Keyframe[]>(runId, 'derived/keyframes.json', 'kiosk'),
+        ]);
+        const v = verdicts.find((x) => x.label === 'already_there');
+        const mark = marks.find((m) => v?.mark_ids.includes(m.mark_id) && m.role === 'pickup');
+        const kf = keyframes.find((k) => k.kf_id === mark?.kf_id);
+        if (live && mark && kf?.crop) setFrame({ runId, kf, marks: [mark], credit: run.footage_credit ?? null });
+      } catch {
+        // no sample on this server: the page reads fine without the picture
       }
-    }
-  };
-
-  // A file picked or dropped is a fresh upload; only the resume button reuses the chunks already sent.
-  const onFile = (role: WalkRole, file: File) => {
-    delete uploadIds.current[role];
-    void send(role, file, false);
-  };
-
-  const onRetry = (role: WalkRole) => {
-    const u = uploads[role];
-    if (!u) return;
-    const started = (u.progress?.sentChunks ?? 0) > 0 || u.progress?.sha256 != null;
-    void send(role, u.file, started);
-  };
-
-  const roles: WalkRole[] = kind === 'pair' ? ['pickup', 'return'] : ['pickup'];
-  const complete = run !== null && roles.every((r) => uploads[r]?.record);
-  const uploading = roles.some((r) => uploadBusy(uploads[r] ?? null));
-
-  useEffect(() => {
-    if (!complete || !run) return;
-    const handle = setTimeout(() => navigate(`/run/${encodeURIComponent(run.run_id)}`), 1500);
-    return () => clearTimeout(handle);
-  }, [complete, run]);
-
-  // Closing or reloading the tab mid-upload loses the bytes not yet sent; the browser asks first.
-  useEffect(() => {
-    if (!uploading) return;
-    const hold = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = '';
+    })();
+    return () => {
+      live = false;
     };
-    window.addEventListener('beforeunload', hold);
-    return () => window.removeEventListener('beforeunload', hold);
-  }, [uploading]);
+  }, []);
+  return frame;
+}
+
+export function HomePage({ status }: { status: StatusResponse | null }) {
+  const frame = useSampleFrame();
+  const [sampleNote, setSampleNote] = useState<string | null>(null);
 
   const openSample = async () => {
     setSampleNote(null);
@@ -128,93 +58,52 @@ export function HomePage({ status }: { status: StatusResponse | null }) {
     }
   };
 
-  const locked = run !== null;
-  // The daily counter only gates creating a run. Once this run exists it holds its own slot, and the counter (which
-  // counts that reservation) must not lock its second walk or a retry.
-  const paused = !run && Boolean(status && (status.paused || (kind === 'pair' ? status.pairs_left <= 0 : status.pickup_left <= 0)));
-  const zoneDisabled = (u: UploadUi | undefined) => paused || uploadBusy(u ?? null) || Boolean(u?.record);
-
   return (
     <div className="home">
-      <h1>Film the car at pickup. Seal the file before you leave the lot.</h1>
-      <p className="home-lead">
-        Upload the pickup walk before you drive off, or within the hour on wifi. Your phone hashes the file while it uploads and the server stamps it on arrival,
-        before any model sees it. A seal made after the return proves only that the file existed then.
-      </p>
+      <section className="home-hero">
+        <div>
+          <p className="home-problem">Rental companies bill renters for damage they did not cause.</p>
+          <h1>Film the car at pickup and at return, and Walkaround shows panel by panel what was already there, with sealed, timestamped proof.</h1>
+          <div className="home-actions">
+            <Link to="/upload" className="cds--btn cds--btn--primary">
+              Start with your two videos
+            </Link>
+            <button type="button" className="cds--btn cds--btn--tertiary" onClick={() => void openSample()}>
+              Open the sample pair
+            </button>
+          </div>
+          {sampleNote ? <p className="home-note">{sampleNote}</p> : null}
+          {status?.paused ? <p className="home-note">Live checks are off on this server right now. The sample pair always opens.</p> : null}
+        </div>
+        {frame ? (
+          <RunFiles runId={frame.runId} view="kiosk">
+            <figure className="home-figure">
+              <MarkFrame kf={frame.kf} marks={frame.marks} role="pickup" zoom={false} />
+              <figcaption>
+                From the sample pair: the {panelName(frame.kf.panel_id)} at pickup. The boxed spot is in the same place at return, so it was already there.
+              </figcaption>
+              {frame.credit ? <p className="footage-credit">{frame.credit}</p> : null}
+            </figure>
+          </RunFiles>
+        ) : (
+          <div className="home-figure home-figure-empty" aria-hidden="true" />
+        )}
+      </section>
 
-      <fieldset className="home-choice" disabled={locked}>
-        <legend className="sr-only">what to upload</legend>
-        <label>
-          <input type="radio" name="kind" checked={kind === 'pickup_check'} onChange={() => setKind('pickup_check')} />
-          pickup check, one video
-        </label>
-        <label>
-          <input type="radio" name="kind" checked={kind === 'pair'} onChange={() => setKind('pair')} />
-          pickup and return, two videos
-        </label>
-        <label>
-          <input type="checkbox" checked={keepPlate} onChange={(e) => setKeepPlate(e.target.checked)} />
-          This is the car I rented: keep the plate on my sheet
-        </label>
-      </fieldset>
-
-      <div className="dropzones">
-        <Uploader
-          role="pickup"
-          title="pickup walk"
-          hint="Drop the video here or tap to choose. One slow lap, about 3 seconds per panel."
-          disabled={zoneDisabled(uploads.pickup)}
-          state={uploads.pickup ?? null}
-          onFile={(f) => onFile('pickup', f)}
-          onRetry={() => onRetry('pickup')}
-        />
-        {kind === 'pair' ? (
-          <Uploader
-            role="return"
-            title="return walk"
-            hint="The same car at return, filmed the same way."
-            disabled={zoneDisabled(uploads.return)}
-            state={uploads.return ?? null}
-            onFile={(f) => onFile('return', f)}
-            onRetry={() => onRetry('return')}
-          />
-        ) : null}
-      </div>
-      {error ? <p className="error-line">{error}</p> : null}
-      {run && !complete ? (
-        // Leaving now would strand the walk still to send: the run page cannot take an upload.
-        <p className="small">
-          Run <span className="mono">{run.run_id}</span>. {uploading ? 'Keep this tab open until the upload finishes.' : 'The run starts once every walk is in.'} The run
-          page link appears here then.
-        </p>
-      ) : null}
-      {run && complete ? (
-        <p className="small">
-          Run <span className="mono">{run.run_id}</span>. The run page is your receipt: close the tab and come back, and it picks up where it was.{' '}
-          <Link to={`/run/${encodeURIComponent(run.run_id)}`}>open the run page</Link> (opening now)
-        </p>
-      ) : null}
-
-      <p className="counter-line">{counterText(status)}</p>
-
-      <div className="sample-row">
-        <button type="button" className="btn" onClick={() => void openSample()}>
-          open the sample pair (precomputed)
-        </button>
-        <p className="small muted">A stored run replayed with fixed delays. No model is called, and a badge on screen says it is a replay.</p>
-        {sampleNote ? <p className="small">{sampleNote}</p> : null}
-      </div>
-
-      <div className="home-foot">
-        <p className="small">
-          <Link to="/claim">I have a claim photo</Link>: place the photo from a damage bill against a finished run's pickup walk.
-        </p>
-        <p className="privacy-line">{PRIVACY_BEFORE}</p>
-        <p className="privacy-line">
-          Faces are always blurred. The plate is blurred unless you tick the box above; then it stays only in your run's sheet frames and PDF, served only at your run
-          address and never on the sample or kiosk screens. Runs are deleted after 24 hours.
-        </p>
-      </div>
+      <section className="home-more" aria-label="more">
+        <div>
+          <h2>Got a damage bill with a photo?</h2>
+          <p>
+            <Link to="/claim">Place the claim photo</Link> against your pickup video. Walkaround finds the panel and shows your dated pickup frame next to it.
+          </p>
+        </div>
+        <div>
+          <h2>Want to check a sheet yourself?</h2>
+          <p>
+            Every sheet carries hashes and timestamps you can check with standard tools. <Link to="/verify">Here is how.</Link>
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

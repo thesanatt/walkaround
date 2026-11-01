@@ -41,14 +41,14 @@ export function matchPath(pattern: string, path: string): Record<string, string>
   return params;
 }
 
-export function Link({ to, children, className, replace }: { to: string; children: ReactNode; className?: string; replace?: boolean }) {
+export function Link({ to, children, className, replace, current }: { to: string; children: ReactNode; className?: string; replace?: boolean; current?: boolean }) {
   const onClick = (e: MouseEvent<HTMLAnchorElement>) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     navigate(to, { replace: replace ?? false });
   };
   return (
-    <a href={to} className={className} onClick={onClick}>
+    <a href={to} className={className} onClick={onClick} aria-current={current ? 'page' : undefined}>
       {children}
     </a>
   );

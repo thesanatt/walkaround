@@ -54,7 +54,7 @@ from .orchestrator import (
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 ROLE = re.compile(r"^(pickup|return|topup_[0-9]+|claim_[0-9]+)$")
-SPA_ROUTES = ("/", "/run/{run_id}", "/run/{run_id}/sheet", "/claim", "/kiosk/{run_id}", "/verify")
+SPA_ROUTES = ("/", "/upload", "/run/{run_id}", "/run/{run_id}/sheet", "/claim", "/kiosk/{run_id}", "/verify")
 EXEMPT_PATHS = re.compile(r"^/api/(uploads/[^/]+/chunks/[^/]+|runs/[^/]+/topup|claims)$")
 NEVER_SERVED_TOPS = ("quarantine", "uploads")
 NEVER_SERVED_SUFFIXES = (".orig", ".part", ".tmp", ".proxy.mp4")

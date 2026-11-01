@@ -9,6 +9,7 @@ import { bestKeyframe, CropView } from '../components/CropView.tsx';
 import { FragmentsRow } from '../components/FragmentsRow.tsx';
 import { HowChecked } from '../components/HowChecked.tsx';
 import { LedgerStrip } from '../components/LedgerStrip.tsx';
+import { MarkCard, MarkFrame } from '../components/MarkCard.tsx';
 import { MatchPane } from '../components/MatchPane.tsx';
 import { NarrationChips } from '../components/NarrationChips.tsx';
 import { PanelList } from '../components/PanelList.tsx';
@@ -22,12 +23,13 @@ import { controlTrack, StaysPutPair } from '../components/StaysPutPair.tsx';
 import { TopUpBanner } from '../components/TopUpBanner.tsx';
 import { VerdictList } from '../components/VerdictList.tsx';
 import { WalkPlayer } from '../components/WalkPlayer.tsx';
-import type { Coverage, PanelTrack, ReplayMode } from '../contracts/types.ts';
+import type { Coverage, Keyframe, Mark, PanelTrack, ReplayMode } from '../contracts/types.ts';
 import { useLanes } from '../lanes/useLanes.ts';
 import { RunFiles } from '../lib/files.tsx';
 import { focusTrack, panelFocus } from '../lib/focus.ts';
 import { formatDate } from '../lib/format.ts';
 import { staysPutCalibrated } from '../lib/lines.ts';
+import { answerSentences, CARD_ORDER, GROUP_TITLE, notComparableLine, tally } from '../lib/result.ts';
 import { replayBadgeDate, sheetFileHash } from '../lib/runview.ts';
 import { colorForLane, colorForPanel, DRAWN_LANES, laneId, nounOfLane, panelName } from '../lib/panels.ts';
 import { Link, navigate } from '../lib/router.tsx';
@@ -80,6 +82,19 @@ export function useTrackStyle(tracks: PanelTrack[]) {
   return { colorFor, labelFor };
 }
 
+// A pickup check has no second walk to match: each panel's best frame that holds marks, boxed.
+export function panelsWithMarks(keyframes: Keyframe[], marks: Mark[]): Keyframe[] {
+  const out: Keyframe[] = [];
+  const seen = new Set<string>();
+  const sorted = [...keyframes].filter((k) => k.role === 'pickup' && marks.some((m) => m.kf_id === k.kf_id)).sort((a, b) => b.score.total - a.score.total);
+  for (const k of sorted) {
+    if (seen.has(k.panel_id)) continue;
+    seen.add(k.panel_id);
+    out.push(k);
+  }
+  return out;
+}
+
 const MODES: [string, string][] = [
   ['live', 'live, as it happens'],
   ['fixed', 'replay with fixed delays'],
@@ -99,6 +114,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   const [roleTab, setRoleTab] = useState('pickup');
   const [seek, setSeek] = useState<Record<string, number | null>>({});
   const [coverageOverride, setCoverageOverride] = useState<Coverage | null>(null);
+  const [open, setOpen] = useState(false);
 
   const badgeDate = replayBadgeDate(state);
   const panelId = selected ?? defaultPanel(state);
@@ -143,18 +159,165 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
           ? `Could not load this run: ${detail ?? 'unknown error'}.`
           : null;
 
+  const done = state.completed || state.stage.name === 'done' || state.stage.name === 'partial';
+  const failed = state.stage.name === 'failed';
+  const cards = CARD_ORDER.map((label) => ({ label, verdicts: state.verdicts.filter((v) => v.label === label) })).filter((g) => g.verdicts.length);
+  const pickupPanels = roles.length === 1 ? panelsWithMarks(state.keyframes, state.marks) : [];
+  const answer = roles.length > 1 && state.verdicts.length ? answerSentences(tally(state.verdicts)) : null;
+  const ncLine = roles.length > 1 ? notComparableLine(state.verdicts) : null;
+  const pickupMarks = state.marks.filter((m) => m.role === 'pickup').length;
+
+  // A card's "How this was checked": the panel opens in every view below, and the section opens on the match.
+  const openDetails = (id: string) => {
+    choosePanel(id);
+    setOpen(true);
+    requestAnimationFrame(() => (document.getElementById('checked-match') ?? document.querySelector('details.checked'))?.scrollIntoView({ block: 'start' }));
+  };
+
+  // The two walks with SAM 3.1's outlines: the thing to watch while a check runs, then part of How it was checked.
+  const walks = (
+    <div className={`walks walks-${roles.length}`}>
+      {roles.map((role) => {
+        const media = state.media[role];
+        const blurred = media?.blurredPath ?? state.videos[role]?.proxy_blurred?.path ?? null;
+        return (
+          <section key={role} className="walk-block" aria-label={`${role} walk`}>
+            <div className="walk-title">
+              <h2>{role} walk</h2>
+              <span className="small muted mono">
+                {media?.ffprobe ? `${media.ffprobe.display_width}x${media.ffprobe.display_height}, ${media.ffprobe.duration_s.toFixed(0)} s` : ''}
+                {media?.proxy ? `, proxy ${media.proxy.width}x${media.proxy.height} at ${media.proxy.fps} fps` : ''}
+              </span>
+            </div>
+            {blurred ? (
+              <WalkPlayer
+                src={routes.file(runId, blurred)}
+                role={role}
+                store={lanes.store}
+                lanes={DRAWN_LANES}
+                colorFor={colorFor}
+                labelFor={labelFor}
+                seekFrame={seek[role] ?? null}
+              />
+            ) : (
+              <div className="walk-placeholder">
+                {state.stage.name === 'failed'
+                  ? 'The run failed before this walk was blurred, so there is no video to show. The error is above.'
+                  : media?.upload || state.videos[role]
+                    ? 'The video appears here after plates and faces are blurred. This page never receives the unblurred file.'
+                    : `The ${role} walk has not arrived yet.`}
+              </div>
+            )}
+            {state.run?.footage_credit ? <p className="footage-credit">{state.run.footage_credit}</p> : null}
+            <SealCard role={role} video={state.videos[role] ?? null} media={media} seal={state.seal} run={state.run} failed={state.stage.name === 'failed'} />
+          </section>
+        );
+      })}
+    </div>
+  );
+
   return (
     <RunFiles runId={runId}>
       <div className="run-page">
-        <div className="run-head">
-          <h1>
-            run <span className="mono">{runId}</span>
-          </h1>
-          {state.run ? (
-            <span className="small muted">
-              {state.run.kind === 'pair' ? 'pickup and return' : 'pickup check'}, created {formatDate(state.run.created_at)}
-            </span>
+        <p className="result-meta">
+          {state.run ? `${state.run.kind === 'pair' ? 'Pickup and return' : 'Pickup check'}, ${formatDate(state.run.created_at)}. ` : ''}
+          Run <span className="mono">{runId}</span>
+        </p>
+        {driverLine ? <p className="driver-line">{driverLine}</p> : null}
+
+        <section className="answer" aria-live="polite">
+          {failed ? (
+            <>
+              <h1>This check did not finish.</h1>
+              <StageLine state={state} />
+            </>
+          ) : done && roles.length > 1 ? (
+            <h1 className="answer-line">
+              {answer
+                ? answer.map((sentence, i) => (
+                    <span key={i}>{sentence} </span>
+                  ))
+                : 'No panel could be compared.'}
+            </h1>
+          ) : roles.length === 1 && done ? (
+            <h1 className="answer-line">
+              Your pickup video is sealed. Muse Spark found {pickupMarks} {pickupMarks === 1 ? 'mark' : 'marks'} on {pickupPanels.length}{' '}
+              {pickupPanels.length === 1 ? 'panel' : 'panels'}.
+            </h1>
+          ) : (
+            <>
+              <h1>{mode ? 'Replaying the sample check' : 'Checking your videos'}</h1>
+              <StageLine state={state} />
+              <p className="answer-sub">The answer shows here when the check is done. You can close this tab and come back to this address.</p>
+            </>
+          )}
+          {done && ncLine ? <p className="answer-sub">{ncLine}</p> : null}
+          {done && state.stage.name === 'partial' ? <StageLine state={state} /> : null}
+          {done && state.sheet.written ? (
+            <div className="answer-actions">
+              <Link to={`/run/${encodeURIComponent(runId)}/sheet`} className="cds--btn cds--btn--primary">
+                Open the sealed evidence sheet
+              </Link>
+              <Link to={`/claim?run=${encodeURIComponent(runId)}`} className="cds--btn cds--btn--tertiary">
+                Place a claim photo
+              </Link>
+            </div>
           ) : null}
+        </section>
+
+        {!done && !failed ? <div className="walks-live">{walks}</div> : null}
+
+        {!mode ? <TopUpBanner runId={runId} coverage={coverage} onCoverage={setCoverageOverride} /> : null}
+
+        {state.claim ? (
+          <section className="result-claim" aria-label="claim photo">
+            <h2>Your claim photo</h2>
+            <ClaimExit claim={state.claim} />
+          </section>
+        ) : null}
+
+        {cards.map((g) => (
+          <section key={g.label} className="mark-group" aria-label={GROUP_TITLE[g.label]}>
+            <h2>
+              {GROUP_TITLE[g.label]} <span className="count">{g.verdicts.length}</span>
+            </h2>
+            <div className="mark-cards">
+              {g.verdicts.map((v) => (
+                <MarkCard key={v.verdict_id} v={v} marks={markById} keyframes={state.keyframes} roles={roles} onDetails={openDetails} />
+              ))}
+            </div>
+          </section>
+        ))}
+        {pickupPanels.length ? (
+          <section className="mark-group" aria-label="marks at pickup">
+            <h2>
+              Marks at pickup <span className="count">{pickupMarks}</span>
+            </h2>
+            <div className="mark-cards">
+              {pickupPanels.map((kf) => (
+                <article key={kf.kf_id} className="mark-card">
+                  <header className="mark-card-head">
+                    <h3>{panelName(kf.panel_id)}</h3>
+                  </header>
+                  <MarkFrame kf={kf} marks={state.marks.filter((m) => m.kf_id === kf.kf_id)} role="pickup" zoom={false} />
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
+        {(cards.length || pickupPanels.length) && state.run?.footage_credit ? <p className="footage-credit">{state.run.footage_credit}</p> : null}
+
+        <details
+          className="checked"
+          open={open}
+          onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
+        >
+          <summary>
+            <span className="checked-title">How it was checked</span>
+            <span className="checked-hint">The models, both walks, every panel, the rules, the seal and the hashes.</span>
+          </summary>
+          <div className="checked-body">
+        <div className="run-head">
           <div className="controls">
             <label>
               <span className="sr-only">timing</span>
@@ -170,7 +333,6 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
             <Link to={`/claim?run=${encodeURIComponent(runId)}`}>claim photo</Link>
           </div>
         </div>
-        {driverLine ? <p className="driver-line">{driverLine}</p> : null}
         {progress && mode ? (
           <p className="driver-line mono small">
             replay {Math.round(progress.atMs / 1000)} s of {Math.round(progress.spanMs / 1000)} s, event {progress.done} of {progress.total}
@@ -180,7 +342,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
         <LedgerStrip ledger={state.ledger} />
         <QueueLine status={status} />
         <section className="checked-block" aria-label="how it was checked">
-          <h2>how it was checked</h2>
+          <h2>The models and what each did</h2>
           <HowChecked state={state} />
         </section>
         {state.errors.map((e, i) => (
@@ -189,44 +351,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
           </p>
         ))}
 
-        <div className={`walks walks-${roles.length}`}>
-          {roles.map((role) => {
-            const media = state.media[role];
-            const blurred = media?.blurredPath ?? state.videos[role]?.proxy_blurred?.path ?? null;
-            return (
-              <section key={role} className="walk-block" aria-label={`${role} walk`}>
-                <div className="walk-title">
-                  <h2>{role} walk</h2>
-                  <span className="small muted mono">
-                    {media?.ffprobe ? `${media.ffprobe.display_width}x${media.ffprobe.display_height}, ${media.ffprobe.duration_s.toFixed(0)} s` : ''}
-                    {media?.proxy ? `, proxy ${media.proxy.width}x${media.proxy.height} at ${media.proxy.fps} fps` : ''}
-                  </span>
-                </div>
-                {blurred ? (
-                  <WalkPlayer
-                    src={routes.file(runId, blurred)}
-                    role={role}
-                    store={lanes.store}
-                    lanes={DRAWN_LANES}
-                    colorFor={colorFor}
-                    labelFor={labelFor}
-                    seekFrame={seek[role] ?? null}
-                  />
-                ) : (
-                  <div className="walk-placeholder">
-                    {state.stage.name === 'failed'
-                      ? 'The run failed before this walk was blurred, so there is no video to show. The error is above.'
-                      : media?.upload || state.videos[role]
-                        ? 'The video appears here after plates and faces are blurred. This page never receives the unblurred file.'
-                        : `The ${role} walk has not arrived yet.`}
-                  </div>
-                )}
-                {state.run?.footage_credit ? <p className="footage-credit">{state.run.footage_credit}</p> : null}
-                <SealCard role={role} video={state.videos[role] ?? null} media={media} seal={state.seal} run={state.run} failed={state.stage.name === 'failed'} />
-              </section>
-            );
-          })}
-        </div>
+        {done || failed ? walks : null}
 
         <div className="run-grid">
           <div>
@@ -253,7 +378,6 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
                 </div>
               ) : null}
               <CoverageList coverage={coverage} roles={roles} />
-              {!mode ? <TopUpBanner runId={runId} coverage={coverage} onCoverage={setCoverageOverride} /> : null}
             </section>
           </div>
           <aside className="section">
@@ -274,7 +398,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
         </section>
 
         {roles.length > 1 ? (
-          <section className="section">
+          <section className="section" id="checked-match">
             <h2>match{panelId ? `: ${panelName(panelId)}` : ''}</h2>
             <p className="section-note">Pickup left, return right. Code writes every label; a model answer can only lower one to needs your eye.</p>
             <MatchPane
@@ -356,6 +480,8 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
           <h2>privacy</h2>
           <PrivacyCard state={state} />
         </section>
+          </div>
+        </details>
 
         {badgeDate !== null ? <ReplayBadge date={badgeDate} /> : null}
       </div>

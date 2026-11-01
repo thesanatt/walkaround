@@ -16,6 +16,7 @@ export interface UploadUi {
 
 export interface UploaderProps {
   role: 'pickup' | 'return';
+  step?: string;
   title: string;
   hint: string;
   disabled?: boolean;
@@ -32,7 +33,7 @@ export function uploadBusy(state: UploadUi | null): boolean {
 // One drop zone. accept="video/*" without capture, so a phone offers the photo library (the walk the renter already
 // filmed), the camera and files. capture="environment" would open the camera directly and hide the library.
 // TODO(Friday phone test): confirm the chooser on iOS Safari and Android Chrome with a camera-roll MOV.
-export function Uploader({ role, title, hint, disabled = false, state, onFile, onRetry }: UploaderProps) {
+export function Uploader({ role, step, title, hint, disabled = false, state, onFile, onRetry }: UploaderProps) {
   const id = useId();
   const [over, setOver] = useState(false);
   const pick = (file: File | undefined) => {
@@ -55,7 +56,7 @@ export function Uploader({ role, title, hint, disabled = false, state, onFile, o
     <div className="uploader">
       <label
         htmlFor={id}
-        className={`dropzone ${over ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+        className={`dropzone ${over ? 'active' : ''} ${disabled ? 'disabled' : ''} ${state?.record ? 'done' : ''}`}
         onDragOver={(e) => {
           e.preventDefault();
           if (!disabled) setOver(true);
@@ -63,8 +64,11 @@ export function Uploader({ role, title, hint, disabled = false, state, onFile, o
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
       >
+        {step ? <span className="dropzone-step">{step}</span> : null}
         <span className="dropzone-title">{title}</span>
         <span className="dropzone-hint">{state ? `${state.file.name}, ${formatBytes(state.file.size)}` : hint}</span>
+        {busy ? <span className="dropzone-state">{p ? `Sending, ${pct}%` : 'Starting'}</span> : null}
+        {state?.record ? <span className="dropzone-state done">Sealed</span> : null}
         <input id={id} type="file" accept="video/*" disabled={disabled} onChange={onChange} />
       </label>
       {busy ? (
@@ -72,7 +76,7 @@ export function Uploader({ role, title, hint, disabled = false, state, onFile, o
           <div className="progress" role="progressbar" aria-label={`${role} upload`} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
             <span style={{ width: `${pct}%` }} />
           </div>
-          <p className="small muted mono">
+          <p className="small muted">
             {p
               ? `hashed ${p.hashedChunks} of ${p.totalChunks} chunks on this device, sent ${p.sentChunks} of ${p.totalChunks}${p.sha256 ? `; sha256 ${p.sha256.slice(0, 12)}, waiting for the hash on receipt` : ''}`
               : 'starting'}
@@ -101,7 +105,12 @@ export function Uploader({ role, title, hint, disabled = false, state, onFile, o
           <p className="small muted">The server deleted the bytes it received. No model call was made. Drop or choose the file again to send it fresh.</p>
         </div>
       ) : null}
-      {state?.record ? <SealCard role={role} video={state.record} sha256Browser={state.sha256Browser} /> : null}
+      {state?.record ? (
+        <details className="seal-more">
+          <summary>Seal details</summary>
+          <SealCard role={role} video={state.record} sha256Browser={state.sha256Browser} />
+        </details>
+      ) : null}
     </div>
   );
 }

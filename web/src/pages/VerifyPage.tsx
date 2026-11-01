@@ -3,7 +3,7 @@ export function VerifyPage() {
   return (
     <div className="verify">
       <h1>Check a sheet yourself</h1>
-      <p className="lead">
+      <p className="verify-lead">
         A run's bundle holds the originals' hashes, the OpenTimestamps proofs and the RFC 3161 token. Steps 1 to 3 check them with standard tools; step 4
         needs the whole run directory, which holds the event log.
       </p>
@@ -21,7 +21,7 @@ ots verify bundle/manifest.json.ots   # or drop the .ots file on opentimestamps.
 # from the repo, with runs/<run_id>/ present (events.ndjson is there, not in the bundle)
 # prints "rebuild identical" or the first file that differs; no network call`}</pre>
       <h2>What the seal does not prove</h2>
-      <p className="lead">
+      <p className="verify-lead">
         Which car it is, unless the plate was kept at the renter's request. That the walk was not staged before upload. Anything about pickup when the seal came
         after the return. Page 1 prints three clocks for this reason: when the file was sealed, when the first model call was made, and how many minutes after
         the camera's own time the seal came.

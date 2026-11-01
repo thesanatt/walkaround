@@ -107,7 +107,8 @@ export function KioskPage({ runId, query }: { runId: string; query: URLSearchPar
 
   useEffect(() => {
     if (!fit) return;
-    const apply = () => setScale(Math.min(1, window.innerWidth / WIDTH, window.innerHeight / HEIGHT));
+    // The layout viewport, not innerWidth: a phone zooms out to show the unscaled 1920 px stage, which grows innerWidth.
+    const apply = () => setScale(Math.min(1, document.documentElement.clientWidth / WIDTH, document.documentElement.clientHeight / HEIGHT));
     apply();
     window.addEventListener('resize', apply);
     return () => window.removeEventListener('resize', apply);
