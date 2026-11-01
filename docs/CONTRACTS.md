@@ -1326,3 +1326,8 @@ What the integrator changed on top of the match lane and the Stays Put ranking a
   refuse a size on a flagged claim photo.
 - A server process started before this change freezes new runs' thresholds from the config it loaded, so restart
   `walkaround serve` after pulling; the CLI loads the config fresh on every run.
+- `claim.derive_claim` decides on the answers as stored: after each fetch it writes claim_<n>.answers.json and reads it
+  back before deciding, so floats sit at 6 places as in rebuild_claim. Found live (pairC_core3_claim claim_4): a SAM
+  confidence of 49/81 at full precision put a vote score 1e-6 off the rebuild. Claims stored before keep their bytes.
+- The sample is samples/pairC_core3 (run pairC_core3, Nov 1, the round 4 code): the first live run whose trunk chips
+  came out already there after a second look (Muse Spark Open, same). tests/test_staysput.py reads it.
