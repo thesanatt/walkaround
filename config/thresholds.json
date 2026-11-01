@@ -249,7 +249,7 @@
     "pickup_runs_per_day": {"value": 6, "source": "9 (PICKUP_RUNS_PER_DAY)"},
     "pair_runs_per_day": {"value": 1, "source": "9 (PAIR_RUNS_PER_DAY)"},
     "run_spend_ceiling_cents": {"value": 800, "source": "9 (RUN_SPEND_CEILING_CENTS)", "unit": "cents"},
-    "daily_card_ceiling_cents": {"value": 2000, "source": "9 (nothing above $20 in any day without his yes)", "unit": "cents"},
+    "daily_card_ceiling_cents": {"value": 5000, "source": "9; raised to $50 by Sanat 11/1 1:15 AM (\"feel free to spend more\"), runs bill the $150 Meta credit", "unit": "cents"},
     "judging_card_ceiling_cents": {"value": 5000, "source": "9 (the $50 ask in NEEDS_YOU; if no, caps drop to 3 pickup checks and no live pair)", "unit": "cents"},
     "caps_if_no_card_ceiling": {"value": {"pickup_runs_per_day": 3, "pair_runs_per_day": 0}, "source": "9"},
     "max_concurrent_runs": {"value": 2, "source": "9 (MAX_CONCURRENT_RUNS)"},

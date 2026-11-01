@@ -1,0 +1,8 @@
+.git
+.venv
+home
+runs
+serve.log
+**/__pycache__
+web/node_modules
+tests

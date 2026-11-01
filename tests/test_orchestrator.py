@@ -1072,8 +1072,10 @@ def test_caps_remaining_counts_runs_and_dollars_per_et_day(runs_dir: Path, th: d
 
 def test_daily_card_ceiling_zeroes_both_caps(runs_dir: Path, th: dict) -> None:
     orch = make_orch(th)
-    for hour in range(8):
-        write_ledger_row(f"2026-10-27T{10 + hour:02d}:00:00-0400", None, 2.6)  # $20.80 in one ET day
+    ceiling = th["orchestrator"]["daily_card_ceiling_cents"] / 100
+    rows = int(ceiling // 2.6) + 1  # just past the ceiling in one ET day
+    for i in range(rows):
+        write_ledger_row(f"2026-10-27T{10 + i // 6:02d}:{(i % 6) * 10:02d}:00-0400", None, 2.6)
     assert orch.caps_remaining(et_day="2026-10-27") == {"pickup": 0, "pair": 0}
 
 
