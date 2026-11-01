@@ -830,7 +830,7 @@ async def test_derive_marks_with_a_fake_spark_writes_marks_keyframes_and_sigma_v
     calls: list[tuple[PanelId, list[str], str]] = []
     fixture_flags: list[bool] = []
 
-    def fake_find_marks(crop_rgb: np.ndarray, panel_id: PanelId, *, landmarks: list[str], effort: str, run_id: str | None, input_ref: Any, fixtures: bool = False) -> spark_client.MarksResult:
+    def fake_find_marks(crop_rgb: np.ndarray, panel_id: PanelId, *, landmarks: list[str], effort: str, run_id: str | None, input_ref: Any, fixtures: bool = False, seams: bool = False) -> spark_client.MarksResult:
         calls.append((panel_id, landmarks, effort))
         fixture_flags.append(fixtures)
         n = len(calls)

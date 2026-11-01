@@ -117,6 +117,12 @@ def fixtures_not_damage(th: dict | None) -> bool:
     return bool((th or {}).get("matching", {}).get("fixtures_not_damage", False))
 
 
+def seams_not_marks(th: dict | None) -> bool:
+    """Lead 11/1 (thresholds matching.seams_not_marks): the marks prompt adds spark_client.SEAMS_SENTENCE (seams, shading
+    and reflections are not marks); off when absent, as in every run frozen before it."""
+    return bool((th or {}).get("matching", {}).get("seams_not_marks", False))
+
+
 def next_keyframe_pair(th: dict | None) -> bool:
     """Rule 2 of 11/1 is on (thresholds matching.next_keyframe_pair); off when absent, as in runs frozen before."""
     return bool((th or {}).get("matching", {}).get("next_keyframe_pair", False))

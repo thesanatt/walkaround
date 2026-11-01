@@ -1513,3 +1513,84 @@ and flagged glare, so all three are needs_your_eye (K15) and nothing is new. No 
 crop, so nothing was dropped. On the first run's crop, five marks_v1 answers with the old prompt and five with the
 sentence all boxed a chip or scuff within 75 source pixels of the dot (docs/evidence/fixtures_1101/). The false alarm is
 not fixed by this decision; the re-run did not reach it. eval_px_two_takes_r7 rebuilds identical.
+
+## Lead 11/1, 2 m laps: fenders from wheels, the door's glass edge, view-matched return keyframes, the seams sentence
+
+Four thresholds leaves, each off when a run's frozen thresholds lack it, so every run frozen before them derives,
+rebuilds and verifies as it did. Found on synth_pair1, synth_pair2 and pairC_core3, measured offline by re-deriving
+synth_pair2 and pairC_core3 keyframes from their own source files into a scratch copy (no call; the blur was a stub,
+nothing kept). Sanat's shoot (docs/SHOOT_LIST.md) is two laps about 2 m away with the car filling the screen, which is
+the case all three panel changes are for.
+
+- `panels.door_glass_edge` (true). At a 2 m stop SAM's door mask includes the window glass, and the glass is cut by the
+  top of the frame, so every frontal door frame failed the box pass (`border_frac_keyframe_max` 0.15; synth_pair2's
+  stop at the left front door had box border shares 0.29 to 0.59) and only far-oblique corner views became keyframes.
+  With the leaf, `panels.pass_border_frac` leaves the top edge out of a door box's border share in the box pass
+  (`keyframe_candidates`, `box_pass_score`); the mask pass then measures completeness after the car windows are cut out,
+  as before, and coverage's filmed test is unchanged. A door cut at a side or the bottom, and every other noun, are
+  as before.
+- `panels.fender_from_wheels` (box_side_d 0.35, box_above_d 0.6, reach_d 1.6, above_d 0.75, below_side_d 0.5,
+  door_gap_d 0.6, min_frames 5, open_px 5; sizes in wheel diameters d, the longer side of the wheel box; estimates).
+  SAM 3.1 has no noun for the panel over a wheel: on stored frames "fender", "car fender", "front fender", "quarter
+  panel" and "rear quarter panel" all came back empty on the synthetic sedan (91 image requests, ledger note
+  fender_noun_1101), "side panel" found the front fender in one frame but as a video lane its 3 tracks wandered over
+  doors, bumper and quarters and missed the front fender stop (one lane, fender_lane_1101), and on pair C "fender"
+  boxed only the arch lip (0.3% to 0.9% of the frame, under filmed_area_frac_min 0.03). With the leaf, after the side
+  vote `panels.apply_wheel_fenders` drops the role's fender-lane tracks and `panels.fender_tracks` builds one fender
+  track per wheel track: id `<role>_fender_from_wheel_<n>` (`is_wheel_fender`, `wheel_id_of`), no SAM ids or fragments,
+  slot from the wheel's candidate slots when they agree on side and position, else the side from the decided doors
+  beside the wheel (`_door_side`: one vote per shared frame where a door box is within door_gap_d x d and reaches past
+  the wheel's top; at least min_frames, no tie), boxes from `fender_box` (the wheel widened by box_side_d x d, from
+  box_above_d x d over it to its centre, inside the car box). The four fender panels are rebuilt from every role's
+  fender tracks (votes zero). Built tracks never enter the side vote (`derive` keeps them out of `_vote_with_prior`).
+  The box pass does not shut a built fender out by its border share (its box is an estimate); at each candidate
+  `_built_fender_mask` decodes the car and every part of `FENDER_CUT_NOUNS` at that frame and `wheel_fender_mask`
+  keeps the car mask in a band around the wheel (reach_d x d either side of its centre from above_d x d over its top
+  down to its centre; below the centre only below_side_d x d beyond its sides, so the sill under the doors stays out),
+  less every named part, opened by open_px, then the connected piece with the most pixels just over the wheel's top.
+  The row's box, area and border then follow that mask, so the crop is cut around the fender. Everything after
+  (completeness, the filmed test, crops, moments, marks, the gates) is the code every panel uses.
+- `panels.view_match_return` (true). In the return walk, `panels.view_matched_first` measures each scored candidate
+  against the panel's pickup keyframes the way G4 does (`geometry.whitened_mask_iou`, the candidate's moments, the
+  panel's front_sign), only with the same window cut (G9) and sharpness at or over matching.sharpness_rel_min (G3);
+  when the best of all candidates beats the best of the first keyframe_top_k, it goes first. Keyframe selection then
+  runs as before (gap, car test, blur). Whitening removes any affine difference, so this ranks perspective and mask
+  definition, not size or aspect. The gate thresholds are unchanged.
+- `matching.seams_not_marks` (false). `spark_client.SEAMS_SENTENCE` after the fixtures sentence: "Panel seams, body
+  lines, the edges where paint meets glass or trim, and shading or reflections on smooth or dark glossy paint are not
+  marks: box a spot only where the surface itself is scraped, broken or bent, and keep the box tight on that spot."
+  `marks_prompt(..., seams)`, `find_marks(..., seams)`, marks.py and claim.py pass `match.seams_not_marks(th)`. Tested
+  before adopting (docs/evidence/seams_1101/: prompt_ab.py, prompt_ab.json; 200 Spark calls, $0.92): every stored
+  synth_pair2 crop, 2 answers per prompt, scored against the render's ground truth. False boxes 83 to 74, boxes on a
+  ground-truth mark 5 to 3. Not adopted; the leaf stays false.
+
+Offline (keyframes re-derived from the stored lanes and the source files; gates G3, G4, G6, G9 on the best keyframe
+pair; filmed slots per walk):
+
+| | synth_pair2 before | after | pairC_core3 before | after |
+|---|---|---|---|---|
+| filmed slots, pickup / return | 8 / 8 | 12 / 12 | 8 / 11 | 12 / 14 |
+| fender slots filmed in both walks | 0 of 4 | 4 of 4 | 0 of 4 | 1 of 4 |
+| panels passing those gates on some pair | 0 | 5 | 3 | 6 |
+| left / right front door best whitened IoU | 0.63 (G4, G9) / 0.74 (G3) | 0.96 / 0.99 | - / 0.66 (G4, G9) | - / 0.81 |
+
+Tests: tests/test_walk_2m.py (9). test_match's strict find_marks fake takes seams.
+
+Live after the change (Nov 1, about 4:58 to 5:10 AM EST, LEDGER rows 58 and 59), both runs rebuild identical:
+
+| | synth_pair2 | synth_pair2_r8 | pairC_core3 | pairC_r8 |
+|---|---|---|---|---|
+| filmed slots, pickup / return | 8 / 8 | 12 / 12 | 8 / 11 | 12 / 14 |
+| fender slots filmed in both walks | 0 of 4 | 4 of 4 | 0 of 4 | 2 of 4 |
+| panels compared | 3 | 9 | 3 | 5 |
+| marks | 39 | 49 | 94 | 121 |
+| cost | $4.93 | $5.23 | $3.31 | $3.35 |
+
+synth_pair2_r8 scored with synthetic/score.py (synthetic/SCORE_pair2_r8.md; geometric only, the boxes were not
+visually reviewed this round): 6 of 9 ground-truth panels compared (was 0 of 9), and all four fenders and quarters;
+nearly every planted mark is now shown on its own panel's keyframe at a usable size (the 20 cm scratch at 467 px, the
+dent at 323 px), but Muse Spark boxed only the 5 cm fender scratch, labelled already_there as it should be: own-panel
+recall 1 of 14 eligible object-walks (was 1 of 6), 1 of 17 of all present (unchanged), new damage 0 of 3. False marks
+46 (was 36). Two return marks on the left front door are new_or_unseen; both hit no ground-truth object (one is about
+137 source px from the real new 10 cm scratch, the other near the sticker). More panels compared means more chances
+for a false new; Spark's localization is now the limit, not coverage.

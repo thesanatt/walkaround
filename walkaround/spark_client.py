@@ -369,9 +369,20 @@ FIXTURES_SENTENCE = (
 )
 
 
-def marks_prompt(panel_id: PanelId, landmarks: list[str], *, fixtures: bool = False) -> str:
+# Lead 11/1 (thresholds matching.seams_not_marks): most of synth_pair2's 36 false marks were boxes on smooth dark paint,
+# glare bands, sill shading and panel seams. One plain sentence after the fixtures one, sent only when the run's
+# thresholds have the leaf, so a run frozen before it asks (and replays) the prompt it always did.
+SEAMS_SENTENCE = (
+    "Panel seams, body lines, the edges where paint meets glass or trim, and shading or reflections on smooth or dark "
+    "glossy paint are not marks: box a spot only where the surface itself is scraped, broken or bent, and keep the box "
+    "tight on that spot. "
+)
+
+
+def marks_prompt(panel_id: PanelId, landmarks: list[str], *, fixtures: bool = False, seams: bool = False) -> str:
     """The marks_v1 grounding instruction of section 5 step 8: expert framing, grid, point plus bbox, do not miss; with
-    fixtures, the sentence that factory fixtures are not damage."""
+    fixtures, the sentence that factory fixtures are not damage; with seams, the sentence that seams, shading and
+    reflections are not marks."""
     panel = panel_display_name(panel_id)
     names = ", ".join(landmarks)  # the whole closed list; LANDMARKS_MAX caps how many come back, not the names
     landmark_line = (
@@ -382,7 +393,8 @@ def marks_prompt(panel_id: PanelId, landmarks: list[str], *, fixtures: bool = Fa
     return (
         f"You are an object grounding expert. This image is a close crop of the {panel} of a car, cut from a rental "
         f"walkaround video. Find every scratch, scuff, chip, dent and crack on the painted, plastic or glass surface "
-        f"of the {panel}. Do not miss any mark, including small ones. {FIXTURES_SENTENCE if fixtures else ''}For each "
+        f"of the {panel}. Do not miss any mark, including small ones. {FIXTURES_SENTENCE if fixtures else ''}"
+        f"{SEAMS_SENTENCE if seams else ''}For each "
         f"mark give one point at its centre and one bbox that covers it. {_GRID_SENTENCE} type is scratch, scuff, chip, dent or crack for damage; dirt or "
         "reflection when a spot is dirt, a water drop, a shadow or a reflection that could pass for damage; unsure "
         "when you cannot tell. size_class: S is smaller than a coin, M up to a hand, L larger than a hand. confidence "
@@ -866,6 +878,7 @@ def find_marks(
     input_ref: InputRef | None = None,
     max_edge: int = IMAGE_LONG_EDGE,
     fixtures: bool = False,
+    seams: bool = False,
 ) -> MarksResult:
     """The marks_v1 grounding call on one blurred crop. Points and boxes stay in the grid of the sent image. fixtures
     adds the factory-fixtures sentence to the prompt (thresholds matching.fixtures_not_damage); the schema is the same.
@@ -879,7 +892,7 @@ def find_marks(
     data_url, sent_width, sent_height, scale = prepare_image(crop_rgb, max_edge)
     names = [str(n) for n in dict.fromkeys(landmarks) if n]  # order kept, duplicates dropped (an enum lists each once)
     parts = [
-        {"type": "input_text", "text": marks_prompt(panel_id, names, fixtures=fixtures)},
+        {"type": "input_text", "text": marks_prompt(panel_id, names, fixtures=fixtures, seams=seams)},
         {"type": "input_image", "image_url": data_url},
     ]
     attempts = _ask_attempts(

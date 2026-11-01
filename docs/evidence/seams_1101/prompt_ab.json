@@ -1,0 +1,3816 @@
+{
+ "run": "synth_pair2",
+ "repeats": 2,
+ "crops": 50,
+ "summary": {
+  "old": {
+   "answers": 100,
+   "valid": 100,
+   "boxes": 88,
+   "boxes_on_gt": 5,
+   "false_boxes": 83,
+   "damage_finds": 5,
+   "sticker_finds": 0,
+   "gt_marks_shown": 104
+  },
+  "seams": {
+   "answers": 100,
+   "valid": 100,
+   "boxes": 77,
+   "boxes_on_gt": 3,
+   "false_boxes": 74,
+   "damage_finds": 3,
+   "sticker_finds": 0,
+   "gt_marks_shown": 104
+  }
+ },
+ "truth": {
+  "pickup_headlights_kf1": [],
+  "pickup_headlights_kf2": [],
+  "pickup_headlights_kf3": [],
+  "pickup_hood_kf1": [
+   {
+    "id": "old_scratch_05cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     1631.533,
+     1059.1918,
+     1753.8503,
+     1073.6452
+    ]
+   }
+  ],
+  "pickup_hood_kf2": [
+   {
+    "id": "old_chip_05mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     2692.7155,
+     1064.5341,
+     2699.4831,
+     1071.8371
+    ]
+   }
+  ],
+  "pickup_hood_kf3": [
+   {
+    "id": "old_scratch_05cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     1099.3331,
+     1082.303,
+     1152.8208,
+     1107.4809
+    ]
+   }
+  ],
+  "pickup_left_front_door_kf1": [
+   {
+    "id": "old_scratch_02cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     3284.4415,
+     918.3803,
+     3291.1616,
+     924.1392
+    ]
+   },
+   {
+    "id": "old_chip_10mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     3608.847,
+     567.948,
+     3609.5605,
+     577.019
+    ]
+   },
+   {
+    "id": "control_sticker_01",
+    "kind": "flat_sticker_control",
+    "bbox_src": [
+     3444.8571,
+     667.6132,
+     3457.2945,
+     701.0829
+    ]
+   }
+  ],
+  "pickup_left_rear_door_kf1": [
+   {
+    "id": "old_chip_10mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     1055.4002,
+     983.4545,
+     1067.2083,
+     1002.5341
+    ]
+   },
+   {
+    "id": "control_sticker_01",
+    "kind": "flat_sticker_control",
+    "bbox_src": [
+     293.2927,
+     717.042,
+     315.7074,
+     760.1589
+    ]
+   }
+  ],
+  "pickup_left_rear_wheel_kf1": [],
+  "pickup_mirrors_kf1": [],
+  "pickup_rear_window_kf1": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2117.0322,
+     690.7848,
+     2158.4671,
+     720.654
+    ]
+   }
+  ],
+  "pickup_rear_window_kf2": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2116.9613,
+     688.8634,
+     2159.8202,
+     718.572
+    ]
+   }
+  ],
+  "pickup_rear_window_kf3": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2116.8028,
+     688.1265,
+     2161.1818,
+     717.7456
+    ]
+   }
+  ],
+  "pickup_right_front_door_kf1": [
+   {
+    "id": "old_scratch_20cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     215.9717,
+     906.1036,
+     330.9575,
+     953.4148
+    ]
+   }
+  ],
+  "pickup_right_front_door_kf2": [
+   {
+    "id": "old_scratch_20cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     452.8422,
+     873.9225,
+     511.9701,
+     919.2797
+    ]
+   }
+  ],
+  "pickup_right_rear_door_kf1": [
+   {
+    "id": "old_dent_12cm",
+    "kind": "shallow_dent",
+    "bbox_src": [
+     60.9757,
+     561.0058,
+     78.7365,
+     658.636
+    ]
+   },
+   {
+    "id": "old_scratch_20cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     368.1181,
+     889.3483,
+     446.5753,
+     934.6855
+    ]
+   }
+  ],
+  "pickup_right_rear_door_kf2": [
+   {
+    "id": "old_dent_12cm",
+    "kind": "shallow_dent",
+    "bbox_src": [
+     482.6796,
+     546.8491,
+     484.2747,
+     569.9404
+    ]
+   },
+   {
+    "id": "old_scratch_20cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     585.5787,
+     849.353,
+     616.1184,
+     893.1024
+    ]
+   }
+  ],
+  "pickup_right_rear_wheel_kf1": [],
+  "pickup_roof_kf1": [
+   {
+    "id": "old_dent_12cm",
+    "kind": "shallow_dent",
+    "bbox_src": [
+     2887.0683,
+     915.0451,
+     2996.3961,
+     1100.0778
+    ]
+   },
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     1195.6175,
+     658.9787,
+     1307.991,
+     683.7141
+    ]
+   }
+  ],
+  "pickup_roof_kf2": [
+   {
+    "id": "old_dent_12cm",
+    "kind": "shallow_dent",
+    "bbox_src": [
+     2653.9594,
+     940.2372,
+     2832.5351,
+     1146.019
+    ]
+   },
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     936.1821,
+     579.5172,
+     1058.5012,
+     600.8668
+    ]
+   }
+  ],
+  "pickup_tail_lights_kf1": [],
+  "pickup_tail_lights_kf2": [],
+  "pickup_windshield_kf1": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2115.8281,
+     688.9682,
+     2158.9932,
+     718.1736
+    ]
+   }
+  ],
+  "pickup_windshield_kf2": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2116.8028,
+     688.1265,
+     2161.1818,
+     717.7456
+    ]
+   }
+  ],
+  "pickup_windshield_kf3": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2107.4889,
+     688.292,
+     2147.6625,
+     717.9414
+    ]
+   }
+  ],
+  "return_headlights_kf1": [],
+  "return_headlights_kf2": [],
+  "return_hood_kf1": [
+   {
+    "id": "old_scratch_05cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     1655.8441,
+     1049.6339,
+     1781.6427,
+     1062.5262
+    ]
+   },
+   {
+    "id": "new_chip_20mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     2418.5848,
+     505.8506,
+     2454.4555,
+     515.283
+    ]
+   }
+  ],
+  "return_hood_kf2": [
+   {
+    "id": "old_scratch_05cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     1148.4427,
+     1088.4836,
+     1208.6939,
+     1114.0658
+    ]
+   },
+   {
+    "id": "new_chip_20mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     2431.2719,
+     817.3302,
+     2459.6056,
+     827.786
+    ]
+   }
+  ],
+  "return_hood_kf3": [
+   {
+    "id": "old_chip_05mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     2719.8107,
+     1066.0239,
+     2726.5027,
+     1073.2425
+    ]
+   },
+   {
+    "id": "new_chip_20mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     1265.8086,
+     807.0545,
+     1294.4747,
+     816.9044
+    ]
+   }
+  ],
+  "return_left_front_door_kf1": [
+   {
+    "id": "old_scratch_02cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     3343.5934,
+     930.5127,
+     3352.5365,
+     936.4238
+    ]
+   },
+   {
+    "id": "old_chip_10mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     3787.452,
+     569.8168,
+     3788.6233,
+     579.3694
+    ]
+   },
+   {
+    "id": "control_sticker_01",
+    "kind": "flat_sticker_control",
+    "bbox_src": [
+     3558.424,
+     671.3775,
+     3573.9188,
+     706.3569
+    ]
+   },
+   {
+    "id": "new_scratch_10cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     3517.1654,
+     903.9036,
+     3553.646,
+     925.45
+    ]
+   }
+  ],
+  "return_left_front_door_kf2": [
+   {
+    "id": "old_scratch_02cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     245.6945,
+     738.9134,
+     250.8824,
+     743.3487
+    ]
+   },
+   {
+    "id": "old_chip_05mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     84.2096,
+     528.2906,
+     87.5434,
+     531.6991
+    ]
+   },
+   {
+    "id": "control_sticker_01",
+    "kind": "flat_sticker_control",
+    "bbox_src": [
+     401.2638,
+     694.4129,
+     417.1703,
+     735.0297
+    ]
+   },
+   {
+    "id": "new_scratch_10cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     346.8515,
+     896.765,
+     376.7621,
+     921.5902
+    ]
+   }
+  ],
+  "return_left_front_wheel_kf1": [],
+  "return_left_rear_door_kf1": [
+   {
+    "id": "old_chip_10mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     1082.4385,
+     987.0107,
+     1094.9009,
+     1006.2979
+    ]
+   },
+   {
+    "id": "control_sticker_01",
+    "kind": "flat_sticker_control",
+    "bbox_src": [
+     268.514,
+     717.2313,
+     292.374,
+     761.0945
+    ]
+   }
+  ],
+  "return_left_rear_wheel_kf1": [],
+  "return_mirrors_kf1": [],
+  "return_mirrors_kf2": [],
+  "return_mirrors_kf3": [],
+  "return_rear_window_kf1": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2113.8984,
+     689.5818,
+     2154.7683,
+     719.5809
+    ]
+   }
+  ],
+  "return_rear_window_kf2": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2178.5506,
+     690.7983,
+     2232.975,
+     720.5288
+    ]
+   }
+  ],
+  "return_right_front_door_kf1": [
+   {
+    "id": "old_scratch_20cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     1737.5834,
+     1214.3747,
+     2196.6718,
+     1222.0944
+    ]
+   }
+  ],
+  "return_right_front_door_kf2": [
+   {
+    "id": "old_scratch_20cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     443.491,
+     869.8921,
+     503.6293,
+     916.0227
+    ]
+   }
+  ],
+  "return_right_rear_door_kf1": [
+   {
+    "id": "old_dent_12cm",
+    "kind": "shallow_dent",
+    "bbox_src": [
+     213.3839,
+     545.8112,
+     226.6413,
+     639.1587
+    ]
+   },
+   {
+    "id": "old_scratch_20cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     443.491,
+     869.8921,
+     503.6293,
+     916.0227
+    ]
+   }
+  ],
+  "return_right_rear_wheel_kf1": [],
+  "return_roof_kf1": [
+   {
+    "id": "old_scratch_05cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     1655.8441,
+     1049.6339,
+     1781.6427,
+     1062.5262
+    ]
+   },
+   {
+    "id": "new_chip_20mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     2418.5848,
+     505.8506,
+     2454.4555,
+     515.283
+    ]
+   }
+  ],
+  "return_roof_kf2": [
+   {
+    "id": "old_scratch_05cm",
+    "kind": "clearcoat_scratch",
+    "bbox_src": [
+     1097.8091,
+     1083.9688,
+     1151.7166,
+     1109.507
+    ]
+   },
+   {
+    "id": "new_chip_20mm",
+    "kind": "paint_chip",
+    "bbox_src": [
+     2389.5041,
+     833.6316,
+     2417.4505,
+     844.159
+    ]
+   }
+  ],
+  "return_tail_lights_kf1": [],
+  "return_tail_lights_kf2": [],
+  "return_windshield_kf1": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2113.8984,
+     689.5818,
+     2154.7683,
+     719.5809
+    ]
+   }
+  ],
+  "return_windshield_kf2": [
+   {
+    "id": "old_scuff_06cm",
+    "kind": "clearcoat_scuff",
+    "bbox_src": [
+     2126.5833,
+     692.9958,
+     2173.2598,
+     722.6002
+    ]
+   }
+  ]
+ },
+ "answers": [
+  {
+   "kf_id": "pickup_headlights_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf3",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf3",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf3",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_headlights_kf3",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_hood_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_hood_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_hood_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1576.5555443232727,
+      1006.136883994901,
+      1677.6460893985604,
+      1023.3962453492185
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_hood_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1618.471136183758,
+      981.4806534887333,
+      1719.5616812590456,
+      996.2743917924339
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_hood_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_hood_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_hood_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2380.4977720028664,
+      1160.2790910466006,
+      2412.733679332072,
+      1172.677516942449
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2437.5305311237685,
+      1130.522868896565,
+      2467.286753273804,
+      1142.9212947924132
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_hood_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_hood_kf3",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1118.1606230974407,
+      1043.527758772843,
+      1192.527758772843,
+      1065.837899475464
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_hood_kf3",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1212.3589949529505,
+      1026.1754271152492,
+      1286.7261306283526,
+      1043.527758772843
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_hood_kf3",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1162.7809045026822,
+      1028.6543316377627,
+      1232.1902311330578,
+      1046.0066632953567
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_hood_kf3",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1212.3589949529505,
+      1021.2176180702224,
+      1286.7261306283526,
+      1041.0488542503297
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_front_door_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3235.0685852485717,
+      887.7838104249831,
+      3246.1263907164985,
+      911.4791078562549
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3208.2139148264637,
+      1511.7599761151403,
+      3220.8514067898086,
+      1548.092765509757
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_front_door_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3236.64827174399,
+      864.0885129937113,
+      3247.7060772119166,
+      883.0447509387287
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3211.3732878172996,
+      1537.0349600418301,
+      3224.010779780645,
+      1597.0630468677186
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_front_door_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3231.9092122577354,
+      925.696286315018,
+      3247.7060772119166,
+      954.1306432325441
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      3212.9529743127177,
+      1544.9333925189208,
+      3230.329525762317,
+      1604.9614793448093
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_front_door_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3269.82168814777,
+      939.913464773781,
+      3284.0388666065332,
+      962.0290757096348
+     ],
+     "hits": []
+    },
+    {
+     "type": "dirt",
+     "bbox_src": [
+      3241.387331230244,
+      1630.2364632714991,
+      3254.024823193589,
+      1683.9458041157152
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_rear_door_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1032.1030550308026,
+      973.6077197030143,
+      1049.1093034098944,
+      999.1170922716522
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_rear_door_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1012.262431921862,
+      807.7967980068677,
+      1027.8514929360294,
+      837.5577326702786
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      298.0,
+      634.8999394860995,
+      316.4234357440163,
+      675.998373068905
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_rear_door_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1050.5264907748187,
+      875.8217915232354,
+      1070.3671138837594,
+      911.2514756463437
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_rear_door_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1044.8577413151215,
+      881.4905409829328,
+      1060.4468023292893,
+      912.6686630112681
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_left_rear_wheel_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_left_rear_wheel_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_left_rear_wheel_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_left_rear_wheel_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_mirrors_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_mirrors_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_mirrors_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_mirrors_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_rear_window_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2045.891522267719,
+      693.6949860346558,
+      2073.0086955735733,
+      706.3496669107212
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2036.8524644991007,
+      690.0793629272085,
+      2069.3930724661263,
+      702.734043803274
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2056.738391590061,
+      690.0793629272085,
+      2094.702434218257,
+      704.5418553569976
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2083.8555648959154,
+      688.2715513734848,
+      2120.0117959703884,
+      708.1574784644449
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1909.5369019533405,
+      691.5027975883794,
+      1942.077509920366,
+      702.3496669107212
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2057.777449358679,
+      689.6949860346558,
+      2092.125868879428,
+      707.7731015718922
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1947.500944581537,
+      684.2715513734848,
+      1983.6571756560097,
+      696.9262322495504
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1896.882221077275,
+      689.6949860346558,
+      1929.4228290443004,
+      702.3496669107212
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf3",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1892.4978441847222,
+      686.0793629272085,
+      1934.077509920366,
+      707.7731015718922
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf3",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_rear_window_kf3",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1915.9993943831296,
+      687.8871744809321,
+      1950.3478139038787,
+      700.5418553569976
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_rear_window_kf3",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1957.5790601187732,
+      684.2715513734848,
+      1997.3509143006934,
+      698.734043803274
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_front_door_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      216.00639124792926,
+      1016.5006646961377,
+      335.1275628920079,
+      1097.5030614141112
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      479.66125115349,
+      1759.8167757551885,
+      513.015179213832,
+      1823.348067298697
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_front_door_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      216.00639124792926,
+      957.7342200183923,
+      339.8924097577711,
+      1030.7952052934272
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      476.4846865763146,
+      1756.640211178013,
+      513.015179213832,
+      1823.348067298697
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_front_door_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      212.82982667075385,
+      970.440478327094,
+      339.8924097577711,
+      1026.030358427664
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_front_door_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      214.41810895934154,
+      957.7342200183923,
+      333.5392806034202,
+      1026.030358427664
+     ],
+     "hits": []
+    },
+    {
+     "type": "dirt",
+     "bbox_src": [
+      435.18934707303396,
+      1788.4058569497672,
+      463.7784282676128,
+      1845.5840193389251
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_front_door_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      441.2094698364513,
+      1175.047675501229,
+      495.0970065473357,
+      1230.43208823186
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      560.9595514161944,
+      1718.413670669313,
+      578.9220636531559,
+      1781.2824634986782
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_front_door_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      417.2594535205027,
+      793.3442904657978,
+      481.6251223696146,
+      839.7474470779483
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_front_door_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      406.78132138227517,
+      889.1443557295922,
+      475.6376182906274,
+      966.9819087564252
+     ],
+     "hits": [
+      "old_scratch_20cm"
+     ]
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      595.3876998703705,
+      1523.8197881022306,
+      619.3377161863191,
+      1600.1604651093166
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_front_door_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      423.24695759948986,
+      1020.8694454673097,
+      472.6438662511339,
+      1061.285098000473
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      580.4189396729026,
+      1537.2916722799516,
+      596.8845758901173,
+      1592.6760850105827
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_door_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      325.4999837250008,
+      804.3999617800018,
+      410.54997947250104,
+      850.599959470002
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_door_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      314.99998425000075,
+      903.0999568450021,
+      396.899980155001,
+      956.6499541675023
+     ],
+     "hits": [
+      "old_scratch_20cm"
+     ]
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_door_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      341.2499829375008,
+      947.1999546400023,
+      415.799979210001,
+      1000.7499519625023
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_door_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      320.2499839875008,
+      840.099959995002,
+      387.44998062750096,
+      886.2999576850021
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_door_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      558.6093769157715,
+      835.5156368518068,
+      590.8203149190674,
+      914.4843880856936
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_door_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      563.8046894969483,
+      769.0156358127443,
+      586.6640648541261,
+      838.6328244005128
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_door_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      569.000002078125,
+      788.7578236212161,
+      602.2500025976562,
+      868.7656373713381
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_door_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      564.8437520131836,
+      889.5468876960451,
+      596.0156275002441,
+      971.632826478638
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_right_rear_wheel_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_right_rear_wheel_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_right_rear_wheel_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_right_rear_wheel_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_roof_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1491.160861923052,
+      656.7245405030055,
+      1575.2482694269036,
+      670.2870255842719
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_roof_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1252.461124492763,
+      691.9870017142981,
+      1336.5485319966149,
+      702.8369897793112
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_roof_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1401.6484603866936,
+      607.8995942104464,
+      1518.2858320855848,
+      629.5995703404726
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_roof_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1556.2607903131307,
+      670.2870255842719,
+      1634.9232037844758,
+      683.8495106655382
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_roof_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "reflection",
+     "bbox_src": [
+      1036.4331701464396,
+      580.8431584698283,
+      1140.8799237270887,
+      604.946255449978
+     ],
+     "hits": [
+      "old_scuff_06cm"
+     ]
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_roof_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_roof_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      958.7676354326238,
+      596.9118897899281,
+      1041.7894139198063,
+      647.7962056369109
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_roof_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_tail_lights_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1305.0,
+      1224.0,
+      1445.0,
+      1401.0
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_tail_lights_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1375.0,
+      1231.0,
+      1467.0,
+      1401.0
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_tail_lights_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1317.0,
+      1225.0,
+      1460.0,
+      1384.0
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_tail_lights_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "crack",
+     "bbox_src": [
+      1345.0,
+      1244.0,
+      1438.0,
+      1388.0
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_tail_lights_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_tail_lights_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_tail_lights_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_tail_lights_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_windshield_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2073.592698601188,
+      687.20262834476,
+      2122.3192218915638,
+      705.249488822677
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_windshield_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1880.4912914874765,
+      689.0073143925517,
+      1923.8037566344772,
+      701.6401167270936
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_windshield_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2032.084919501979,
+      690.8120004403435,
+      2073.592698601188,
+      703.4448027748853
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_windshield_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1905.7568961565603,
+      694.4213725359268,
+      1949.069361303561,
+      708.8588609182603
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_windshield_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1934.077509920366,
+      687.8871744809321,
+      1968.4259294411152,
+      702.3496669107212
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_windshield_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_windshield_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1910.5759597219587,
+      687.8871744809321,
+      1950.3478139038787,
+      700.5418553569976
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_windshield_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1897.9212788458933,
+      673.424682051143,
+      1934.077509920366,
+      689.6949860346558
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "pickup_windshield_kf3",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_windshield_kf3",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_windshield_kf3",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "pickup_windshield_kf3",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_headlights_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_headlights_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_headlights_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_headlights_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_headlights_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_headlights_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_headlights_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_headlights_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_hood_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "dirt",
+     "bbox_src": [
+      2484.128045763148,
+      548.2874844124226,
+      2526.189762672948,
+      560.6585776211872
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2320.829615407454,
+      570.555452188199,
+      2367.83976960076,
+      582.9265453969635
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "dirt",
+     "bbox_src": [
+      2417.3241424358184,
+      427.0507709665287,
+      2459.3858593456184,
+      439.4218641752934
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2293.613210348172,
+      464.1640505928228,
+      2335.674927257972,
+      479.00936244334036
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1223.1118565579138,
+      1033.1696678107833,
+      1297.2446877648704,
+      1052.938422799305
+     ],
+     "hits": []
+    },
+    {
+     "type": "chip",
+     "bbox_src": [
+      2451.2457602198283,
+      778.6469473335655,
+      2493.2543645704372,
+      795.9446079485222
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2589.627045139481,
+      768.7625698393047,
+      2616.8090832486982,
+      778.6469473335655
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2641.520026984351,
+      795.9446079485222,
+      2666.230970720003,
+      805.828985442783
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2540.2051576681765,
+      768.7625698393047,
+      2574.8004788980898,
+      783.5891360806961
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1230.5251396786093,
+      1141.897820247653,
+      1299.7157821384358,
+      1159.1954808626097
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2451.2457602198283,
+      739.1094373565221,
+      2480.898892702611,
+      751.4649092243482
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2498.196553317568,
+      744.0516261036526,
+      2520.4364026796547,
+      753.9360035979134
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf3",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1368.1251710156464,
+      773.7750304718788,
+      1400.4626750578345,
+      783.725031715629
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2656.6503320812917,
+      1052.3750652968833,
+      2681.525335190667,
+      1062.3250665406333
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf3",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1373.1001716375215,
+      786.2125320265666,
+      1402.950175368772,
+      796.1625332703167
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf3",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1298.4751623093953,
+      748.9000273625035,
+      1343.2501679062711,
+      768.8000298500037
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_hood_kf3",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1378.0751722593966,
+      791.1875326484417,
+      1407.9251759906472,
+      801.1375338921918
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_door_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      3432.0559585341257,
+      828.7994871803173,
+      3457.955942508511,
+      853.0807221563032
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3245.899823718234,
+      814.2307461947258,
+      3263.7060627006235,
+      835.2744831739135
+     ],
+     "hits": []
+    },
+    {
+     "type": "chip",
+     "bbox_src": [
+      3511.3746594556796,
+      694.4433203131955,
+      3527.56214943967,
+      726.8183002811767
+     ],
+     "hits": []
+    },
+    {
+     "type": "dirt",
+     "bbox_src": [
+      3304.1747876606,
+      1445.5428555703581,
+      3323.599775641389,
+      1486.0115805303346
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_door_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      3245.899823718234,
+      985.8181400250259,
+      3263.7060627006235,
+      1006.8618770042136
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      3475.7621814909003,
+      969.6306500410353,
+      3504.8996634620835,
+      992.2931360186221
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3304.1747876606,
+      1621.9864963958553,
+      3325.218524639788,
+      1667.311468351029
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_door_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3291.2247956734077,
+      963.155654047439,
+      3307.412285657398,
+      989.0556380218239
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      3478.9996794876984,
+      1021.4306179898051,
+      3504.8996634620835,
+      1055.4243469561852
+     ],
+     "hits": []
+    },
+    {
+     "type": "dirt",
+     "bbox_src": [
+      3304.1747876606,
+      1621.9864963958553,
+      3323.599775641389,
+      1673.786464344625
+     ],
+     "hits": []
+    },
+    {
+     "type": "chip",
+     "bbox_src": [
+      3511.3746594556796,
+      720.3433042875805,
+      3525.943400441271,
+      755.9557822523598
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_door_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3244.281074719835,
+      885.4557021242844,
+      3263.7060627006235,
+      909.7369371002702
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3477.3809304892993,
+      909.7369371002702,
+      3508.1371614588816,
+      932.3994230778569
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      3302.556038662201,
+      1586.3740184310761,
+      3323.599775641389,
+      1626.8427433910524
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_door_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      362.031201917731,
+      687.8592836436889,
+      382.7186991701727,
+      733.1131838834052
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      310.31245878662656,
+      921.8865963119364,
+      341.3437046652892,
+      946.452999299211
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_door_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      400.8202592660593,
+      840.4295758804469,
+      421.5077565185011,
+      888.2694132767185
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      314.1913645214594,
+      1051.1834541396975,
+      349.10151613495486,
+      1077.0428257052497
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      208.16794110269532,
+      843.0155130370022,
+      222.39059546374904,
+      861.1170731328887
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_door_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      362.031201917731,
+      667.1717863912471,
+      384.01166774845035,
+      716.3045923657963
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      311.6054273649042,
+      916.7147219988259,
+      341.3437046652892,
+      951.6248736123214
+     ],
+     "hits": []
+    },
+    {
+     "type": "chip",
+     "bbox_src": [
+      240.49215555963556,
+      693.0311579567993,
+      254.7148099206893,
+      711.1327180526858
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_door_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      362.031201917731,
+      695.6170951133545,
+      381.42573059189516,
+      746.0428696661813
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      310.31245878662656,
+      910.2498791074379,
+      342.6366732435668,
+      938.6951878295453
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      196.53122389819683,
+      720.1834981006291,
+      206.8749725244177,
+      734.4061524616828
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_front_wheel_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_left_front_wheel_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_left_front_wheel_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_left_front_wheel_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_left_rear_door_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1081.330067198977,
+      999.2981285745061,
+      1096.6183556750823,
+      1024.3153278990417
+     ],
+     "hits": [
+      "old_chip_10mm"
+     ]
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_rear_door_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1120.2457105926992,
+      917.297308566306,
+      1136.923843475723,
+      946.4840411115977
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_rear_door_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1079.9402227920586,
+      922.8566861939806,
+      1096.6183556750823,
+      954.8231075531095
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_rear_door_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1081.330067198977,
+      1027.095016712879,
+      1098.0082000820007,
+      1059.0614380720078
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_left_rear_wheel_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_left_rear_wheel_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_left_rear_wheel_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_left_rear_wheel_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "reflection",
+     "bbox_src": [
+      3588.0,
+      542.0,
+      3746.0,
+      555.0
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_mirrors_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf3",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf3",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf3",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_mirrors_kf3",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_rear_window_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1938.7631011083588,
+      688.8440710253619,
+      1980.0193725100496,
+      703.1940784694283
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_rear_window_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1910.063086220226,
+      688.8440710253619,
+      1936.9693501778504,
+      701.40032753892
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_rear_window_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1938.7631011083588,
+      694.2253238168868,
+      1976.431870649033,
+      708.5753312609531
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_rear_window_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      2051.769409730381,
+      692.4315728863785,
+      2084.0569264795304,
+      708.5753312609531
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_rear_window_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "dirt",
+     "bbox_src": [
+      1913.2380899422592,
+      673.525308928754,
+      1954.49436134395,
+      686.0815654423121
+     ],
+     "hits": []
+    },
+    {
+     "type": "chip",
+     "bbox_src": [
+      2343.73831326425,
+      691.462818233837,
+      2388.5820865269575,
+      707.6065766084116
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_rear_window_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2142.838209047321,
+      682.4940635812956,
+      2180.506978587995,
+      698.6378219558702
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_rear_window_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2178.7132276574866,
+      677.1128107897706,
+      2221.7632499896863,
+      711.1940784694283
+     ],
+     "hits": [
+      "old_scuff_06cm"
+     ]
+    }
+   ]
+  },
+  {
+   "kf_id": "return_rear_window_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2180.506978587995,
+      682.4940635812956,
+      2218.1757481286695,
+      698.6378219558702
+     ],
+     "hits": [
+      "old_scuff_06cm"
+     ]
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_front_door_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_right_front_door_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_right_front_door_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_right_front_door_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_right_front_door_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      450.3538837741292,
+      964.8865800475542,
+      513.7405934122896,
+      1036.7248509708027
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      584.1702707880236,
+      1577.6247732164388,
+      612.3421417383172,
+      1649.4630441396873
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_front_door_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      448.94529022661453,
+      862.0592510789827,
+      510.92340631726034,
+      905.7256510519377
+     ],
+     "hits": [
+      "old_scratch_20cm"
+     ]
+    },
+    {
+     "type": "dirt",
+     "bbox_src": [
+      591.213238525597,
+      1488.883379723014,
+      605.2991740007437,
+      1532.5497796959692
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_front_door_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      461.6226321542466,
+      909.9514316944817,
+      516.5577805073191,
+      983.1982961652449
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      581.3530836929942,
+      1524.0982184108811,
+      609.5249546432877,
+      1595.9364893341296
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_front_door_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      441.9023224890411,
+      973.3381413326422,
+      491.20309665205485,
+      1045.1764122558907
+     ],
+     "hits": []
+    },
+    {
+     "type": "chip",
+     "bbox_src": [
+      534.8694966250099,
+      1586.0763345015268,
+      560.2241804802741,
+      1641.0114828545993
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_rear_door_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      457.28895139761437,
+      1070.6152180602817,
+      525.056112320181,
+      1149.491749625892
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_rear_door_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      431.73739891861385,
+      953.9668263083229,
+      492.83893745535426,
+      1013.9574277807588
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_rear_door_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      447.29051781887506,
+      886.1996653857562,
+      512.8358046128328,
+      946.1902668581922
+     ],
+     "hits": [
+      "old_scratch_20cm"
+     ]
+    },
+    {
+     "type": "reflection",
+     "bbox_src": [
+      377.3014827676997,
+      800.6575114343198,
+      401.74209818239586,
+      850.6496793280164
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_rear_door_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "scratch",
+     "bbox_src": [
+      447.29051781887506,
+      942.8574556652792,
+      498.3936227768761,
+      992.8496235589758
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_right_rear_wheel_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_right_rear_wheel_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_right_rear_wheel_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_right_rear_wheel_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_roof_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "dirt",
+     "bbox_src": [
+      2363.0370603497627,
+      436.334311366413,
+      2410.121423137256,
+      451.203057509832
+     ],
+     "hits": []
+    },
+    {
+     "type": "reflection",
+     "bbox_src": [
+      1654.293494180125,
+      1011.2591622452799,
+      1785.6340851136592,
+      1023.6497840314623
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_roof_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "dirt",
+     "bbox_src": [
+      2479.508905139878,
+      411.55306779404805,
+      2521.637019212898,
+      426.42181393746705
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1731.1153492544563,
+      998.8685404590974,
+      1842.6309453300987,
+      1016.2154109597528
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_roof_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "dirt",
+     "bbox_src": [
+      2437.3807910668575,
+      399.1624460078656,
+      2479.508905139878,
+      409.07494343681157
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1666.6841159663074,
+      1080.6466442479018,
+      1790.5903338281323,
+      1093.037266034084
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_roof_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "dirt",
+     "bbox_src": [
+      2484.465153854351,
+      446.246808795359,
+      2534.0276409990806,
+      463.59367929601444
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1644.380996751179,
+      939.3935558854215,
+      1785.6340851136592,
+      956.7404263860769
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_roof_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2408.0988159487697,
+      884.8903727163572,
+      2455.3315964928415,
+      902.2919234431206
+     ],
+     "hits": []
+    },
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1035.8622443525753,
+      1121.0542754367168,
+      1125.355933804501,
+      1140.941761981589
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_roof_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2462.789403947169,
+      810.3122981730858,
+      2500.078441218805,
+      822.741977263631
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1132.8137412588283,
+      1006.7012278037006,
+      1207.3918158020997,
+      1024.102778530464
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_roof_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      2487.6487621282595,
+      852.5732070809396,
+      2524.937799399895,
+      867.4888219895938
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1065.693474169884,
+      1058.9058799839906,
+      1125.355933804501,
+      1076.307430710754
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_roof_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      2373.2957144952434,
+      810.3122981730858,
+      2405.612880130661,
+      822.741977263631
+     ],
+     "hits": []
+    },
+    {
+     "type": "scratch",
+     "bbox_src": [
+      1068.179409987993,
+      1014.1590352580278,
+      1125.355933804501,
+      1034.0465218029
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_tail_lights_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "reflection",
+     "bbox_src": [
+      1658.0,
+      1223.0,
+      1674.0,
+      1229.0
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_tail_lights_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_tail_lights_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_tail_lights_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_tail_lights_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_tail_lights_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_tail_lights_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_tail_lights_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": []
+  },
+  {
+   "kf_id": "return_windshield_kf1",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1938.7631011083588,
+      688.8440710253619,
+      1969.256866927,
+      701.40032753892
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_windshield_kf1",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1935.1755992473422,
+      685.2565691643453,
+      1967.4631159964915,
+      703.1940784694283
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_windshield_kf1",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      2053.5631606608895,
+      685.2565691643453,
+      2094.8194320625807,
+      703.1940784694283
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_windshield_kf1",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "chip",
+     "bbox_src": [
+      1936.9693501778504,
+      688.8440710253619,
+      1969.256866927,
+      703.1940784694283
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_windshield_kf2",
+   "rep": 0,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      2062.675673688006,
+      685.6690673033287,
+      2118.2819525337627,
+      705.40032753892
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_windshield_kf2",
+   "rep": 0,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "reflection",
+     "bbox_src": [
+      2084.2006848541055,
+      687.462818233837,
+      2114.6944506727464,
+      705.40032753892
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_windshield_kf2",
+   "rep": 1,
+   "arm": "old",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "dirt",
+     "bbox_src": [
+      1962.2256215795412,
+      683.8753163728204,
+      1999.8943911202155,
+      700.019074747395
+     ],
+     "hits": []
+    }
+   ]
+  },
+  {
+   "kf_id": "return_windshield_kf2",
+   "rep": 1,
+   "arm": "seams",
+   "valid": true,
+   "boxes": [
+    {
+     "type": "unsure",
+     "bbox_src": [
+      1987.3381346066574,
+      687.462818233837,
+      2025.0069041473316,
+      705.40032753892
+     ],
+     "hits": []
+    }
+   ]
+  }
+ ]
+}

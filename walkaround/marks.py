@@ -758,6 +758,7 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
     root = paths.run_dir(run_id)
     effort = str(th["spark"]["effort"])
     fixtures = match.fixtures_not_damage(th)  # lead decision 4 of 11/1: the prompt's fixture sentence, leaf on only
+    seams = match.seams_not_marks(th)  # lead 11/1: the seams sentence, leaf on only
     semaphore = asyncio.Semaphore(int(th["orchestrator"]["spark_semaphore"]))
     kfs = [kf for kf in keyframes if kf.role == role]
     spark_path = paths.spark_json(run_id)
@@ -768,7 +769,7 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
     async def ask(kf: Keyframe, crop_rgb: np.ndarray, input_ref: InputRef | None) -> tuple[Any, Any]:
         async with semaphore:
             result = await asyncio.to_thread(
-                spark_client.find_marks, crop_rgb, kf.panel_id, landmarks=landmarks_for(kf.panel_id, th), effort=effort, run_id=run_id, input_ref=input_ref, fixtures=fixtures
+                spark_client.find_marks, crop_rgb, kf.panel_id, landmarks=landmarks_for(kf.panel_id, th), effort=effort, run_id=run_id, input_ref=input_ref, fixtures=fixtures, seams=seams
             )
             count = None
             if count_mode:

@@ -1,0 +1,254 @@
+{
+ "note": "Second SAM 3.1 image noun test (35 requests; the first batch of 56 is summarised in NOTES.md, its file was overwritten). Frames: s2_<n> = synth_pair2 pickup.mp4 source frame n at 960x540 (210 front left fender stop, 327 front left door, 444 left rear quarter, 798 right rear quarter, 1032 front right fender); pc_rff and pc_lrf = pairC_core3 keyframe frames pickup_right_front_fender_kf1 and return_left_rear_fender_kf1 (1920x1080).",
+ "rows": [
+  {
+   "frame": "s2_210",
+   "prompt": "rear fender",
+   "masks": []
+  },
+  {
+   "frame": "s2_210",
+   "prompt": "car side panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_210",
+   "prompt": "body panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_210",
+   "prompt": "car panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_210",
+   "prompt": "rear wing",
+   "masks": []
+  },
+  {
+   "frame": "s2_210",
+   "prompt": "front wing",
+   "masks": []
+  },
+  {
+   "frame": "s2_210",
+   "prompt": "panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_444",
+   "prompt": "rear fender",
+   "masks": []
+  },
+  {
+   "frame": "s2_444",
+   "prompt": "car side panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_444",
+   "prompt": "body panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_444",
+   "prompt": "car panel",
+   "masks": [
+    {
+     "area_frac": 0.1068,
+     "c": 0.53,
+     "box": [
+      562,
+      254,
+      900,
+      540
+     ]
+    }
+   ]
+  },
+  {
+   "frame": "s2_444",
+   "prompt": "rear wing",
+   "masks": []
+  },
+  {
+   "frame": "s2_444",
+   "prompt": "front wing",
+   "masks": []
+  },
+  {
+   "frame": "s2_444",
+   "prompt": "panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_798",
+   "prompt": "rear fender",
+   "masks": []
+  },
+  {
+   "frame": "s2_798",
+   "prompt": "car side panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_798",
+   "prompt": "body panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_798",
+   "prompt": "car panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_798",
+   "prompt": "rear wing",
+   "masks": []
+  },
+  {
+   "frame": "s2_798",
+   "prompt": "front wing",
+   "masks": []
+  },
+  {
+   "frame": "s2_798",
+   "prompt": "panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_1032",
+   "prompt": "rear fender",
+   "masks": []
+  },
+  {
+   "frame": "s2_1032",
+   "prompt": "car side panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_1032",
+   "prompt": "body panel",
+   "masks": []
+  },
+  {
+   "frame": "s2_1032",
+   "prompt": "car panel",
+   "masks": [
+    {
+     "area_frac": 0.0402,
+     "c": 0.5,
+     "box": [
+      769,
+      304,
+      938,
+      540
+     ]
+    },
+    {
+     "area_frac": 0.0815,
+     "c": 0.52,
+     "box": [
+      0,
+      0,
+      380,
+      189
+     ]
+    },
+    {
+     "area_frac": 0.1479,
+     "c": 0.54,
+     "box": [
+      233,
+      65,
+      902,
+      279
+     ]
+    }
+   ]
+  },
+  {
+   "frame": "s2_1032",
+   "prompt": "rear wing",
+   "masks": []
+  },
+  {
+   "frame": "s2_1032",
+   "prompt": "front wing",
+   "masks": []
+  },
+  {
+   "frame": "s2_1032",
+   "prompt": "panel",
+   "masks": []
+  },
+  {
+   "frame": "pc_lrf",
+   "prompt": "rear fender",
+   "masks": []
+  },
+  {
+   "frame": "pc_lrf",
+   "prompt": "car side panel",
+   "masks": [
+    {
+     "area_frac": 0.1934,
+     "c": 0.51,
+     "box": [
+      0,
+      278,
+      992,
+      807
+     ]
+    }
+   ]
+  },
+  {
+   "frame": "pc_lrf",
+   "prompt": "body panel",
+   "masks": [
+    {
+     "area_frac": 0.0846,
+     "c": 0.57,
+     "box": [
+      1339,
+      7,
+      1810,
+      703
+     ]
+    },
+    {
+     "area_frac": 0.0831,
+     "c": 0.56,
+     "box": [
+      0,
+      0,
+      1920,
+      807
+     ]
+    }
+   ]
+  },
+  {
+   "frame": "pc_lrf",
+   "prompt": "car panel",
+   "masks": []
+  },
+  {
+   "frame": "pc_lrf",
+   "prompt": "rear wing",
+   "masks": []
+  },
+  {
+   "frame": "pc_lrf",
+   "prompt": "front wing",
+   "masks": []
+  },
+  {
+   "frame": "pc_lrf",
+   "prompt": "panel",
+   "masks": []
+  }
+ ]
+}

@@ -1519,30 +1519,225 @@ def apply_twin_check(
 
 
 # ----------------------------------------------------------------------------------------------------------------
+# Fenders and rear quarters from the wheels (lead 11/1, thresholds panels.fender_from_wheels)
+# ----------------------------------------------------------------------------------------------------------------
+#
+# SAM 3.1 has no noun for the panel over a wheel: on stored frames "fender", "car fender", "front fender", "quarter
+# panel" and "rear quarter panel" came back empty on the synthetic sedan, and on pair C "fender" boxed only the arch lip
+# (0.3% to 0.9% of the frame), so no fender was ever filmed. With the leaf on, the fender lane's own tracks are left out
+# and every wheel track gives one fender track after the side vote: its slot from the wheel's side and position (the
+# side from the decided doors beside the wheel when the wheel's own is undecided), its boxes from the wheel's, and at
+# each keyframe candidate its mask is what is left of the car mask near the wheel once every part SAM did name is cut
+# away (the connected piece over the wheel arch). Built tracks never take part in the side vote.
+
+FENDER_CUT_NOUNS: tuple[Noun, ...] = (
+    Noun.CAR_DOOR, Noun.BUMPER, Noun.WHEEL, Noun.HOOD, Noun.TRUNK_LID, Noun.ROOF, Noun.HEADLIGHT, Noun.TAIL_LIGHT,
+    Noun.SIDE_MIRROR, Noun.WINDSHIELD, Noun.REAR_WINDOW, Noun.CAR_WINDOW, Noun.LICENSE_PLATE,
+)
+_FROM_WHEEL = "_fender_from_wheel_"
+
+
+def fender_settings(th: dict[str, Any] | None) -> dict[str, Any] | None:
+    """thresholds panels.fender_from_wheels, or None when the run's thresholds predate it (fenders then come from the
+    fender lane as before)."""
+    cfg = (th or {}).get("panels", {}).get("fender_from_wheels")
+    return cfg if isinstance(cfg, dict) else None
+
+
+def is_wheel_fender(track: c.PanelTrack) -> bool:
+    """A fender track built from a wheel track (its id is <role>_fender_from_wheel_<n>)."""
+    return track.noun is Noun.FENDER and _FROM_WHEEL in track.track_id
+
+
+def wheel_id_of(track: c.PanelTrack) -> str:
+    """The wheel track a built fender track came from."""
+    return track.track_id.replace(_FROM_WHEEL, "_wheel_", 1)
+
+
+def _wheel_geom(box: Box) -> tuple[float, float, float, float, float, float, float]:
+    """x1, y1, x2, y2, the wheel's size d (the longer box side, as the bottom is often cut), centre x and y."""
+    x1, y1, x2, y2 = (float(v) for v in box)
+    d = max(x2 - x1, y2 - y1, 1.0)
+    return x1, y1, x2, y2, d, (x1 + x2) / 2.0, (y1 + y2) / 2.0
+
+
+def fender_box(wheel_box: Box, car_box: Box | None, media_size: tuple[int, int], cfg: dict[str, Any]) -> list[int] | None:
+    """The box pass box of the fender over a wheel: the wheel widened by box_side_d x d each way, from box_above_d x d
+    over its top down to its centre, inside the car box and the frame."""
+    x1, y1, x2, y2, d, _cx, cy = _wheel_geom(wheel_box)
+    side, above = float(cfg["box_side_d"]), float(cfg["box_above_d"])
+    b = [x1 - side * d, y1 - above * d, x2 + side * d, cy]
+    if car_box is not None:
+        b = [max(b[0], float(car_box[0])), max(b[1], float(car_box[1])), min(b[2], float(car_box[2])), min(b[3], float(car_box[3]))]
+    w_img, h_img = media_size
+    out = [int(round(max(0.0, b[0]))), int(round(max(0.0, b[1]))), int(round(min(float(w_img), b[2]))), int(round(min(float(h_img), b[3])))]
+    return out if out[2] > out[0] and out[3] > out[1] else None
+
+
+def _door_side(wheel: c.PanelTrack, doors: list[c.PanelTrack], cfg: dict[str, Any]) -> Side:
+    """The side the decided doors beside a wheel vote for: one vote per shared frame where a door box is within
+    door_gap_d x d of the wheel box and reaches down past the wheel's top; NONE under min_frames or on a tie."""
+    rows = {r.frame: r for r in wheel.per_frame if r.in_car_box}
+    gap_d = float(cfg["door_gap_d"])
+    votes = {Side.LEFT: 0, Side.RIGHT: 0}
+    for door in doors:
+        for r in door.per_frame:
+            w = rows.get(r.frame)
+            if w is None or door.side not in votes:
+                continue
+            x1, y1, x2, _y2, d, _cx, cy = _wheel_geom(w.box)
+            gap = max(float(r.box[0]) - x2, x1 - float(r.box[2]), 0.0)
+            if gap <= gap_d * d and float(r.box[3]) >= y1 - 0.5 * d and float(r.box[1]) <= cy:
+                votes[door.side] += 1
+    left, right = votes[Side.LEFT], votes[Side.RIGHT]
+    if max(left, right) < int(cfg["min_frames"]) or left == right:
+        return Side.NONE
+    return Side.LEFT if left > right else Side.RIGHT
+
+
+def fender_tracks(
+    role: str, tracks: list[c.PanelTrack], car_boxes: dict[int, list[int]], media_size: tuple[int, int], cfg: dict[str, Any]
+) -> list[c.PanelTrack]:
+    """One fender track per voted wheel track of the role whose slot is known: side and position from the wheel's
+    candidate slots when they agree, else the side from the doors beside it; boxes from fender_box. A wheel whose
+    side or position stays unknown, or with fewer than min_frames rows, gives none."""
+    role_tracks = [t for t in tracks if t.role == role]
+    doors = [t for t in role_tracks if t.noun is Noun.CAR_DOOR and not undecided(t) and t.side is not Side.NONE]
+    w_img, h_img = media_size
+    out: list[c.PanelTrack] = []
+    for wheel in sorted((t for t in role_tracks if t.noun is Noun.WHEEL), key=lambda t: t.track_id):
+        slots = candidate_slots(wheel)
+        if not slots:
+            continue
+        sides = {_panel_side_position(s)[0] for s in slots}
+        positions = {_panel_side_position(s)[1] for s in slots}
+        side = next(iter(sides)) if len(sides) == 1 else _door_side(wheel, doors, cfg)
+        position = next(iter(positions)) if len(positions) == 1 else Position.NONE
+        if side is Side.NONE or position is Position.NONE:
+            continue
+        rows: list[c.FrameObs] = []
+        for r in wheel.per_frame:
+            if not r.in_car_box:
+                continue
+            box = fender_box(r.box, car_boxes.get(r.frame), media_size, cfg)
+            if box is None:
+                continue
+            rows.append(
+                c.FrameObs(
+                    frame=r.frame, pts=r.pts, box=box, box_area_frac=round(_area(box) / float(w_img * h_img), 6), in_car_box=True,
+                    border_frac=round(border_frac(box, media_size), 6),
+                )
+            )
+        if len(rows) < int(cfg["min_frames"]):
+            continue
+        pid = _lateral_panel_id(Noun.FENDER, side, position)
+        out.append(
+            c.PanelTrack(
+                track_id=wheel.track_id.replace("_wheel_", _FROM_WHEEL, 1), role=role, noun=Noun.FENDER, sam_object_ids=[],
+                fragments=[], per_frame=rows, panel_id=pid, side=side, position=position,
+            )
+        )
+    return out
+
+
+def apply_wheel_fenders(
+    role: str,
+    panels: list[c.Panel],
+    tracks: list[c.PanelTrack],
+    car_boxes: dict[int, list[int]],
+    media_size: tuple[int, int],
+    fps: float,
+    th: dict[str, Any],
+) -> tuple[list[c.Panel], list[c.PanelTrack]]:
+    """After the vote: the role's fender lane tracks out, its wheel fenders in, and the four fender panels rebuilt from
+    every role's fender tracks (votes zero: a built track casts none)."""
+    cfg = fender_settings(th)
+    if cfg is None:
+        return panels, tracks
+    kept = [t for t in tracks if not (t.role == role and t.noun is Noun.FENDER)]
+    out = _sorted_tracks(kept + fender_tracks(role, kept, car_boxes, media_size, cfg))
+    rebuilt = _panels_from(
+        [t for t in out if t.noun is Noun.FENDER], {}, fps=fps, merge_gap_s=float(th["panels"]["merge_gap_max_s"]),
+        fallback_dt=1.0 / float(th["media"]["proxy_fps"]),
+    )
+    by_pid = {p.panel_id: p for p in rebuilt if p.noun is Noun.FENDER}
+    return [by_pid.get(p.panel_id, p) if p.noun is Noun.FENDER else p for p in panels], out
+
+
+def wheel_fender_mask(
+    wheel_box: Box, car_mask: np.ndarray, cut_masks: list[np.ndarray], cfg: dict[str, Any]
+) -> np.ndarray | None:
+    """The fender over a wheel on one proxy frame: the car mask inside a region around the wheel (reach_d x d either
+    side of its centre from above_d x d over its top down to its centre, below that only below_side_d x d beyond its
+    sides, so the sill under the doors stays out), less every named part, opened by open_px, then the connected piece
+    with the most pixels just over the wheel's top. None when nothing is there."""
+    import cv2
+
+    h, w = car_mask.shape[:2]
+    x1, y1, x2, _y2, d, cx, cy = _wheel_geom(wheel_box)
+    reach, above, below_side = float(cfg["reach_d"]), float(cfg["above_d"]), float(cfg["below_side_d"])
+    region = np.zeros((h, w), dtype=bool)
+    top, mid = max(0, int(round(y1 - above * d))), min(h, max(0, int(round(cy))))
+    region[top:mid, max(0, int(round(cx - reach * d))) : min(w, int(round(cx + reach * d)))] = True
+    region[mid:, max(0, int(round(x1 - below_side * d))) : min(w, int(round(x2 + below_side * d)))] = True
+    rest = np.asarray(car_mask, dtype=bool) & region
+    for m in cut_masks:
+        rest &= ~np.asarray(m, dtype=bool)
+    k = int(cfg["open_px"])
+    if k > 1:
+        rest = cv2.morphologyEx(rest.astype(np.uint8), cv2.MORPH_OPEN, np.ones((k, k), np.uint8)) > 0
+    n, labels, _stats, _c = cv2.connectedComponentsWithStats(rest.astype(np.uint8), connectivity=8)
+    if n <= 1:
+        return None
+    zone = labels[max(0, int(round(y1 - 0.4 * d))) : max(0, int(round(y1 + 0.1 * d))) + 1, max(0, int(round(x1))) : min(w, int(round(x2)) + 1)]
+    counts = np.bincount(zone.ravel(), minlength=n)
+    counts[0] = 0
+    if int(counts.max()) == 0:
+        return None
+    return labels == int(np.argmax(counts))
+
+
+# ----------------------------------------------------------------------------------------------------------------
 # 5.3 keyframes
 # ----------------------------------------------------------------------------------------------------------------
 
 
-def box_pass_score(track: c.PanelTrack, frame: int) -> float:
+def door_glass_edge(th: dict[str, Any] | None) -> bool:
+    """thresholds panels.door_glass_edge (lead 11/1, 2 m laps): a door box that reaches the top of the frame is cut
+    there by its window glass, which SAM's door mask includes, so the box pass leaves the top edge out of a door's
+    border share; the mask pass then measures completeness after the car windows are cut out. Off when absent."""
+    return bool((th or {}).get("panels", {}).get("door_glass_edge", False))
+
+
+def pass_border_frac(track: c.PanelTrack, row: c.FrameObs, th: dict[str, Any] | None = None) -> float:
+    """The border share the box pass uses: border_frac, less the top edge for a door under panels.door_glass_edge."""
+    if track.noun is not Noun.CAR_DOOR or not door_glass_edge(th) or float(row.box[1]) > 0:
+        return row.border_frac
+    w, h = max(0.0, float(row.box[2]) - float(row.box[0])), max(0.0, float(row.box[3]) - float(row.box[1]))
+    return max(0.0, row.border_frac - (w / (2.0 * (w + h)) if w + h > 0 else 0.0))
+
+
+def box_pass_score(track: c.PanelTrack, frame: int, th: dict[str, Any] | None = None) -> float:
     """box area x (1 - border_frac) x aspect over the track's max aspect, for one frame of a track."""
     rows = {r.frame: r for r in track.per_frame}
     row = rows.get(frame)
     if row is None:
         return 0.0
     max_aspect = max((_aspect(r.box) for r in track.per_frame), default=0.0) or 1.0
-    return row.box_area_frac * (1.0 - row.border_frac) * (_aspect(row.box) / max_aspect)
+    return row.box_area_frac * (1.0 - pass_border_frac(track, row, th)) * (_aspect(row.box) / max_aspect)
 
 
 def keyframe_candidates(track: c.PanelTrack, th: dict[str, Any]) -> list[int]:
     """The box pass: top keyframe_box_pass_candidates frames by box_pass_score; border_frac over the max excluded."""
     p = th["panels"]
-    rows = [r for r in track.per_frame if r.in_car_box and r.border_frac <= float(p["border_frac_keyframe_max"])]
+    limit = 1.0 if is_wheel_fender(track) else float(p["border_frac_keyframe_max"])  # a built fender's mask pass judges its border
+    rows = [r for r in track.per_frame if r.in_car_box and pass_border_frac(track, r, th) <= limit]
     if not rows:
         return []
     max_aspect = max((_aspect(r.box) for r in track.per_frame), default=0.0) or 1.0
     ranked = sorted(
         rows,
-        key=lambda r: (-(r.box_area_frac * (1.0 - r.border_frac) * (_aspect(r.box) / max_aspect)), r.frame),
+        key=lambda r: (-(r.box_area_frac * (1.0 - pass_border_frac(track, r, th)) * (_aspect(r.box) / max_aspect)), r.frame),
     )
     return [r.frame for r in ranked[: int(p["keyframe_box_pass_candidates"])]]
 
@@ -2165,10 +2360,14 @@ async def derive(
     prior_keyframes = [k for k in await asyncio.to_thread(_read_list, paths.keyframes_json(run_id), c.Keyframe) if k.role != role]
     cov_path = paths.coverage_json(run_id)
     prior_coverage = await asyncio.to_thread(c.read_json, cov_path, c.Coverage) if cov_path.is_file() else c.Coverage()
-    panels, tracks = await asyncio.to_thread(_vote_with_prior, run_id, role, new_tracks, prior_tracks, prior_keyframes, fps, th)
+    built = [t for t in prior_tracks if is_wheel_fender(t)]  # lead 11/1: fenders built from wheels never vote
+    voters = [t for t in prior_tracks if not is_wheel_fender(t)]
+    panels, tracks = await asyncio.to_thread(_vote_with_prior, run_id, role, new_tracks, voters, prior_keyframes, fps, th)
+    if fender_settings(th) is not None:
+        panels, tracks = apply_wheel_fenders(role, panels, tracks + built, car_boxes_by_frame(kept.get(Noun.CAR, [])), media_size, fps, th)
     role_tracks = [t for t in tracks if t.role == role]
     keyframes = await _derive_keyframes(
-        run_id, role, panels, role_tracks, kept, records, pts, media_size, fps, decode, blur_keyframe, th
+        run_id, role, panels, role_tracks, kept, records, pts, media_size, fps, decode, blur_keyframe, th, prior_keyframes
     )
     all_keyframes = _sorted_keyframes(prior_keyframes + keyframes)
     coverage, cov_role = await asyncio.to_thread(
@@ -2191,7 +2390,7 @@ def _keyframe_plan(
             continue
         mine = [t for t in role_tracks if t.panel_id == panel.panel_id]
         pool = [t for t in mine if not undecided(t)] or mine
-        ranked = sorted(((f, t) for t in pool for f in keyframe_candidates(t, th)), key=lambda ft: (-box_pass_score(ft[1], ft[0]), ft[0]))
+        ranked = sorted(((f, t) for t in pool for f in keyframe_candidates(t, th)), key=lambda ft: (-box_pass_score(ft[1], ft[0], th), ft[0]))
         cands: list[tuple[int, c.PanelTrack]] = []
         for f, t in ranked:
             if len(cands) < limit and all(f != g for g, _ in cands):
@@ -2204,6 +2403,7 @@ def _keyframe_plan(
 def _wanted_masks(
     plan: list[tuple[c.Panel, list[tuple[int, c.PanelTrack]]]],
     kept_at: dict[Noun, dict[int, list[c.IndexObject]]],
+    car_ids: dict[int, str] | None = None,
 ) -> dict[Noun, list[tuple[int, str]]]:
     """Every (frame, id) the scoring pass decodes per lane: the panel at each candidate, from the lane of the track it
     came from (the twin check can file a trunk-lid lane track under the hood), and the car windows (doors), plates and
@@ -2216,6 +2416,10 @@ def _wanted_masks(
             if oid is not None:
                 wanted.setdefault(t.noun, set()).add((f, oid))
             companions = (*PRIVACY_NOUNS, Noun.CAR_WINDOW) if t.noun is Noun.CAR_DOOR else PRIVACY_NOUNS
+            if is_wheel_fender(t) and car_ids is not None:  # the car and every named part at the frame (lead 11/1)
+                companions = tuple(dict.fromkeys((*PRIVACY_NOUNS, *FENDER_CUT_NOUNS)))
+                if f in car_ids:
+                    wanted.setdefault(Noun.CAR, set()).add((f, car_ids[f]))
             for noun in companions:
                 wanted.setdefault(noun, set()).update((f, o.id) for o in kept_at[noun].get(f, []))
     return {noun: sorted(pairs) for noun, pairs in wanted.items() if pairs}
@@ -2399,6 +2603,7 @@ def _score_panel(
     pts: Sequence[float],
     media_size: tuple[int, int],
     th: dict[str, Any],
+    built: dict[str, Any] | None = None,
 ) -> tuple[list[tuple[int, c.KeyframeScore]], dict[int, tuple[c.PanelTrack, np.ndarray, bool, np.ndarray, int]]]:
     """The mask pass on one panel's candidates, each source frame read once: [(frame, raw score)] and per frame the
     track, the panel mask after window subtraction, window_subtracted, the unblurred frame (kept for the blur) and the
@@ -2411,9 +2616,12 @@ def _score_panel(
     details: dict[int, tuple[c.PanelTrack, np.ndarray, bool, np.ndarray, int]] = {}
     for f, t in cands:
         rgb = frames.get(times[f])
-        oid = _object_at(t, f)
-        obj = lookups[t.noun].get((f, oid)) if oid is not None else None
-        mask = _mask_at(rasters, t.noun, f, [obj] if obj is not None else [], media_size)
+        if is_wheel_fender(t):
+            mask = _built_fender_mask(t, f, rasters, lookups, kept_at, media_size, built)
+        else:
+            oid = _object_at(t, f)
+            obj = lookups[t.noun].get((f, oid)) if oid is not None else None
+            mask = _mask_at(rasters, t.noun, f, [obj] if obj is not None else [], media_size)
         if rgb is None or mask is None:
             continue
         rows = np.flatnonzero(mask.any(axis=1))
@@ -2427,6 +2635,82 @@ def _score_panel(
         scored.append((f, score))
         details[f] = (t, m2, ws, rgb, int(rows[-1]) if rows.size else -1)
     return scored, details
+
+
+def view_match_return(th: dict[str, Any] | None) -> bool:
+    """thresholds panels.view_match_return (lead 11/1): the return walk puts first the candidate whose view best
+    matches a pickup keyframe of the panel, measured the way G4 measures it (the whitened mask IoU) with the same
+    window cut (G9) and a sharp enough frame (G3), when it beats what the score order alone would keep. Off when
+    absent."""
+    return bool((th or {}).get("panels", {}).get("view_match_return", False))
+
+
+def view_matched_first(
+    ordered: list[tuple[int, c.KeyframeScore]],
+    masks: dict[int, tuple[np.ndarray, bool]],
+    refs: list[tuple[np.ndarray, c.Moments, bool]],
+    front_sign: int | None,
+    *,
+    top_k: int,
+    th: dict[str, Any],
+) -> tuple[list[tuple[int, c.KeyframeScore]], dict[int, float]]:
+    """ordered (best score first) with the best view-matched candidate moved to the front when its IoU with a pickup
+    keyframe beats the best of the first top_k; and each candidate's best IoU (-1 when it cannot pair: no score, too
+    blurry for G3, or no pickup keyframe with the same window cut)."""
+    geometry = _geometry_mod()
+    ious: dict[int, float] = {}
+    if front_sign is None or not refs:
+        return ordered, ious
+    sharp_min = float(th["matching"]["sharpness_rel_min"])
+    for f, score in ordered:
+        mask, ws = masks[f]
+        best = -1.0
+        if score.total > 0 and score.sharpness >= sharp_min and int(mask.sum()) >= 3:
+            mom = geometry.moments_from_mask(mask)
+            for ref_mask, ref_mom, ref_ws in refs:
+                if ref_ws == ws:
+                    best = max(best, float(geometry.whitened_mask_iou(mask, mom, front_sign, ref_mask, ref_mom, front_sign)))
+        ious[f] = round(best, 4)
+    if not ordered:
+        return ordered, ious
+    head = max((ious[f] for f, _ in ordered[:top_k]), default=-1.0)
+    f_best = max(ordered, key=lambda fs: (ious[fs[0]], -fs[0]))[0]
+    if ious[f_best] <= head:
+        return ordered, ious
+    return [fs for fs in ordered if fs[0] == f_best] + [fs for fs in ordered if fs[0] != f_best], ious
+
+
+def _built_fender_mask(
+    t: c.PanelTrack,
+    f: int,
+    rasters: dict[tuple[Noun, int, str], np.ndarray],
+    lookups: dict[Noun, dict[tuple[int, str], c.IndexObject]],
+    kept_at: dict[Noun, dict[int, list[c.IndexObject]]],
+    media_size: tuple[int, int],
+    built: dict[str, Any] | None,
+) -> np.ndarray | None:
+    """A wheel fender's mask at a candidate (wheel_fender_mask); the row's box, area and border then follow the mask, so
+    the crop is cut around the fender itself."""
+    if not built or built.get("cfg") is None:
+        return None
+    wheel_box = built["wheel_boxes"].get(t.track_id, {}).get(f)
+    car_id = built["car_ids"].get(f)
+    car_obj = lookups[Noun.CAR].get((f, car_id)) if car_id is not None else None
+    car = _mask_at(rasters, Noun.CAR, f, [car_obj] if car_obj is not None else [], media_size)
+    if wheel_box is None or car is None:
+        return None
+    cuts = [m for n in FENDER_CUT_NOUNS if (m := _mask_at(rasters, n, f, kept_at.get(n, {}).get(f, []), media_size)) is not None]
+    mask = wheel_fender_mask(wheel_box, car, cuts, built["cfg"])
+    if mask is None or not mask.any():
+        return None
+    ys, xs = np.nonzero(mask)
+    box = [int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1]
+    for r in t.per_frame:
+        if r.frame == f:
+            r.box = box
+            r.box_area_frac = round(_area(box) / float(media_size[0] * media_size[1]), 6)
+            r.border_frac = round(border_frac(box, media_size), 6)
+    return mask
 
 
 def _keyframe_files(
@@ -2497,6 +2781,7 @@ async def _derive_keyframes(
     decode: Any,
     blur_keyframe: Callable[..., Awaitable[tuple[np.ndarray, c.BlurRecord]]],
     th: dict[str, Any],
+    prior_keyframes: list[c.Keyframe] | None = None,
 ) -> list[c.Keyframe]:
     """The box pass, one decode per mask the scoring pass needs (panel, car windows on doors, plates, faces at each
     candidate), the mask pass on each candidate's source frame (read once, off the event loop), then per panel in
@@ -2517,15 +2802,25 @@ async def _derive_keyframes(
     src = paths.quarantine_original(run_id, role)
     lookups = {noun: _box_lookup(kept[noun]) for noun in LANE_NOUNS}
     lane_paths = {noun: _lane_path(run_id, role, records[noun], noun) for noun in LANE_NOUNS}
-    kept_at = {noun: {fr.frame: fr.objects for fr in kept[noun]} for noun in (Noun.CAR_WINDOW, *PRIVACY_NOUNS)}
+    fcfg = fender_settings(th)
+    at_nouns = (Noun.CAR_WINDOW, *PRIVACY_NOUNS, *(FENDER_CUT_NOUNS if fcfg is not None else ()))
+    kept_at = {noun: {fr.frame: fr.objects for fr in kept.get(noun, [])} for noun in dict.fromkeys(at_nouns)}
     car_ids = {fr.frame: max(fr.objects, key=lambda o: _area(o.box)).id for fr in kept[Noun.CAR] if fr.objects}
+    by_id = {t.track_id: t for t in role_tracks}
+    wheel_boxes = {
+        t.track_id: {r.frame: r.box for r in by_id[wheel_id_of(t)].per_frame}
+        for t in role_tracks if is_wheel_fender(t) and wheel_id_of(t) in by_id
+    }
     car_boxes = car_boxes_by_frame(kept[Noun.CAR])
     wall0 = time.perf_counter()
     rasters: dict[tuple[Noun, int, str], np.ndarray] = {}
-    for noun, pairs in _wanted_masks(plan, kept_at).items():
+    for noun, pairs in _wanted_masks(plan, kept_at, car_ids if fcfg is not None else None).items():
         got = await asyncio.to_thread(masks.lane, lane_paths[noun], pairs, lookups[noun])
         rasters.update({(noun, f, oid): raster for (f, oid), raster in got.items()})
     spent = masks.cpu()
+    view_refs: dict[PanelId, list[tuple[np.ndarray, c.Moments, bool]]] = {}
+    if role == "return" and view_match_return(th):
+        view_refs = await asyncio.to_thread(_view_refs, run_id, prior_keyframes or [])
     top_k = int(p["keyframe_top_k"])
     if spent > float(p["keyframe_decode_budget_s_per_video"]):
         top_k = int(p["keyframe_top_k_under_budget"])
@@ -2534,6 +2829,7 @@ async def _derive_keyframes(
     run = _KeyframeRun(
         run_id=run_id, role=role, role_tracks=role_tracks, lookups=lookups, kept_at=kept_at, car_boxes=car_boxes,
         rasters=rasters, video=video, src=src, pts=pts, media_size=media_size, fps=fps, blur_keyframe=blur_keyframe, th=th,
+        built={"wheel_boxes": wheel_boxes, "car_ids": car_ids, "cfg": fcfg}, view_refs=view_refs,
         top_k=top_k, car_test=_CarTest(masks, lane_paths[Noun.CAR], lookups[Noun.CAR], car_ids, media_size, th),
     )
     gate = asyncio.Semaphore(max(1, int(p.get("keyframe_panels_in_flight", 1))))
@@ -2560,6 +2856,20 @@ async def _derive_keyframes(
     if run.tried and run.failed == run.tried:
         raise KeyframeError(f"{role}: all {run.failed} keyframes failed; last error: {run.last_error}")
     return keyframes
+
+
+def _view_refs(run_id: str, keyframes: list[c.Keyframe]) -> dict[PanelId, list[tuple[np.ndarray, c.Moments, bool]]]:
+    """Each pickup keyframe's crop mask, moments and window cut, per panel (panels.view_match_return)."""
+    import cv2
+
+    out: dict[PanelId, list[tuple[np.ndarray, c.Moments, bool]]] = {}
+    for kf in sorted(keyframes, key=lambda k: k.kf_id):
+        if kf.role != "pickup" or not kf.mask_png or kf.moments is None:
+            continue
+        m = cv2.imread(str(paths.run_dir(run_id) / kf.mask_png), cv2.IMREAD_GRAYSCALE)
+        if m is not None and (m > 0).any():
+            out.setdefault(kf.panel_id, []).append((m > 0, kf.moments, kf.window_subtracted))
+    return out
 
 
 class _KeyframeRun:
@@ -2604,7 +2914,8 @@ class _KeyframeRun:
         th = self.th
         try:
             scored, details = await asyncio.to_thread(
-                _score_panel, panel, cands, self.rasters, self.lookups, self.kept_at, self.video, self.src, self.pts, self.media_size, th
+                _score_panel, panel, cands, self.rasters, self.lookups, self.kept_at, self.video, self.src, self.pts, self.media_size, th,
+                self.built,
             )
         except Exception as exc:
             self.last_error = redact(f"{type(exc).__name__}: {exc}")
@@ -2616,7 +2927,13 @@ class _KeyframeRun:
         min_gap = float(th["panels"]["keyframe_min_gap_s"]) * self.fps
         taken: list[int] = []
         out: list[c.Keyframe] = []
-        for f, score in sorted(normalise_scores(scored, th), key=lambda fs: (-fs[1].total, fs[0])):
+        ordered = sorted(normalise_scores(scored, th), key=lambda fs: (-fs[1].total, fs[0]))
+        refs = (getattr(self, "view_refs", None) or {}).get(panel.panel_id)
+        if refs:
+            ordered, _ious = view_matched_first(
+                ordered, {f: (details[f][1], details[f][2]) for f, _ in ordered}, refs, panel.front_sign, top_k=self.top_k, th=th
+            )
+        for f, score in ordered:
             if len(taken) >= self.top_k:
                 break
             if score.total <= 0 or any(abs(f - g) < min_gap for g in taken):
