@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any
 
 from . import contracts as c
-from . import pipeline
+from . import paths, pipeline
 from .orchestrator import Orchestrator, RebuildRefused
 
 
@@ -125,10 +125,24 @@ def cmd_run(args: argparse.Namespace, orch: Orchestrator) -> int:
         return 2
 
 
+def sample_copy(orch: Orchestrator, run_id: str) -> str | None:
+    """Why a run cannot be rebuilt here: a replay copy (the sample pair) holds only the files the app serves, and a
+    rebuild needs the stored model answers too."""
+    if orch.load_run(run_id).live_or_replay != c.LiveOrReplay.REPLAY or paths.spark_json(run_id).is_file():
+        return None
+    return (
+        f"run {run_id} is a replay copy that holds only the files the app serves; a rebuild needs its stored model "
+        "answers (spark.json, voice.json), so verify and rebuild work on your own runs, not on the sample pair\n"
+    )
+
+
 def cmd_rebuild(args: argparse.Namespace, orch: Orchestrator) -> int:
     if not orch.run_exists(args.run_id):
         sys.stderr.write(f"no run {args.run_id}\n")
         return 1
+    if why := sample_copy(orch, args.run_id):
+        sys.stderr.write(why)
+        return 2
     thresholds = c.threshold_values(json.loads(args.thresholds.read_text(encoding="utf-8"))) if args.thresholds else None
     if args.out is None and orch.is_closed(args.run_id):
         sys.stderr.write(f"run {args.run_id} is closed, so its sealed files stay as they are; rebuilding into runs/_rebuild/{args.run_id}\n")
@@ -146,6 +160,9 @@ def cmd_verify(args: argparse.Namespace, orch: Orchestrator) -> int:
     if not orch.run_exists(args.run_id):
         sys.stderr.write(f"no run {args.run_id}\n")
         return 1
+    if why := sample_copy(orch, args.run_id):
+        sys.stderr.write(why)
+        return 2
     try:
         problems = pipeline.verify(args.run_id, out=args.out, orch=orch)
     except RebuildRefused as exc:

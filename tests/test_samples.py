@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from walkaround import __main__ as cli
+from walkaround import config, ledger, paths
 from walkaround import contracts as c
 
 REPO = Path(__file__).resolve().parent.parent
@@ -83,3 +85,15 @@ def test_dropped_keeps_named_clips_and_leaves_out_what_no_page_reads() -> None:
     assert module.dropped("sam/pickup/hood.index.json", clips) == "lane index"
     assert module.dropped("keyframes/pickup/x.frame.jpg", clips) == "full keyframe"
     assert module.dropped("sam/pickup/hood.ndjson.gz", clips) is None
+
+
+def test_verify_and_rebuild_say_a_sample_copy_cannot_be_rebuilt(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    root = tmp_path / "runs"
+    monkeypatch.setattr(paths, "RUNS_DIR", root)
+    monkeypatch.setattr(config, "RUNS_DIR", root)
+    monkeypatch.setattr(ledger, "LEDGER_PATH", root / "ledger.jsonl")
+    c.write_json(root / "RUNSAMPLE" / "run.json", c.RunManifest(run_id="RUNSAMPLE", created_at="2026-10-28T14:00:00Z", keep=True, live_or_replay=c.LiveOrReplay.REPLAY, status=c.RunStatus.DONE))
+    assert cli.main(["verify", "RUNSAMPLE"]) == 2
+    assert "replay copy" in capsys.readouterr().err
+    assert cli.main(["rebuild", "RUNSAMPLE"]) == 2
+    assert not (root / "_rebuild").exists()

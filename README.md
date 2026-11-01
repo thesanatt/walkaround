@@ -9,7 +9,8 @@ evidence support, not legal advice.
 
 ## Quick start: the sample pair, no key
 
-You need Python 3.13 and [uv](https://docs.astral.sh/uv/) or pip. No API key, no Node, no ffmpeg.
+You need [uv](https://docs.astral.sh/uv/) (it fetches Python 3.13 itself) or pip with Python 3.13 or newer. No API key,
+no Node, no ffmpeg.
 
 ```
 git clone <this repo's URL> walkaround
@@ -19,7 +20,14 @@ uv pip install -e ".[dev]"
 .venv/bin/walkaround serve
 ```
 
-With pip instead of uv: `python3.13 -m venv .venv && .venv/bin/pip install -e ".[dev]"`, then the same last line.
+With pip instead of uv (Python 3.13 or newer as `python3`), the two install lines are:
+
+```
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+```
+
+The first start in a new environment can take 20 to 30 seconds.
 
 Open http://127.0.0.1:8000 and press "open the sample pair (precomputed)". On start the app copied
 `samples/pairC_core1/` into `runs/`; the page replays that run's stored events with fixed delays under a "replayed from
@@ -54,7 +62,8 @@ JSON line, then `run.json`. Without `LIVE=1` it prints what it would do and spen
 PICKUP.mp4`) is a pickup-only check. Then `.venv/bin/walkaround serve` shows the run at `/run/<run_id>`, and
 `.venv/bin/walkaround verify <run_id>` rebuilds every derived file and the sheet from the stored model answers, with no
 network call, and prints "rebuild identical". The page also takes uploads from a phone; it hashes each file in the
-browser while it uploads.
+browser while it uploads. The claim page (`/claim`) places a photo from a damage bill against a finished run's pickup
+walk.
 
 The sample pair cost $3.2299 in 298 model calls and took 6 min 49 s end to end (its ledger rows in
 `docs/evidence/ledger_rows.jsonl`, its event log in `samples/pairC_core1/events.ndjson.gz`).
@@ -84,7 +93,7 @@ the evidence PDF. Without them the seal keeps its RFC 3161 token and the run pag
 
 | Model | Where it runs | Step | Why this model |
 |---|---|---|---|
-| SAM 3.1 (`sam-3.1`) | Meta Model API, Responses API, streamed | 16 lanes per walk (car, license plate, face, car door, bumper, wheel, hood, trunk lid, fender, roof, headlight, tail light, side mirror, windshield, rear window, car window); plate and face checks on kept frames; Stays Put clips | One noun phrase returns every instance with a stable id and a mask on each frame of a shaky phone walk, so panels, coverage and the blur come from tracks |
+| SAM 3.1 (`sam-3.1`) | Meta Model API, Responses API, streamed | 16 lanes per walk (car, license plate, face, car door, bumper, wheel, hood, trunk lid, fender, roof, headlight, tail light, side mirror, windshield, rear window, car window); plate and face checks on keyframes; Stays Put clips | One noun phrase returns every instance with a stable id and a mask on each frame of a shaky phone walk, so panels, coverage and the blur come from tracks |
 | Muse Spark 1.3 (`muse-spark-1.3`) | Meta Model API, Responses API with a JSON schema | Marks on one blurred crop at a time (boxes in the 0 to 1000 grid, type, size, crop condition); the panel in a claim photo; a spoken note turned into a box | Grounded, typed boxes from a single image with no training; it never sees both walks and never writes a label |
 | Muse Voice Transcribe (`muse-voice-transcribe-1.0`) | Meta Model API, `/v1/asr/transcribe`, ENDPOINTING mode | The renter's narration | Turn start and end times let code pin "trunk lid two small chips" to the seconds SAM shows the trunk lid |
 | Muse Spark Open (`meta-models/muse-spark-open`) | Baseten Model APIs, OpenAI-compatible Chat Completions | The second look: two outlined crops, same, different or unsure, for each pair code already called "already there" | The one model step that compares the two walks runs on open weights, every call is logged with the model id that answered, and an answer can only lower a label to "needs your eye" |
@@ -177,8 +186,9 @@ The source clips are not in the repo (`data/` is ignored); each label file in `e
   stays only on that renter's own sheet and PDF and never on a public page.
 - The app serves a fixed allowlist of run files (`served_file_allowed` in `walkaround/privacy.py`). Originals, unblurred
   proxies, the audio track, raw model answers and the quarantine are never served.
-- Unblurred originals and proxies are deleted when a run ends, each with its SHA-256 on the sheet. Model API uploads
-  are set to expire after an hour and are deleted at run end, and every request is sent with storage off.
+- Unblurred originals and proxies are deleted when a run ends; the sheet prints when, and `deletions.json` and the run
+  page list each file's SHA-256. Model API uploads are set to expire after an hour and are deleted at run end, and every
+  request is sent with storage off.
 - Processed with Meta's Model API in Standard mode, which Meta's documentation says is not used to train Meta models.
   Meta's terms allow it to retain content for abuse review and legal reasons; Walkaround does not control that.
 - The second look sends two blurred crops to Muse Spark Open on Baseten, a company separate from Meta; no video goes
@@ -196,16 +206,16 @@ The source clips are not in the repo (`data/` is ignored); each label file in `e
   pair every panel was not comparable (above).
 - Twin panels can swap: on the return walk SAM 3.1's hood lane held the trunk lid and the other way round, and nothing
   yet checks the two lids against the headlights or tail lights.
-- Gate G2 blocks a panel when Spark flags dirt or glare on either crop, so a weathered car compares little.
+- Gate G2 blocks a panel when Spark flags dirt, glare or water on either crop, so a weathered car compares little.
 - Stays Put is not calibrated (on this car it could not tell paint from glare), so it changes no label.
 - Muse Voice merges sentences said less than about 3 s apart into one long turn and mishears some words ("like scrat"
   for "light scratch"); transcripts carry speaker markers.
-- No eval numbers yet, and no friend's or renter's walk: every car here comes from a dataset.
+- No eval numbers yet, and no real renter's walk: every car here comes from a dataset.
 - Decoding SAM 3.1 masks takes about 0.4 s each on the Mac it was built on, so a 20 s walk already hits the panel
   stage's time budget and keeps 2 keyframes per panel.
 - The sample cannot be re-verified from the repo: `walkaround verify` needs the run's stored model answers
-  (`spark.json`, `voice.json`), which the app never serves. Verify works on your own runs.
-- Built and tested on macOS with Python 3.13; not tried on Windows.
+  (`spark.json`, `voice.json`), which the app never serves, and says so. Verify works on your own runs.
+- Built and tested on macOS with Python 3.13 (the quick start also ran on 3.14); not tried on Windows.
 
 ## Built Oct 26 to Nov 4, 2026
 
