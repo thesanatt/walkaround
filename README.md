@@ -102,11 +102,13 @@ tries `BASETEN_HACKATHON_API_KEY` first (it may call only `meta-models/muse-spar
    against them. It is not calibrated yet, so it records the tracks and changes no label.
 6. Code matches marks across the walks in a moment-whitened panel frame and writes each label: already there, new or
    unseen, needs your eye, not seen at return, or not comparable. Gates G1 and G3 to G10 make a panel not comparable;
-   caps K1 to K15 lower a label. A wet, dirty or glare flag from Spark is a model's judgment, so it no longer blocks a
+   caps K1 to K16 lower a label. A wet, dirty or glare flag from Spark is a model's judgment, so it no longer blocks a
    panel (gate G2 did until Oct 31): it caps a mark seen in one walk only (K15). In the same way, Spark calling a mark
    dirt or being unsure of it (K4, K12) no longer lowers a pair in the same place in both walks by itself: that pair
-   goes to the second look. When a panel's chosen keyframe pair fails a gate of the pair, the next pair is tried. The
-   ids show on the page and the sheet. The second look can only lower a label.
+   goes to the second look. A mark seen in one walk only that would be "new or unseen" also goes to it, shown beside
+   the other walk's view of the same spot; "same" or "unsure" makes it "needs your eye" (K16). When a panel's chosen
+   keyframe pair fails a gate of the pair, the next pair is tried. The ids show on the page and the sheet. The second
+   look can only lower a label.
 7. The sheet (HTML, PDF, JSON) shows both frames, the hashes, the coverage list, the deletions and the privacy line. A
    closing manifest seals it.
 
@@ -217,19 +219,28 @@ panel labels by the developer from the frames, not yet reviewed; no mark labels 
 | Pair (table) | Run | What it shows |
 |---|---|---|
 | uCO3D pair C, cross walk, nothing changed (B) | pairC_core3 | False "new": 0 of 6 return-mark verdicts. Needs your eye: 11 of 12 verdicts on compared panels. Re-shoot match: 1 of 7 pickup marks found again as "already there". Coverage state right: 26 of 39 (67%) panel views |
-| NHTSA test 15759, before and after the side impact (D) | eval_nhtsa15759 | Changed panels called new: 1 of 1 compared (the left front door's crush, L2). The left rear door, also struck, was not compared: G4 on all 3 keyframe pairs tried (mask IoU 0.699 on two, the panel axes disagreeing on the third; the floor is 0.7). Panel calls right: 3 of 3. Coverage state right: 22 of 35 (63%) |
+| NHTSA test 15759, before and after the side impact (D) | eval_nhtsa15759_r6 | Changed panels called new: 1 of 2, the left front door's crush (L2); the counter-look saw a clean door at that spot in the pickup walk, so it stays new. The struck left rear door is "needs your eye" (L7, outline changed in place: mask IoU 0.698, box aspect ratios 0.988 and 0.988, largest blob 64% of the outline difference). Needs your eye: 4 of 5 verdicts on compared panels. Panel calls right: 4 of 4. Coverage state right: 22 of 35 (63%) |
 | Pexels 4228872 split at 29 s, nothing changed (C, fit) | eval_px4228872_front | 1 panel compared (front bumper, no marks on either frame), 9 not comparable (G1 on all 9). False "new": 0 of 0. Coverage state right: 8 of 12 |
 | Pexels 4228872 split at its scene cut, nothing changed (C) | eval_px4228872_cut | No panel compared: 16 not comparable (G1 on all 16; the two halves barely overlap), 6 not compared. False "new": 0 of 0. Coverage state right: 14 of 26 (54%) |
-| Pexels 4228872 and 4281322, two takes from one shoot, nothing changed (C) | eval_px_two_takes | 1 panel compared (rear bumper), 9 not comparable (G1 7, G4 4, G6 2, G9 1). False "new": 1 of 1 return-mark verdicts: a return mark Spark typed chip, paired with a pickup mark beyond tau_eye (L5); by my eye both are parking-sensor dots, not damage (not a reviewed label). Panel calls right: 0 of 1. Coverage state right: 23 of 34 (68%) |
+| Pexels 4228872 and 4281322, two takes from one shoot, nothing changed (C) | eval_px_two_takes_r6 | No panel compared: 10 not comparable (G1 8, G4 4, G6 2, G9 1). This time the return walk's rear bumper counted as glimpsed (its SAM score fell under the run's own lower quartile), so the first run's false alarm (below) was never reached. False "new": 0 of 0. Coverage state right: 24 of 34 (71%) |
 
-The five runs cost $3.3055, $3.4017, $1.7397, $2.5255 and $1.6754 (the snapshots' `ledger.jsonl`). The two-takes row
-is the one false alarm in the eval so far: a "new or unseen" call on a car where nothing changed.
+The five runs cost $3.3055, $3.4848, $1.7397, $2.5255 and $1.6393 (the snapshots' `ledger.jsonl`). The NHTSA and
+two-takes rows are re-runs of Nov 1 with the code of that day; the first runs (eval_nhtsa15759, eval_px_two_takes) stay
+in `eval/snapshots/`.
+
+The first two-takes run made the one false alarm in the eval so far: on a car where nothing changed, a return mark
+Spark typed a chip came out "new or unseen" (by my eye a parking-sensor dot; not a reviewed label). Since Nov 1 a mark
+seen in one walk only that would be "new or unseen" goes to a counter-look: Muse Spark Open sees the mark in its own
+walk beside the other walk's view of the same spot, and "same" or "unsure" lowers it to "needs your eye" (rule K16).
+Asked live on a copy of that run, it said the pickup spot shows intact paint, so the dot is still "new or unseen"
+(`docs/evidence/counter_look_1101/`). The rule did not fix this false alarm.
 
 The reshaped-panel rule of Nov 1 (a panel that fails only the mask IoU gate on every keyframe pair, with its box shape
-unchanged and the outline difference in one place, is "needs your eye", rule L7) came after the NHTSA run, which keeps
-its frozen rules. Replayed offline with the rule on (`docs/evidence/replay_1101/`), the struck left rear door becomes
-"needs your eye" (L7: box aspect ratios 0.988 and 0.984, 0.4% apart; the largest blob holds 64% of the outline
-difference) and nothing else changes; on pairC_core3 no verdict changes.
+unchanged and the outline difference in one place, is "needs your eye", rule L7) came after the first NHTSA run, which
+keeps its frozen rules; the re-run above has it live. Replayed offline on the first run with the rule on
+(`docs/evidence/replay_1101/`), the struck left rear door becomes "needs your eye" (L7: box aspect ratios 0.988 and
+0.984, 0.4% apart; the largest blob holds 64% of the outline difference) and nothing else changes; on pairC_core3 no
+verdict changes.
 
 ## Footage and data
 

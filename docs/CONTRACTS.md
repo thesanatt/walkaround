@@ -1450,3 +1450,11 @@ return walk only came out new_or_unseen (L5), the eval's first false alarm.
 - Eval: `scripts/eval_run.py choose_primary` takes the labeled run, else the newest of eval_<pair> and
   eval_<pair>_<n>, else the newest run of the pair, so a re-run under a new id is the table's run.
 - Tests: tests/test_counter_look.py (27), web test/counter_look.test.ts (2).
+
+Live after the change (Nov 1, about 2:15 to 2:20 AM EST, code f24ae02): eval_px_two_takes_r6 and eval_nhtsa15759_r6
+were run with both leaves frozen in. On the NHTSA re-run the crushed left front door's return mark went to the
+counter-look and Muse Spark Open said different (a clean pickup door), so it stays new_or_unseen; the struck left rear
+door is needs your eye (L7) live. The two-takes re-run compared no panel (the return rear bumper counted as glimpsed),
+so the false alarm was asked on a non-kept copy of eval_px_two_takes (docs/evidence/counter_look_1101/): Spark Open said
+different (intact paint at the pickup spot), so the sensor dot stays new_or_unseen. Both new runs rebuild identical;
+pairC_core3, eval_px_two_takes and eval_nhtsa15759 (frozen without the leaves) still do.
