@@ -29,10 +29,10 @@ python3 -m venv .venv
 
 The first start in a new environment can take 20 to 30 seconds.
 
-Open http://127.0.0.1:8000 and press "open the sample pair (precomputed)". On start the app copied
-`samples/pairC_core3/` into `runs/`; the page replays that run's stored events with fixed delays under a "replayed from
-a run on Nov 1, 2026" badge, and no model is called. The "sheet" link at the top of the run page opens the evidence
-sheet, `evidence.pdf`, `bundle.zip` and `sheet.json`.
+Open http://127.0.0.1:8000 and press "See a finished check", or pick one under "Finished checks you can open". On
+start the app copied every folder in `samples/` into `runs/`; the page replays the run's stored events with fixed
+delays under a "replayed from a run on Nov 1, 2026" badge, and no model is called. On the result page, "Download the
+sealed PDF" and "Read the sheet here" open the evidence sheet; the sheet page links `bundle.zip` and `sheet.json`.
 
 The same from a terminal:
 
@@ -42,10 +42,41 @@ curl -s "http://127.0.0.1:8000/api/runs/pairC_core3/replay?mode=instant" | head 
 curl -s -o evidence.pdf http://127.0.0.1:8000/api/runs/pairC_core3/sheet.pdf
 ```
 
+The app serves three finished checks, in the order of `samples/index.json` (`curl -s
+http://127.0.0.1:8000/api/samples` lists them; `/api/sample` returns the first):
+
+1. `eval_nhtsa15759_r6`: NHTSA crash test 15759, a 2025 Volkswagen Golf GTI filmed before and after a side impact. One
+   "new" verdict, on the left front door. Footage: NHTSA Vehicle Crash Test Database, public information under NHTSA's
+   terms of use; NHTSA does not endorse this project. The full credit line is the run's own (`footage_credit` in its
+   `run.json`), shown under the walk player.
+2. `pairC_core3`: uCO3D pair C, one dataset car filmed twice with nothing changed, described below. Footage: uCO3D
+   (Meta), CC BY 4.0, modified; narration ours (Piper TTS). Credits under "Footage and data".
+3. `pairC_core3_claim2`: a copy of `pairC_core3` holding one claim, a photo of the trunk lid cut from the return walk
+   with the plate pixelated, checked against the pickup walk ("Measured" below has the numbers). Same credit as 2.
+
+A sample is public, so it takes no new claim or top-up.
+
+### Making tonight's run the first sample
+
+The first entry of `samples/index.json` is an empty slot, `friend_car`. Filling it makes that run the first sample:
+
+```
+.venv/bin/python scripts/make_sample.py RUN_ID --slot friend_car --title "A friend's own car, filmed at pickup and at return" --dry-run
+.venv/bin/python scripts/make_sample.py RUN_ID --slot friend_car --title "A friend's own car, filmed at pickup and at return"
+.venv/bin/python scripts/make_sample.py --check
+```
+
+The dry run prints the size and what is left out (60 MB per sample). With no `--clip` the sample carries no Stays Put
+clip and the page says so; to keep the pair the page shows, name the focus mark's pickup clip and the control clip, e.g.
+`--clip clips/pickup/pickup_hood_kf1_sp01.mp4`. Before committing, look at the display videos
+(`samples/RUN_ID/media/*.proxy_blurred.mp4`), `crops/` and any clip for a readable plate or face; if one shows, build
+again with `--plate-block 12` (pixelates every plate and face track box again) or `--cover ROLE:F1-F2:X1,Y1,X2,Y2` (a
+box the run's lanes missed, in display-proxy pixels and frames). Restart the server so it copies the new folder.
+
 The offline tests need ffmpeg on PATH (the suite makes short synthetic clips with it) and take about two minutes:
 `.venv/bin/python -m pytest -q`. The tests that call a model run only with `LIVE=1`.
 
-What the sample shows, honestly: 3 of the 21 panels were compared (trunk lid, rear bumper, right rear wheel) and 18
+What the uCO3D sample (`pairC_core3`) shows, honestly: 3 of the 21 panels were compared (trunk lid, rear bumper, right rear wheel) and 18
 were not, each with the rules that stopped it (G1, one walk did not film it, on 15; G4, the two masks differ, on 7;
 G3 and G6 on 3 each; G9 on 2; G8 on 1; a panel can fail several). The rear bumper was compared on its second keyframe
 pair, since the first failed G4 (mask IoU just under 0.7), and the page says so under the frames. On the trunk lid, the
@@ -276,7 +307,8 @@ Only footage we have rights to is in this repo or behind any number in it.
   trained on the public-domain LJ Speech dataset, and laid onto the uCO3D clip by us. The dataset clips have no audio.
 - Stock video, used in the eval (labels and run eval_px4228872_front): WeStarMoney Rec on Pexels, https://www.pexels.com/@westarmoney/ , Pexels
   License, https://www.pexels.com/license/ . Clips 4228872 and 4281322. No endorsement by any brand shown is implied.
-- Crash test video, used in the eval (labels and run eval_nhtsa15759): NHTSA Vehicle Crash Test Database, test 15759,
+- Crash test video, used in the eval (labels and run eval_nhtsa15759) and in the sample eval_nhtsa15759_r6: NHTSA
+  Vehicle Crash Test Database, test 15759,
   https://nrd.api.nhtsa.dot.gov/nhtsa/vehicle/api/v1/vehicle-database-test-results/get-multimedia-files/15759 , public
   information under NHTSA's terms of use. NHTSA does not endorse this project.
 
@@ -306,6 +338,12 @@ with the uCO3D credit above and our narration line, and the walk player on the r
   Plates sit under blocks of about a quarter of the plate or larger. The spot the Oct 31 sample left open, the front
   strip plate edge-on at 12.3 to 12.6 s of the return walk, is under blocks on this run (the 3 s carry and the path
   cover of Nov 1).
+- The samples `eval_nhtsa15759_r6` and `pairC_core3_claim2` (Nov 1): every file is the run's own bytes except
+  `run.json` (the replay flag and keep); no blur was added by hand. On the NHTSA run we looked at one frame per second
+  of both display videos, the last half second of the pickup walk (the interior), all 71 crops, the 29 sheet frames
+  and its one clip: the test car carries no plate, and the only person in it is a crash-test dummy. On the claim copy
+  we looked at the claim photo (plate and a bumper strip pixelated) and the mirrors clip, which `pairC_core3`'s sample
+  does not carry; every other file is in that sample too.
 
 ## Limitations
 
@@ -345,10 +383,11 @@ grounding prompts in the 0 to 1000 grid). Other dependencies are open-source pac
 
 Layout: `walkaround/` is the Python package (pipeline, model clients, matching, privacy, seal, sheet, app), `web/` the
 browser app (its build in `web/dist/` is committed so a clone runs without Node), `config/thresholds.json` every
-threshold with its source, `samples/` the sample pair, `scripts/` the gate, eval and sample tools, `eval/` labels and
+threshold with its source, `samples/` the sample runs, `scripts/` the gate, eval and sample tools, `eval/` labels and
 results, `docs/CONTRACTS.md` the module contracts, `docs/evidence/` the files the numbers above come from.
 
 ## License
 
 The code is MIT licensed (`LICENSE`). Dependencies keep their own licenses (`meta-sam-parser` is under the SAM License).
-The footage in `samples/` is a modified uCO3D clip under CC BY 4.0 with the credit above, not under MIT.
+The footage in `samples/` is modified uCO3D clips under CC BY 4.0 and NHTSA crash test video (public information),
+each with the credit above, not under MIT.

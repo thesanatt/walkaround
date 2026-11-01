@@ -1,0 +1,5 @@
+1. Start with the dated pickup frames in this sheet: the camera says not present, the file was received 2026-11-01T07:15:35.071Z, and the file hashes (0f6124176157, a157a4a7483b) are on page 1 and in the sealed manifest.
+2. Ask the company in writing for the full damage report, the repair estimate and every image it holds for this rental, including the pickup inspection images; Hertz says customers can request more images.
+3. Get an alternative written estimate from a body shop within 10 business days; card network rules compare two quotes (Visa Core Rules Table 5-19; Amex allows up to 115% of the estimate).
+4. If the company does not answer, escalate to a named executive and file a complaint with your state consumer protection office; the one sourced renter win came by executive escalation with the company's own scans.
+5. Last, the card dispute, with its clocks: 60 days from the statement under Regulation Z 1026.13, 120 days under Visa's rules, and the $50 cap of 15 USC 1666i; a dispute does not stop collections, so keep the paper trail.

@@ -6,9 +6,11 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { MarkCard, zoomWindow } from '../src/components/MarkCard.tsx';
-import type { Keyframe, Mark, Verdict } from '../src/contracts/types.ts';
+import { clipWindow } from '../src/components/PanelClip.tsx';
+import { pinsFor, ResultMap } from '../src/components/ResultMap.tsx';
+import type { Keyframe, Mark, PanelTrack, Verdict } from '../src/contracts/types.ts';
 import { RULES } from '../src/lib/rules.ts';
-import { answerSentences, notComparableLine, tally, WHY, whyLine } from '../src/lib/result.ts';
+import { answerSentences, comparedPanels, creditLine, EYE_KINDS, eyeGroups, headline, notComparableLine, notComparedRows, subline, tally, WHY, whyLine } from '../src/lib/result.ts';
 import { RUN_DIR } from './helpers.ts';
 
 const derived = <T>(name: string): T => JSON.parse(readFileSync(join(RUN_DIR, 'derived', name), 'utf8')) as T;
@@ -62,6 +64,90 @@ describe('the mark card', () => {
     expect(page).toContain('class="label already_there"');
     expect(page.split('<figure class="mark-frame">').length - 1).toBe(2);
     expect(page).toContain('In the same place at pickup and at return');
-    expect(page).not.toContain('no matching mark found');
+    expect(page).not.toContain('no mark here');
+    expect(page).toContain('There at pickup');
+    expect(page).toContain('code made the call.');
+  });
+});
+
+describe('the renter-first answer (second UI pass, Nov 1)', () => {
+  const base = derived<Verdict[]>('verdicts.json')[0]!;
+  const v = (label: Verdict['label'], panel: string, ids: string[], extra: Partial<Verdict> = {}): Verdict => ({
+    ...base,
+    verdict_id: `${label}-${panel}-${ids.join('')}`,
+    label,
+    panel_id: panel as Verdict['panel_id'],
+    rule_id: ids[0] ?? 'L4',
+    mark_ids: [],
+    trace: { ...base.trace, rule_ids: ids },
+    reasons: [],
+    ...extra,
+  });
+
+  it('names the panel of a new mark, and never says nothing new while spots wait for the renter', () => {
+    expect(headline([v('new_or_unseen', 'left_front_door', ['L2'])], 5)).toBe('1 new mark: left front door.');
+    expect(headline([v('new_or_unseen', 'hood', ['L2']), v('new_or_unseen', 'left_front_door', ['L2'])], 5)).toBe('2 new marks: hood and left front door.');
+    expect(headline([v('already_there', 'trunk_lid', ['L3'])], 3)).toBe('Nothing new on the 3 panels both walks show clearly.');
+    expect(headline([v('already_there', 'trunk_lid', ['L3']), v('needs_your_eye', 'trunk_lid', ['L4', 'K4'])], 3)).toBe(
+      'No new damage confirmed on the 3 panels both walks show clearly.',
+    );
+    expect(headline([], 0)).toBe('No panel was filmed clearly enough in both walks to compare.');
+  });
+
+  it('counts panels, not marks, in the second line', () => {
+    const vs = [
+      v('already_there', 'trunk_lid', ['L3']),
+      v('needs_your_eye', 'trunk_lid', ['L4', 'K15']),
+      v('not_comparable', 'roof', ['L6', 'G1']),
+      v('not_comparable', 'hood', ['L6', 'G1', 'G4']),
+      v('not_comparable', 'windshield', ['L6', 'G4']),
+    ];
+    expect(subline(vs, 3)).toBe("1 mark was there at pickup. 1 spot needs your eye. 3 panels weren't filmed clearly enough in both walks to compare.");
+    expect(comparedPanels([], vs)).toEqual(['trunk_lid']);
+    expect(notComparedRows(vs).map((r) => r.reason)).toEqual(['not filmed long enough in both walks', 'not filmed long enough in both walks', 'the two views did not line up']);
+  });
+
+  it('groups needs your eye by reason, most specific first, each with something to do', () => {
+    const vs = [
+      v('needs_your_eye', 'trunk_lid', ['L4', 'K12', 'K4']),
+      v('needs_your_eye', 'rear_bumper', ['L4', 'K12']),
+      v('needs_your_eye', 'left_rear_door', ['L7', 'G4']),
+      v('needs_your_eye', 'hood', ['L4', 'K7', 'K15']),
+    ];
+    const groups = eyeGroups(vs);
+    expect(groups.map((g) => g.kind.key)).toEqual(['shape', 'pair', 'dirt', 'unsure']);
+    expect(groups.every((g) => g.kind.todo.length > 0)).toBe(true);
+    expect(groups[2]!.kind.title(1)).toBe('1 spot that may be dirt, water or glare');
+    for (const k of EYE_KINDS) for (const id of k.ids) expect(RULES[id], id).toBeDefined();
+  });
+
+  it('credits each Meta model only for what the run stored, and says code made the call', () => {
+    const marks = new Map(derived<Mark[]>('marks.json').map((m) => [m.mark_id, m]));
+    const mark = [...marks.values()][0]!;
+    const one = v('new_or_unseen', mark.panel_id, ['L2'], { mark_ids: [mark.mark_id] });
+    expect(creditLine(one, marks, [])).toMatch(/^SAM 3\.1 tracked this panel; Muse Spark (found the mark|found it while counting marks|heard)/);
+    expect(creditLine(one, marks, [])).toMatch(/code made the call\.$/);
+    expect(creditLine(one, marks, [])).not.toContain('Muse Spark Open');
+    const counter = { pickup_mark: 'p', return_mark: mark.mark_id, mark_id: mark.mark_id, kind: 'counter' as const, verdict: 'different' as const, engine: 'baseten', panel_id: null, reason: '', model: null, fallback_from: null, valid: true, fallback: null, request_id: null, inputs: [] };
+    expect(creditLine(one, marks, [counter])).toContain('Muse Spark Open saw no such mark at that spot in the pickup walk');
+    expect(creditLine({ ...one, label: 'needs_your_eye' }, marks, [])).toMatch(/code left the call to you\.$/);
+  });
+
+  it('puts one pin per answer card and one per panel with spots to check', () => {
+    const clear = [v('new_or_unseen', 'left_front_door', ['L2']), v('already_there', 'trunk_lid', ['L3'])];
+    const eye = [v('needs_your_eye', 'trunk_lid', ['L4', 'K4']), v('needs_your_eye', 'trunk_lid', ['L4', 'K15'])];
+    const pins = pinsFor(clear, eye, (id) => `eye-${id}`);
+    expect(pins.map((p) => p.text)).toEqual(['1', '2', '2']);
+    expect(pins[0]!.target).toBe(`card-${clear[0]!.verdict_id}`);
+    expect(pins[2]!.words).toBe('Needs your eye: trunk lid, 2 spots');
+    const svg = renderToStaticMarkup(createElement(ResultMap, { compared: ['trunk_lid'], notCompared: ['roof'], pins, onPin: () => undefined }));
+    expect(svg).toContain('New: left front door');
+    expect(svg.match(/class="rm-pin /g)?.length).toBe(3);
+  });
+
+  it('cuts the panel clip to the SAM track that holds the frame', () => {
+    const track = { role: 'return', panel_id: 'left_front_door', fragments: [{ object_id: '1', first_frame: 180, last_frame: 240 }] } as unknown as PanelTrack;
+    expect(clipWindow([track], 'return', 'left_front_door', 200, 15)).toEqual([180, 223]);
+    expect(clipWindow([track], 'pickup', 'left_front_door', 200, 15)).toBeNull();
   });
 });

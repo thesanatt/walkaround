@@ -688,6 +688,21 @@ export interface StatusResponse {
   engine: string;
 }
 
+// GET /api/samples (app.py): every finished check this server replays, in samples/index.json order; the first is the
+// one GET /api/sample returns.
+export interface SampleRow {
+  run_id: string;
+  title: string | null;
+  kind: string;
+  recorded_on: string;
+  claims: number;
+  first: boolean;
+}
+
+export interface SamplesResponse {
+  samples: SampleRow[];
+}
+
 // GET /api/sample (app.py): the precomputed demo pair, replayed, never live.
 export interface SampleResponse {
   run_id: string;

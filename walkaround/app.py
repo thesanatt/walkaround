@@ -7,7 +7,7 @@ no unblurred clip lands in a temp file outside it, and refuses past 1 GiB; every
 other_route_max_body_bytes by a small ASGI middleware, with or without a Content-Length header.
 
 Who sees what (section 8 item 5): the run id is the renter's receipt, so the run index lists only public runs (the
-sample pair and keep runs), and a file is served only when the app's own floor (never quarantine, upload chunks, an
+sample runs and keep runs), and a file is served only when the app's own floor (never quarantine, upload chunks, an
 original, the unblurred proxy or the pending event file) and privacy.served_file_allowed both allow it; that holds for
 the files route, the sheet routes and the bundle zip alike. The sample pair, keep runs and the kiosk view
 (?view=kiosk) are never the run owner, and a public run takes no top-up or claim from whoever holds its listed id.
@@ -190,6 +190,12 @@ def next_claim_number(run_id: str) -> int:
     folder = paths.runs_root() / run_id / "claim"
     names = [p.name for p in folder.iterdir()] if folder.is_dir() else []
     return 1 + max((int(m.group(1)) for name in names if (m := re.match(r"claim_([0-9]+)\.", name))), default=0)
+
+
+def claim_count(run_id: str) -> int:
+    """How many claims the run holds: its claim/claim_<n>.json files."""
+    folder = paths.runs_root() / run_id / "claim"
+    return sum(1 for p in folder.iterdir() if re.fullmatch(r"claim_[0-9]+\.json", p.name)) if folder.is_dir() else 0
 
 
 async def read_multipart(request: Request, *, file_field: str, sink: _ChunkSink | _MemorySink, max_bytes: int, too_big: str = "over 1 GiB; refused") -> tuple[dict[str, str], str | None]:
@@ -588,6 +594,21 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
             raise HTTPException(404, "no sample pair on this server")
         recorded_on = orch.recorded_on(orch.load_run(run_id))
         return {"run_id": run_id, "precomputed": True, "recorded_on": recorded_on, "badge": f"replayed from a run on {recorded_on}", "replay": f"/api/runs/{run_id}/replay?mode=fixed"}
+
+    @app.get("/api/samples")
+    async def sample_list() -> dict[str, Any]:
+        """Every sample run on this server in samples/index.json's order; the first is the one /api/sample returns."""
+        first = orch.sample_run_id()
+        ids = orch.sample_run_ids()
+        ordered = ([first] if first else []) + [r for r in ids if r != first]
+        titles = {e["run_id"]: e.get("title") for e in orch.sample_entries() if isinstance(e.get("run_id"), str)}
+        out = []
+        for run_id in ordered:
+            if not SAFE_ID.match(run_id) or not orch.run_exists(run_id):
+                continue
+            run = orch.load_run(run_id)
+            out.append({"run_id": run_id, "title": titles.get(run_id), "kind": run.kind.value, "recorded_on": orch.recorded_on(run), "claims": claim_count(run_id), "first": run_id == first})
+        return {"samples": out}
 
     @app.get("/healthz")
     async def healthz() -> dict[str, Any]:

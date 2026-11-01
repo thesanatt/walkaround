@@ -62,7 +62,7 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
       {!kiosk ? (
         <div className="sheet-head">
           <p className="result-meta">
-            <Link to={`/run/${encodeURIComponent(runId)}`}>Back to the result</Link>. Run <span className="mono">{runId}</span>
+            <Link to={`/run/${encodeURIComponent(runId)}`}>Back to the result</Link>
           </p>
           <h1>Your sealed evidence sheet</h1>
           <p className="sheet-lead">It lists both walks' sealed hashes, when they were sealed, and every panel with the rule that decided it. Anyone can check it with the steps on the verify page.</p>

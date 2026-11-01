@@ -33,6 +33,7 @@ export interface WalkPlayerProps {
   startTime?: number; // seconds to open the video at; playback continues from there
   autoPlay?: boolean;
   loop?: boolean;
+  segment?: [number, number] | null; // play only these proxy frames, over and over (the result page's panel clip)
   controls?: boolean;
   bloom?: boolean; // false draws every mask at full fill at once (scripted frame capture)
   labelPx?: number; // label text size in CSS pixels, 12 by default
@@ -67,6 +68,7 @@ export function WalkPlayer(props: WalkPlayerProps) {
   const dprRef = useRef(1);
   const paths = useRef(new WeakMap<SnapshotObject, Path2D>());
   const blooming = useRef(false);
+  const wrapping = useRef(false);
   const [meta, setMeta] = useState<WalkMetadata | null>(null);
   const [playing, setPlaying] = useState(false);
   const [frameIndex, setFrameIndex] = useState(0);
@@ -191,6 +193,18 @@ export function WalkPlayer(props: WalkPlayerProps) {
     onFrame: ({ frameIndex: fi, time }) => {
       setFrameIndex(fi);
       propsRef.current.onFrame?.(fi, time);
+      const seg = propsRef.current.segment;
+      const player = playerRef.current;
+      if (seg && player && !wrapping.current && fi >= seg[1]) {
+        wrapping.current = true;
+        void player
+          .seekToFrame(seg[0])
+          .then(() => player.play())
+          .catch(() => undefined)
+          .finally(() => {
+            wrapping.current = false;
+          });
+      }
     },
     onPlayingChange: setPlaying,
     onError: (err) => setError(err.message),

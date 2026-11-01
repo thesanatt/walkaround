@@ -1,5 +1,5 @@
 // Every backend route the browser consumes, in one file, so the integrator can check them against app.py.
-import type { Claim, Coverage, ReplayMode, ReplayPayload, RunManifest, SampleResponse, StatusResponse, VideoRecord } from '../contracts/types.ts';
+import type { Claim, Coverage, ReplayMode, ReplayPayload, RunManifest, SampleResponse, SamplesResponse, StatusResponse, VideoRecord } from '../contracts/types.ts';
 
 const enc = encodeURIComponent;
 
@@ -25,6 +25,7 @@ export const routes = {
   claims: () => '/api/claims',
   status: (runId?: string | null) => (runId ? `/api/status?run_id=${enc(runId)}` : '/api/status'),
   sample: () => '/api/sample',
+  samples: () => '/api/samples',
   healthz: () => '/healthz',
 } as const;
 
@@ -88,6 +89,7 @@ export interface FinalizeBody {
 export const api = {
   status: (runId?: string | null) => getJson<StatusResponse>(routes.status(runId)),
   sample: () => getJson<SampleResponse>(routes.sample()),
+  samples: () => getJson<SamplesResponse>(routes.samples()),
   runs: () => getJson<RunManifest[]>(routes.runs()),
   run: (id: string) => getJson<RunManifest>(routes.run(id)),
   replay: (id: string, mode: ReplayMode) => getJson<ReplayPayload>(routes.replay(id, mode)),

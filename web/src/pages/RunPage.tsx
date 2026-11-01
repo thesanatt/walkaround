@@ -9,13 +9,15 @@ import { bestKeyframe, CropView } from '../components/CropView.tsx';
 import { FragmentsRow } from '../components/FragmentsRow.tsx';
 import { HowChecked } from '../components/HowChecked.tsx';
 import { LedgerStrip } from '../components/LedgerStrip.tsx';
-import { MarkCard, MarkFrame } from '../components/MarkCard.tsx';
+import { cap, MarkCard, MarkFrame } from '../components/MarkCard.tsx';
 import { MatchPane } from '../components/MatchPane.tsx';
 import { NarrationChips } from '../components/NarrationChips.tsx';
+import { PanelClip } from '../components/PanelClip.tsx';
 import { PanelList } from '../components/PanelList.tsx';
 import { PrivacyCard } from '../components/PrivacyCard.tsx';
 import { QueueLine } from '../components/QueueLine.tsx';
 import { ReplayBadge } from '../components/ReplayBadge.tsx';
+import { pinsFor, ResultMap, type Pin } from '../components/ResultMap.tsx';
 import { SealCard } from '../components/SealCard.tsx';
 import { StageLine } from '../components/StageLine.tsx';
 import { StaysPutList } from '../components/StaysPutList.tsx';
@@ -27,16 +29,16 @@ import type { Coverage, Keyframe, Mark, PanelTrack, ReplayMode } from '../contra
 import { useLanes } from '../lanes/useLanes.ts';
 import { RunFiles } from '../lib/files.tsx';
 import { focusTrack, panelFocus } from '../lib/focus.ts';
-import { formatDate } from '../lib/format.ts';
+import { formatDate, formatDateTime } from '../lib/format.ts';
 import { staysPutCalibrated } from '../lib/lines.ts';
-import { answerSentences, CARD_ORDER, GROUP_TITLE, notComparableLine, tally } from '../lib/result.ts';
+import { clearVerdicts, comparedPanels, eyeGroups, eyeKind, headline, notComparedRows, subline } from '../lib/result.ts';
 import { replayBadgeDate, sheetFileHash } from '../lib/runview.ts';
 import { colorForLane, colorForPanel, DRAWN_LANES, laneId, nounOfLane, panelName } from '../lib/panels.ts';
 import { Link, navigate } from '../lib/router.tsx';
 import { fpsOf, rolesOf } from '../state/reducer.ts';
 import type { RunState } from '../state/types.ts';
 import { useRun, type RunSource } from '../state/useRun.ts';
-import { ClaimExit, ClaimSteps } from './ClaimPage.tsx';
+import { ClaimExit, ClaimResult, ClaimSteps } from './ClaimPage.tsx';
 
 export function replayModeOf(query: URLSearchParams): ReplayMode | null {
   const v = query.get('replay');
@@ -161,11 +163,27 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
 
   const done = state.completed || state.stage.name === 'done' || state.stage.name === 'partial';
   const failed = state.stage.name === 'failed';
-  const cards = CARD_ORDER.map((label) => ({ label, verdicts: state.verdicts.filter((v) => v.label === label) })).filter((g) => g.verdicts.length);
+  const pair = roles.length > 1;
   const pickupPanels = roles.length === 1 ? panelsWithMarks(state.keyframes, state.marks) : [];
-  const answer = roles.length > 1 && state.verdicts.length ? answerSentences(tally(state.verdicts)) : null;
-  const ncLine = roles.length > 1 ? notComparableLine(state.verdicts) : null;
   const pickupMarks = state.marks.filter((m) => m.role === 'pickup').length;
+  const compared = comparedPanels(state.matches, state.verdicts);
+  const clear = clearVerdicts(state.verdicts);
+  const groups = eyeGroups(state.verdicts);
+  const gone = state.verdicts.filter((v) => v.label === 'not_seen_at_return');
+  const ncRows = notComparedRows(state.verdicts);
+  const eyeTarget = (id: string) => `eye-${eyeKind(state.verdicts.find((v) => v.label === 'needs_your_eye' && v.panel_id === id)!).key}`;
+  const pins = pinsFor(clear, groups.flatMap((g) => g.verdicts), eyeTarget);
+  const pdf = Boolean(sheetFileHash(state.sheet.sha256s, 'evidence.pdf'));
+  const takesClaims = !state.run?.keep;
+  const blurredOf = Object.fromEntries(roles.map((r) => [r, state.media[r]?.blurredPath ?? state.videos[r]?.proxy_blurred?.path ?? null]));
+  const claimCtx = { keyframes: state.keyframes, panels: state.panels, marks: state.marks, coverage: state.coverage, videos: state.videos as Record<string, NonNullable<RunState['videos'][string]>> };
+
+  // A pin or a legend row: the card it names, or the closed group that holds the spots, opened.
+  const jump = (pin: Pin) => {
+    const el = document.getElementById(pin.target);
+    if (el instanceof HTMLDetailsElement) el.open = true;
+    el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  };
 
   // A card's "How this was checked": the panel opens in every view below, and the section opens on the match.
   const openDetails = (id: string) => {
@@ -220,8 +238,15 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
     <RunFiles runId={runId}>
       <div className="run-page">
         <p className="result-meta">
-          {state.run ? `${state.run.kind === 'pair' ? 'Pickup and return' : 'Pickup check'}, ${formatDate(state.run.created_at)}. ` : ''}
-          Run <span className="mono">{runId}</span>
+          {state.seal.manifest_sha256 ? (
+            <>
+              {pair ? 'Both walks ' : 'The walk '}
+              <Link to="/verify">sealed</Link>
+              {state.seal.tsr_time ? ` ${formatDateTime(state.seal.tsr_time)}` : ''}, before any model saw {pair ? 'them' : 'it'}.
+            </>
+          ) : state.run ? (
+            `${state.run.kind === 'pair' ? 'Pickup and return' : 'Pickup check'}, ${formatDate(state.run.created_at)}.`
+          ) : null}
         </p>
         {driverLine ? <p className="driver-line">{driverLine}</p> : null}
 
@@ -231,14 +256,11 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
               <h1>This check did not finish.</h1>
               <StageLine state={state} />
             </>
-          ) : done && roles.length > 1 ? (
-            <h1 className="answer-line">
-              {answer
-                ? answer.map((sentence, i) => (
-                    <span key={i}>{sentence} </span>
-                  ))
-                : 'No panel could be compared.'}
-            </h1>
+          ) : done && pair ? (
+            <>
+              <h1 className="answer-line">{headline(state.verdicts, compared.length)}</h1>
+              <p className="answer-sub">{subline(state.verdicts, compared.length)}</p>
+            </>
           ) : roles.length === 1 && done ? (
             <h1 className="answer-line">
               Your pickup video is sealed. Muse Spark found {pickupMarks} {pickupMarks === 1 ? 'mark' : 'marks'} on {pickupPanels.length}{' '}
@@ -246,21 +268,32 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
             </h1>
           ) : (
             <>
-              <h1>{mode ? 'Replaying the sample check' : 'Checking your videos'}</h1>
+              <h1>{mode ? 'Replaying a finished check' : 'Checking your videos'}</h1>
               <StageLine state={state} />
               <p className="answer-sub">The answer shows here when the check is done. You can close this tab and come back to this address.</p>
             </>
           )}
-          {done && ncLine ? <p className="answer-sub">{ncLine}</p> : null}
           {done && state.stage.name === 'partial' ? <StageLine state={state} /> : null}
           {done && state.sheet.written ? (
             <div className="answer-actions">
-              <Link to={`/run/${encodeURIComponent(runId)}/sheet`} className="cds--btn cds--btn--primary">
-                Open the sealed evidence sheet
-              </Link>
-              <Link to={`/claim?run=${encodeURIComponent(runId)}`} className="cds--btn cds--btn--tertiary">
-                Place a claim photo
-              </Link>
+              {pdf ? (
+                <a href={routes.sheetPdf(runId)} className="cds--btn cds--btn--primary">
+                  Download the sealed PDF
+                </a>
+              ) : (
+                <Link to={`/run/${encodeURIComponent(runId)}/sheet`} className="cds--btn cds--btn--primary">
+                  Open the sealed sheet
+                </Link>
+              )}
+              {takesClaims ? (
+                <Link to={`/claim?run=${encodeURIComponent(runId)}`} className="cds--btn cds--btn--tertiary">
+                  A bill arrived? Place its photo
+                </Link>
+              ) : pdf ? (
+                <Link to={`/run/${encodeURIComponent(runId)}/sheet`} className="cds--btn cds--btn--tertiary">
+                  Read the sheet here
+                </Link>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -271,23 +304,105 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
 
         {state.claim ? (
           <section className="result-claim" aria-label="claim photo">
-            <h2>Your claim photo</h2>
-            <ClaimExit claim={state.claim} />
+            <h2>A claim photo, placed against the pickup walk</h2>
+            <ClaimResult claim={state.claim} ctx={claimCtx} folded sealed={state.seal.tsr_time ? formatDateTime(state.seal.tsr_time) : null} />
           </section>
         ) : null}
 
-        {cards.map((g) => (
-          <section key={g.label} className="mark-group" aria-label={GROUP_TITLE[g.label]}>
-            <h2>
-              {GROUP_TITLE[g.label]} <span className="count">{g.verdicts.length}</span>
-            </h2>
-            <div className="mark-cards">
-              {g.verdicts.map((v) => (
-                <MarkCard key={v.verdict_id} v={v} marks={markById} keyframes={state.keyframes} roles={roles} onDetails={openDetails} />
+        {done && pair && (pins.length || compared.length || ncRows.length) ? (
+          <section className={`result-top${clear[0] ? '' : ' map-only'}`} aria-label="where on the car">
+            <ResultMap compared={compared} notCompared={ncRows.map((r) => r.panelId)} pins={pins} onPin={jump} />
+            {clear[0] ? (
+              <PanelClip
+                runId={runId}
+                v={clear[0]}
+                marks={markById}
+                keyframes={state.keyframes}
+                tracks={state.tracks}
+                blurred={blurredOf}
+                fps={(r) => fpsOf(state, r)}
+                store={lanes.store}
+                colorFor={colorFor}
+                labelFor={labelFor}
+              />
+            ) : null}
+          </section>
+        ) : null}
+
+        {clear.length ? (
+          <section className="mark-group" aria-label="what the check found">
+            <div className={`mark-cards${clear.length === 1 ? ' single' : ''}`}>
+              {clear.map((v, i) => (
+                <MarkCard key={v.verdict_id} v={v} n={i + 1} marks={markById} keyframes={state.keyframes} roles={roles} looks={state.looks} onDetails={openDetails} />
               ))}
             </div>
           </section>
-        ))}
+        ) : null}
+
+        {groups.length ? (
+          <section className="mark-group eye-groups" aria-label="needs your eye">
+            <h2>
+              Needs your eye <span className="count">{groups.reduce((n, g) => n + g.verdicts.length, 0)}</span>
+            </h2>
+            <p className="group-note">The check would not call these. Each row says what to do; open it to see both frames.</p>
+            {groups.map((g) => (
+              <details key={g.kind.key} className="eye-group" id={`eye-${g.kind.key}`}>
+                <summary>
+                  <span className="eye-title">{cap(g.kind.title(g.verdicts.length))}</span>
+                  <span className="eye-todo">{g.kind.todo}</span>
+                </summary>
+                <div className="mark-cards compact">
+                  {g.verdicts.map((v) => (
+                    <MarkCard key={v.verdict_id} v={v} marks={markById} keyframes={state.keyframes} roles={roles} looks={state.looks} compact onDetails={openDetails} />
+                  ))}
+                </div>
+              </details>
+            ))}
+          </section>
+        ) : null}
+
+        {gone.length ? (
+          <section className="mark-group row-section" aria-label="not seen at return">
+            <details className="eye-group">
+              <summary>
+                <span className="eye-title">
+                  {gone.length} {gone.length === 1 ? 'mark' : 'marks'} from pickup not seen at return
+                </span>
+                <span className="eye-todo">Nothing to do: a mark gone at return never costs you anything.</span>
+              </summary>
+              <div className="mark-cards compact">
+                {gone.map((v) => (
+                  <MarkCard key={v.verdict_id} v={v} marks={markById} keyframes={state.keyframes} roles={roles} looks={state.looks} compact onDetails={openDetails} />
+                ))}
+              </div>
+            </details>
+          </section>
+        ) : null}
+
+        {done && pair && ncRows.length ? (
+          <section className="mark-group row-section" aria-label="not compared">
+            <details className="eye-group nc-group" id="not-compared">
+              <summary>
+                <span className="eye-title">
+                  {ncRows.length} {ncRows.length === 1 ? 'panel' : 'panels'} not compared
+                </span>
+                <span className="eye-todo">
+                  {ncRows.some((r) => r.filming)
+                    ? 'Next time, film these slower and a little closer, in both walks.'
+                    : 'The two walks show these from angles that did not line up.'}
+                </span>
+              </summary>
+              <ul className="nc-list">
+                {ncRows.map((r) => (
+                  <li key={r.panelId}>
+                    <strong>{cap(panelName(r.panelId))}</strong>: {r.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </section>
+        ) : null}
+
         {pickupPanels.length ? (
           <section className="mark-group" aria-label="marks at pickup">
             <h2>
@@ -297,7 +412,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
               {pickupPanels.map((kf) => (
                 <article key={kf.kf_id} className="mark-card">
                   <header className="mark-card-head">
-                    <h3>{panelName(kf.panel_id)}</h3>
+                    <h3>{cap(panelName(kf.panel_id))}</h3>
                   </header>
                   <MarkFrame kf={kf} marks={state.marks.filter((m) => m.kf_id === kf.kf_id)} role="pickup" zoom={false} />
                 </article>
@@ -305,7 +420,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
             </div>
           </section>
         ) : null}
-        {(cards.length || pickupPanels.length) && state.run?.footage_credit ? <p className="footage-credit">{state.run.footage_credit}</p> : null}
+        {(clear.length || groups.length || pickupPanels.length || state.claim) && state.run?.footage_credit ? <p className="footage-credit">{state.run.footage_credit}</p> : null}
 
         <details
           className="checked"
@@ -314,9 +429,13 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
         >
           <summary>
             <span className="checked-title">How it was checked</span>
-            <span className="checked-hint">The models, both walks, every panel, the rules, the seal and the hashes.</span>
+            <span className="checked-hint">Each model's part, both walks with SAM 3.1's outlines, every panel, the rules, the seal and the hashes.</span>
           </summary>
           <div className="checked-body">
+        <p className="small muted">
+          {state.run ? `${state.run.kind === 'pair' ? 'Pickup and return' : 'Pickup check'}, ${formatDate(state.run.created_at)}. ` : ''}
+          Run <span className="mono">{runId}</span>
+        </p>
         <div className="run-head">
           <div className="controls">
             <label>

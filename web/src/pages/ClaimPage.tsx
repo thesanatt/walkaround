@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { api, ApiError } from '../api/client.ts';
+import { Link } from '../lib/router.tsx';
 import type { Claim, Coverage, Keyframe, Mark, Panel, PanelId, VideoRecord } from '../contracts/types.ts';
 import {
   claimCandidates,
@@ -123,7 +124,7 @@ export function ClaimFrame({ claim, ctx }: { claim: Claim; ctx: ClaimContext }) 
         {state ? `${COVERAGE_LABEL[state] ?? state} at pickup` : 'pickup'}
         {state === 'glimpsed' && seconds > 0 ? ` for ${seconds.toFixed(1)} s` : ''}
         {kf.role !== 'pickup' ? `, this frame from ${where} at ${formatClock(kf.pts)}` : ''}
-        {video ? (when ? `, ${formatDateTime(when)}` : ', camera time not present') : ''}
+        {video && when ? `, ${formatDateTime(when)}` : ''}
         {windows ? `, ${windows}` : ''}
       </figcaption>
     </figure>
@@ -221,32 +222,61 @@ function PanelChooser({ claim, onPick, busy }: { claim: Claim; onPick: (panel: P
 }
 
 // The answer to a claim. The photo shown is the served, pixelated copy, never the file picked on this device.
-export function ClaimResult({ claim, ctx, onPick, busy = false }: { claim: Claim; ctx: ClaimContext | null; onPick?: (panel: PanelId) => void; busy?: boolean }) {
+// folded: the run page's version, where the steps and the paragraph sit in a closed row under the two photos.
+// sealed: when the pickup walk was sealed, said over its frame.
+export function ClaimResult({
+  claim,
+  ctx,
+  onPick,
+  busy = false,
+  folded = false,
+  sealed = null,
+}: {
+  claim: Claim;
+  ctx: ClaimContext | null;
+  onPick?: (panel: PanelId) => void;
+  busy?: boolean;
+  folded?: boolean;
+  sealed?: string | null;
+}) {
   const url = useFileUrl();
   const rel = claimPhotoPath(claim);
+  const facts = (
+    <div className="claim-facts">
+      <ClaimSteps claim={claim} />
+      {claim.paragraph ? <p className="claim-paragraph">{claim.paragraph}</p> : null}
+      <p className="small muted mono">
+        photo {claim.image.w}x{claim.image.h}
+        {claim.image.low_res ? ', low resolution' : ''}
+        {claim.scanner_style ? ', grayscale like a scanner image' : ''}, sha256 {claim.image.sha256.slice(0, 12)}
+      </p>
+    </div>
+  );
   return (
     <div className="claim-result">
       <ClaimExit claim={claim} />
       {onPick ? <PanelChooser claim={claim} onPick={onPick} busy={busy} /> : null}
       <div className="claim-pair">
         <div>
-          <h3 className="claim-side-title">your claim photo</h3>
+          <h3 className="claim-side-title">{folded ? 'the claim photo' : 'your claim photo'}</h3>
           <ClaimPhoto claim={claim} src={rel ? url(rel) : null} />
         </div>
         <div>
-          <h3 className="claim-side-title">the pickup walk</h3>
+          <h3 className="claim-side-title">{sealed ? `the pickup walk, sealed ${sealed}` : 'the pickup walk'}</h3>
           <PickupSide claim={claim} ctx={ctx} />
         </div>
       </div>
-      <div className="claim-facts">
-        <ClaimSteps claim={claim} />
-        {claim.paragraph ? <p className="claim-paragraph">{claim.paragraph}</p> : null}
-        <p className="small muted mono">
-          photo {claim.image.w}x{claim.image.h}
-          {claim.image.low_res ? ', low resolution' : ''}
-          {claim.scanner_style ? ', grayscale like a scanner image' : ''}, sha256 {claim.image.sha256.slice(0, 12)}
-        </p>
-      </div>
+      {folded ? (
+        <details className="eye-group claim-more">
+          <summary>
+            <span className="eye-title">How the photo was placed</span>
+            <span className="eye-todo">Which model named the panel, where the photo landed, and the full sheet paragraph.</span>
+          </summary>
+          {facts}
+        </details>
+      ) : (
+        facts
+      )}
     </div>
   );
 }
@@ -263,6 +293,30 @@ function errorText(err: unknown): string {
 }
 
 // Claim-first: the photo and words from a damage bill, placed against a finished run's pickup walk.
+// One click to a finished claim: the first sample that holds a placed claim photo.
+function ClaimSampleLine() {
+  const [id, setId] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .samples()
+      .then(({ samples }) => {
+        const hit = samples.find((s) => s.claims > 0);
+        if (live && hit) setId(hit.run_id);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  if (!id) return null;
+  return (
+    <p className="claim-sample">
+      Want to see one first? <Link to={`/run/${encodeURIComponent(id)}?replay=fixed`}>Open a finished claim</Link>: a claim photo already placed against a pickup walk.
+    </p>
+  );
+}
+
 export function ClaimPage({ query }: { query: URLSearchParams }) {
   const [runId, setRunId] = useState(query.get('run') ?? '');
   const [text, setText] = useState('');
@@ -301,9 +355,10 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
         Add the photo from the damage bill and the bill's words. Muse Spark names the panel, SAM 3.1 checks the name, and your dated pickup frame of that panel
         comes back next to the photo. A size is printed only when a ruler (the plate, or a wheel with its tire size) is in frame, and always with its range.
       </p>
+      <ClaimSampleLine />
       <form className="form-grid" onSubmit={submit}>
         <label>
-          Run id (the end of your result page address)
+          Your check's id (the end of its result page address)
           <input value={runId} onChange={(e) => setRunId(e.target.value.trim())} required spellCheck={false} />
         </label>
         <label>

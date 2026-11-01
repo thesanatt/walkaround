@@ -1526,6 +1526,52 @@ def test_seed_samples_copies_the_demo_run_once(runs_dir: Path, th: dict, tmp_pat
     assert orch.run_exists("RUNSAMPLE") and orch.sample_run_id() == "RUNSAMPLE" and orch.is_public(orch.load_run("RUNSAMPLE"))
 
 
+def write_samples(repo: Path, folders: dict[str, bool], index: list[dict] | None) -> None:
+    """repo/samples/<id>/run.json for each id (keep as given) and, when given, samples/index.json."""
+    for run_id, keep in folders.items():
+        c.write_json(repo / "samples" / run_id / "run.json", c.RunManifest(run_id=run_id, created_at="2026-10-28T14:00:00Z", keep=keep, live_or_replay=c.LiveOrReplay.REPLAY))
+    if index is not None:
+        (repo / "samples" / "index.json").write_text(json.dumps({"_about": "test", "samples": index}), encoding="utf-8")
+
+
+def test_sample_run_ids_follow_the_index_then_the_other_folders(runs_dir: Path, th: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import walkaround.orchestrator as orchestrator_module
+
+    repo = tmp_path / "repo"
+    monkeypatch.setattr(orchestrator_module, "REPO_DIR", repo)
+    orch = make_orch(th)
+    assert orch.sample_run_ids() == [] and orch.sample_run_id() is None and orch.sample_entries() == []
+    write_samples(repo, {"RUNA": True, "RUNB": True, "RUNC": False, "RUNZ": True}, None)
+    assert orch.sample_run_ids() == ["RUNA", "RUNB", "RUNC", "RUNZ"] and orch.sample_run_id() == "RUNA"  # no index: alphabetical
+    (repo / "samples" / ".staging" / "RUNS").mkdir(parents=True)
+    index = [{"slot": "friend_car", "run_id": None, "title": "Friend"}, {"run_id": "RUNZ", "title": "Z"}, {"run_id": "RUNGONE", "title": "gone"}, {"run_id": "../RUNA", "title": "bad"}, {"run_id": "RUNC", "title": "C"}]
+    write_samples(repo, {}, index)
+    assert orch.sample_run_ids() == ["RUNZ", "RUNC", "RUNA", "RUNB"] and orch.sample_run_id() == "RUNZ"
+    index[0]["run_id"] = "RUNB"
+    write_samples(repo, {}, index)
+    assert orch.sample_run_ids() == ["RUNB", "RUNZ", "RUNC", "RUNA"]
+    monkeypatch.setenv("WALKAROUND_SAMPLE_RUN", "RUNC")
+    assert orch.sample_run_id() == "RUNC" and orch.sample_run_ids()[0] == "RUNB"
+    (repo / "samples" / "index.json").write_text("{not json", encoding="utf-8")
+    assert orch.sample_entries() == [] and orch.sample_run_ids() == ["RUNA", "RUNB", "RUNC", "RUNZ"]
+
+
+async def test_every_sample_is_public_and_kept_by_the_sweep(runs_dir: Path, th: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import walkaround.orchestrator as orchestrator_module
+
+    repo = tmp_path / "repo"
+    monkeypatch.setattr(orchestrator_module, "REPO_DIR", repo)
+    write_samples(repo, {"RUNA": True, "RUNC": False}, [{"run_id": "RUNA", "title": "A"}, {"run_id": "RUNC", "title": "C"}])
+    fakes = Fakes()
+    orch = make_orch(th, fakes)
+    assert orch.seed_samples() == ["RUNA", "RUNC"]
+    assert orch.is_public(orch.load_run("RUNA")) and orch.is_public(orch.load_run("RUNC"))  # RUNC is not keep, still a sample
+    write_run("RUNRENTER", created_at="2026-10-28T14:00:00Z", kind=c.RunKind.PAIR, status=c.RunStatus.DONE)
+    assert not orch.is_public(orch.load_run("RUNRENTER"))
+    await orch.sweep()
+    assert fakes.sweep_args["keep"] == {"RUNA", "RUNC"}
+
+
 def test_seed_samples_unpacks_a_gzipped_event_log(runs_dir: Path, th: dict, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import gzip
 

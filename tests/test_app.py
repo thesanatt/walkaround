@@ -9,6 +9,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import threading
 import time
 import zipfile
@@ -323,6 +324,44 @@ def test_sample_endpoint_is_flagged_precomputed(client: TestClient, orch: Orches
     assert sample == {"run_id": "RUNSAMPLE", "precomputed": True, "recorded_on": "2026-10-27", "badge": "replayed from a run on 2026-10-27", "replay": "/api/runs/RUNSAMPLE/replay?mode=fixed"}
     assert client.get(sample["replay"]).json()["recorded_on"] == "2026-10-27"
     assert [r["run_id"] for r in client.get("/api/runs").json()] == ["RUNSAMPLE"]
+
+
+def test_samples_endpoint_lists_the_samples_here_in_index_order(client: TestClient, orch: Orchestrator, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import walkaround.orchestrator as orchestrator_module
+
+    assert client.get("/api/samples").json() == {"samples": []}
+    repo = tmp_path / "repo"
+    monkeypatch.setattr(orchestrator_module, "REPO_DIR", repo)
+    for run_id, kind, created in (("RUNNHTSA", c.RunKind.PAIR, "2026-11-01T07:15:34Z"), ("RUNPAIRC", c.RunKind.PAIR, "2026-11-01T05:19:38Z"), ("RUNCHECK", c.RunKind.PICKUP_CHECK, "2026-10-30T15:00:00Z"), ("RUNNOTHERE", c.RunKind.PAIR, "2026-10-30T15:00:00Z")):
+        c.write_json(repo / "samples" / run_id / "run.json", c.RunManifest(run_id=run_id, created_at=created, kind=kind, keep=True, live_or_replay=c.LiveOrReplay.REPLAY, status=c.RunStatus.DONE))
+    index = [{"slot": "friend_car", "run_id": None, "title": "A friend's own car"}, {"run_id": "RUNNHTSA", "title": "Crash-test car"}, {"run_id": "RUNPAIRC", "title": "Dataset car"}]
+    (repo / "samples" / "index.json").write_text(json.dumps({"_about": "test", "samples": index}), encoding="utf-8")
+    orch.seed_samples()
+    shutil.rmtree(paths.runs_root() / "RUNNOTHERE")  # in the repo but not on this server
+    claims = paths.runs_root() / "RUNPAIRC" / "claim"
+    claims.mkdir()
+    for name in ("claim_1.json", "claim_1.blurred.jpg", "claim_2.json", "claim_2.answers.json"):
+        (claims / name).write_bytes(b"{}")
+    body = client.get("/api/samples").json()
+    assert body == {"samples": [
+        {"run_id": "RUNNHTSA", "title": "Crash-test car", "kind": "pair", "recorded_on": "2026-11-01", "claims": 0, "first": True},
+        {"run_id": "RUNPAIRC", "title": "Dataset car", "kind": "pair", "recorded_on": "2026-11-01", "claims": 2, "first": False},
+        {"run_id": "RUNCHECK", "title": None, "kind": "pickup_check", "recorded_on": "2026-10-30", "claims": 0, "first": False},
+    ]}
+    assert client.get("/api/sample").json()["run_id"] == "RUNNHTSA"
+    assert sorted(r["run_id"] for r in client.get("/api/runs").json()) == ["RUNCHECK", "RUNNHTSA", "RUNPAIRC"]
+    # the slot filled: the friend's run leads, here and in /api/sample
+    c.write_json(repo / "samples" / "RUNFRIEND" / "run.json", c.RunManifest(run_id="RUNFRIEND", created_at="2026-11-02T01:00:00Z", keep=True, live_or_replay=c.LiveOrReplay.REPLAY, status=c.RunStatus.DONE))
+    index[0]["run_id"] = "RUNFRIEND"
+    (repo / "samples" / "index.json").write_text(json.dumps({"_about": "test", "samples": index}), encoding="utf-8")
+    c.write_json(paths.runs_root() / "RUNFRIEND" / "run.json", c.RunManifest(run_id="RUNFRIEND", created_at="2026-11-02T01:00:00Z", keep=True, live_or_replay=c.LiveOrReplay.REPLAY, status=c.RunStatus.DONE))
+    body = client.get("/api/samples").json()["samples"]
+    assert [(s["run_id"], s["first"]) for s in body] == [("RUNFRIEND", True), ("RUNNHTSA", False), ("RUNPAIRC", False), ("RUNCHECK", False)]
+    assert body[0]["title"] == "A friend's own car" and client.get("/api/sample").json()["run_id"] == "RUNFRIEND"
+    # WALKAROUND_SAMPLE_RUN picks the first one; it leads the list
+    monkeypatch.setenv("WALKAROUND_SAMPLE_RUN", "RUNPAIRC")
+    body = client.get("/api/samples").json()["samples"]
+    assert [(s["run_id"], s["first"]) for s in body] == [("RUNPAIRC", True), ("RUNFRIEND", False), ("RUNNHTSA", False), ("RUNCHECK", False)]
 
 
 def test_healthz_and_spa_fallback(client: TestClient) -> None:

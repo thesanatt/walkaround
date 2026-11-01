@@ -308,35 +308,39 @@ abbr[title] {
 
 /* home ------------------------------------------------------------------------------------------------ */
 
-/* Two columns on a wide screen: the words and both actions on the left, one frame from the sample on the right.
-   The frame column starts lower than the words on purpose, so the page does not read as a centred banner. */
+/* Two columns on a wide screen: the words and the action on the left, a finished check's first card on the right.
+   The card starts lower than the words on purpose, so the page does not read as a centred banner. */
 .home-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
   gap: 48px;
   align-items: start;
-  min-height: calc(100vh - 56px - 40px - 120px);
 }
 
 .home-problem {
-  font-size: 1.25rem;
+  font-size: 1rem;
   color: var(--muted);
-  margin: 8px 0 12px;
-  max-width: 34ch;
+  margin: 8px 0 16px;
 }
 
 .home-hero h1 {
-  font-size: 2.25rem;
-  line-height: 1.22;
+  font-size: 2.5rem;
+  line-height: 1.15;
   font-weight: 400;
-  max-width: 22ch;
-  margin-bottom: 32px;
+  max-width: 16ch;
+  margin-bottom: 20px;
+}
+
+.home-lede {
+  font-size: 1.125rem;
+  max-width: 44ch;
+  margin-bottom: 28px;
 }
 
 .home-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 16px 24px;
   align-items: center;
 }
 
@@ -344,43 +348,35 @@ abbr[title] {
   min-width: 240px;
 }
 
-.home-note {
-  margin-top: 16px;
+.home-card {
+  margin: 40px 0 0;
+  padding: 16px;
+  background: var(--surface);
+}
+
+.home-card-head {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.home-card figcaption {
+  margin-top: 10px;
   font-size: 0.875rem;
   color: var(--muted);
-  max-width: 52ch;
 }
 
-.home-figure {
-  margin: 56px 0 0;
-}
-
-.home-figure .mark-frame svg {
-  aspect-ratio: auto;
-}
-
-.home-figure .mark-frame figcaption {
-  display: none;
-}
-
-.home-figure figcaption {
-  margin-top: 8px;
-  font-size: 0.875rem;
-  color: var(--muted);
-  max-width: 60ch;
-}
-
-.home-figure .footage-credit {
+.home-card .footage-credit {
   margin-top: 4px;
 }
 
-.home-figure-empty {
-  aspect-ratio: 3 / 2;
+.home-card-empty {
+  margin-top: 40px;
+  aspect-ratio: 8 / 3;
   background: var(--surface);
-  border: 1px solid var(--line);
 }
 
-.home-more {
+.home-moments {
   margin-top: 56px;
   padding-top: 20px;
   border-top: 1px solid var(--line);
@@ -389,34 +385,115 @@ abbr[title] {
   gap: 16px 48px;
 }
 
-.home-more h2 {
+.home-moments h2,
+.home-finished h2 {
   font-size: 1rem;
 }
 
-.home-more p {
+.home-moments p {
   color: var(--muted);
+  max-width: 52ch;
+}
+
+.home-finished {
+  margin-top: 48px;
+}
+
+.finished-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  max-width: 880px;
+}
+
+.finished-row {
+  display: grid;
+  grid-template-columns: 136px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  width: 100%;
+  padding: 8px;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--surface);
+  border: 0;
+  border-left: 3px solid transparent;
+  cursor: pointer;
+}
+
+.finished-row:hover {
+  background: var(--cds-layer-hover-01);
+  border-left-color: var(--ink);
+}
+
+.finished-thumb {
+  display: block;
+  pointer-events: none;
+}
+
+.finished-thumb .mark-frame figcaption {
+  display: none;
+}
+
+.finished-thumb img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.finished-thumb.empty {
+  aspect-ratio: 4 / 3;
+  background: var(--cds-layer-accent-01);
+}
+
+.finished-words {
+  display: grid;
+  gap: 2px;
+}
+
+.finished-title {
+  font-weight: 600;
+}
+
+.finished-line {
+  color: var(--muted);
+}
+
+.home-foot {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
   font-size: 0.875rem;
-  max-width: 60ch;
+  color: var(--muted);
+  max-width: 80ch;
 }
 
 @media (max-width: 900px) {
   .home-hero {
     grid-template-columns: minmax(0, 1fr);
-    gap: 24px;
-    min-height: 0;
+    gap: 8px;
   }
 
   .home-hero h1 {
     font-size: 2rem;
   }
 
-  .home-figure {
-    margin-top: 0;
+  .home-card {
+    margin-top: 16px;
+    padding: 12px;
   }
 
   .home-actions .cds--btn {
     width: 100%;
     max-width: none;
+  }
+
+  .finished-row {
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: 12px;
   }
 }
 
@@ -832,6 +909,344 @@ abbr[title] {
 .run-page > .footage-credit {
   margin-top: 16px;
   max-width: 100ch;
+}
+
+.mark-credit {
+  margin: 8px 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
+.mark-credit .link-button {
+  font-size: 0.8125rem;
+}
+
+.mark-card .label {
+  margin-right: 6px;
+  vertical-align: 2px;
+}
+
+.mark-card-head .pin-badge {
+  flex: none;
+  margin-top: 2px;
+}
+
+.mark-card-head:has(.pin-badge) {
+  flex-wrap: nowrap;
+  align-items: flex-start;
+}
+
+.pin-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 11px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--slate);
+}
+
+.pin-badge.new_or_unseen {
+  background: var(--bad);
+}
+
+.pin-badge.already_there {
+  background: var(--good);
+}
+
+.pin-badge.needs_your_eye {
+  background: var(--mark);
+  color: #161616;
+}
+
+.mark-cards.single {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 980px;
+}
+
+/* the map and the SAM clip, side by side above the cards */
+.result-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 32px;
+  margin-top: 40px;
+  align-items: start;
+}
+
+.result-top.map-only {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 720px;
+}
+
+.result-map {
+  margin: 0;
+}
+
+.result-map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.rm-body {
+  fill: var(--surface);
+  stroke: var(--line);
+}
+
+.rm-panel path {
+  fill: var(--surface);
+  stroke: var(--bg);
+  stroke-width: 1.5;
+}
+
+.rm-panel.compared path {
+  fill: var(--cds-layer-accent-01);
+}
+
+.rm-hatch-line {
+  stroke: var(--strong-line);
+}
+
+.rm-outline path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.rm-front {
+  font-size: 11px;
+  fill: var(--muted);
+}
+
+.rm-pin {
+  cursor: pointer;
+}
+
+.rm-pin circle {
+  stroke: var(--bg);
+  stroke-width: 2.5;
+  fill: var(--slate);
+}
+
+.rm-pin.new_or_unseen circle {
+  fill: var(--bad);
+}
+
+.rm-pin.already_there circle {
+  fill: var(--good);
+}
+
+.rm-pin.needs_your_eye circle {
+  fill: var(--mark);
+}
+
+.rm-pin.needs_your_eye text {
+  fill: #161616;
+}
+
+.rm-pin text {
+  font-size: 11px;
+  font-weight: 600;
+  fill: #fff;
+  pointer-events: none;
+}
+
+.rm-pin:focus-visible circle {
+  stroke: var(--focus);
+}
+
+.rm-legend {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 20px;
+}
+
+.rm-legend .link-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.rm-legend .link-button:hover {
+  text-decoration: underline;
+}
+
+.rm-note {
+  margin-top: 8px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.rm-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.rm-swatch {
+  fill: var(--surface);
+  stroke: var(--strong-line);
+}
+
+.rm-swatch.compared {
+  fill: var(--cds-layer-accent-01);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.panel-clip {
+  margin: 0;
+}
+
+.panel-clip .walk-canvas {
+  aspect-ratio: 16 / 9;
+  background: var(--video);
+}
+
+.panel-clip figcaption {
+  margin-top: 6px;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+/* needs your eye, grouped by reason; each row closed until opened */
+.eye-groups > h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.group-note {
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.eye-group {
+  border-top: 1px solid var(--line);
+}
+
+.eye-group:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+.eye-group > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 14px 0 14px 28px;
+  position: relative;
+  display: grid;
+  gap: 2px;
+}
+
+.eye-group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.eye-group > summary::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 21px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--ink);
+  border-bottom: 2px solid var(--ink);
+  transform: rotate(-45deg);
+}
+
+.eye-group[open] > summary::before {
+  transform: rotate(45deg);
+  top: 18px;
+}
+
+.eye-group > summary:hover {
+  background: var(--cds-layer-hover-01);
+}
+
+.eye-title {
+  font-weight: 600;
+  font-size: 1.0625rem;
+}
+
+.eye-todo {
+  color: var(--muted);
+  max-width: 72ch;
+}
+
+.eye-group > .mark-cards,
+.eye-group > .nc-list,
+.eye-group > .claim-facts {
+  margin: 4px 0 20px 28px;
+}
+
+.claim-more {
+  margin-top: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.mark-cards.compact {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+  gap: 16px;
+}
+
+.mark-card.compact {
+  padding: 12px;
+}
+
+.mark-card.compact .mark-card-head h3 {
+  font-size: 1rem;
+}
+
+.mark-card.compact .mark-why {
+  font-size: 0.875rem;
+}
+
+/* the closed rows after needs your eye continue its list instead of starting a new block */
+.mark-group:has(.eye-group) + .row-section {
+  margin-top: 0;
+}
+
+.mark-group:has(.eye-group) + .row-section .eye-group {
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.nc-list {
+  padding-left: 18px;
+  columns: 2 280px;
+  column-gap: 32px;
+}
+
+.nc-list li {
+  break-inside: avoid;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 900px) {
+  .result-top {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .answer-line {
+    font-size: 2rem;
+  }
+
+  .eye-group > .mark-cards,
+  .eye-group > .nc-list {
+    margin-left: 0;
+  }
 }
 
 /* "How it was checked": closed until asked for, complete when open. */

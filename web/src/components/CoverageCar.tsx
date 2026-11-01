@@ -5,13 +5,13 @@ import { COVERAGE_LABEL, panelName } from '../lib/panels.ts';
 
 // A top-down car, front to the right, so its left side is the top edge. Every one of the 22 slots is a shape named by
 // its panel id; wheels and mirrors sit outside the body as tabs. The fill is the coverage state of one walk.
-interface Shape {
+export interface Shape {
   id: PanelId;
   d: string[];
   at: [number, number]; // where a callout points
 }
 
-const SHAPES: Shape[] = [
+export const SHAPES: Shape[] = [
   { id: 'rear_bumper', d: ['M84 74 L74 74 Q60 78 60 104 L60 196 Q60 222 74 226 L84 226 Z'], at: [72, 150] },
   { id: 'tail_lights', d: ['M84 74 L98 72 L98 100 L84 100 Z', 'M84 200 L98 200 L98 228 L84 226 Z'], at: [91, 86] },
   { id: 'trunk_lid', d: ['M84 100 L164 100 L164 200 L84 200 Z'], at: [124, 150] },
@@ -36,7 +36,7 @@ const SHAPES: Shape[] = [
   { id: 'mirrors', d: ['M346 70 L354 56 L368 56 L368 70 Z', 'M346 230 L354 244 L368 244 L368 230 Z'], at: [357, 61] },
 ];
 
-const BODY = 'M84 70 L462 70 Q500 72 500 110 L500 190 Q500 228 462 230 L84 230 Q60 228 60 196 L60 104 Q60 72 84 70 Z';
+export const BODY = 'M84 70 L462 70 Q500 72 500 110 L500 190 Q500 228 462 230 L84 230 Q60 228 60 196 L60 104 Q60 72 84 70 Z';
 
 const RANK: Record<CoverageState, number> = { filmed: 4, glimpsed: 3, not_filmed: 2, not_run: 1, not_seen: 0 };
 

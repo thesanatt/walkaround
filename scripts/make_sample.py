@@ -1,15 +1,24 @@
-"""Copy a finished run into samples/<run_id>/ so a clean clone replays it with no key (the app copies samples/ onto
-the runs volume on start, orchestrator.seed_samples, and the first sample with a run.json is the sample pair).
+"""Copy a finished run into samples/<run_id>/ so a clean clone replays it with no key, and place it in
+samples/index.json, the order the app serves the samples in (the app copies samples/ onto the runs volume on start,
+orchestrator.seed_samples; orchestrator.sample_run_ids reads the index, and the first sample present is the one
+/api/sample returns).
 
-    make_sample.py RUN_ID [--footage-credit TEXT] [--clip REL ...] [--max-mb 60] [--dry-run]
+    make_sample.py RUN_ID [--title TEXT] [--slot NAME] [--first] [--footage-credit TEXT] [--clip REL ...]
+                   [--cover ROLE:F1-F2:X1,Y1,X2,Y2 ...] [--plate-block PX] [--max-mb 60] [--dry-run]
     make_sample.py --check [SAMPLE_DIR ...]
+
+samples/index.json is {"_about": ..., "samples": [{"slot"?: NAME, "run_id": ID or null, "title": TEXT}, ...]}. --slot
+fills that named entry (an empty slot keeps its place in the list; a slot not in the index is appended); with no slot
+the run's own entry is updated in place, or appended when it has none. --title sets the entry's title (the line the
+app shows for the sample), and --first moves the entry to the top. A run sits in one entry only. The index is written
+only after the copy passes problems(), never on --dry-run.
 
 What goes in: every file of the run that app.servable and privacy.served_file_allowed(run_owner=False) both allow,
 minus what no page of the app reads and the repo's size budget cannot carry: the Stays Put lanes (sam/<role>/sp_*),
 the lane index files (sam/<role>/*.index.json, read only by the rebuild), the full keyframes (keyframes/, read only by
 the eval labeling page) and every Stays Put clip not named with --clip. Then run.json (footage_credit replaced when
-given, live_or_replay set to replay) and events.ndjson gzipped with a fixed mtime, so building the sample twice gives
-the same bytes. An original, an unblurred proxy, the WAV, quarantine, uploads, spark.json, voice.json, seeds.json and
+given, live_or_replay set to replay, keep set to True) and events.ndjson gzipped with a fixed mtime, so building the
+sample twice gives the same bytes. An original, an unblurred proxy, the WAV, quarantine, uploads, spark.json, voice.json, seeds.json and
 the pending event file never pass the allowlist, and --check reads every copied file against it again.
 
 --plate-block PX pixelates every plate and face track box again (derived/tracks.json, bridged like the run's blur) on
@@ -18,7 +27,7 @@ on frames F1 to F2 of that walk, for a plate the run's lanes missed. On a 960 px
 which leaves a large plate readable where nothing else covers it. A video touched this way is re-encoded, so its
 bytes no longer match the hash in videos/<role>.json and bundle/manifest_run.json; the README says so.
 
-The sample in the repo was made with (Nov 1, from run pairC_core3, no --plate-block and no --cover: the run's own display
+The first sample in the repo was made with (Nov 1, from run pairC_core3, no --plate-block and no --cover: the run's own display
 videos carry blocks that grow with the box and plate tracks carried 3 s past their sightings with the path cover, so
 every file is the run's own bytes except run.json; no --footage-credit either, so run.json keeps the credit the run's
 sealed sheet prints):
@@ -28,12 +37,23 @@ sealed sheet prints):
 (the run page opens on the trunk lid, the first comparable panel, whose chips pair the demo is about: the chip's own
 clip in each walk, the clip of the lid's other two pickup marks, the hood clip with the neighbour test's rings, and the
 headlight clip, the control the page shows beside a mark).
+
+The two samples added on Nov 1 (no --plate-block and no --cover; the contact sheets of their display videos, crops and
+clips showed no readable plate or face). Each names only the Stays Put clips the run page's default panel shows:
+    make_sample.py eval_nhtsa15759_r6 --clip clips/pickup/pickup_hood_kf1_sp01.mp4 --title "..."
+(the page opens on the left front door, whose focus verdict is "new" on a return mark, so it has no mark clip; the hood
+clip is the control the pair shows), and
+    make_sample.py pairC_core3_claim2 --clip clips/pickup/pickup_trunk_lid_kf1_sp01.mp4
+        --clip clips/pickup/pickup_mirrors_kf1_sp01.mp4 --title "..."
+(the copy of pairC_core3 that holds claim_1: the trunk lid chip's pickup clip and the mirrors control). keep True on
+the copy is what lets a non-kept claim copy become a sample: a sample is public and takes no new claim.
 """
 
 from __future__ import annotations
 
 import argparse
 import gzip
+import json
 import re
 import shutil
 import sys
@@ -49,6 +69,8 @@ from walkaround import paths, privacy, video  # noqa: E402
 from walkaround.app import servable  # noqa: E402
 
 SAMPLES = REPO / "samples"
+INDEX_NAME = "index.json"  # orchestrator.SAMPLE_INDEX_NAME
+INDEX_ABOUT = "The order the app serves the samples in; the first present is the one /api/sample returns. A slot with run_id null is empty until scripts/make_sample.py RUN_ID --slot NAME fills it."
 MAX_MB = 60
 APP_READS = ("run.json", "events.ndjson.gz")  # read by the app itself, never through the files route
 NEVER = ("events.ndjson", "events.pending.ndjson", "spark.json", "voice.json", "seeds.json", "uploads.json")
@@ -159,7 +181,78 @@ def problems(sample: Path, *, max_mb: float = MAX_MB) -> list[str]:
     return found
 
 
-def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: list[Cover], plate_block: int | None, max_mb: float, dry_run: bool) -> int:
+def load_index(path: Path) -> dict[str, Any]:
+    """samples/index.json, or an empty index when it does not exist yet."""
+    if not path.is_file():
+        return {"_about": INDEX_ABOUT, "samples": []}
+    index = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(index, dict) or not isinstance(index.get("samples"), list):
+        raise ValueError(f"{path}: not an index of samples")
+    return index
+
+
+def place(index: dict[str, Any], run_id: str, *, title: str | None, slot: str | None, first: bool) -> int:
+    """Put run_id in the index: into its slot (which keeps its place), else into its own entry, else a new entry at the
+    end; drop it from any other entry; move it to the top with first. Returns the entry's position."""
+    entries: list[dict[str, Any]] = index["samples"]
+    if slot:
+        entry = next((e for e in entries if e.get("slot") == slot), None)
+    else:
+        entry = next((e for e in entries if e.get("run_id") == run_id), None)
+    if entry is None:
+        entry = {"slot": slot, "run_id": run_id, "title": title} if slot else {"run_id": run_id, "title": title}
+        entries.append(entry)
+    entry["run_id"] = run_id
+    if title is not None:
+        entry["title"] = " ".join(title.split())
+    entry.setdefault("title", None)
+    for other in [e for e in entries if e is not entry and e.get("run_id") == run_id]:
+        if other.get("slot"):
+            other["run_id"] = None  # a slot stays, empty
+        else:
+            entries.remove(other)
+    if first:
+        entries.remove(entry)
+        entries.insert(0, entry)
+    return entries.index(entry)
+
+
+def write_index(path: Path, index: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(index, indent=2, ensure_ascii=True) + "\n", encoding="utf-8")
+
+
+def index_problems(samples: Path) -> list[str]:
+    """What is wrong with samples/index.json: an entry naming no folder (an empty slot is fine), a run listed twice,
+    a slot named twice. No index is fine: the app then serves the folders alphabetically."""
+    path = samples / INDEX_NAME
+    if not path.is_file():
+        return []
+    try:
+        entries = load_index(path)["samples"]
+    except ValueError as exc:
+        return [str(exc)]
+    found, runs, slots = [], set(), set()
+    for i, entry in enumerate(entries):
+        run_id, slot = (entry.get("run_id"), entry.get("slot")) if isinstance(entry, dict) else (None, None)
+        if run_id is None and not slot:
+            found.append(f"{INDEX_NAME}: entry {i} has neither a run_id nor a slot")
+            continue
+        if slot:
+            if slot in slots:
+                found.append(f"{INDEX_NAME}: slot {slot} named twice")
+            slots.add(slot)
+        if run_id is None:
+            continue
+        if run_id in runs:
+            found.append(f"{INDEX_NAME}: {run_id} listed twice")
+        runs.add(run_id)
+        if not (samples / str(run_id) / "run.json").is_file():
+            found.append(f"{INDEX_NAME}: {run_id} has no folder with a run.json in {samples.name}/")
+    return found
+
+
+def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: list[Cover], plate_block: int | None, max_mb: float, dry_run: bool, title: str | None = None, slot: str | None = None, first: bool = False) -> int:
     run, files, left_out = plan(run_id, clips)
     root = paths.runs_root() / run_id
     missing = sorted(clips - set(files))
@@ -173,8 +266,9 @@ def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: l
         sys.stderr.write(f"no blurred display video to cover for: {', '.join(no_video)}\n")
         return 2
     events = gzip.compress((root / "events.ndjson").read_bytes(), compresslevel=9, mtime=0)
-    # on any server the copy is a replay: no start, top-up or claim, and it counts against no day's live runs
-    run = run.model_copy(update={"live_or_replay": c.LiveOrReplay.REPLAY})
+    # on any server the copy is a replay: no start, top-up or claim, and it counts against no day's live runs; and it is
+    # public, so a keep run (a claim copy is not kept on disk, and it already holds its claim)
+    run = run.model_copy(update={"live_or_replay": c.LiveOrReplay.REPLAY, "keep": True})
     if footage_credit:
         run = run.model_copy(update={"footage_credit": " ".join(footage_credit.split())})
     total = sum((root / rel).stat().st_size for rel in files) + len(events) + len(c.json_bytes(run))
@@ -184,11 +278,15 @@ def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: l
     if total > max_mb * 1_000_000:
         sys.stderr.write(f"over {max_mb} MB; name fewer clips\n")
         return 1
+    index = load_index(SAMPLES / INDEX_NAME)
+    position = place(index, run_id, title=title, slot=slot, first=first)
+    print(f"{INDEX_NAME}: {run_id} at position {position + 1} of {len(index['samples'])}" + (" (not written, dry run)" if dry_run else ""))
     if dry_run:
         return 0
     target = SAMPLES / run_id
     staging = SAMPLES / ".staging" / run_id  # named like the run, so problems() reads it as that sample
     shutil.rmtree(staging.parent, ignore_errors=True)
+    staging.mkdir(parents=True)
     for rel in files:
         dest = staging / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -212,7 +310,8 @@ def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: l
     shutil.rmtree(target, ignore_errors=True)
     staging.rename(target)
     staging.parent.rmdir()
-    print(f"wrote {target}")
+    write_index(SAMPLES / INDEX_NAME, index)
+    print(f"wrote {target} and {INDEX_NAME}")
     return 0
 
 
@@ -223,6 +322,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--clip", action="append", default=[], metavar="REL", help="a Stays Put clip to keep, run-relative (repeat)")
     parser.add_argument("--cover", action="append", default=[], type=parse_cover, metavar="ROLE:F1-F2:X1,Y1,X2,Y2", help="pixelate one more box on a walk's display video (repeat)")
     parser.add_argument("--plate-block", type=int, metavar="PX", help="pixelate every plate and face track box again with PX-pixel blocks")
+    parser.add_argument("--title", help="the sample's title in samples/index.json (the line the app shows)")
+    parser.add_argument("--slot", metavar="NAME", help="fill this named entry of samples/index.json (it keeps its place)")
+    parser.add_argument("--first", action="store_true", help="move the sample to the top of samples/index.json")
     parser.add_argument("--max-mb", type=float, default=MAX_MB)
     parser.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
     parser.add_argument("--check", nargs="*", metavar="SAMPLE_DIR", help="check sample folders (default every samples/<id>/)")
@@ -233,11 +335,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             folders = sorted(p for p in SAMPLES.iterdir() if p.is_dir() and not p.name.startswith(".")) if SAMPLES.is_dir() else []
         found = [line for folder in folders for line in problems(folder, max_mb=args.max_mb)]
+        if not args.check:
+            found += index_problems(SAMPLES)
         print("\n".join(found) if found else f"{len(folders)} sample folder(s): every file is served to the public, under {args.max_mb:g} MB")
         return 1 if found else 0
     if not args.run_id:
         parser.error("name a run, or pass --check")
-    return write(args.run_id, footage_credit=args.footage_credit, clips=set(args.clip), covers=args.cover, plate_block=args.plate_block, max_mb=args.max_mb, dry_run=args.dry_run)
+    return write(args.run_id, footage_credit=args.footage_credit, clips=set(args.clip), covers=args.cover, plate_block=args.plate_block, max_mb=args.max_mb, dry_run=args.dry_run, title=args.title, slot=args.slot, first=args.first)
 
 
 if __name__ == "__main__":

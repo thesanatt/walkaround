@@ -11,8 +11,8 @@ type Kind = 'pickup_check' | 'pair';
 
 function counterText(status: StatusResponse | null): string {
   if (!status) return 'Checking how many live runs are left today.';
-  if (status.paused) return 'Live runs are off on this server right now (no API key, or the model API is not answering). The sample pair is precomputed and always opens.';
-  if (status.pickup_left <= 0 && status.pairs_left <= 0) return 'No live runs are left today. The sample pair is precomputed and always opens.';
+  if (status.paused) return 'This copy only replays finished checks right now, so new uploads are off. The finished checks open with no wait.';
+  if (status.pickup_left <= 0 && status.pairs_left <= 0) return 'No new checks are left today. The finished checks open with no wait.';
   return `${status.pickup_left} pickup ${status.pickup_left === 1 ? 'check' : 'checks'} and ${status.pairs_left} full ${status.pairs_left === 1 ? 'pair' : 'pairs'} left today.`;
 }
 
@@ -75,7 +75,7 @@ export function UploadPage({ status }: { status: StatusResponse | null }) {
         patch((u) => ({ ...u, mismatch: { browser: err.sha256Browser, server: err.sha256Server } }));
       } else if (err instanceof ApiError && err.status === 429) {
         const b = (err.body ?? {}) as { reason?: string; pickup_left?: number; pairs_left?: number };
-        setError(`${b.reason ?? 'Live runs are paused'}. ${b.pickup_left ?? 0} pickup checks and ${b.pairs_left ?? 0} full pairs left today. The sample pair is precomputed.`);
+        setError(`${b.reason ?? 'Live runs are paused'}. ${b.pickup_left ?? 0} pickup checks and ${b.pairs_left ?? 0} full pairs left today. The finished checks still open.`);
         delete uploadIds.current[role];
         setUploads((prev) => ({ ...prev, [role]: undefined }));
       } else {
@@ -124,7 +124,7 @@ export function UploadPage({ status }: { status: StatusResponse | null }) {
       const s = await api.sample();
       navigate(`/run/${encodeURIComponent(s.run_id)}?replay=fixed`);
     } catch (err) {
-      setSampleNote(err instanceof ApiError && err.status === 404 ? 'There is no sample pair on this server yet.' : err instanceof Error ? err.message : String(err));
+      setSampleNote(err instanceof ApiError && err.status === 404 ? 'There is no finished check on this server yet.' : err instanceof Error ? err.message : String(err));
     }
   };
 
@@ -204,15 +204,15 @@ export function UploadPage({ status }: { status: StatusResponse | null }) {
 
       <div className="sample-row">
         <button type="button" className="cds--btn cds--btn--tertiary" onClick={() => void openSample()}>
-          Open the sample pair
+          See a finished check
         </button>
-        <p className="small muted">A stored run, replayed with fixed delays. No model is called, and a badge on screen says it is a replay.</p>
+        <p className="small muted">A recorded check, replayed. No model is called, and a badge on screen says it is a replay.</p>
         {sampleNote ? <p className="small">{sampleNote}</p> : null}
       </div>
 
       <div className="home-foot">
         <p className="small">
-          <Link to="/claim">I have a claim photo</Link>: place the photo from a damage bill against a finished run's pickup walk.
+          <Link to="/claim">I have a claim photo</Link>: place the photo from a damage bill against the pickup walk of a finished check.
         </p>
         <p className="privacy-line">{PRIVACY_BEFORE}</p>
         <p className="privacy-line">

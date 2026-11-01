@@ -89,6 +89,7 @@ ENV_LIMITS = {
 }
 _B32 = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")  # a chosen run id; _ and . prefixes are the server's own folders
+SAMPLE_INDEX_NAME = "index.json"  # samples/index.json: the order of the samples, with named slots (scripts/make_sample.py)
 REQUIRED_NOUNS = (c.Noun.CAR, *c.PRIVACY_NOUNS)  # the car filter and the blur need these lanes on every run
 REUSED_CODE = "reused_identical_request"
 WHOLE_FRAME = ""  # a stand-in run's car prompt: no car request; the whole frame is the box every panel must sit inside
@@ -2043,6 +2044,7 @@ class Orchestrator:
     async def sweep(self) -> list[c.DeletionRecord]:
         """privacy.sweep (runs past retention, old unblurred temp files) plus idle upload chunks, then the ots upgrade."""
         keep = {r.run_id for r in self.list_runs() if r.keep} | {rid for rid in self._tasks if self.active(rid)}
+        keep.update(self.sample_run_ids())
         sample = self.sample_run_id()
         if sample:
             keep.add(sample)
@@ -2098,17 +2100,37 @@ class Orchestrator:
                 upgraded.append(run.run_id)
         return upgraded
 
+    def sample_entries(self) -> list[dict[str, Any]]:
+        """samples/index.json's entries in order ({"slot"?, "run_id", "title"}); [] when the file is absent or unreadable."""
+        index = Path(REPO_DIR) / "samples" / SAMPLE_INDEX_NAME
+        try:
+            raw = json.loads(index.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        entries = raw.get("samples") if isinstance(raw, dict) else None
+        return [e for e in entries if isinstance(e, dict)] if isinstance(entries, list) else []
+
+    def sample_run_ids(self) -> list[str]:
+        """The sample runs in the repo, in order: samples/index.json's run ids whose folder holds a run.json (an empty
+        slot or a missing folder is skipped), then any other samples/<run_id>/ with a run.json, alphabetically."""
+        samples = Path(REPO_DIR) / "samples"
+        ids: list[str] = []
+        for entry in self.sample_entries():
+            run_id = entry.get("run_id")
+            if isinstance(run_id, str) and RUN_ID_RE.match(run_id) and run_id not in ids and (samples / run_id / "run.json").is_file():
+                ids.append(run_id)
+        for folder in sorted(samples.iterdir()) if samples.is_dir() else []:
+            if not folder.name.startswith(".") and folder.name not in ids and (folder / "run.json").is_file():
+                ids.append(folder.name)
+        return ids
+
     def sample_run_id(self) -> str | None:
-        """The precomputed demo run: WALKAROUND_SAMPLE_RUN, else the first samples/<run_id>/ with a run.json."""
+        """The precomputed demo run: WALKAROUND_SAMPLE_RUN, else the first of sample_run_ids()."""
         env = os.environ.get("WALKAROUND_SAMPLE_RUN")
         if env:
             return env
-        samples = Path(REPO_DIR) / "samples"
-        if samples.is_dir():
-            for entry in sorted(samples.iterdir()):
-                if (entry / "run.json").is_file():
-                    return entry.name
-        return None
+        ids = self.sample_run_ids()
+        return ids[0] if ids else None
 
     def seed_samples(self) -> list[str]:
         """Copy samples/<run_id>/ onto the runs volume when it is absent (section 4: the image seeds the demo at boot)."""
@@ -2116,7 +2138,7 @@ class Orchestrator:
         seeded = []
         for entry in sorted(samples.iterdir()) if samples.is_dir() else []:
             target = paths.runs_root() / entry.name
-            if (entry / "run.json").is_file() and not target.exists():
+            if not entry.name.startswith(".") and (entry / "run.json").is_file() and not target.exists():
                 shutil.copytree(entry, target)
                 packed = target / "events.ndjson.gz"
                 if packed.is_file() and not (target / "events.ndjson").exists():
@@ -2126,8 +2148,8 @@ class Orchestrator:
         return seeded
 
     def is_public(self, run: c.RunManifest) -> bool:
-        """The sample pair and keep runs: listed in the index and never served as the run owner."""
-        return run.keep or run.run_id == self.sample_run_id()
+        """Every sample run and keep runs: listed in the index and never served as the run owner."""
+        return run.keep or run.run_id == self.sample_run_id() or run.run_id in self.sample_run_ids()
 
     # Replay ------------------------------------------------------------------------------------------------------------
 
