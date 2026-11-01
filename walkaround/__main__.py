@@ -189,7 +189,8 @@ def cmd_verify(args: argparse.Namespace, orch: Orchestrator) -> int:
     for problem in problems:
         why = why_differs(args.run_id, problem)
         if why:
-            problem = f"{problem}; {'the same rule change' if why in said else why}"
+            again = "the same re-derivation" if why.startswith("display video re-derived") else "the same rule change"
+            problem = f"{problem}; {again if why in said else why}"
             said.add(why)
         sys.stdout.write(problem + "\n")
     return 1
@@ -198,10 +199,14 @@ def cmd_verify(args: argparse.Namespace, orch: Orchestrator) -> int:
 def why_differs(run_id: str, problem: str) -> str | None:
     """For a "rebuild differs" line, the known rule change that explains it when the stored file shows one (verify
     rebuilds an older run with today's code): match.why_rebuild_differs (the 10/31 view-flag rule) or
-    narration.why_rebuild_differs (Voice's speaker markers left out of the words shown)."""
-    from . import narration
+    narration.why_rebuild_differs (Voice's speaker markers left out of the words shown). For a run manifest line on a
+    display video, the row privacy.install_rederived_display wrote when it replaced a sealed one (pairC_core1, 11/1)."""
+    from . import narration, privacy
     from .match import why_rebuild_differs
 
+    for media in ("run manifest: size differs: ", "run manifest: hash differs: "):
+        if problem.startswith(media):
+            return privacy.rederived_display_note(run_id, problem[len(media):])
     prefix = "rebuild differs: "
     if not problem.startswith(prefix):
         return None

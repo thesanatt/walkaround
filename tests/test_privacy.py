@@ -5,6 +5,7 @@ sam_image rows, about $0.005)."""
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import math
 import os
@@ -305,18 +306,18 @@ def test_track_boxes_at_carries_before_the_first_and_after_the_last_sighting() -
     fps = 15.0
     carry = math.ceil(th["privacy"]["track_carry_s"] * fps - 1e-9)
     bridge = math.ceil(th["privacy"]["track_gap_bridge_s"] * fps)
-    plate = _plate_track(list(range(40, 61)), [100.0, 100.0, 140.0, 120.0])
+    plate = _plate_track(list(range(60, 81)), [100.0, 100.0, 140.0, 120.0])
     kw = dict(fps=fps, media_size_proxy=(960, 540), media_size_src=(960, 540), th=th)
-    assert carry == 30 and bridge == 8
-    before = [privacy.track_boxes_at(40 - d, [plate], **kw) for d in range(1, carry + 1)]
+    assert carry == 45 and bridge == 8  # 3 s since the review of 11/1 (2 s had no margin on pairC_core2)
+    before = [privacy.track_boxes_at(60 - d, [plate], **kw) for d in range(1, carry + 1)]
     assert all(len(b) == (2 if d <= 2 else 1) for d, b in enumerate(before, start=1))  # the first sighting is in reach for 2 frames
     assert all(_inside([100.0, 100.0, 140.0, 120.0], b[-1]) for b in before)  # the carried box: an edge-on plate SAM missed
     widths = [b[-1][2] - b[-1][0] for b in before]
     assert widths == sorted(widths) and widths[-1] == pytest.approx(40 * (1 + th["privacy"]["track_carry_grow_per_s"] * carry / fps), abs=0.01)
-    assert privacy.track_boxes_at(40 - carry - 1, [plate], **kw) == []  # bounded in time
-    after = privacy.track_boxes_at(60 + bridge + 1, [plate], **kw)
+    assert privacy.track_boxes_at(60 - carry - 1, [plate], **kw) == []  # bounded in time
+    after = privacy.track_boxes_at(80 + bridge + 1, [plate], **kw)
     assert len(after) == 1 and _inside([100.0, 100.0, 140.0, 120.0], after[0])  # past the hold, still carried
-    assert privacy.track_boxes_at(60 + carry + 1, [plate], **kw) == []
+    assert privacy.track_boxes_at(80 + carry + 1, [plate], **kw) == []
 
 
 def test_track_boxes_at_extrapolates_a_moving_box_and_takes_flow_boxes_when_given() -> None:
@@ -642,16 +643,44 @@ def test_flow_carry_follows_a_panning_plate_before_its_track_starts() -> None:
     track = _plate_track(list(range(20, 31)), [0.0, 0.0, 1.0, 1.0])
     for r in track.per_frame:
         r.box = list(true[r.frame])
+    followed_th = copy.deepcopy(TH)
+    followed_th["privacy"]["track_flow_cover_path"] = False  # the box the flow follows, without the path cover
+    followed = privacy.flow_carry(grays, [track], fps=15.0, media_size_proxy=(480, 270), n_frames=41, th=followed_th)
     carried = privacy.flow_carry(grays, [track], fps=15.0, media_size_proxy=(480, 270), n_frames=41, th=TH)
     assert sorted(f for (_tid, f, side) in carried if side < 0) == list(range(0, 20))
+    reach = TH["privacy"]["track_flow_cover_max_frac"] * 480
     for f in range(20):
-        box = carried[(track.track_id, f, -1)]
+        box, flow = carried[(track.track_id, f, -1)], followed[(track.track_id, f, -1)]
         assert _inside(true[f], box), (f, box, true[f])
-        assert abs((box[0] + box[2]) / 2 - (true[f][0] + true[f][2]) / 2) < 3.0
+        assert abs((flow[0] + flow[2]) / 2 - (true[f][0] + true[f][2]) / 2) < 3.0  # the flow stays on the plate
+        assert _inside(flow, box) and box[0] >= flow[0] - reach - 1e-6 and box[2] <= flow[2] + reach + 1e-6  # the path cover, capped
     kw = dict(fps=15.0, media_size_proxy=(480, 270), media_size_src=(480, 270), th=TH)
     [guess] = privacy.track_boxes_at(0, [track], **kw)  # no flow: the extrapolated box misses the plate
     assert not _inside(true[0], guess)
     assert privacy.track_boxes_at(0, [track], carried=carried, **kw) == [carried[(track.track_id, 0, -1)]]
+
+
+def test_a_flow_box_that_drifts_off_still_covers_the_plate_through_its_path() -> None:
+    """pairC_core1's return front plate (review 11/1): the plate stays put in the frame while the ground behind it pans,
+    and optical flow on a small box follows the ground. Frames 0 to 19 show a still plate at x 300 over a background
+    moving 2 px a frame; its track starts at frame 20. The followed box drifts 40 px off the plate; the path cover,
+    which reaches 48 px (track_flow_cover_max_frac of 480 px) past the box, keeps the plate under it."""
+    rng = np.random.default_rng(5)
+    tex = cv2.GaussianBlur(rng.integers(0, 256, (270, 900), dtype=np.uint8), (0, 0), 2.0)
+    tex = cv2.normalize(tex, None, 0, 255, cv2.NORM_MINMAX)
+    grays = {}
+    for f in range(31):
+        g = np.ascontiguousarray(tex[:, 2 * f : 2 * f + 480]).copy()
+        g[124:136, 300:320] = 255  # the plate: 20 x 12 px, the same place on every frame
+        grays[f] = g
+    track = _plate_track(list(range(20, 31)), [300.0, 124.0, 320.0, 136.0])
+    off = copy.deepcopy(TH)
+    off["privacy"]["track_flow_cover_path"] = False
+    followed = privacy.flow_carry(grays, [track], fps=15.0, media_size_proxy=(480, 270), n_frames=31, th=off)
+    carried = privacy.flow_carry(grays, [track], fps=15.0, media_size_proxy=(480, 270), n_frames=31, th=TH)
+    plate = [300.0, 124.0, 320.0, 136.0]
+    assert not _inside(plate, followed[(track.track_id, 2, -1)])  # the flow followed the ground
+    assert all(_inside(plate, carried[(track.track_id, f, -1)]) for f in range(20))  # the path still covers the plate
 
 
 def test_flow_carry_goes_on_kinematically_where_frames_are_missing() -> None:
@@ -710,6 +739,35 @@ async def test_display_video_rederives_byte_for_byte_from_the_original(runs: Pat
         privacy.rederive_display(run_id, role, other, out)
     with pytest.raises(ValueError, match="never writes inside the run"):
         privacy.rederive_display(run_id, role, original, paths.run_dir(run_id) / "media")
+
+
+def test_an_installed_rederived_display_is_recorded_and_verify_names_it(runs: Path, tmp_path: Path) -> None:
+    """pairC_core1 (review 11/1): a display video the sealed blur left readable is replaced by one made again from the
+    sealed original; the sealed records stay, and verify's media lines name the record instead of a bare mismatch."""
+    from walkaround import __main__ as cli
+
+    run_id = "r1"
+    paths.ensure_run_layout(run_id)
+    sealed = paths.proxy_blurred_path(run_id, "pickup")
+    sealed.write_bytes(b"sealed display video")
+    new = tmp_path / "out" / "pickup.proxy_blurred.mp4"
+    new.parent.mkdir()
+    new.write_bytes(b"made again with the blur of Nov 1")
+    got = {
+        "role": "pickup", "blurred_path": str(new), "blurred_sha256": hashlib.sha256(new.read_bytes()).hexdigest(),
+        "sealed_blurred_sha256": hashlib.sha256(b"sealed display video").hexdigest(), "matches_sealed": False, "privacy": {"track_carry_s": 3.0},
+    }
+    with pytest.raises(ValueError, match="nothing to install"):
+        privacy.install_rederived_display(run_id, {**got, "matches_sealed": True}, reason="x")
+    row = privacy.install_rederived_display(run_id, got, reason="the sealed one left a plate readable", now=NOW)
+    assert sealed.read_bytes() == new.read_bytes() and row["path"] == "media/pickup.proxy_blurred.mp4" and row["sha256"] == got["blurred_sha256"]
+    assert row["sealed_sha256"] == row["replaced_sha256"] == got["sealed_blurred_sha256"]
+    assert not privacy.served_file_allowed(c.RunManifest(run_id=run_id, created_at=NOW), privacy.REDERIVED_DISPLAY_NAME, run_owner=True)
+    note = cli.why_differs(run_id, "run manifest: hash differs: media/pickup.proxy_blurred.mp4")
+    assert note.startswith("display video re-derived on 2026-10-27 from the sealed original (sealed sha256 ") and "the sealed one left a plate readable" in note
+    assert cli.why_differs(run_id, "run manifest: hash differs: media/return.proxy_blurred.mp4") is None  # no row for it
+    sealed.write_bytes(b"changed again")
+    assert cli.why_differs(run_id, "run manifest: size differs: media/pickup.proxy_blurred.mp4") is None  # not the recorded file
 
 
 # LIVE -----------------------------------------------------------------------------------------------------------------------

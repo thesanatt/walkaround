@@ -5,8 +5,10 @@ sheet.json)."""
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import importlib.util
+import json
 import re
 import shutil
 import subprocess
@@ -677,3 +679,32 @@ def test_build_sheet_on_a_bare_run(runs: Path) -> None:
     assert model.clocks.sealed_at is None
     html = sheet.render_html(model)
     assert "not sealed" in html and "camera time not present" not in html and "unknown" in html and html.isascii()
+
+
+def test_the_sheet_prints_the_footage_credit_and_its_license_wherever_the_frames_go(runs: Path) -> None:
+    # review 11/1: CC BY 4.0 asks for the credit, the license link and a note of changes wherever modified frames go
+    credit = "Footage: uCO3D (Meta), CC BY 4.0, modified. Narration: ours, Piper TTS."
+    url = "https://creativecommons.org/licenses/by/4.0/"
+    paths.ensure_run_layout("credited")
+    c.write_json(paths.run_json("credited"), c.RunManifest(run_id="credited", created_at=NOW, thresholds=TH, config_hash=c.config_hash(TH), footage_credit=credit))
+    model = sheet.build_sheet("credited", th=TH)
+    assert (model.footage_credit, model.footage_license_url) == (credit, url)
+    html = sheet.render_html(model)
+    footers = html.count('<div class="footer">')
+    assert footers > 3 and html.count(f"Walkaround run credited. {credit}") == footers  # every page, so the PDF too
+    assert f'<p class="sub">{credit} License: {url}</p>' in html  # page 1
+    assert f"- the frames on the sheet: {credit} License: {url}" in model.letter_md
+    assert sheet.footage_license_url("Pexels clip 4228872, Pexels License") == "https://www.pexels.com/license/"
+    assert sheet.footage_license_url("our own walk") is None
+
+
+def test_a_run_frozen_before_the_credit_rule_keeps_its_sheet(runs: Path) -> None:
+    old = copy.deepcopy(TH)
+    del old["sheet"]
+    credit = "Footage: uCO3D (Meta), CC BY 4.0, modified."
+    paths.ensure_run_layout("frozen")
+    c.write_json(paths.run_json("frozen"), c.RunManifest(run_id="frozen", created_at=NOW, thresholds=old, config_hash=c.config_hash(old), footage_credit=credit))
+    model = sheet.build_sheet("frozen", th=old)
+    assert model.footage_credit is None and model.footage_license_url is None
+    assert not {"footage_credit", "footage_license_url"} & set(json.loads(model.to_json()))  # the bytes of before 11/1
+    assert credit not in sheet.render_html(model) and credit not in model.letter_md

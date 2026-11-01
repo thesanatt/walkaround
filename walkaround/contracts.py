@@ -1676,6 +1676,21 @@ class SheetModel(Contract):
     appendices: dict[str, str] = Field(default_factory=dict)  # A certification, B glossary, C verify-it-yourself
     letter_md: str = ""
     footer_hash_prefixes: list[str] = Field(default_factory=list)  # first 12 hex of each original's sha256
+    # run.footage_credit and its license link, printed on page 1, in every page footer and in the letter when thresholds
+    # sheet.footage_credit is on (11/1; CC BY 4.0 asks for both wherever the modified frames are shared)
+    footage_credit: str | None = None
+    footage_license_url: str | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_footage(self, handler: Any) -> Any:
+        """A sheet with no credit printed serializes as it did before the fields existed (11/1), so every run frozen
+        before the rule rebuilds byte-identical."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in ("footage_credit", "footage_license_url"):
+                if data.get(key) is None:
+                    data.pop(key, None)
+        return data
 
 
 # ----------------------------------------------------------------------------------------------------------------

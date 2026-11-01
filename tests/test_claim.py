@@ -688,8 +688,33 @@ def test_a_claim_look_on_spark_open_logs_in_the_claim_folder_and_bills_the_claim
     assert not (runs / "r" / "open_weights.ndjson").exists() and not (runs / "r.claim_1").exists()
     assert [row["run_id"] for row in ledger.rows() if row["kind"] == "spark_open"] == ["r.claim_1"]
     run = c.read_json(paths.run_json("r"), c.RunManifest)
-    assert not privacy.served_file_allowed(run, "claim/claim_1.open_weights.ndjson", run_owner=True)  # kept, never served
-    assert claim.rebuild_claim("r", "claim_1", th=TH, write=False).match.reasons == ["L3"]  # replayed, no call
+    for owner in (True, False):  # no pixels and no keys, like the run's own open_weights.ndjson (review 11/1)
+        assert privacy.served_file_allowed(run, "claim/claim_1.open_weights.ndjson", run_owner=owner)
+    assert not privacy.served_file_allowed(run, "claim/claim_1.answers.json", run_owner=True)
+    assert privacy.CLAIM_BASETEN_CLAUSE in out.paragraph  # the crops went to a company that is not Meta, and it says so
+    again = claim.rebuild_claim("r", "claim_1", th=TH, write=False)  # replayed, no call
+    assert again.match.reasons == ["L3"] and again.paragraph == out.paragraph
+
+
+def test_a_failed_spark_open_attempt_still_names_baseten(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tests.test_open_weights import FakeBaseten, timeout
+
+    make_run("r", offsets=((0.05, 0.0),))
+    _sam, spark = install(monkeypatch)
+    monkeypatch.setattr(claim.second_look, "_IMAGE_BREAKERS", {})
+    monkeypatch.setattr(open_weights, "_sleep", lambda seconds: None)
+    fake = FakeBaseten()
+    fake.reply(timeout())
+    open_weights.reset()
+    open_weights.set_client(fake, slots=("hackathon",))
+    try:
+        out = derive("r", photo())
+    finally:
+        open_weights.set_client(None)
+        open_weights.reset()
+    assert "look_v1" in spark.names() and out.match.reasons == ["L3"]  # hosted Muse Spark answered the look
+    assert privacy.CLAIM_BASETEN_CLAUSE in out.paragraph  # the request still carried the two crops to Baseten
+    assert claim.rebuild_claim("r", "claim_1", th=TH, write=False).paragraph == out.paragraph
 
 
 def test_a_top_up_frame_prints_its_own_clip_and_time(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -843,10 +868,33 @@ def test_a_small_drawn_box_is_the_roi_spark_grounds_in(runs: Path, monkeypatch: 
     assert out.match.reasons == ["L2"]
 
 
-def test_E8_glare_on_the_claim_photo_caps_the_answer(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_E8_glare_on_the_claim_photo_keeps_a_pickup_mark_at_the_spot_with_a_note(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # review 11/1, the G2 decision for the claim photo: a mark the pickup walk shows at the same spot was there at pickup,
+    # whatever the photo's glare makes of the claim mark, as a flagged return view keeps a pair in the walk
+    make_run("r", offsets=((0.05, 0.0),))
+    install(monkeypatch, spark=FakeSpark(answers(marks_v1=marks_answer(glare=True))))
+    out = derive("r", photo())
+    assert out.exit is None and out.match.reasons == ["L3"]
+    assert "Already there at pickup" in out.paragraph
+    assert "The claim photo was flagged glare, but a pickup mark sits at this spot, so something was there at pickup." in out.paragraph
+    assert out.size.refused_reason == ruler.CROP_FLAG  # the crop flag still refuses a size
+    assert claim.rebuild_claim("r", "claim_1", th=TH, write=False).match.reasons == ["L3"]
+
+
+def test_E8_glare_caps_a_claim_mark_no_pickup_mark_is_near(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    make_run("r")
+    install(monkeypatch, spark=FakeSpark(answers(marks_v1=marks_answer(glare=True))))
+    out = derive("r", photo())
+    assert out.exit == c.ClaimExit.E8 and out.match.reasons == ["L4", "L2", "K11"]
+    assert "glare, water or dirt on the claim photo" in out.paragraph and "The claim photo was flagged" not in out.paragraph
+
+
+def test_a_run_frozen_before_11_1_keeps_K11_on_every_E8_claim_mark(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     make_run("r", offsets=((0.05, 0.0),))
     _, spark = install(monkeypatch, spark=FakeSpark(answers(marks_v1=marks_answer(glare=True))))
-    out = derive("r", photo())
+    old = copy.deepcopy(TH)
+    del old["claim"]["photo_flag_caps_one_walk_only"]
+    out = asyncio.run(claim.derive_claim("r", image=upload("r", photo()), text="", tire_code=None, th=old))
     assert out.exit == c.ClaimExit.E8 and out.match.reasons == ["L4", "L3", "K11"]
     assert "glare, water or dirt on the claim photo" in out.paragraph and out.size.refused_reason == ruler.CROP_FLAG
     assert "look_v1" not in spark.names()
@@ -1087,3 +1135,4 @@ def test_a_run_with_the_walk_look_off_keeps_the_hosted_claim_look(runs: Path, mo
     off["spark"]["second_look_engine"] = "off"
     out = asyncio.run(claim.derive_claim("r", image=upload("r", photo()), text="", tire_code=None, th=off))
     assert out.match.reasons == ["L3"] and spark.names() == ["claim_name_v1", "marks_v1", "look_v1"]
+    assert privacy.CLAIM_BASETEN_CLAUSE not in out.paragraph  # nothing went to Baseten

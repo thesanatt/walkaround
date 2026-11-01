@@ -29,6 +29,7 @@ import base64
 import hashlib
 import re
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal
@@ -96,21 +97,32 @@ class _NotRun(Exception):
     """The look cannot be put to a model; the message is the reason printed on the row."""
 
 
+_clock = time.monotonic  # tests replace it
+
+
 @dataclass
 class _Breaker:
+    """Failed Spark Open looks in a row. Open at limit failures; with ttl_s it closes again ttl_s after the last failure,
+    so a breaker that outlives one match stage (look_images keeps one per run) asks Spark Open again later."""
+
     limit: int
     failures: int = 0
     last: str = ""
+    ttl_s: float | None = None
+    failed_at: float | None = None
 
     def fail(self, why: str) -> None:
         self.failures += 1
         self.last = why
+        self.failed_at = _clock()
 
     def ok(self) -> None:
         self.failures = 0
 
     @property
     def open(self) -> bool:
+        if self.failures >= self.limit and self.ttl_s is not None and self.failed_at is not None and _clock() - self.failed_at >= self.ttl_s:
+            self.failures = 0  # rested long enough: the next look asks Spark Open again
         return self.failures >= self.limit
 
 
@@ -319,13 +331,15 @@ class SecondLook:
         return records, notes, self.engine == "spark_open"
 
 
-_IMAGE_BREAKERS: dict[str, _Breaker] = {}  # look_images: one breaker per run, as SecondLook keeps one per match stage
+# look_images: one breaker per run, as SecondLook keeps one per match stage. It lives as long as the server, so it closes
+# again open_weights.FAILURE_TTL_S after its last failure (review 11/1): later claims on the run ask Spark Open again.
+_IMAGE_BREAKERS: dict[str, _Breaker] = {}
 _IMAGE_BREAKERS_LOCK = threading.Lock()
 
 
 def _image_breaker(run_id: str) -> _Breaker:
     with _IMAGE_BREAKERS_LOCK:
-        return _IMAGE_BREAKERS.setdefault(run_id, _Breaker(BASETEN_FAILURES_MAX))
+        return _IMAGE_BREAKERS.setdefault(run_id, _Breaker(BASETEN_FAILURES_MAX, ttl_s=open_weights.FAILURE_TTL_S))
 
 
 def look_images(

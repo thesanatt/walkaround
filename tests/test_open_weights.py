@@ -235,7 +235,7 @@ def test_a_refused_hackathon_key_rests_and_the_account_key_answers(fake, clock, 
 
 def test_every_slot_refused_raises_and_later_calls_ask_nothing_until_the_ttl(fake, clock):
     fake.reply(status_error(404), status_error(403))
-    with pytest.raises(open_weights.OpenWeightsError, match=r"no Baseten key slot answered in the last 10 minutes \(hackathon key: 404; account key: 403\)"):
+    with pytest.raises(open_weights.OpenWeightsError, match=r"no Baseten key slot can be asked now, each rests after a failure \(hackathon key: 404; account key: 403\)"):
         look()
     clock[0] += open_weights.FAILURE_TTL_S - 1
     with pytest.raises(open_weights.OpenWeightsError, match=r"hackathon key: 404; account key: 403"):
@@ -447,6 +447,7 @@ def test_429_and_5xx_back_off_inside_one_call(fake, waits):
 
 
 def test_rate_limits_give_up_after_three_tries(fake):
+    open_weights.set_client(fake, slots=("hackathon",))  # the only key: nothing else to ask
     fake.reply(status_error(429), status_error(529), status_error(429))
     with pytest.raises(open_weights.OpenWeightsError, match="429"):
         look()
@@ -454,18 +455,69 @@ def test_rate_limits_give_up_after_three_tries(fake):
 
 
 def test_a_long_retry_after_fails_at_once(fake):
+    open_weights.set_client(fake, slots=("hackathon",))
     fake.reply(status_error(429, "120"))
     with pytest.raises(open_weights.OpenWeightsError):
         look()
     assert len(fake.requests) == 1
 
 
-def test_a_timeout_raises_at_once(fake):
+def test_a_timeout_on_the_last_slot_raises_at_once(fake):
+    open_weights.set_client(fake, slots=("hackathon",))
     fake.reply(timeout())
     with pytest.raises(open_weights.OpenWeightsError, match="Baseten call failed: APITimeoutError"):
         look(run_id="run1")
     assert len(fake.requests) == 1
     assert [(line["status"], line["key_slot"]) for line in provenance("run1")] == [("failed", "hackathon")]
+    fake.reply(chat(SAME, model=HACKATHON))
+    assert look().verdict is LookVerdict.SAME  # the last slot does not rest: the next look asks it again
+    assert [r["model"] for r in fake.requests] == [HACKATHON, HACKATHON]
+
+
+# Review 11/1: a per-key rate limit, an outage of one id or a dropped call moves on to the next key slot -------------
+
+
+def test_a_timeout_on_the_hackathon_key_moves_to_the_account_key_and_rests_it_briefly(fake, clock):
+    fake.reply(timeout(), chat(SAME, model=ACCOUNT, rid="chatcmpl-a"))
+    result = look(run_id="run1")
+    assert result.verdict is LookVerdict.SAME and open_weights.key_slot_of(result.record) == "account"
+    assert [r["model"] for r in fake.requests] == [HACKATHON, ACCOUNT]
+    assert [(line["key_slot"], line["status"]) for line in provenance("run1")] == [("hackathon", "failed"), ("account", "completed")]
+    assert [(r["key_slot"], r["status"]) for r in ledger.rows()] == [("hackathon", "failed"), ("account", "completed")]
+    fake.reply(chat(DIFFERENT, model=ACCOUNT))
+    look()
+    assert fake.requests[-1]["model"] == ACCOUNT  # the hackathon slot rests
+    clock[0] += open_weights.TRANSIENT_TTL_S  # a minute on it leads again
+    fake.reply(chat(SAME, model=HACKATHON))
+    look()
+    assert fake.requests[-1]["model"] == HACKATHON
+
+
+def test_rate_limits_past_three_tries_move_to_the_account_key(fake, waits):
+    fake.reply(status_error(429), status_error(429), status_error(503), chat(SAME, model=ACCOUNT))
+    assert look().verdict is LookVerdict.SAME
+    assert [r["model"] for r in fake.requests] == [HACKATHON, HACKATHON, HACKATHON, ACCOUNT]
+    assert len(waits) == 2  # the backoff between the hackathon key's three tries, none before the account key
+
+
+def test_a_long_retry_after_on_the_hackathon_key_moves_to_the_account_key(fake):
+    fake.reply(status_error(429, "120"), chat(SAME, model=ACCOUNT))
+    assert look().verdict is LookVerdict.SAME and [r["model"] for r in fake.requests] == [HACKATHON, ACCOUNT]
+
+
+def test_a_dropped_call_on_both_keys_raises_with_one_request_each(fake):
+    fake.reply(timeout(), timeout())
+    with pytest.raises(open_weights.OpenWeightsError, match="Baseten call failed: APITimeoutError"):
+        look(run_id="run1")
+    assert [r["model"] for r in fake.requests] == [HACKATHON, ACCOUNT]
+    assert [(line["key_slot"], line["status"]) for line in provenance("run1")] == [("hackathon", "failed"), ("account", "failed")]
+
+
+def test_a_400_not_about_the_format_never_moves_to_the_next_key(fake):
+    fake.reply(status_error(400, message="Error code: 400 - image too large"))
+    with pytest.raises(open_weights.OpenWeightsError, match="400"):
+        look()
+    assert [r["model"] for r in fake.requests] == [HACKATHON]  # the same request would fail on any key
 
 
 @pytest.mark.parametrize("status", [401, 403])
@@ -478,6 +530,7 @@ def test_auth_errors_on_both_keys_raise_after_one_request_each(fake, status):
 
 
 def test_a_failed_retry_raises_with_the_first_answer(fake):
+    open_weights.set_client(fake, slots=("hackathon",))
     fake.reply(chat("no json", rid="first"), timeout())
     with pytest.raises(open_weights.OpenWeightsError) as info:
         look()

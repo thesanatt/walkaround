@@ -107,10 +107,12 @@ def connection_error() -> APIConnectionError:
 
 @pytest.fixture
 def baseten(runs_dir, monkeypatch) -> FakeBaseten:
+    """Baseten with the hackathon key only; a test that needs the account key too sets both slots. With two slots a
+    timeout or a rate limit on the first moves to the second (open_weights, review 11/1)."""
     client = FakeBaseten()
     monkeypatch.setattr(open_weights, "_sleep", lambda seconds: None)
     open_weights.reset()
-    open_weights.set_client(client)
+    open_weights.set_client(client, slots=("hackathon",))
     yield client
     open_weights.set_client(None)
     open_weights.reset()
@@ -329,6 +331,7 @@ def test_a_baseten_failure_falls_back_to_hosted_spark_and_says_why(baseten, host
 
 def test_the_account_key_answers_when_the_hackathon_key_is_refused_and_the_row_says_so(baseten, hosted, th):
     seed()
+    open_weights.set_client(baseten)  # both key slots
     baseten.reply(status_error(403), chat(DIFFERENT, model=ACCOUNT, rid="chatcmpl-acct"))
     assert second_look.make_second_look(RUN, th=th)(pair("0")) is LookVerdict.DIFFERENT
     (row,) = rows()
@@ -410,6 +413,7 @@ def test_a_hosted_crash_after_a_bad_spark_open_answer_keeps_that_answer(baseten,
 
 def test_a_hosted_crash_with_no_spark_open_answer_does_not_run(baseten, hosted, th, monkeypatch):
     seed()
+    open_weights.set_client(baseten)  # both key slots
     baseten.reply(status_error(401), status_error(401))
 
     def boom(*args, **kwargs):
@@ -420,7 +424,7 @@ def test_a_hosted_crash_with_no_spark_open_answer_does_not_run(baseten, hosted, 
     (row,) = rows()
     assert row.verdict is None and row.engine is None and row.valid is False and row.records == [] and row.panel_id is TRUNK
     assert row.reason == "not run: Muse Spark 1.3 failed: RuntimeError: no key"
-    assert row.fallback.startswith("Spark Open gave no answer: no Baseten key slot answered in the last 10 minutes (hackathon key: 401; account key: 401)")
+    assert row.fallback.startswith("Spark Open gave no answer: no Baseten key slot can be asked now, each rests after a failure (hackathon key: 401; account key: 401)")
 
 
 def test_both_engines_down_does_not_run_and_a_resume_asks_again(baseten, hosted, th):
@@ -641,6 +645,39 @@ def test_look_images_falls_back_to_hosted_spark_under_the_claims_ledger_id(baset
     assert [(row["kind"], row["status"], row["run_id"]) for row in ledger.rows()] == [("spark_open", "failed", CLAIM_BILL), ("spark", "completed", CLAIM_BILL)]
     assert [json.loads(text)["status"] for text in target.read_text().splitlines()] == ["failed"]
     assert [r.request_id for r in records] == ["resp_claim_fb"]
+
+
+def test_a_timeout_on_the_hackathon_key_is_answered_by_the_account_key_with_no_fallback(baseten, hosted, th):
+    seed()
+    open_weights.set_client(baseten)  # both key slots
+    baseten.reply(timeout(), chat(SAME, model=ACCOUNT, rid="chatcmpl-acct"))
+    assert second_look.make_second_look(RUN, th=th)(pair("0")) is LookVerdict.SAME
+    (row,) = rows()
+    assert (row.engine, row.model, row.key_slot, row.request_id) == (SparkEngine.BASETEN, ACCOUNT, "account", "chatcmpl-acct")
+    assert row.fallback is None and row.fallback_from is None and hosted.requests == []
+    assert [(line["key_slot"], line["status"]) for line in provenance()] == [("hackathon", "failed"), ("account", "completed")]
+
+
+def test_the_claim_breaker_closes_again_after_the_slot_ttl(baseten, hosted, th, monkeypatch):
+    monkeypatch.setattr(second_look, "_IMAGE_BREAKERS", {})
+    now = [500.0]
+    monkeypatch.setattr(second_look, "_clock", lambda: now[0])
+    paths.ensure_run_layout(RUN)
+    a, b = _two_images()
+    baseten.reply(timeout(), timeout())
+    hosted.replies.extend([hosted_answer(SAME, rid=f"h{i}") for i in range(3)])
+    for _ in range(3):
+        second_look.look_images(a, b, panel_id=TRUNK, run_id=RUN, input_refs=[], th=th)
+    assert len(baseten.requests) == 2 and len(hosted.requests) == 3  # open after two failures in a row
+    now[0] += open_weights.FAILURE_TTL_S - 1
+    hosted.replies.append(hosted_answer(SAME, rid="h3"))
+    second_look.look_images(a, b, panel_id=TRUNK, run_id=RUN, input_refs=[], th=th)
+    assert len(baseten.requests) == 2  # still resting
+    now[0] += 1  # ten minutes after the last failure a later claim asks Spark Open again
+    baseten.reply(chat(SAME, model=HACKATHON, rid="chatcmpl-back"))
+    standing, _records, notes = second_look.look_images(a, b, panel_id=TRUNK, run_id=RUN, input_refs=[], th=th)
+    assert len(baseten.requests) == 3 and standing.request_id == "chatcmpl-back" and notes == []
+    assert not second_look._image_breaker(RUN).open  # and the answer closed it
 
 
 def test_look_images_keeps_one_breaker_per_run_and_asks_nothing_when_off(baseten, hosted, th, monkeypatch):

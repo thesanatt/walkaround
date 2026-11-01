@@ -1441,12 +1441,58 @@ def test_twin_cues_read_the_plate_the_mirror_and_the_neighbours() -> None:
 def test_twin_decision_needs_the_margin_or_an_unopposed_lane() -> None:
     cfg = TH["panels"]["twin_check"]
     silent = {"plate": 0, "mirror": 0, "lights": 0, "glass": 0}
-    assert panels.twin_decision({**silent, "plate": -1}, [Noun.HOOD], cfg) == (-1, -2.0)  # the plate alone moves a hood-lane lid
+    assert cfg["margin_min"] == 3  # review 11/1: one strong cue, or the two weak ones, never turns a lid alone
+    assert panels.twin_decision({**silent, "plate": -1, "lights": -1}, [Noun.HOOD], cfg) == (-1, -3.0)  # plate and lights move a hood-lane lid
+    assert panels.twin_decision({**silent, "plate": -1}, [Noun.HOOD], cfg) == (None, -2.0)  # the plate alone against the lane: split
+    assert panels.twin_decision({**silent, "mirror": 1}, [Noun.TRUNK_LID], cfg) == (None, 2.0)  # a mirror alone against it: split
+    assert panels.twin_decision({**silent, "lights": 1, "glass": 1}, [Noun.TRUNK_LID], cfg) == (None, 2.0)  # the twin-prone weak cues: split
+    assert panels.twin_decision({**silent, "plate": -1}, [Noun.TRUNK_LID], cfg) == (-1, -2.0)  # the same cue on the lane's side
     assert panels.twin_decision({**silent, "lights": 1}, [Noun.HOOD], cfg) == (1, 1.0)  # weak, but on the lane's side
     assert panels.twin_decision(silent, [Noun.TRUNK_LID], cfg) == (-1, 0.0)  # nothing against the lane
     assert panels.twin_decision({**silent, "lights": -1}, [Noun.HOOD], cfg) == (None, -1.0)  # weak and against it: split
     assert panels.twin_decision(silent, [Noun.HOOD, Noun.TRUNK_LID], cfg) == (None, 0.0)  # both lanes on one lid, no cue
     assert panels.twin_decision({"plate": -1, "mirror": 1, "lights": 1, "glass": 0}, [Noun.HOOD, Noun.TRUNK_LID], cfg) == (None, 1.0)
+
+
+# The review of 11/1: a right trunk lid seen from the rear, its plate on the bumper (below the lid box), no mirror in
+# view, and SAM's headlight and windshield lanes on the tail lights and the rear window (both seen on pair C).
+_REAR = range(100, 160)
+_LID = [300, 200, 600, 330]
+_PLATE_ON_BUMPER = [410, 360, 490, 390]
+_LIGHT_BESIDE = [250, 260, 300, 300]
+_GLASS_ABOVE = [320, 140, 580, 198]
+
+
+def _rear_lid_scene() -> list[c.PanelTrack]:
+    return [
+        _track("pickup", Noun.TRUNK_LID, [(f, _LID, 0.8) for f in _REAR], track_id="pickup_trunk_lid_00"),
+        _track("pickup", Noun.LICENSE_PLATE, [(f, _PLATE_ON_BUMPER, 0.8) for f in _REAR], track_id="pickup_license_plate_00"),
+    ]
+
+
+def test_the_light_and_glass_lanes_alone_split_a_trunk_lid_instead_of_turning_it_into_the_hood() -> None:
+    scene = _rear_lid_scene() + [
+        _track("pickup", Noun.HEADLIGHT, [(f, _LIGHT_BESIDE, 0.8) for f in _REAR], track_id="pickup_headlight_00"),
+        _track("pickup", Noun.WINDSHIELD, [(f, _GLASS_ABOVE, 0.8) for f in _REAR], track_id="pickup_windshield_00"),
+    ]
+    slot, record = panels.twin_check(scene, TH)["pickup_trunk_lid_00"]
+    assert record.votes == {"plate": 0, "mirror": 0, "lights": 1, "glass": 1} and record.score == 2.0
+    assert slot is None and not record.decided  # split: side uncertain, not compared (margin 2 filed it as the hood)
+    voted_panels, voted = panels.vote_sides(scene, None, TH, fps=FPS)
+    by_id = {p.panel_id: p for p in voted_panels}
+    assert by_id[PanelId.TRUNK_LID].side_uncertain and by_id[PanelId.TRUNK_LID].front_sign is None
+    assert "pickup" not in by_id[PanelId.HOOD].per_role  # nothing is filed under the hood
+    assert next(t for t in voted if t.track_id == "pickup_trunk_lid_00").panel_id is PanelId.TRUNK_LID  # its lane's slot, as a placeholder
+
+
+def test_a_mirror_alone_beside_a_trunk_lid_splits_it() -> None:
+    mirror = [840, 200, 860, 230]  # 0.8 lid sizes off a 300 px lid on a rear-quarter view
+    scene = _rear_lid_scene() + [_track("pickup", Noun.SIDE_MIRROR, [(f, mirror, 0.8) for f in _REAR], track_id="pickup_side_mirror_00")]
+    slot, record = panels.twin_check(scene, TH)["pickup_trunk_lid_00"]
+    assert record.votes["mirror"] == 1 and record.score == 2.0 and slot is None and not record.decided
+    old = copy.deepcopy(TH)
+    old["panels"]["twin_check"]["margin_min"] = 2  # the rule before the review: the mirror alone made it the hood
+    assert panels.twin_check(scene, old)["pickup_trunk_lid_00"][0] is PanelId.HOOD
 
 
 def test_a_split_twin_check_leaves_both_lids_side_uncertain() -> None:

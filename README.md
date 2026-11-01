@@ -88,8 +88,9 @@ tries `BASETEN_HACKATHON_API_KEY` first (it may call only `meta-models/muse-spar
    alike, so a twin check files each lid by what the walk shows next to it: a plate on it, mirrors near it, which
    lights and glass sit beside it.
 3. Plates and faces are pixelated (SAM 3.1 tracks plus an image check on every keyframe) before any crop goes to Spark.
-   Each block grows with the box (a plate spans at most 4 blocks), and each track is carried 2 s before its first
-   sighting and after its last.
+   Each block grows with the box (a plate spans at most 4 blocks), and each track is carried 3 s before its first
+   sighting and after its last. On the display video the carried box follows the plate with optical flow and also
+   covers its path back to the sighting it left, since on a small box the flow can follow the ground instead.
 4. Muse Spark 1.3 marks each blurred panel crop. Muse Voice turns the renter's narration into turns, and code pins each
    turn that names a panel to the seconds SAM shows that panel.
 5. Stays Put: SAM 3.1 follows each mark through its own short clip, with up to 12 rigid neighbours (other marks, the
@@ -118,7 +119,9 @@ Every Muse Spark Open request appends one line to `runs/<run_id>/open_weights.nd
 which key slot asked (`hackathon` or `account`, never the key), both request ids, the latency, the pair of marks, the
 verdict, the reason and whether the answer passed the schema. No image bytes and no keys. The app serves it at
 `/api/runs/<run_id>/files/open_weights.ndjson` and links it from the run page. A claim's look writes its lines to
-`claim/<claim_id>.open_weights.ndjson` instead, since the run's own file is sealed when the run ends.
+`claim/<claim_id>.open_weights.ndjson` instead, since the run's own file is sealed when the run ends; the app serves
+it at `/api/runs/<run_id>/files/claim/<claim_id>.open_weights.ndjson`, and the claim's own paragraph says when its
+crops went to Baseten.
 
 The sample run asked no second look: its one pair (the trunk chips) was already lowered to "needs your eye" by its own
 caps. The same three questions on the same car's trunk lid, the true pair and two controls, were asked on Oct 31 on the
@@ -161,8 +164,10 @@ The sample pair, run pairC_core2 on Oct 31: `docs/evidence/ledger_rows.jsonl` (i
 
 Stage times on that run: lanes 33 s for both walks, panels and keyframes 48 s, display blur 4 s, marks 35 s, narration
 13 s, Stays Put 105 s, match 0.1 s, sheet and close 12 s. The run before it on the same pair and the code before Oct 31
-night (pairC_core1, `docs/evidence/ledger_rows_pairC_core1.jsonl`): $3.2299 in 298 calls, 6 min 49 s, panels 3 min 13
-s, and no panel compared. That file also holds one claim photo placed against that run (17 calls, $0.0465).
+night (pairC_core1): $3.2299 in 298 calls (`docs/evidence/ledger_rows_pairC_core1.jsonl`), 6 min 49 s from the first
+event to run.completed and 3 min 13 s from the tracking stage to the last panels.derived event
+(`docs/evidence/events_pairC_core1.ndjson.gz`), and no panel compared. The ledger file also holds one claim photo
+placed against that run (17 calls, $0.0465).
 
 The D1 gate on the same pair: `docs/evidence/D1_MEMO.md` (a copy of `runs/d1/uco3d_pairC/D1_MEMO.md`).
 
@@ -202,6 +207,10 @@ Only footage we have rights to is in this repo or behind any number in it.
 
 The source clips are not in the repo (`data/` is ignored); each label file in `eval/labels/` names its footage.
 
+A run made after Nov 1 with a footage credit prints that credit and the license link on page 1 of its evidence sheet,
+in the footer of every page (so in the PDF too) and in the letter. The sample's sheet was sealed on Oct 31, before
+that rule, so its credit is the one above and under the walk player on the run page.
+
 ## Privacy
 
 - Faces are always pixelated. Plates are pixelated unless the renter ticks "this is the car I rented"; then the plate
@@ -214,13 +223,15 @@ The source clips are not in the repo (`data/` is ignored); each label file in `e
 - Processed with Meta's Model API in Standard mode, which Meta's documentation says is not used to train Meta models.
   Meta's terms allow it to retain content for abuse review and legal reasons; Walkaround does not control that.
 - The second look sends two blurred crops to Muse Spark Open on Baseten, a company separate from Meta; no video goes
-  there. We have not confirmed Baseten's retention for Model APIs, only what we send.
+  there. A claim's paragraph says so when its look went there. We have not confirmed Baseten's retention for Model
+  APIs, only what we send.
 - The sample in `samples/`: every file is the run's own bytes, except `run.json` (footage credit and replay flag); no
   blur was added by hand. We looked at all 105 images, the four clips, every second frame of both display videos where
   a plate track or its 2 s carry runs and every third frame elsewhere, zooming where a plate turned edge-on. Plates sit
   under blocks of about a quarter of the plate or larger. One spot to know about: on the return walk at 12.3 to 12.6 s the front strip plate shows edge-on, about 45
   by 8 px on the 960 px video, more than 2 s before SAM 3.1's plate lane finds it and before the dataset's own grey patch
-  covers it; no character is readable there.
+  covers it; no character is readable there. The sample was blurred with the rules of Oct 31; with the 3 s carry and
+  the path cover of Nov 1, the same walk blurred again from its original has that spot under blocks (checked by eye).
 
 ## Limitations
 
@@ -229,14 +240,17 @@ The source clips are not in the repo (`data/` is ignored); each label file in `e
   it (above); on a cleaner car or a clearer chip the same rule would say "already there".
 - Twin panels: on this car SAM 3.1's hood lane holds the trunk lid when the camera is at the rear and the other way
   round. The twin check put both walks' lids right on the sample run, but it reads cues (a plate on the lid, mirrors
-  near the hood) that a car with its plate on the bumper or its mirrors on the doors would not give.
+  near the hood) that a car with its plate on the bumper or its mirrors on the doors would not give. One such cue
+  alone, or the light and glass lanes alone, does not turn a lid against its lane: the lid is left uncertain and not
+  compared.
 - A wet, dirty or glare flag from Spark caps a mark seen in one walk only (K15); on this weathered car 38 of 70 crops
   carry one, and the ruler refuses a size on any flagged crop.
 - Stays Put is not calibrated, so it changes no label. Its neighbour test separated a reflection from paint on a dark
   car, but on this white car's trunk lid too few neighbours stayed tracked, and the trunk chips got no clip (16 clips per
   walk, by mark confidence).
-- Muse Voice merges sentences said less than about 3 s apart into one long turn and mishears some words ("like scrat"
-  for "light scratch"); the speaker markers it writes into transcripts are left out of the words shown.
+- Muse Voice sometimes merges several sentences into one long turn: the same narration came back as 3, 2 and 4 turns
+  on three runs, the longest 11.2 s and 16.1 s (`docs/evidence/voice_turns_pairC.json`). It mishears some words
+  ("like scratch" for "light scratch"); the speaker markers it writes into transcripts are left out of the words shown.
 - No eval numbers yet, and no real renter's walk: every car here comes from a dataset.
 - The sample cannot be re-verified from the repo: `walkaround verify` needs the run's stored model answers
   (`spark.json`, `voice.json`), which the app never serves, and says so. Verify works on your own runs.

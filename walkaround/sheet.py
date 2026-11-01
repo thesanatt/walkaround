@@ -115,6 +115,11 @@ RUN_END_NOTE = (
     "Steps marked not yet happen at run end, after this sheet was written; deletions.json and "
     "bundle/manifest_run.json record them."
 )
+# The license a footage credit names, and its link (thresholds sheet.footage_credit, 11/1).
+FOOTAGE_LICENSES = (
+    ("CC BY 4.0", "https://creativecommons.org/licenses/by/4.0/"),
+    ("Pexels License", "https://www.pexels.com/license/"),
+)
 _TSA_VERIFY = {
     "freetsa": (
         "freetsa's certificates (download https://freetsa.org/files/cacert.pem and https://freetsa.org/files/tsa.crt)",
@@ -361,6 +366,19 @@ def note_lines(sheet: SheetModel) -> list[str]:
     ]
 
 
+def footage_license_url(credit: str | None) -> str | None:
+    """The link of the first license in FOOTAGE_LICENSES the credit names, or None."""
+    text = (credit or "").casefold()
+    return next((url for name, url in FOOTAGE_LICENSES if name.casefold() in text), None)
+
+
+def footage_line(sheet: SheetModel) -> str:
+    """The credit with its license link, as page 1 and the letter print it; empty when the sheet prints no credit."""
+    if not sheet.footage_credit:
+        return ""
+    return sheet.footage_credit + (f" License: {sheet.footage_license_url}" if sheet.footage_license_url else "")
+
+
 def letter_md(sheet: SheetModel) -> str:
     originals = "\n".join(
         f"- {o.role}: {o.name}, {o.bytes} bytes, sha256 {o.sha256}, camera time {o.camera_time}, received {o.received_at or 'not recorded'}"
@@ -383,7 +401,8 @@ def letter_md(sheet: SheetModel) -> str:
         f"{originals}\n"
         f"- sealed at {sealed}\n"
         f"- Walkaround run {sheet.run_id}; the panel-by-panel evidence sheet is attached\n"
-        "\n"
+        + (f"- the frames on the sheet: {footage_line(sheet)}\n" if sheet.footage_credit else "")
+        + "\n"
         "The attached sheet shows the panel in question at pickup and at return with the marks drawn on both frames. The\n"
         "sheet is evidence support, not legal advice, and I ask that it be read next to your own images.\n"
         "\n"
@@ -890,6 +909,9 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
         stand_in_line=stand_in_line(run),
         not_comparable=not_comparable, method=method, footer_hash_prefixes=[o.sha256[:12] for o in originals],
     )
+    if th.get("sheet", {}).get("footage_credit") and run.footage_credit:
+        sheet.footage_credit = _ascii(run.footage_credit)
+        sheet.footage_license_url = footage_license_url(run.footage_credit)
     sheet.note_lines = note_lines(sheet)
     appendices = {"A certification": certification_md(sheet), "B glossary": glossary_md(), "C verify it yourself": verify_md(sheet)}
     if claim is not None:
@@ -989,6 +1011,7 @@ def render_html(sheet: SheetModel, *, template_dir: Path = TEMPLATE_DIR, inline_
         "block_rule_ids": {b.panel_id.value: _dedup([rid for v in b.verdicts for rid in v.rule_ids]) for b in sheet.panels},
         "panel_names": {p.value: display_name(p) for p in PanelId},
         "flat_thresholds": _flatten(thresholds),
+        "footage_line": footage_line(sheet),
     }
     return _ascii(env.get_template("sheet.html").render(**context))
 

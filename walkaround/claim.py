@@ -81,6 +81,7 @@ from .contracts import (
     Sha256,
     Side,
     SizeEstimate,
+    SparkEngine,
     SparkRequestRecord,
     Timestamp,
     VerdictLabel,
@@ -423,7 +424,8 @@ def photo_twin_check(
     seen = {Noun.LICENSE_PLATE: {0: list(plates)}}
     seen.update({n: {0: _boxes(sam, n)} for n in (Noun.SIDE_MIRROR, Noun.HEADLIGHT, Noun.TAIL_LIGHT, Noun.WINDSHIELD, Noun.REAR_WINDOW)})
     votes, numbers = panels.twin_cues({0: lid}, seen, cfg, min_frames=1)
-    end, score = panels.twin_decision(votes, nouns, cfg)
+    # a photo keeps margin 2 (photo_margin_min) after the walks moved to 3: Spark's own panel name must still agree
+    end, score = panels.twin_decision(votes, nouns, {**cfg, "margin_min": cfg.get("photo_margin_min", cfg["margin_min"])})
     found = panels.END_LID[end] if end is not None else None
     record = {
         "lid_nouns": [n.value for n in nouns],
@@ -926,6 +928,36 @@ def _view_flags_cap(th: dict[str, Any]) -> bool:
     return bool(th.get("claim", {}).get("view_flag_caps", False))
 
 
+def _photo_flags_one_walk_only(th: dict[str, Any]) -> bool:
+    """thresholds claim.photo_flag_caps_one_walk_only (review 11/1, the G2 decision for the claim photo): a wet, dirty or
+    glare claim photo caps the claim mark (K11, exit E8) only when no pickup mark lies within tau_eye_r of it; a pickup
+    mark that near keeps its label and the paragraph names the flag. Absent, as in every run frozen before it, K11
+    caps every E8 claim mark."""
+    return bool(th.get("claim", {}).get("photo_flag_caps_one_walk_only", False))
+
+
+def _sent_to_baseten(view: RunView, answers: ClaimAnswers) -> bool:
+    """The claim's look reached Baseten: a look answer from Muse Spark Open, or a provenance line in
+    claim/<claim_id>.open_weights.ndjson (a failed attempt sent the two crops too), for this claim or the earlier claim of
+    the same photo whose answers it reuses. Both files are kept, so a rebuild reads the same answer."""
+    if any(key.startswith("look:") and record.engine is SparkEngine.BASETEN for key, record in answers.spark.items()):
+        return True
+    claim_id, reused = answers.claim_id, answers.reused_from
+    seen: set[str] = set()
+    while claim_id and claim_id not in seen and len(seen) < 8:
+        seen.add(claim_id)
+        log = paths.claim_open_weights_log(view.run_id, claim_id)
+        if log.is_file() and log.stat().st_size > 0:
+            return True
+        claim_id = reused
+        if claim_id:
+            try:
+                reused = read_json(answers_path(view.run_id, claim_id), ClaimAnswers).reused_from
+            except (OSError, ValueError):
+                reused = None
+    return False
+
+
 def _pickup_view_flags(view: RunView, pid: PanelId, th: dict[str, Any]) -> list[str]:
     """The wet, dirty and glare flags of the panel's pickup view when none of its complete, sharp pickup keyframes is
     clean (match.VIEW_FLAGS order); empty when one is clean, since then the pickup walk's silence at a spot means
@@ -1042,11 +1074,13 @@ def _layer2(ctx: _Ctx, claim: Claim, pid: PanelId, noun: Noun, roi: Box4, center
             claim.exit = ClaimExit.E6
             claim.paragraph = head + " Muse Spark found marks in the claimed area, but none on the panel itself." + tail
             return claim
-    if glare:
+    one_walk_only = _photo_flags_one_walk_only(th)
+    if glare and not one_walk_only:
         claim.exit = ClaimExit.E8
     chosen = min(found, key=lambda m: (math.dist(m.point_src or center, center), m.mark_id))
-    if glare:
+    if glare and not one_walk_only:
         chosen = chosen.model_copy(update={"caps": [*chosen.caps, "K11"]})
+    photo_flags = [f for f in match.VIEW_FLAGS if getattr(cond, f)] if glare and one_walk_only else []
 
     front = _front_sign(view, pid, kf)
     wheel = pid in WHEEL_PANELS
@@ -1082,11 +1116,14 @@ def _layer2(ctx: _Ctx, claim: Claim, pid: PanelId, noun: Noun, roi: Box4, center
     claim_mark, wc = placed[0], whitened[chosen.mark_id]
     r_claim = float(c["r_claim_full_panel"])
     claim.placement = ClaimPlacement(method=PlacementMethod.FULL_PANEL, w_claim=[wc.u, wc.v], r_claim=r_claim)
-    cmp = _compare(ctx, pid, claim_mark, wc, r_claim, box, kf)
+    cmp = _compare(ctx, pid, claim_mark, wc, r_claim, box, kf, photo_flags=photo_flags)
     claim.match = cmp.match
+    if photo_flags and not cmp.near:
+        claim.exit = ClaimExit.E8  # K11 capped the mark, as E8 says; a near pair was compared and keeps its label
     partner_kf = view.keyframes.get(cmp.partner.kf_id) if cmp.partner is not None else None
     size = _claim_size_text(ctx, claim, claim_mark, pid, roi, cond)
-    claim.paragraph = head + " " + _verdict_text(view, cmp, th) + size + _tail(view, answers, kf, partner_kf)
+    baseten = " " + privacy.CLAIM_BASETEN_CLAUSE if _sent_to_baseten(view, answers) else ""
+    claim.paragraph = head + " " + _verdict_text(view, cmp, th) + size + baseten + _tail(view, answers, kf, partner_kf)
     return claim
 
 
@@ -1099,11 +1136,17 @@ class _Compared:
     partner: Mark | None  # that pickup mark
     ambiguous: bool  # the ratio test failed inside the band
     pair_view_flags: list[str] = field(default_factory=list)  # a near pair on a flagged pickup view: the note's flags
+    near: bool = False  # a pickup mark within tau_eye_r of the claim mark
+    photo_view_flags: list[str] = field(default_factory=list)  # a near pair on a flagged claim photo: the note's flags
 
 
-def _compare(ctx: _Ctx, pid: PanelId, claim_mark: Mark, wc: WhitenedMark, r_claim: float, box: tuple[int, int, int, int], kf: Keyframe | None) -> _Compared:
+def _compare(
+    ctx: _Ctx, pid: PanelId, claim_mark: Mark, wc: WhitenedMark, r_claim: float, box: tuple[int, int, int, int], kf: Keyframe | None, *, photo_flags: list[str] | tuple[str, ...] = ()
+) -> _Compared:
     """5.8 against the panel's pickup marks with the bands widened by r_claim; one verdict through match.verdict. As
-    in match.verdicts_for, a pair beyond tau_eye_r passes no partner, so a far pickup mark's caps never lower it."""
+    in match.verdicts_for, a pair beyond tau_eye_r passes no partner, so a far pickup mark's caps never lower it.
+    photo_flags (claim.photo_flag_caps_one_walk_only): the claim photo's wet, dirty or glare flags, which cap the claim
+    mark with K11 only when no pickup mark is near; a near pair keeps its label and the paragraph names them."""
     view, answers, th = ctx.view, ctx.answers, ctx.th
     cal = view.calibration
     wheel = pid in WHEEL_PANELS
@@ -1139,6 +1182,8 @@ def _compare(ctx: _Ctx, pid: PanelId, claim_mark: Mark, wc: WhitenedMark, r_clai
             update["K1"] = True
         if wheel:
             update["K10"] = True
+        if photo_flags and not near:
+            update["K11"] = True
         if update:
             flags = flags.model_copy(update=update)
         return match.verdict(pair.d if pair is not None else None, tau_pre_r, tau_eye_r, flags)
@@ -1159,7 +1204,7 @@ def _compare(ctx: _Ctx, pid: PanelId, claim_mark: Mark, wc: WhitenedMark, r_clai
         unmatched_pickup=[],
         unmatched_return=[] if near else [claim_mark.mark_id],
     )
-    return _Compared(pm, label, ids, nearest, partner, ambiguous, view_flags if near else [])
+    return _Compared(pm, label, ids, nearest, partner, ambiguous, view_flags if near else [], near=near, photo_view_flags=list(photo_flags) if near else [])
 
 
 def _second_look(ctx: _Ctx, pid: PanelId, partner: Mark, claim_mark: Mark, box: tuple[int, int, int, int]) -> LookVerdict | None:
@@ -1186,6 +1231,12 @@ def _verdict_text(view: RunView, cmp: _Compared, th: dict[str, Any]) -> str:
     lowered = label is VerdictLabel.NEEDS_YOUR_EYE and original != "L4"
     flagged = " and ".join(cmp.pair_view_flags)
     note = f" The pickup frame was flagged {flagged}, but a mark shows at this spot on it, so something was there at pickup." if flagged else ""
+    if cmp.photo_view_flags:
+        photo = " and ".join(cmp.photo_view_flags)
+        if original == "L3":
+            note += f" The claim photo was flagged {photo}, but a pickup mark sits at this spot, so something was there at pickup."
+        else:
+            note += f" The claim photo was flagged {photo}; a pickup mark shows near this spot."
     if cmp.ambiguous:
         tail = f" Also: {caps}." if caps else ""
         return f"Needs your eye: two pickup marks lie about as close to the claim mark; the nearest, {kind}{where}, is {dist} away.{tail}{note}"

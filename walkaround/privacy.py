@@ -11,7 +11,8 @@ Every pixelated region gets a block that grows with the largest box or mask in i
 plate is never left readable by a small block. Plate and face tracks reach past their sightings: each sighting also
 covers the frames within track_box_union_s, and for up to track_carry_s before a first sighting and after a last one
 a carried box keeps covering the object, its margin growing with the time carried. On the display video the carried
-box follows the object with optical flow on the unblurred proxy (flow_carry); every other consumer extrapolates it.
+box follows the object with optical flow on the unblurred proxy (flow_carry) and also covers its path back to the
+sighting it left, within a reach (track_flow_cover_path, review 11/1); every other consumer extrapolates it.
 The display video stays a derived file: rederive_display makes it again from the renter's original and the stored
 lanes, byte for byte for a run made with this code on the same ffmpeg and OpenCV builds.
 """
@@ -62,14 +63,16 @@ _RETRY_SLEEP_S = 0.5  # between Files API delete retries; tests set it to 0
 # Keys added on Oct 31 (config/thresholds.json carries the same values; tests/test_privacy.py compares them). A run
 # sealed before then has none of them in its thresholds snapshot and gets these, so a display video re-derived for an
 # old run is never blurred more weakly than a new one.
-PRIVACY_DEFAULTS: dict[str, float] = {
+PRIVACY_DEFAULTS: dict[str, float | bool] = {
     "box_blocks_across": 4.0,
     "track_box_union_s": 0.1,
-    "track_carry_s": 2.0,
+    "track_carry_s": 3.0,  # 2.0 until the review of 11/1 (pairC_core2 showed a plate edge-on 34 frames early)
     "track_carry_fit_s": 0.4,
     "track_carry_grow_per_s": 0.5,
     "track_carry_speed_max_frac_per_s": 1.0,
     "track_flow_grow_per_s": 0.2,
+    "track_flow_cover_path": True,  # review 11/1: a flow-carried box also covers its path back to the sighting it left
+    "track_flow_cover_max_frac": 0.1,  # review 11/1: that path cover reaches at most this much of the long edge past the box
 }
 
 # Optical flow for the display video's carry (flow_carry): grayscale frames at most FLOW_MAX_EDGE px on the long edge,
@@ -507,13 +510,19 @@ def flow_carry(
     box moves frame by frame with the median optical flow around it on the unblurred proxy (grays: grayscale frames
     by proxy frame, all at one size), never smaller than the edge box, its margin grown by track_flow_grow_per_s of
     its size per second. Where the flow loses the object (a missing frame counts as lost) the box goes on at its last
-    step, capped at track_carry_speed_max_frac_per_s, and grows by track_carry_grow_per_s from there. Pure and
-    deterministic for the same frames, so a re-render gives the same boxes."""
+    step, capped at track_carry_speed_max_frac_per_s, and grows by track_carry_grow_per_s from there. With
+    track_flow_cover_path each carried box also covers every box before it back to the sighting it left: on a small box
+    the flow can follow the ground instead of the object (pairC_core1's return front plate, frames 185 to 189: the box
+    drifted 80 px off the edge-on plate while the plate stayed near its first sighting), so the path is covered, out
+    to track_flow_cover_max_frac of the frame's long edge past the box (a whole pan's path would cover a car's side).
+    Pure and deterministic for the same frames, so a re-render gives the same boxes."""
     p = privacy_params(th)
     carry = _frames(p["track_carry_s"], fps)
     frame_long = float(max(media_size_proxy))
     vmax = float(p["track_carry_speed_max_frac_per_s"]) * frame_long / fps
     g_flow, g_kin = float(p["track_flow_grow_per_s"]), float(p["track_carry_grow_per_s"])
+    cover_path = bool(p.get("track_flow_cover_path", False))
+    reach = float(p.get("track_flow_cover_max_frac", 0.0)) * frame_long
     sample = next(iter(grays.values()), None)
     scale = float(sample.shape[1]) / float(media_size_proxy[0]) if sample is not None else 1.0
     out: Carried = {}
@@ -526,6 +535,7 @@ def flow_carry(
             cx, cy, w, h, vx, vy = _carry_seed(rows, i, side, fps=fps, frame_long=frame_long, p=p)
             step_x, step_y = side * vx, side * vy
             followed: int | None = None  # frames the flow held for, once it lets go
+            path = _box_around(cx, cy, w, h, 0.0)  # the boxes so far, from the sighting this carry leaves
             for d in range(1, span + 1):
                 g = frames[i] + side * d
                 moved = None
@@ -537,7 +547,11 @@ def flow_carry(
                     step_x, step_y = moved
                 cx, cy = cx + step_x, cy + step_y
                 held = d if followed is None else followed
-                out[(track.track_id, g, side)] = _box_around(cx, cy, w, h, (g_flow * held + g_kin * (d - held)) / fps)
+                box = _box_around(cx, cy, w, h, (g_flow * held + g_kin * (d - held)) / fps)
+                if cover_path:
+                    path = [min(path[0], box[0]), min(path[1], box[1]), max(path[2], box[2]), max(path[3], box[3])]
+                    box = [max(path[0], box[0] - reach), max(path[1], box[1] - reach), min(path[2], box[2] + reach), min(path[3], box[3] + reach)]
+                out[(track.track_id, g, side)] = box
     return out
 
 
@@ -761,6 +775,57 @@ def rederive_display(run_id: str, role: str, original: Path, out_dir: Path, *, t
     }
 
 
+REDERIVED_DISPLAY_NAME = "rederived_display.json"  # at the run root: never served, read by walkaround verify
+
+
+def install_rederived_display(run_id: str, got: dict[str, Any], *, reason: str, now: str | None = None) -> dict[str, Any]:
+    """Put a display video rederive_display made (its returned dict) in place of the run's media/<role>.proxy_blurred.mp4
+    and append a row to rederived_display.json: the sealed and the new sha256, when and why. For a run whose sealed
+    display video left a plate readable (pairC_core1, 5 px blocks): the sealed hashes in videos/<role>.json and
+    bundle/manifest_run.json stay as sealed, and walkaround verify names this row on the media lines it reports."""
+    if got.get("matches_sealed"):
+        raise ValueError("the re-derived display video is the sealed one byte for byte; nothing to install")
+    src = Path(got["blurred_path"])
+    if _sha256_file(src) != got["blurred_sha256"]:
+        raise ValueError(f"{src.name} changed since rederive_display made it")
+    dst = paths.proxy_blurred_path(run_id, got["role"])
+    before = _sha256_file(dst) if dst.is_file() else None
+    shutil.copyfile(src, dst)
+    record_path = paths.run_dir(run_id) / REDERIVED_DISPLAY_NAME
+    rows = json.loads(record_path.read_text(encoding="utf-8")) if record_path.is_file() else []
+    row = {
+        "path": paths.rel(run_id, dst),
+        "sealed_sha256": got["sealed_blurred_sha256"],
+        "replaced_sha256": before,
+        "sha256": got["blurred_sha256"],
+        "bytes": dst.stat().st_size,
+        "made_at": now or _utc_now(),
+        "reason": reason,
+        "privacy": got.get("privacy", {}),
+    }
+    rows = [r for r in rows if r.get("path") != row["path"]] + [row]
+    record_path.write_text(json.dumps(rows, indent=1, sort_keys=True) + "\n", encoding="ascii")
+    return row
+
+
+def rederived_display_note(run_id: str, rel_path: str) -> str | None:
+    """Why a display video differs from its sealed hash, when install_rederived_display put it there; else None."""
+    record_path = paths.run_dir(run_id) / REDERIVED_DISPLAY_NAME
+    if not record_path.is_file():
+        return None
+    try:
+        rows = json.loads(record_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    for row in rows if isinstance(rows, list) else []:
+        if isinstance(row, dict) and row.get("path") == rel_path and paths.run_dir(run_id).joinpath(rel_path).is_file():
+            if _sha256_file(paths.run_dir(run_id) / rel_path) != row.get("sha256"):
+                return None  # changed again since: no known reason
+            sealed = str(row.get("sealed_sha256") or "none")[:12]
+            return f"display video re-derived on {str(row.get('made_at', ''))[:10]} from the sealed original (sealed sha256 {sealed}): {row.get('reason', '')} ({REDERIVED_DISPLAY_NAME})"
+    return None
+
+
 def quarantine_put(run_id: str, role: str, src: Path) -> Path:
     """Move the uploaded original to quarantine/<role>.orig (never served by any route)."""
     dst = paths.quarantine_original(run_id, role)
@@ -888,14 +953,15 @@ _SERVED: dict[str, tuple[frozenset[int], tuple[str, ...]]] = {
     "keyframes": (frozenset({3}), (".jpg",)),
     "clips": (frozenset({3}), (".mp4",)),
     "chips": (frozenset({3}), (".m4a",)),
-    "claim": (frozenset({2}), (".blurred.jpg", ".json")),  # narrowed by _CLAIM_SERVED: never the upload or the answers
+    "claim": (frozenset({2}), (".blurred.jpg", ".json", ".open_weights.ndjson")),  # narrowed by _CLAIM_SERVED: never the upload or the answers
     "sheet": (frozenset({2, 3}), (".html", ".json", ".pdf", ".jpg", ".zip")),
     "bundle": (frozenset({2}), (".json", ".ots", ".tsq", ".tsr", ".md", ".pem", ".crt")),
 }
 _SERVED_RUN_FILES = ("deletions.json", "open_weights.ndjson")  # the Baseten provenance log holds no pixels or keys
-# Under claim/ only the pixelated photo and the Claim itself: claim_<n>.jpg (the upload) and claim_<n>.answers.json
-# (model answers, mask payloads) are never served.
-_CLAIM_SERVED = re.compile(r"claim_[0-9]+\.(blurred\.jpg|json)")
+# Under claim/ only the pixelated photo, the Claim itself and its Baseten provenance lines (no pixels, no keys, like the
+# run's open_weights.ndjson): claim_<n>.jpg (the upload) and claim_<n>.answers.json (model answers, mask payloads) are
+# never served.
+_CLAIM_SERVED = re.compile(r"claim_[0-9]+\.(blurred\.jpg|json|open_weights\.ndjson)")
 _NEVER_IN_NAME = (".part", ".tmp", ".orig", ".bak")
 # Cut from 4K frames (or the renter's own claim photo): blurred by design, still owner-only under keep_plate, so an
 # unblurred plate can never reach a browser other than the owner's whatever an upstream lane passed.
@@ -932,6 +998,8 @@ def served_file_allowed(run: RunManifest, rel_path: str, *, run_owner: bool) -> 
 
 
 BASETEN_CLAUSE = "For the second look, two blurred crops per look were sent to Muse Spark Open on Baseten, a company separate from Meta; no video went there."
+# A claim's look goes to Baseten after the run's sheet is sealed, so the claim's own paragraph says it (review 11/1).
+CLAIM_BASETEN_CLAUSE = "For the second look, two blurred crops, one from the pickup walk and one from the claim photo, were sent to Muse Spark Open on Baseten, a company separate from Meta."
 
 
 def privacy_line(run: RunManifest, plate_found: dict[str, bool], deletions: list[DeletionRecord] | None = None, *, baseten: bool = False) -> str:

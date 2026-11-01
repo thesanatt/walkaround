@@ -1,0 +1,73 @@
+{
+ "about": "Muse Voice Transcribe (muse-voice-transcribe-1.0), mode ENDPOINTING, on one audio track three times: our narration of the uCO3D pair C pickup walk (Piper TTS, data/derived/uco3d_7336_narrated.mp4, sha256 25f68a8992c9..., 19.8 s). The turns as Voice returned them, copied from the files named. The same audio came back as 3, 2 and 4 turns; the longest turns were 11.18 s and 16.14 s. Speaker markers are kept as Voice wrote them.",
+ "runs": [
+  {
+   "run": "d1voice_20261031",
+   "what": "the D1 Voice gate (E10) on the narrated pickup walk, Oct 31",
+   "source": "runs/d1/uco3d_pairC/voice_narrated/gate_voice.json (modes.ENDPOINTING.pins)",
+   "turns": [
+    {
+     "start_ms": 0,
+     "end_ms": 11180,
+     "transcript": "pick up work starting at the front bumper hood looks clean front door like scratch near the handle"
+    },
+    {
+     "start_ms": 13100,
+     "end_ms": 16460,
+     "transcript": "trunk lid two small chips by the edge"
+    },
+    {
+     "start_ms": 16860,
+     "end_ms": 18460,
+     "transcript": "rear bumper looks fine looks fine"
+    }
+   ]
+  },
+  {
+   "run": "pairC_core1",
+   "what": "the run's narration stage on the same narrated pickup walk, Oct 31",
+   "source": "runs/pairC_core1/voice.json (response.turns; the app never serves this file)",
+   "wav_sha256": "7667b259c94d6c7e90d02202ade6877254d9e507231dc6be76d2bb239541e1ef",
+   "turns": [
+    {
+     "start_ms": 0,
+     "end_ms": 16140,
+     "transcript": "pick up work, starting at the front bumper, hood looks clean, front door like scratch near the handle <|speaker_A|>  trunk lid two small chips by the edge"
+    },
+    {
+     "start_ms": 16700,
+     "end_ms": 18540,
+     "transcript": "rear bumper looks fine"
+    }
+   ]
+  },
+  {
+   "run": "pairC_core2",
+   "what": "the run's narration stage on the same narrated pickup walk, Oct 31",
+   "source": "runs/pairC_core2/voice.json (response.turns; the app never serves this file)",
+   "wav_sha256": "7667b259c94d6c7e90d02202ade6877254d9e507231dc6be76d2bb239541e1ef",
+   "turns": [
+    {
+     "start_ms": 0,
+     "end_ms": 4620,
+     "transcript": "pick up work starting at the front front bumper hood looks clean"
+    },
+    {
+     "start_ms": 5260,
+     "end_ms": 8060,
+     "transcript": "front door like scratch near the handle"
+    },
+    {
+     "start_ms": 12940,
+     "end_ms": 16220,
+     "transcript": "trunk lid two small chips by the edge"
+    },
+    {
+     "start_ms": 16700,
+     "end_ms": 18300,
+     "transcript": "rear bumper looks looks fine"
+    }
+   ]
+  }
+ ]
+}

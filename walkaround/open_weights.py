@@ -14,17 +14,20 @@ Key slots: each request goes to the first slot that has a key and is not resting
 that key may call (10/31, LEDGER row 22: -1026 answered 200, the plain id 403, although GET /v1/models lists both),
 then the account key (BASETEN_API_KEY) with meta-models/muse-spark-open. Ids are fixed per key, never picked from the
 listing. A 401, 402, 403 or 404 means this key cannot call this id now: the slot rests for FAILURE_TTL_S and the next
-slot is asked inside the same call. A resting slot and a stepped-down format are tried again after FAILURE_TTL_S, so
-one bad minute does not switch Spark Open off for the life of the server. The response's own model field goes on the
-ledger row and the provenance line, and both name the slot that asked (key_slot "hackathon" or "account", never the
-key); key_slot_of(record) gives it for a record that came back in this process.
+slot is asked inside the same call. A timeout, a dropped connection, or a 408, 409, 429 or 5xx past its tries (a rate
+limit is per key, and the two ids may be served apart) rests the slot for TRANSIENT_TTL_S when another slot can still be
+asked, and that slot is asked inside the same call (review 11/1); on the last slot it raises as before. A resting slot
+and a stepped-down format are tried again after their time, so one bad minute does not switch Spark Open off for the
+life of the server. The response's own model field goes on the ledger row and the provenance line, and both name the
+slot that asked (key_slot "hackathon" or "account", never the key); key_slot_of(record) gives it for a record that came
+back in this process.
 
-Failures: a timeout, a dropped connection, a 400 not about the format, or a 408, 409, 429 or 5xx past three tries
-raise OpenWeightsError, and so do two attempts that both came back with no answer (an error object, no choices), no
-key set and every slot resting; the caller then falls back to hosted Spark 1.3. Every chat request writes one ledger
-row (kind spark_open) and, with a run id, one line of runs/<run_id>/open_weights.ndjson in the CONTRACTS.md "Phase 2
-file shapes" form: {ts, run_id, engine, model, request_id, latency_ms, pickup_mark, return_mark, panel_id, verdict,
-reason, valid, error}, plus purpose, status, model_requested, http_status, baseten_request_id (the
+Failures: a 400 not about the format, a timeout, a dropped connection, or a 408, 409, 429 or 5xx past three tries on
+the last slot that can be asked raise OpenWeightsError, and so do two attempts that both came back with no answer (an
+error object, no choices), no key set and every slot resting; the caller then falls back to hosted Spark 1.3. Every
+chat request writes one ledger row (kind spark_open) and, with a run id, one line of runs/<run_id>/open_weights.ndjson
+in the CONTRACTS.md "Phase 2 file shapes" form: {ts, run_id, engine, model, request_id, latency_ms, pickup_mark,
+return_mark, panel_id, verdict, reason, valid, error}, plus purpose, status, model_requested, http_status, baseten_request_id (the
 x-baseten-request-id header, the id Baseten's own logs use) and key_slot. A failed call names the requested model;
 verdict is set only on a valid answer. Neither file ever holds image bytes or a key.
 
@@ -100,6 +103,7 @@ BACKOFF_BASE_S = 0.5
 MAX_BACKOFF_S = 8.0
 MAX_RETRY_AFTER_S = 30.0
 FAILURE_TTL_S = 600.0  # a slot that returned 401, 402, 403 or 404, or a format a 400 refused, is tried again after this
+TRANSIENT_TTL_S = 60.0  # a slot that timed out, dropped the connection or stayed at 408, 409, 429 or 5xx while another slot could be asked
 DEFAULT_RPM = 12.0  # thresholds orchestrator.baseten_rpm; the account allows 120 (x-ratelimit-limit-requests, 10/31)
 FORMATS = ("json_schema", "json_object", "none")
 FORMAT_ERROR = re.compile(r"response_format|json_schema|json_object|schema|guided|structured", re.IGNORECASE)
@@ -119,7 +123,7 @@ class OpenWeightsError(RuntimeError):
 
 @dataclass
 class _State:
-    resting: dict[str, tuple[float, str]] = field(default_factory=dict)  # slot name -> (clock time, status) of its refusal
+    resting: dict[str, tuple[float, str]] = field(default_factory=dict)  # slot name -> (clock time it may be asked again, why)
     fmt: str = FORMATS[0]
     fmt_at: float | None = None  # clock time of the last step down
     last_start: float | None = None
@@ -152,13 +156,23 @@ def key_slots() -> list[KeySlot]:
 
 
 def slot_order(slots: list[KeySlot] | None = None) -> list[KeySlot]:
-    """slots (default key_slots()) less those resting after a 401, 402, 403 or 404 in the last FAILURE_TTL_S."""
+    """slots (default key_slots()) less those resting: FAILURE_TTL_S after a 401, 402, 403 or 404, TRANSIENT_TTL_S after
+    a timeout, a dropped connection or a rate limit or 5xx past its tries."""
     slots = key_slots() if slots is None else slots
     with _LOCK:
         if _STATE.resting:
             now = _clock()
-            _STATE.resting = {n: v for n, v in _STATE.resting.items() if now - v[0] < FAILURE_TTL_S}
+            _STATE.resting = {n: v for n, v in _STATE.resting.items() if now < v[0]}
         return [s for s in slots if s.name not in _STATE.resting]
+
+
+def _rest(slot: KeySlot, why: str, ttl_s: float) -> None:
+    with _LOCK:
+        _STATE.resting[slot.name] = (_clock() + ttl_s, why)
+
+
+def _transient(status: int) -> bool:
+    return status in (408, 409, 429) or status >= 500
 
 
 def _client(slot: KeySlot) -> Any:
@@ -667,8 +681,9 @@ def ask(
     log_path: Path | None = None,
 ) -> SparkRequestRecord:
     """One answer from Spark Open: the next key slot on a 401, 402, 403 or 404, the next response format on a 400 or
-    422 about the format, the backoff on 408, 409, 429 and 5xx. A ledger row and a provenance line per request (context
-    gives the line its pickup_mark, return_mark and panel_id; ledger rows carry ledger_run_id when given, else run_id;
+    422 about the format, the backoff on 408, 409, 429 and 5xx, and the next key slot when one of those outlasts its
+    tries or a request times out or drops while another slot can be asked. A ledger row and a provenance line per
+    request (context gives the line its pickup_mark, return_mark and panel_id; ledger rows carry ledger_run_id when given, else run_id;
     the line goes to log_path when given, else the run's open_weights.ndjson). Raises OpenWeightsError when no
     response came."""
     effort = spark_client.validate_effort(effort)
@@ -682,8 +697,9 @@ def ask(
         if not order:
             with _LOCK:
                 why = "; ".join(f"{s.name} key: {_STATE.resting[s.name][1]}" for s in slots if s.name in _STATE.resting)
-            raise OpenWeightsError(f"no Baseten key slot answered in the last {FAILURE_TTL_S / 60:.0f} minutes ({why})")
+            raise OpenWeightsError(f"no Baseten key slot can be asked now, each rests after a failure ({why})")
         slot = order[0]
+        others = len(order) > 1  # another slot can still be asked in this call
         fmt = _response_format()
         body = request_body(prompt, image_urls, model=slot.model, schema_name=schema_name, schema=schema, effort=effort, max_tokens=max_tokens, fmt=fmt)
         client = _client(slot)
@@ -699,8 +715,7 @@ def ask(
                 ledger_run_id=ledger_run_id, log_path=log_path,
             )
             if exc.status_code in SLOT_FAILURES:
-                with _LOCK:
-                    _STATE.resting[slot.name] = (_clock(), str(exc.status_code))
+                _rest(slot, str(exc.status_code), FAILURE_TTL_S)
                 tries = 0  # the next slot gets its own tries
                 continue
             if fmt != FORMATS[-1] and _format_refused(exc):
@@ -711,6 +726,10 @@ def ask(
             tries += 1
             delay = _retry_delay(exc, tries)
             if delay is None:
+                if others and _transient(exc.status_code):
+                    _rest(slot, str(exc.status_code), TRANSIENT_TTL_S)  # a rate limit or an outage on this key or id
+                    tries = 0
+                    continue
                 raise OpenWeightsError(f"Baseten answered {error}") from exc
             _sleep(delay)
             continue
@@ -718,6 +737,10 @@ def ask(
             ms = int(round((_clock() - started) * 1000))
             error = f"{type(exc).__name__}: {_short(str(exc))}"
             _failed(slot, purpose=purpose, run_id=run_id, ms=ms, retry=retry, http_status=None, error=error, context=context, ledger_run_id=ledger_run_id, log_path=log_path)
+            if others:
+                _rest(slot, type(exc).__name__, TRANSIENT_TTL_S)
+                tries = 0
+                continue
             raise OpenWeightsError(f"Baseten call failed: {error}") from exc
         ms = int(round((_clock() - started) * 1000))
         return _answered(
@@ -873,6 +896,7 @@ __all__ = [
     "OpenWeightsError",
     "REASON_MAX",
     "SLOT_FAILURES",
+    "TRANSIENT_TTL_S",
     "ask",
     "ask_attempts",
     "came_back",

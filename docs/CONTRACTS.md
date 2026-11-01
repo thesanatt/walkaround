@@ -802,7 +802,9 @@ Second look on the Baseten hackathon key (walkaround/open_weights.py, second_loo
   skipped. A 401, 402, 403 or 404 rests the slot for FAILURE_TTL_S and the next slot is asked in the same call; a
   timeout, a dropped connection, a 400 not about the format and 408/409/429/5xx past three tries still raise
   OpenWeightsError at once. No key at all raises `open_weights.NO_KEY`; every slot resting raises "no Baseten key
-  slot answered in the last 10 minutes (hackathon key: 403; account key: 401)".
+  slot answered in the last 10 minutes (hackathon key: 403; account key: 401)". (Superseded by "Review fixes, round
+  3" below: a timeout, a dropped connection or a rate limit or 5xx past its tries now moves to the next slot, and the
+  message reads "no Baseten key slot can be asked now, each rests after a failure (...)".)
 - Additive field `key_slot` ("hackathon" or "account", the slot name, never the key) on every open_weights.ndjson
   line, failed calls included, on every spark_open ledger row, and on derived/looks.json rows
   (`LookRecord.key_slot`, null when hosted Spark answered or the look did not run). `open_weights.key_slot_of(record)`
@@ -1082,3 +1084,61 @@ What the integrator changed on top of the five lanes (panels, match, privacy, po
   for `PanelTrack.twin_check`, `RunManifest.tire_code`, `SizeEstimate.ruler_notes`, `Verdict.view_note`.
 - Allowlist: unchanged. No lane added a served file; the new claim provenance file and the unblurred proxy that
   `privacy.rederive_display` cuts outside the run are never served.
+
+## Review fixes, round 3 (2026-11-01, early morning; review-fix lane)
+
+Ten findings from two reviewers of round 3, each checked before it was fixed. All offline; no model call, $0.
+
+- Twin check (panels): thresholds `panels.twin_check.margin_min` 3 (was 2). One strong cue alone (plate or mirror,
+  weight 2) or the light and glass lanes alone (1 + 1, and those lanes swap themselves) no longer file a walk's lid
+  against its lane noun; the lid splits (twin_check.decided false, side uncertain, not compared). Every pair C lid
+  decision scores 3 or 4 and is unchanged on pairC_core1's lanes and pairC_core2's tracks. New leaf
+  `photo_margin_min` 2 inside the same value: `claim.photo_twin_check` keeps margin 2 for a claim photo, where Spark's
+  own panel name must still agree. Runs frozen before keep their stored tracks (verify on pairC_core2: rebuild
+  identical).
+- Claim photo flags (claim): new thresholds `claim.photo_flag_caps_one_walk_only` true. A wet, dirty or glare claim
+  photo caps the claim mark with K11 (exit E8) only when no pickup mark lies within tau_eye_r of it. A nearer pickup
+  mark keeps its label, the second look is asked as for any provisional already there, `claim.exit` stays None and
+  the paragraph adds "The claim photo was flagged <flags>, but a pickup mark sits at this spot, so something was there
+  at pickup." (L3) or "...; a pickup mark shows near this spot." (band). Absent (runs frozen before 11/1): K11 on
+  every E8 claim mark, as before. `_Compared` gains `near` and `photo_view_flags`; `_compare(..., photo_flags=)`.
+- Key slots (open_weights): a timeout, a dropped connection, or a 408, 409, 429 or 5xx past its tries (or a
+  Retry-After over 30 s) on a slot rests that slot for `TRANSIENT_TTL_S` (60 s) and asks the next slot inside the same
+  call when one can still be asked; on the last slot it raises as before and the slot does not rest. A 400 not about
+  the format stays final. `_State.resting` holds (time it may be asked again, why). The all-resting message is now
+  "no Baseten key slot can be asked now, each rests after a failure (hackathon key: 403; account key: 401)".
+- Claim breaker (second_look): `_Breaker(limit, ttl_s=None)`; look_images' per-run breaker gets
+  `ttl_s=open_weights.FAILURE_TTL_S`, so ten minutes after its last failure a later claim asks Spark Open again (the
+  walk's breaker lives for one match stage and keeps no TTL). `second_look._clock` is the clock tests move.
+- Allowlist (privacy): `claim/claim_<n>.open_weights.ndjson` is served to owner and public, like the run's own
+  open_weights.ndjson (no pixels, no keys). claim_<n>.jpg and claim_<n>.answers.json stay refused.
+- Claim Baseten clause (claim, privacy): `privacy.CLAIM_BASETEN_CLAUSE` ("For the second look, two blurred crops, one
+  from the pickup walk and one from the claim photo, were sent to Muse Spark Open on Baseten, a company separate from
+  Meta.") goes into a compared claim's paragraph before the provenance tail when its look reached Baseten
+  (`claim._sent_to_baseten`: a look answer from Spark Open, or a line in claim/<claim_id>.open_weights.ndjson, for the
+  claim or the earlier claim of the same photo it reuses). Older claims had hosted looks only, so their paragraphs
+  rebuild unchanged. The claim page shows the paragraph, so no web change.
+- Display blur (privacy): `privacy.track_carry_s` 3.0 (was 2.0, and PRIVACY_DEFAULTS with it). New leaves
+  `privacy.track_flow_cover_path` true and `privacy.track_flow_cover_max_frac` 0.1 (both also in PRIVACY_DEFAULTS):
+  on the display video each flow-carried box also covers every box before it back to the sighting it left, out to 0.1
+  of the frame's long edge past the box. Measured on the return walk of pair C (the same original in both runs): the
+  front plate track starts at frame 216, the flow carried its 21 x 14 px box 80 px right while the edge-on plate
+  stayed, so frames 185 to 189 showed the plate strip outside the carried block even with a 3 s carry; with the path
+  cover those frames sit under blocks (checked by eye on pairC_core1 and on pairC_core2 re-derived to a scratch
+  folder). Uncapped, pairC_core1's pickup had up to 26% of a frame under carried boxes; capped, at most 14%. Crops and
+  clips keep the extrapolated box plus their own image checks. Older snapshots lack the new keys and get the defaults,
+  so a re-derived display video is never blurred more weakly than a new one; pairC_core2's own snapshot keeps 2.0 s.
+- pairC_core1's two display videos were made again from the sealed originals with this blur and put in place by
+  `scripts/rederive_display.py ... --install --reason TEXT`, which calls `privacy.install_rederived_display` and writes
+  runs/pairC_core1/rederived_display.json (sealed sha256, new sha256, when, why, the privacy values; at the run root,
+  never served). The sealed records (videos/<role>.json, bundle/manifest_run.json) stay as sealed; `walkaround verify`
+  now prints each media line with `privacy.rederived_display_note` ("display video re-derived on 2026-11-01 from the
+  sealed original (sealed sha256 ...): <reason> (rederived_display.json)", then "the same re-derivation").
+- Footage credit (sheet, contracts): new section `sheet` in thresholds with `sheet.footage_credit` true.
+  `SheetModel.footage_credit` and `footage_license_url` (left out of sheet.json when None, so every sheet frozen before
+  rebuilds byte for byte): run.footage_credit on page 1 with the license link (`sheet.FOOTAGE_LICENSES`: CC BY 4.0,
+  Pexels License), in every page footer (so the PDF) and as a line in the letter. The sample's sheet was sealed before
+  the rule and keeps no credit; a run made from now on prints it.
+- Evidence (README numbers): docs/evidence/events_pairC_core1.ndjson.gz (pairC_core1's event log, the same bytes as
+  the old sample's at bfa0448) for its 6 min 49 s and 3 min 13 s; docs/evidence/voice_turns_pairC.json (the Voice turns
+  of the D1 gate, pairC_core1 and pairC_core2 on the same narration) for the 11.2 s and 16.1 s turns.
