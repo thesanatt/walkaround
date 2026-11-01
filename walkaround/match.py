@@ -1,14 +1,15 @@
 """Cross-walk matching and verdicts (docs/ARCHITECTURE.md 5.8, 5.10 and 6, docs/CONTRACTS.md M9). Pure, no API.
 
 Deterministic code owns every label. verdict() is the single entry point and takes numbers and booleans only; a
-model answer (the second look, K7) can only lower a label to needs_your_eye, never raise one. Every rule id printed
-here exists in walkaround.rules. Calibration follows 5.10: tau_pre0 = max(floor, 2.5 sqrt(2) sigma_within), the
-pseudo pair may raise tau_pre to its 90th percentile up to the cap, tau_eye = 2 tau_pre, tau_fix = max(0.08,
-3 sigma_frame), and the band widens with the radius: tau(r) = tau0 (1 + 0.5 r^2).
+model answer (the second look, K7; a wet, dirty or glare view, K15) can only lower a label to needs_your_eye, never
+raise one. Every rule id printed here exists in walkaround.rules. Calibration follows 5.10: tau_pre0 = max(floor,
+2.5 sqrt(2) sigma_within), the pseudo pair may raise tau_pre to its 90th percentile up to the cap, tau_eye = 2
+tau_pre, tau_fix = max(0.08, 3 sigma_frame), and the band widens with the radius: tau(r) = tau0 (1 + 0.5 r^2).
 """
 
 from __future__ import annotations
 
+import json
 import math
 from typing import Any, Callable
 
@@ -132,10 +133,12 @@ def _aspect_diff(a: Keyframe, b: Keyframe) -> float:
     return abs(math.log(a.aspect_ratio / b.aspect_ratio))
 
 
-def pair_keyframes(kfs_pickup: list[Keyframe], kfs_return: list[Keyframe]) -> tuple[Keyframe, Keyframe, float]:
-    """The pair with the smallest |ln(ar_pickup / ar_return)| among the candidates (a yaw proxy)."""
+def pair_keyframes(kfs_pickup: list[Keyframe], kfs_return: list[Keyframe], *, th: dict | None = None) -> tuple[Keyframe, Keyframe, float]:
+    """The pair with the smallest |ln(ar_pickup / ar_return)| among the candidates (a yaw proxy). A walk with a view
+    flag on one of its keyframes offers only its clean usable keyframes when it has one (prefer_clean, lead 10/31)."""
     if not kfs_pickup or not kfs_return:
         raise ValueError("both walks need at least one keyframe")
+    kfs_pickup, kfs_return = prefer_clean(kfs_pickup, th), prefer_clean(kfs_return, th)
     best: tuple[Keyframe, Keyframe, float] | None = None
     for a in kfs_pickup:
         for b in kfs_return:
@@ -144,6 +147,72 @@ def pair_keyframes(kfs_pickup: list[Keyframe], kfs_return: list[Keyframe]) -> tu
                 best = (a, b, diff)
     assert best is not None
     return best
+
+
+# View flags (lead decision 10/31: Muse Spark's wet, dirty and glare are model judgments, so they only lower a label
+# through K15 and never gate a panel; G2 is retired) -------------------------------------------------------------------
+
+VIEW_FLAGS = ("wet", "dirty", "glare")  # dark is not one: it never gated and caps nothing
+_COULD_BE = {"wet": "water", "dirty": "dirt", "glare": "a reflection"}
+
+
+def view_flags(kf: Keyframe | None) -> list[str]:
+    """The wet, dirty and glare flags Muse Spark set on a keyframe crop, in that order."""
+    return [] if kf is None else [f for f in VIEW_FLAGS if getattr(kf.conditions, f)]
+
+
+def _usable_clean(kf: Keyframe, th: dict | None) -> bool:
+    """Spark answered the keyframe in full and flagged nothing, and it passes the per-keyframe gates (G3 sharpness, G6
+    front_sign) with a crop and moments to whiten in. Without th the sharpness is not checked."""
+    if kf.marks_status != MarksStatus.COMPLETE or view_flags(kf) or kf.crop is None or kf.moments is None or kf.front_sign is None:
+        return False
+    return th is None or kf.score.sharpness >= float(th["matching"]["sharpness_rel_min"])
+
+
+def prefer_clean(kfs: list[Keyframe], th: dict | None = None) -> list[Keyframe]:
+    """One walk's keyframe candidates for the pair: when one of them carries a view flag and a clean usable one exists,
+    only the clean usable ones; otherwise all of them, so a walk with no flag (or no clean usable keyframe) pairs
+    exactly as before 10/31. The choice is made here: panels picks keyframes before Muse Spark has seen them."""
+    if not any(view_flags(kf) for kf in kfs):
+        return kfs
+    clean = [kf for kf in kfs if _usable_clean(kf, th)]
+    return clean or kfs
+
+
+def _joined(items: list[str], last: str) -> str:
+    return items[0] if len(items) == 1 else ", ".join(items[:-1]) + f" {last} " + items[-1]
+
+
+def _flag_words(flags: list[str]) -> str:
+    return _joined(flags, "and")
+
+
+def _or_words(items: list[str]) -> str:
+    return _joined(items, "or")
+
+
+def one_walk_note(role: str, flags: dict[str, list[str]]) -> str | None:
+    """K15 in words for a mark found in one walk only: "return view flagged dirty: could be dirt" for the view it was
+    found in, "pickup view flagged glare: could have hidden the mark" for the view it is missing from; None when
+    neither view is flagged."""
+    other = "return" if role == "pickup" else "pickup"
+    parts = []
+    if flags.get(role):
+        parts.append(f"{role} view flagged {_flag_words(flags[role])}: could be {_or_words([_COULD_BE[f] for f in flags[role]])}")
+    if flags.get(other):
+        parts.append(f"{other} view flagged {_flag_words(flags[other])}: could have hidden the mark")
+    return "; ".join(parts) or None
+
+
+def both_walks_note(flags: dict[str, list[str]], *, same_place: bool) -> str | None:
+    """The note on a pair seen in both walks when a view is flagged; the flag lowers nothing there (lead 10/31 (d)): a
+    mark in the same place in both walks was there at pickup, damage or dirt. None when no view is flagged."""
+    views = ", ".join(f"{role} view flagged {_flag_words(flags[role])}" for role in ROLES if flags.get(role))
+    if not views:
+        return None
+    if same_place:
+        return f"{views}: the mark is in the same place in both walks, so it was there at pickup, whatever it is"
+    return f"{views}: a mark shows near this place in both walks"
 
 
 def _handle_whitened(kf: Keyframe) -> tuple[float, float] | None:
@@ -161,11 +230,7 @@ def handle_residual(kf_pickup: Keyframe, kf_return: Keyframe) -> Point2 | None:
     return [b[0] - a[0], b[1] - a[1]]
 
 
-# Panel gates (section 6, G1 to G10) ---------------------------------------------------------------------------------
-
-
-def _conditions_flag(kf: Keyframe | None) -> bool:
-    return kf is not None and (kf.conditions.wet or kf.conditions.dirty or kf.conditions.glare)
+# Panel gates (section 6, G1 and G3 to G10; G2 retired 10/31) ----------------------------------------------------------
 
 
 def panel_gates(
@@ -180,15 +245,14 @@ def panel_gates(
     calibration: Calibration,
     th: dict,
 ) -> list[str]:
-    """The failing gate ids in order G1..G10; an empty list means the panel is comparable."""
+    """The failing gate ids in order G1, G3..G10; an empty list means the panel is comparable. G2 (a wet, dirty or
+    glare flag on either crop) is no gate since 10/31: a flagged view caps the marks that depend on it (K15)."""
     m = th["matching"]
     failing: list[str] = []
     states = [panel.per_role.get(role).state if panel.per_role.get(role) is not None else CoverageState.NOT_SEEN for role in ROLES]
     kfs = (kf_pickup, kf_return)
     if any(s != CoverageState.FILMED for s in states) or any(kf is None for kf in kfs):
         failing.append("G1")
-    if any(_conditions_flag(kf) for kf in kfs):
-        failing.append("G2")
     if any(kf is not None and kf.score.sharpness < float(m["sharpness_rel_min"]) for kf in kfs):
         failing.append("G3")
     paired = kf_pickup is not None and kf_return is not None
@@ -629,9 +693,11 @@ def flags_for(
     kf_status: dict[str, MarksStatus],
     *,
     return_mark: bool,
+    view_flagged: bool = False,
 ) -> VerdictFlags:
-    """K1..K14 as booleans: K1 from the pair's band, K5 from the two types, K6 from Stays Put, K7 from the second
-    look, K13 from any truncated keyframe in kf_status, the rest from the caps of the mark and its partner."""
+    """K1..K15 as booleans: K1 from the pair's band, K5 from the two types, K6 from Stays Put, K7 from the second
+    look, K13 from any truncated keyframe in kf_status, K15 from view_flagged (verdicts_for sets it for a mark found
+    in one walk only when a view it depends on is flagged), the rest from the caps of the mark and its partner."""
     caps = set(mark.caps) | (set(other.caps) if other is not None else set())
     values: dict[str, bool] = {k: k in caps for k in CAP_IDS_FROM_MARK}
     values["K1"] = pair is not None and pair.tau_pre_r <= pair.d < pair.tau_eye_r
@@ -640,6 +706,7 @@ def flags_for(
     values["K6"] = any(_staysput_cap(mark_tracks.get(m.mark_id)) for m in (mark, other) if m is not None)
     values["K7"] = look in (LookVerdict.DIFFERENT, LookVerdict.UNSURE)
     values["K13"] = any(status == MarksStatus.TRUNCATED for status in kf_status.values())
+    values["K15"] = view_flagged
     return VerdictFlags(return_mark=return_mark, **values)
 
 
@@ -694,7 +761,12 @@ def verdicts_for(
 ) -> list[Verdict]:
     """One Verdict per pair (two when the pair lies beyond tau_eye_r, L5) and per unmatched mark, every label
     through verdict(); a not_comparable panel gives one L6 verdict naming its gates. distance_cm_est = d_pos x
-    cm_per_unit_for_print."""
+    cm_per_unit_for_print.
+
+    View flags (lead 10/31, K15): a walk's view is its paired keyframe plus the keyframe each involved mark was placed
+    in. A mark found in one walk only (L1, L2, and both marks of an L5 pair) carries K15 when a view of either walk
+    is flagged wet, dirty or glare; a pair inside tau_eye_r gets no K15 (a mark in the same place in both walks was
+    there at pickup) and only the note. view_note says which view and why."""
     cm_per_unit = float(th["matching"]["cm_per_unit_for_print"])
     panel_marks = [marks[i] for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in marks]
     kf_status = {kf.kf_id: kf.marks_status for kf in keyframes.values() if kf.panel_id == pm.panel_id}
@@ -703,6 +775,17 @@ def verdicts_for(
 
     def vid() -> str:
         return f"{pm.panel_id.value}_v{len(out) + 1}"
+
+    paired = {role: keyframes.get(kf_id) for role, kf_id in zip(ROLES, pm.kf_pair)} if pm.kf_pair else {}
+
+    def flags_by_role(involved: list[Mark]) -> dict[str, list[str]]:
+        """Per walk, the view flags of its paired keyframe and of the keyframes the involved marks were placed in."""
+        out_flags: dict[str, list[str]] = {}
+        for role in ROLES:
+            views = [paired.get(role), *(keyframes.get(m.kf_id) for m in involved if m.role == role)]
+            found = {f for kf in views for f in view_flags(kf)}
+            out_flags[role] = [f for f in VIEW_FLAGS if f in found]
+        return out_flags
 
     if pm.state == MatchState.NOT_COMPARABLE:
         gate_ids = [r for r in pm.reasons if r.startswith("G")]
@@ -720,7 +803,7 @@ def verdicts_for(
         )
         return out
 
-    def emit(label: VerdictLabel, ids: list[str], mark_ids: list[str], d_pos: float | None, pair: MatchCandidate | None) -> None:
+    def emit(label: VerdictLabel, ids: list[str], mark_ids: list[str], d_pos: float | None, pair: MatchCandidate | None, view_note: str | None = None) -> None:
         involved = [marks[i] for i in mark_ids if i in marks]
         thresholds = _thresholds_used(calibration, th, tau_pre_r=pair.tau_pre_r if pair else None, tau_eye_r=pair.tau_eye_r if pair else None)
         if pair is not None:
@@ -738,6 +821,7 @@ def verdicts_for(
                 distance_cm_est=None if d_pos is None else d_pos * cm_per_unit,
                 reasons=rules.describe([i for i in ids[1:] if i.startswith("K")]),
                 trace=_trace(trace_base, ids, involved, mark_tracks, thresholds),
+                view_note=view_note,
             )
         )
 
@@ -749,12 +833,13 @@ def verdicts_for(
         if pair.d < pair.tau_eye_r:
             flags = flags_for(pair, a, b, caps, look, kf_status, return_mark=False)
             label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
-            emit(label, ids, [a.mark_id, b.mark_id], pair.d_pos, pair)
+            emit(label, ids, [a.mark_id, b.mark_id], pair.d_pos, pair, both_walks_note(flags_by_role([a, b]), same_place=pair.d < pair.tau_pre_r))
         else:
             for mark, is_return in ((a, False), (b, True)):
-                flags = flags_for(pair, mark, None, caps, None, kf_status, return_mark=is_return)
+                view = flags_by_role([mark])
+                flags = flags_for(pair, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
                 label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
-                emit(label, ids, [mark.mark_id], None, pair)
+                emit(label, ids, [mark.mark_id], None, pair, one_walk_note("return" if is_return else "pickup", view))
     unmatched = set(pm.unmatched_pickup) | set(pm.unmatched_return)
     for mark_id, is_return in (*((i, False) for i in pm.unmatched_pickup), *((i, True) for i in pm.unmatched_return)):
         mark = marks.get(mark_id)
@@ -764,9 +849,10 @@ def verdicts_for(
         r = mark.r if mark.r is not None else 0.0
         tau_pre_r = tau_r(calibration.tau_pre, r, th)
         tau_eye_r = tau_r(calibration.tau_eye, r, th)
-        flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return)
+        view = flags_by_role([mark])
+        flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
         label, ids = verdict(None, tau_pre_r, tau_eye_r, flags)
-        emit(label, ids, [mark.mark_id], None, None)
+        emit(label, ids, [mark.mark_id], None, None, one_walk_note("return" if is_return else "pickup", view))
     return out
 
 
@@ -869,7 +955,7 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
         panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role] for role in ROLES}
         truncated_all = {role: bool(kfs[role]) and all(kf.marks_status == MarksStatus.TRUNCATED for kf in kfs[role]) for role in ROLES}
         if kfs["pickup"] and kfs["return"]:
-            kf_p, kf_r, _ = pair_keyframes(kfs["pickup"], kfs["return"])
+            kf_p, kf_r, _ = pair_keyframes(kfs["pickup"], kfs["return"], th=th)
             mask_iou = _mask_iou(run_id, kf_p, kf_r)
             if panel.panel_id not in WHEEL_PANELS and not _frames_agree(kf_p, _compared_keyframes(kf_p, kf_r, kfs, panel_marks), calibration, th):
                 # TODO(contracts): G4 stands in for "the whitened frames disagree" until that gate has its own id;
@@ -903,3 +989,87 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
     write_json(paths.matches_json(run_id), matches)
     write_json(paths.verdicts_json(run_id), verdicts)
     return matches, verdicts, calibration
+
+
+# Older runs: why verify differs --------------------------------------------------------------------------------------
+
+RULE_CHANGE_1031 = (
+    "written before the Oct 31 rule change (a wet, dirty or glare view no longer makes a panel not comparable, G2 is "
+    "retired; it caps a mark seen in one walk only, K15, and the keyframe pair prefers a clean view), and verify "
+    "rebuilds with today's code"
+)
+
+
+def _stored(path: Any) -> Any:
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+def _stored_rows(path: Any) -> list[dict[str, Any]]:
+    doc = _stored(path)
+    return [row for row in doc if isinstance(row, dict)] if isinstance(doc, list) else []
+
+
+def _stored_keyframes(root: Any) -> list[Keyframe]:
+    out: list[Keyframe] = []
+    for row in _stored_rows(root / "derived" / "keyframes.json"):
+        try:
+            out.append(Keyframe.model_validate(row))
+        except ValueError:
+            continue
+    return out
+
+
+def _paired_before_1031(root: Any, matches: list[dict[str, Any]]) -> bool:
+    """A stored keyframe pair that today's clean-view preference would not pick (keyframes.json is frozen)."""
+    keyframes = _stored_keyframes(root)
+    run = _stored(root / "run.json")
+    th = run.get("thresholds") if isinstance(run, dict) else None
+    for pm in matches:
+        stored = pm.get("kf_pair")
+        walks = [[kf for kf in keyframes if kf.panel_id.value == pm.get("panel_id") and kf.role == role] for role in ROLES]
+        if isinstance(stored, list) and len(stored) == 2 and all(walks):
+            kf_p, kf_r, _ = pair_keyframes(walks[0], walks[1], th=th or None)
+            if [kf_p.kf_id, kf_r.kf_id] != stored:
+                return True
+    return False
+
+
+def _flagged_without_note(root: Any, verdicts: list[dict[str, Any]]) -> bool:
+    """A stored verdict on a flagged view without view_note: today's code writes one on every such verdict."""
+    flagged = {kf.kf_id for kf in _stored_keyframes(root) if view_flags(kf)}
+    kf_of = {m.get("mark_id"): m.get("kf_id") for m in _stored_rows(root / "derived" / "marks.json")}
+    pairs = {pm.get("panel_id"): pm.get("kf_pair") or [] for pm in _stored_rows(root / "derived" / "matches.json")}
+    for v in verdicts:
+        if v.get("label") == VerdictLabel.NOT_COMPARABLE.value or "view_note" in v:
+            continue
+        if flagged & {*pairs.get(v.get("panel_id"), []), *(kf_of.get(i) for i in v.get("mark_ids") or [])}:
+            return True
+    return False
+
+
+def why_rebuild_differs(run_id: str, name: str) -> str | None:
+    """Why a run's stored file differs from today's rebuild when the 10/31 view-flag change explains it, read from the
+    run's own files: derived/matches.json naming G2 or holding a keyframe pair the clean-view preference would not
+    pick; derived/verdicts.json naming G2 or holding a verdict on a flagged view without view_note; sheet/sheet.json
+    naming G2 in its not-comparable list or with a glossary that does not name K15. None otherwise, so a tampered or
+    otherwise changed file keeps the bare "rebuild differs" line. (A run with no view flag keeps its matches and
+    verdicts bytes: view_note is left out of the file when there is none.)"""
+    root = paths.runs_root() / run_id
+    if name == "derived/matches.json":
+        rows = _stored_rows(root / name)
+        old = any("G2" in (pm.get("reasons") or []) for pm in rows) or _paired_before_1031(root, rows)
+    elif name == "derived/verdicts.json":
+        rows = _stored_rows(root / name)
+        old = any("G2" in ((v.get("trace") or {}).get("rule_ids") or []) for v in rows) or _flagged_without_note(root, rows)
+    elif name == "sheet/sheet.json":
+        doc = _stored(root / name)
+        doc = doc if isinstance(doc, dict) else {}
+        listed = [nc for nc in doc.get("not_comparable") or [] if isinstance(nc, dict)]
+        glossary = (doc.get("appendices") or {}).get("B glossary") if doc else None
+        old = bool(doc) and (any("G2" in (nc.get("rule_ids") or []) for nc in listed) or "K15" not in str(glossary or ""))
+    else:
+        old = False
+    return RULE_CHANGE_1031 if old else None

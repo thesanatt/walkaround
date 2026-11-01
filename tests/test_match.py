@@ -279,7 +279,6 @@ def test_panel_gates_comparable_baseline(cal: Calibration, th: dict) -> None:
     "rule_id, build",
     [
         ("G1", lambda cal, th: (panel(states=(CoverageState.FILMED, CoverageState.GLIMPSED)), kf("p", "pickup"), kf("r", "return"), {})),
-        ("G2", lambda cal, th: (panel(), kf("p", "pickup", conditions=Conditions(glare=True)), kf("r", "return"), {})),
         ("G3", lambda cal, th: (panel(), kf("p", "pickup"), kf("r", "return", sharpness=0.3), {})),
         ("G4", lambda cal, th: (panel(), kf("p", "pickup"), kf("r", "return"), {"mask_iou": 0.6})),
         ("G5", lambda cal, th: (panel(), kf("p", "pickup"), kf("r", "return"), {"residual": [0.3, 0.0]})),
@@ -307,9 +306,9 @@ def test_gate_details(cal: Calibration, th: dict) -> None:
     assert match.panel_gates(panel(), kf("p", "pickup"), kf("r", "return"), **gate_inputs(cal, th, residual=[0.2, 0.1])) == []
     assert match.panel_gates(panel(), kf("p", "pickup"), kf("r", "return", front_sign=None), **gate_inputs(cal, th)) == ["G6"]
     assert match.panel_gates(panel(), kf("p", "pickup"), kf("r", "return"), **gate_inputs(cal, th, mask_iou=None)) == ["G4"]
-    # the list keeps the G1..G10 order when several fail
+    # the list keeps the G1..G10 order when several fail; the wet flag is no gate since 10/31 (K15 caps instead)
     many = match.panel_gates(panel(side_uncertain=True), kf("p", "pickup", conditions=Conditions(wet=True)), kf("r", "return", window_subtracted=True), **gate_inputs(cal, th, mask_iou=0.1))
-    assert many == ["G2", "G4", "G6", "G9"]
+    assert many == ["G4", "G6", "G9"]
 
 
 # Cost and mutual nearest neighbours ------------------------------------------------------------------------------------
@@ -397,7 +396,7 @@ def test_verdict_label_rows(d: float | None, return_mark: bool, label: VerdictLa
     assert match.verdict(d, 0.25, 0.5, VerdictFlags(return_mark=return_mark)) == (label, ids)
 
 
-@pytest.mark.parametrize("cap", [f"K{i}" for i in range(2, 14)])
+@pytest.mark.parametrize("cap", [f"K{i}" for i in range(2, 16)])
 def test_every_k_flag_lowers_each_clean_label(cap: str) -> None:
     for d, return_mark, base in ((None, False, "L1"), (None, True, "L2"), (0.1, False, "L3"), (0.9, True, "L5")):
         label, ids = match.verdict(d, 0.25, 0.5, VerdictFlags(return_mark=return_mark, **{cap: True}))
@@ -511,11 +510,11 @@ def test_handle_residual_is_subtracted_from_the_return_marks(cal: Calibration, t
 
 
 def test_gated_panel_lists_every_mark_unmatched_and_gives_one_l6_verdict(cal: Calibration, th: dict) -> None:
-    pm, verdicts = run_panel(cal, th, [mark("p0", "pickup", u=0.0, v=0.0)], [mark("r0", "return", u=0.0, v=0.0)], gates=["G2", "G4"])
-    assert pm.state == MatchState.NOT_COMPARABLE and pm.reasons == ["G2", "G4"] and pm.pairs == []
+    pm, verdicts = run_panel(cal, th, [mark("p0", "pickup", u=0.0, v=0.0)], [mark("r0", "return", u=0.0, v=0.0)], gates=["G3", "G4"])
+    assert pm.state == MatchState.NOT_COMPARABLE and pm.reasons == ["G3", "G4"] and pm.pairs == []
     assert pm.unmatched_pickup == ["p0"] and pm.unmatched_return == ["r0"]
     assert len(verdicts) == 1 and verdicts[0].label == VerdictLabel.NOT_COMPARABLE and verdicts[0].rule_id == "L6"
-    assert verdicts[0].trace.rule_ids == ["L6", "G2", "G4"] and verdicts[0].mark_ids == ["p0", "r0"] and verdicts[0].reasons == rules.describe(["G2", "G4"])
+    assert verdicts[0].trace.rule_ids == ["L6", "G3", "G4"] and verdicts[0].mark_ids == ["p0", "r0"] and verdicts[0].reasons == rules.describe(["G3", "G4"])
 
 
 def test_group_line_for_a_cluster(cal: Calibration, th: dict) -> None:
@@ -1155,3 +1154,282 @@ async def test_rerunning_the_marks_stage_writes_the_same_calibration(runs_dir: P
     assert kept.tau_pre == pytest.approx(0.35) and kept.tau_eye == pytest.approx(0.7) and kept.sigma_view == cal1.sigma_view
     await marks.derive_marks(run_id, "pickup", pick, th=th)
     assert Calibration.model_validate_json(paths.calibration_json(run_id).read_text()) == kept
+
+
+# View flags (lead 10/31): K15 replaces gate G2 --------------------------------------------------------------------------
+
+DIRTY, GLARE, WET = Conditions(dirty=True), Conditions(glare=True), Conditions(wet=True)
+ALL_THREE = Conditions(wet=True, dirty=True, glare=True)
+
+
+def flagged_run(cal: Calibration, th: dict, pickup: list[Mark], ret: list[Mark], *, cond_p: Conditions | None = None, cond_r: Conditions | None = None, more: tuple[Keyframe, ...] = (), p: Panel | None = None) -> tuple[PanelMatch, list]:
+    """run_panel with view flags on the paired keyframes (and extra keyframes of either walk)."""
+    pid = p.panel_id if p is not None else DOOR
+    kp, kr = kf("pickup_kf1", "pickup", pid, conditions=cond_p), kf("return_kf1", "return", pid, conditions=cond_r)
+    frame = FrameUsed.WHEEL if pid.value.endswith("_wheel") else FrameUsed.MOMENT
+    pm = match.match_panel(p or panel(), pickup, ret, whitened_of(*pickup, *ret, frame=frame), (kp, kr), [], cal, th)
+    by_id = {m.mark_id: m for m in (*pickup, *ret)}
+    return pm, match.verdicts_for(pm, by_id, {}, {}, {k.kf_id: k for k in (kp, kr, *more)}, cal, Trace(), th)
+
+
+def test_view_flags_are_wet_dirty_and_glare_in_that_order() -> None:
+    assert match.view_flags(kf("k", "pickup", conditions=Conditions(glare=True, wet=True, dark=True))) == ["wet", "glare"]
+    assert match.view_flags(kf("k", "pickup", conditions=Conditions(dark=True))) == [] and match.view_flags(None) == []
+
+
+def test_no_view_flag_fails_a_gate_since_g2_is_retired(cal: Calibration, th: dict) -> None:
+    """Lead 10/31: Muse Spark's wet, dirty and glare are a model's judgment, and a model may only lower a verdict."""
+    for cond in (WET, DIRTY, GLARE, Conditions(dark=True), ALL_THREE):
+        assert match.panel_gates(panel(), kf("p", "pickup", conditions=cond), kf("r", "return"), **gate_inputs(cal, th)) == []
+        assert match.panel_gates(panel(), kf("p", "pickup"), kf("r", "return", conditions=cond), **gate_inputs(cal, th)) == []
+    assert match.panel_gates(panel(), kf("p", "pickup", conditions=ALL_THREE), None, **gate_inputs(cal, th, mask_iou=None)) == ["G1"]
+    assert rules.rule("G2").label == "crop condition (retired)" and rules.rule("K15").label == "view flagged"
+
+
+def test_pairing_prefers_a_clean_usable_keyframe_in_a_walk_with_a_flag(th: dict) -> None:
+    pickup = [kf("p1", "pickup", aspect=1.0, conditions=DIRTY), kf("p2", "pickup", aspect=1.3)]
+    ret = [kf("r1", "return", aspect=1.0)]
+    a, b, diff = match.pair_keyframes(pickup, ret, th=th)  # the dirty keyframe is the better yaw match; the clean one wins
+    assert (a.kf_id, b.kf_id) == ("p2", "r1") and diff == pytest.approx(abs(math.log(1.3)))
+    ret2 = [kf("r1", "return", aspect=1.3, conditions=GLARE), kf("r2", "return", aspect=0.9)]
+    assert [k.kf_id for k in match.pair_keyframes(pickup, ret2, th=th)[:2]] == ["p2", "r2"]  # each walk on its own
+    all_flagged = [kf("p1", "pickup", aspect=1.0, conditions=DIRTY), kf("p2", "pickup", aspect=1.3, conditions=WET)]
+    assert match.pair_keyframes(all_flagged, ret, th=th)[0].kf_id == "p1"  # nothing clean: the aspect pairing as before
+    assert match.prefer_clean(all_flagged, th) == all_flagged and match.prefer_clean(pickup, th) == [pickup[1]]
+
+
+def test_pairing_without_a_flag_or_a_clean_usable_keyframe_is_unchanged(th: dict) -> None:
+    ret = [kf("r1", "return", aspect=1.0)]
+    no_flag = [kf("p1", "pickup", aspect=1.0, sharpness=0.2), kf("p2", "pickup", aspect=1.3)]
+    assert match.pair_keyframes(no_flag, ret, th=th)[0].kf_id == "p1"  # no flag in the walk: a blurry keyframe still pairs (G3 fires as before)
+    no_moments = kf("p2", "pickup", aspect=1.3).model_copy(update={"moments": None})
+    no_crop = kf("p2", "pickup", aspect=1.3).model_copy(update={"crop": None})
+    unusable = [kf("p2", "pickup", aspect=1.3, sharpness=0.2), kf("p2", "pickup", aspect=1.3, front_sign=None), kf("p2", "pickup", aspect=1.3, status=MarksStatus.TRUNCATED), kf("p2", "pickup", aspect=1.3, status=MarksStatus.NOT_RUN), no_moments, no_crop]
+    for clean_but_unusable in unusable:  # not complete, not sharp, no front_sign, nothing to whiten in: not preferred
+        assert match.pair_keyframes([kf("p1", "pickup", aspect=1.0, conditions=DIRTY), clean_but_unusable], ret, th=th)[0].kf_id == "p1"
+    blurry_clean = [kf("p1", "pickup", aspect=1.0, conditions=DIRTY), kf("p2", "pickup", aspect=1.3, sharpness=0.2)]
+    assert match.pair_keyframes(blurry_clean, ret)[0].kf_id == "p2"  # without th the sharpness is not checked
+
+
+def test_k15_caps_a_new_return_mark_when_either_view_is_flagged(cal: Calibration, th: dict) -> None:
+    r = [mark("r0", "return", u=0.5, v=0.5)]
+    _, (v,) = flagged_run(cal, th, [], r, cond_r=DIRTY)
+    assert v.label == VerdictLabel.NEEDS_YOUR_EYE and v.trace.rule_ids == ["L4", "L2", "K15"] and v.reasons == rules.describe(["K15"])
+    assert v.view_note == "return view flagged dirty: could be dirt"
+    _, (v,) = flagged_run(cal, th, [], r, cond_p=GLARE)
+    assert v.trace.rule_ids == ["L4", "L2", "K15"] and v.view_note == "pickup view flagged glare: could have hidden the mark"
+    _, (v,) = flagged_run(cal, th, [], r, cond_p=GLARE, cond_r=Conditions(dirty=True, glare=True))
+    assert v.view_note == "return view flagged dirty and glare: could be dirt or a reflection; pickup view flagged glare: could have hidden the mark"
+    _, (v,) = flagged_run(cal, th, [], r)
+    assert v.label == VerdictLabel.NEW_OR_UNSEEN and v.trace.rule_ids == ["L2"] and v.view_note is None
+
+
+def test_k15_caps_a_pickup_mark_not_seen_at_return(cal: Calibration, th: dict) -> None:
+    p = [mark("p0", "pickup", u=0.5, v=0.5)]
+    _, (v,) = flagged_run(cal, th, p, [], cond_p=WET)
+    assert v.label == VerdictLabel.NEEDS_YOUR_EYE and v.trace.rule_ids == ["L4", "L1", "K15"] and v.view_note == "pickup view flagged wet: could be water"
+    _, (v,) = flagged_run(cal, th, p, [], cond_r=ALL_THREE)
+    assert v.trace.rule_ids == ["L4", "L1", "K15"] and v.view_note == "return view flagged wet, dirty and glare: could have hidden the mark"
+    _, (v,) = flagged_run(cal, th, p, [], cond_p=ALL_THREE)
+    assert v.view_note == "pickup view flagged wet, dirty and glare: could be water, dirt or a reflection"
+
+
+def test_k15_caps_both_marks_of_a_pair_beyond_the_band(cal: Calibration, th: dict) -> None:
+    pm, verdicts = flagged_run(cal, th, [mark("p0", "pickup", u=0.0, v=0.0)], [mark("r0", "return", u=0.9, v=0.0)], cond_r=DIRTY)
+    assert len(pm.pairs) == 1 and pm.pairs[0].d >= pm.pairs[0].tau_eye_r
+    by = {v.mark_ids[0]: v for v in verdicts}
+    assert by["p0"].label == VerdictLabel.NEEDS_YOUR_EYE and by["p0"].trace.rule_ids == ["L4", "L5", "K15"]
+    assert by["p0"].view_note == "return view flagged dirty: could have hidden the mark"
+    assert by["r0"].label == VerdictLabel.NEEDS_YOUR_EYE and by["r0"].trace.rule_ids == ["L4", "L5", "K15"]
+    assert by["r0"].view_note == "return view flagged dirty: could be dirt"
+
+
+def test_a_mark_in_the_same_place_in_both_walks_stays_already_there_with_a_note(cal: Calibration, th: dict) -> None:
+    p, r = [mark("p0", "pickup", u=0.1, v=0.0)], [mark("r0", "return", u=0.1, v=0.0)]
+    _, (v,) = flagged_run(cal, th, p, r, cond_r=DIRTY)
+    assert v.label == VerdictLabel.ALREADY_THERE and v.trace.rule_ids == ["L3"] and v.reasons == []
+    assert v.view_note == "return view flagged dirty: the mark is in the same place in both walks, so it was there at pickup, whatever it is"
+    _, (v,) = flagged_run(cal, th, p, r, cond_p=Conditions(dirty=True, glare=True), cond_r=WET)
+    assert v.label == VerdictLabel.ALREADY_THERE
+    assert v.view_note == "pickup view flagged dirty and glare, return view flagged wet: the mark is in the same place in both walks, so it was there at pickup, whatever it is"
+    # in the band the pair already needs your eye through K1: the flag adds the note, never K15
+    _, (v,) = flagged_run(cal, th, p, [mark("r0", "return", u=0.4, v=0.0)], cond_p=GLARE)
+    assert v.trace.rule_ids == ["L4", "K1"] and v.view_note == "pickup view flagged glare: a mark shows near this place in both walks"
+    # another cap still lowers the pair, and the note stays
+    _, (v,) = flagged_run(cal, th, [mark("p0", "pickup", u=0.1, v=0.0, kind=MarkKind.DIRT, caps=("K4",))], [mark("r0", "return", u=0.1, v=0.0, kind=MarkKind.DIRT)], cond_r=DIRTY)
+    assert v.trace.rule_ids == ["L4", "L3", "K4"] and v.view_note.startswith("return view flagged dirty: the mark is in the same place")
+
+
+def test_dark_or_no_flag_gives_no_k15_no_note_and_no_new_key_in_the_file(cal: Calibration, th: dict) -> None:
+    p, r = [mark("p0", "pickup", u=0.1, v=0.0)], [mark("r0", "return", u=0.1, v=0.0), mark("r1", "return", u=-1.0, v=0.5)]
+    for cond in (None, Conditions(dark=True)):
+        _, verdicts = flagged_run(cal, th, p, r, cond_p=cond, cond_r=cond)
+        assert [v.label for v in verdicts] == [VerdictLabel.ALREADY_THERE, VerdictLabel.NEW_OR_UNSEEN]
+        assert all("K15" not in v.trace.rule_ids and v.view_note is None for v in verdicts)
+        assert all("view_note" not in json.loads(v.to_json()) for v in verdicts)  # a run with no flag keeps its bytes
+    _, verdicts = flagged_run(cal, th, p, r, cond_r=DIRTY)
+    assert all("view_note" in json.loads(v.to_json()) for v in verdicts)
+
+
+def test_a_mark_placed_on_a_flagged_keyframe_off_the_pair_carries_k15(cal: Calibration, th: dict) -> None:
+    """The paired views are clean, but the return mark was placed in another return keyframe that Spark flagged dirty:
+    it may be dirt, and a walk with two keyframes gets no K2 single-frame cap to catch it."""
+    off = kf("return_kf2", "return", conditions=DIRTY)
+    r = [mark("r0", "return", u=0.5, v=0.5, kf_id="return_kf2")]
+    _, (v,) = flagged_run(cal, th, [], r, more=(off,))
+    assert v.trace.rule_ids == ["L4", "L2", "K15"] and v.view_note == "return view flagged dirty: could be dirt"
+    _, (v,) = flagged_run(cal, th, [mark("p0", "pickup", u=0.5, v=0.5)], r, more=(off,))
+    assert v.label == VerdictLabel.ALREADY_THERE and v.view_note.startswith("return view flagged dirty: the mark is in the same place")
+    _, (v,) = flagged_run(cal, th, [mark("p0", "pickup", u=0.5, v=0.5)], [], more=(off,))  # off the pickup mark's own walk: the pair's views decide
+    assert v.label == VerdictLabel.NOT_SEEN_AT_RETURN and v.view_note is None
+
+
+def test_k15_on_a_wheel_and_none_on_a_not_comparable_panel(cal: Calibration, th: dict) -> None:
+    wheel = PanelId.LEFT_FRONT_WHEEL
+    pm, (v,) = flagged_run(cal, th, [mark("p0", "pickup", u=0.5, v=0.3, panel_id=wheel)], [], cond_p=WET, p=panel(wheel))
+    assert pm.frame_used == FrameUsed.WHEEL and v.trace.rule_ids == ["L4", "L1", "K15"] and v.view_note == "pickup view flagged wet: could be water"
+    kp, kr = kf("pickup_kf1", "pickup", conditions=DIRTY), kf("return_kf1", "return")
+    a, b = mark("p0", "pickup", u=0.0, v=0.0), mark("r0", "return", u=1.0, v=1.0)
+    pm = match.match_panel(panel(), [a], [b], whitened_of(a, b), (kp, kr), ["G4"], cal, th)
+    (v,) = match.verdicts_for(pm, {"p0": a, "r0": b}, {}, {}, {kp.kf_id: kp, kr.kf_id: kr}, cal, Trace(), th)
+    assert v.label == VerdictLabel.NOT_COMPARABLE and v.trace.rule_ids == ["L6", "G4"] and v.view_note is None
+
+
+def test_flags_for_sets_k15_only_from_view_flagged() -> None:
+    m = mark("p0", "pickup", u=0.0, v=0.0)
+    assert match.flags_for(None, m, None, {}, None, {}, return_mark=False, view_flagged=True).set_caps() == ["K15"]
+    assert match.flags_for(None, m, None, {}, None, {}, return_mark=False).set_caps() == []
+    assert match.verdict(0.1, 0.25, 0.5, VerdictFlags(K15=True)) == (VerdictLabel.NEEDS_YOUR_EYE, ["L4", "L3", "K15"])  # verdict() lowers any K flag
+
+
+def test_derive_match_compares_a_flagged_panel_and_rebuilds_it_byte_identical(runs_dir: Path, th: dict) -> None:
+    """seed_run with the return view flagged dirty: before 10/31 the door was not comparable (G2). Now it is compared,
+    the two pairs stay already there with the note (and still get the second look), the one-walk marks carry K15,
+    and a second derive writes the same bytes."""
+    run_id = "01TESTRUNVIEWS000000000000"
+    seed_run(run_id)
+    kfs = read_json_list(paths.keyframes_json(run_id), Keyframe)
+    write_json(paths.keyframes_json(run_id), [k.model_copy(update={"conditions": DIRTY}) if k.kf_id == "return_kf1" else k for k in kfs])
+    asked: list[tuple[str, str]] = []
+
+    def look(pair: MatchCandidate) -> LookVerdict:
+        asked.append((pair.pickup_mark, pair.return_mark))
+        return LookVerdict.SAME
+
+    matches, verdicts, _ = match.derive_match(run_id, th=th, second_look=look)
+    door = next(pm for pm in matches if pm.panel_id == DOOR)
+    assert door.state == MatchState.COMPARABLE and door.reasons == []
+    assert sorted(asked) == [("p0", "r0"), ("p1", "r1")]
+    by_marks = {tuple(v.mark_ids): v for v in verdicts if v.panel_id == DOOR}
+    for pair in (("p0", "r0"), ("p1", "r1")):
+        assert by_marks[pair].label == VerdictLabel.ALREADY_THERE and by_marks[pair].view_note.startswith("return view flagged dirty: the mark is in the same place")
+    assert by_marks[("p2",)].trace.rule_ids == ["L4", "L1", "K15"] and by_marks[("p2",)].view_note == "return view flagged dirty: could have hidden the mark"
+    assert by_marks[("r9",)].trace.rule_ids == ["L4", "L2", "K15"] and by_marks[("r9",)].view_note == "return view flagged dirty: could be dirt"
+    first = (paths.matches_json(run_id).read_bytes(), paths.verdicts_json(run_id).read_bytes())
+    match.derive_match(run_id, th=th, second_look=look)
+    assert (paths.matches_json(run_id).read_bytes(), paths.verdicts_json(run_id).read_bytes()) == first
+    assert b"G2" not in first[0] + first[1]
+    assert match.why_rebuild_differs(run_id, "derived/matches.json") is None and match.why_rebuild_differs(run_id, "derived/verdicts.json") is None
+
+
+def test_why_rebuild_differs_names_the_rule_change_only_for_files_written_before_it(runs_dir: Path) -> None:
+    from walkaround import sheet
+
+    run_id = "old1"
+    derived, sheet_dir = runs_dir / run_id / "derived", runs_dir / run_id / "sheet"
+    derived.mkdir(parents=True)
+    sheet_dir.mkdir()
+    names = ("derived/matches.json", "derived/verdicts.json", "sheet/sheet.json")
+    (derived / "matches.json").write_text(json.dumps([{"panel_id": "hood", "state": "not_comparable", "reasons": ["G2", "G4"]}]))
+    (derived / "verdicts.json").write_text(json.dumps([{"verdict_id": "hood_v1", "trace": {"rule_ids": ["L6", "G2", "G4"]}}]))
+    (sheet_dir / "sheet.json").write_text(json.dumps({"not_comparable": [], "appendices": {"B glossary": "or a cap (K1 to K14) applied (L4)"}}))
+    assert [match.why_rebuild_differs(run_id, n) for n in names] == [match.RULE_CHANGE_1031] * 3
+    (derived / "matches.json").write_text(json.dumps([{"panel_id": "hood", "state": "not_comparable", "reasons": ["G4"]}]))
+    (derived / "verdicts.json").write_text(json.dumps([{"verdict_id": "hood_v1", "trace": {"rule_ids": ["L6", "G4"]}}]))
+    (sheet_dir / "sheet.json").write_text(json.dumps({"not_comparable": [{"panel_id": "hood", "rule_ids": ["G4"]}], "appendices": {"B glossary": sheet.glossary_md()}}))
+    assert [match.why_rebuild_differs(run_id, n) for n in names] == [None] * 3  # what today's code writes
+    (sheet_dir / "sheet.json").write_text(json.dumps({"not_comparable": [{"panel_id": "hood", "rule_ids": ["G2"]}], "appendices": {"B glossary": sheet.glossary_md()}}))
+    assert match.why_rebuild_differs(run_id, "sheet/sheet.json") == match.RULE_CHANGE_1031
+    (derived / "matches.json").write_text('[{"tampered": true}]\n')
+    (derived / "verdicts.json").write_text("not json")
+    assert match.why_rebuild_differs(run_id, "derived/matches.json") is None and match.why_rebuild_differs(run_id, "derived/verdicts.json") is None
+    assert match.why_rebuild_differs(run_id, "derived/marks.json") is None and match.why_rebuild_differs("nope", "derived/matches.json") is None
+
+
+def test_cli_verify_says_once_why_an_older_run_differs(runs_dir: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    from types import SimpleNamespace
+
+    from walkaround import __main__ as cli, pipeline
+    from walkaround.contracts import LiveOrReplay
+
+    run_id = "old2"
+    derived = runs_dir / run_id / "derived"
+    derived.mkdir(parents=True)
+    (derived / "matches.json").write_text(json.dumps([{"panel_id": "hood", "reasons": ["G2"]}]))
+    (derived / "verdicts.json").write_text(json.dumps([{"trace": {"rule_ids": ["L6", "G2"]}}]))
+
+    class Orch:
+        def run_exists(self, rid: str) -> bool:
+            return rid == run_id
+
+        def load_run(self, rid: str) -> Any:
+            return SimpleNamespace(live_or_replay=LiveOrReplay.LIVE)
+
+    problems = ["rebuild differs: derived/matches.json", "rebuild differs: derived/marks.json", "rebuild differs: derived/verdicts.json", "event chain broken"]
+    monkeypatch.setattr(pipeline, "verify", lambda rid, out=None, orch=None: list(problems))
+    monkeypatch.setattr(cli, "make_orchestrator", lambda th=None: Orch())
+    assert cli.main(["verify", run_id]) == 1
+    assert capsys.readouterr().out.splitlines() == [
+        f"rebuild differs: derived/matches.json; {match.RULE_CHANGE_1031}",
+        "rebuild differs: derived/marks.json",
+        "rebuild differs: derived/verdicts.json; the same rule change",
+        "event chain broken",
+    ]
+
+
+def test_the_sheet_prints_the_view_note_and_its_glossary_names_k15(runs_dir: Path, th: dict) -> None:
+    from walkaround import sheet
+    from walkaround.contracts import RunManifest, Verdict, config_hash
+
+    run_id = "sheetviews"
+    paths.ensure_run_layout(run_id)
+    write_json(paths.run_json(run_id), RunManifest(run_id=run_id, created_at="2026-10-31T23:00:00Z", thresholds=th, config_hash=config_hash(th)))
+    note = "return view flagged dirty: could be dirt"
+    write_json(paths.verdicts_json(run_id), [
+        Verdict(verdict_id="left_front_door_v1", panel_id=DOOR, label=VerdictLabel.NEEDS_YOUR_EYE, rule_id="L4", trace=Trace(rule_ids=["L4", "L2", "K15"]), reasons=rules.describe(["K15"]), view_note=note),
+        Verdict(verdict_id="left_front_door_v2", panel_id=DOOR, label=VerdictLabel.ALREADY_THERE, rule_id="L3", trace=Trace(rule_ids=["L3"])),
+    ])
+    model = sheet.build_sheet(run_id, th=th)
+    lines = next(b for b in model.panels if b.panel_id == DOOR).verdicts
+    assert [line.view_line for line in lines] == [note, None] and "view_line" not in json.loads(lines[1].to_json())
+    html = sheet.render_html(model)
+    assert f"<div>{note}</div>" in html and "K15 view flagged: Muse Spark flagged" in html and html.isascii()
+    glossary = model.appendices["B glossary"]
+    assert "K1 to K15" in glossary and "view flagged:" in glossary and "G1, G3 to G10" in glossary and glossary.isascii() and "--" not in glossary
+
+
+def test_why_rebuild_differs_also_sees_an_old_pair_or_a_missing_note_without_g2(runs_dir: Path, th: dict) -> None:
+    """Written by the old code with no G2 anywhere: a keyframe pair the clean-view preference would not pick (the old
+    pair was clean but blurry while the walk had a flagged and a clean sharp keyframe), and a verdict on a flagged view
+    without its note."""
+    from walkaround.contracts import RunManifest, Verdict, config_hash
+
+    run_id = "old3"
+    paths.ensure_run_layout(run_id)
+    write_json(paths.run_json(run_id), RunManifest(run_id=run_id, created_at="2026-10-31T23:00:00Z", thresholds=th, config_hash=config_hash(th)))
+    blurry, glare, sharp = kf("pickup_kf1", "pickup", aspect=1.0, sharpness=0.2), kf("pickup_kf2", "pickup", aspect=1.05, conditions=GLARE), kf("pickup_kf3", "pickup", aspect=1.4)
+    write_json(paths.keyframes_json(run_id), [blurry, glare, sharp, kf("return_kf1", "return", aspect=1.0)])
+    write_json(paths.marks_json(run_id), [mark("p0", "pickup", u=0.5, v=0.5, kf_id="pickup_kf2")])
+
+    def stored_pair(kf_pickup: str) -> None:
+        write_json(paths.matches_json(run_id), [PanelMatch(panel_id=DOOR, state=MatchState.NOT_COMPARABLE, reasons=["G3"], kf_pair=[kf_pickup, "return_kf1"])])
+
+    stored_pair("pickup_kf1")
+    assert match.why_rebuild_differs(run_id, "derived/matches.json") == match.RULE_CHANGE_1031
+    stored_pair("pickup_kf3")
+    assert match.why_rebuild_differs(run_id, "derived/matches.json") is None
+    old = Verdict(verdict_id="left_front_door_v1", panel_id=DOOR, label=VerdictLabel.NOT_SEEN_AT_RETURN, rule_id="L1", mark_ids=["p0"], trace=Trace(rule_ids=["L1"]))
+    write_json(paths.verdicts_json(run_id), [old])
+    assert match.why_rebuild_differs(run_id, "derived/verdicts.json") == match.RULE_CHANGE_1031  # p0 sits on the glare keyframe
+    write_json(paths.verdicts_json(run_id), [old.model_copy(update={"label": VerdictLabel.NEEDS_YOUR_EYE, "view_note": "pickup view flagged glare: could be a reflection"})])
+    assert match.why_rebuild_differs(run_id, "derived/verdicts.json") is None
