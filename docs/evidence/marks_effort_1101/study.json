@@ -1,0 +1,4411 @@
+{
+ "run": "synth_pair2_r9",
+ "crops": [
+  {
+   "crop_id": "pickup_hood_kf1",
+   "set": "synth",
+   "panel": "hood",
+   "truth": [
+    {
+     "id": "old_scratch_05cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1631.533,
+      1059.1918,
+      1753.8503,
+      1073.6452
+     ],
+     "long_crop_px": 49.6,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_hood_kf1.jpg"
+  },
+  {
+   "crop_id": "pickup_left_front_door_kf1",
+   "set": "synth",
+   "panel": "left_front_door",
+   "truth": [
+    {
+     "id": "old_scratch_02cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1385.0009,
+      1166.1671,
+      1431.4948,
+      1172.9835
+     ],
+     "long_crop_px": 17.1,
+     "damage": true
+    },
+    {
+     "id": "control_sticker_01",
+     "kind": "flat_sticker_control",
+     "bbox_src": [
+      2687.4537,
+      895.0783,
+      2773.9967,
+      954.7987
+     ],
+     "long_crop_px": 31.9,
+     "damage": false
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_left_front_door_kf1.jpg"
+  },
+  {
+   "crop_id": "pickup_left_front_fender_kf1",
+   "set": "synth",
+   "panel": "left_front_fender",
+   "truth": [
+    {
+     "id": "old_chip_05mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      2043.2132,
+      978.1438,
+      2056.1094,
+      989.3904
+     ],
+     "long_crop_px": 4.3,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_left_front_fender_kf1.jpg"
+  },
+  {
+   "crop_id": "pickup_left_rear_door_kf2",
+   "set": "synth",
+   "panel": "left_rear_door",
+   "truth": [
+    {
+     "id": "old_chip_10mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      1195.7487,
+      996.3005,
+      1210.7717,
+      1016.5199
+     ],
+     "long_crop_px": 13.3,
+     "damage": true
+    },
+    {
+     "id": "control_sticker_01",
+     "kind": "flat_sticker_control",
+     "bbox_src": [
+      171.7963,
+      734.0117,
+      201.7586,
+      780.4475
+     ],
+     "long_crop_px": 30.6,
+     "damage": false
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_left_rear_door_kf2.jpg"
+  },
+  {
+   "crop_id": "pickup_left_rear_fender_kf3",
+   "set": "synth",
+   "panel": "left_rear_fender",
+   "truth": [
+    {
+     "id": "old_chip_10mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      1862.4599,
+      937.0998,
+      1888.7563,
+      962.7346
+     ],
+     "long_crop_px": 10.6,
+     "damage": true
+    },
+    {
+     "id": "old_scuff_06cm",
+     "kind": "clearcoat_scuff",
+     "bbox_src": [
+      2656.393,
+      212.9297,
+      2763.3678,
+      221.8026
+     ],
+     "long_crop_px": 43.0,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_left_rear_fender_kf3.jpg"
+  },
+  {
+   "crop_id": "pickup_rear_window_kf2",
+   "set": "synth",
+   "panel": "rear_window",
+   "truth": [
+    {
+     "id": "old_scuff_06cm",
+     "kind": "clearcoat_scuff",
+     "bbox_src": [
+      2116.9613,
+      688.8634,
+      2159.8202,
+      718.572
+     ],
+     "long_crop_px": 23.7,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_rear_window_kf2.jpg"
+  },
+  {
+   "crop_id": "pickup_right_front_door_kf1",
+   "set": "synth",
+   "panel": "right_front_door",
+   "truth": [
+    {
+     "id": "old_scratch_20cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1734.635,
+      1220.2083,
+      2199.6031,
+      1227.3943
+     ],
+     "long_crop_px": 170.6,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_right_front_door_kf1.jpg"
+  },
+  {
+   "crop_id": "pickup_right_front_fender_kf1",
+   "set": "synth",
+   "panel": "right_front_fender",
+   "truth": [
+    {
+     "id": "old_scratch_05cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1725.0376,
+      1011.9662,
+      1854.5362,
+      1020.8735
+     ],
+     "long_crop_px": 43.2,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_right_front_fender_kf1.jpg"
+  },
+  {
+   "crop_id": "pickup_right_rear_door_kf3",
+   "set": "synth",
+   "panel": "right_rear_door",
+   "truth": [
+    {
+     "id": "old_dent_12cm",
+     "kind": "shallow_dent",
+     "bbox_src": [
+      120.3306,
+      552.0452,
+      136.3181,
+      648.1028
+     ],
+     "long_crop_px": 90.8,
+     "damage": true
+    },
+    {
+     "id": "old_scratch_20cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      398.1723,
+      879.4526,
+      469.7102,
+      925.251
+     ],
+     "long_crop_px": 67.6,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_right_rear_door_kf3.jpg"
+  },
+  {
+   "crop_id": "pickup_right_rear_fender_kf3",
+   "set": "synth",
+   "panel": "right_rear_fender",
+   "truth": [
+    {
+     "id": "old_dent_12cm",
+     "kind": "shallow_dent",
+     "bbox_src": [
+      2207.9369,
+      902.6664,
+      2530.774,
+      1165.0174
+     ],
+     "long_crop_px": 128.8,
+     "damage": true
+    },
+    {
+     "id": "old_scuff_06cm",
+     "kind": "clearcoat_scuff",
+     "bbox_src": [
+      1089.3363,
+      265.9712,
+      1208.5942,
+      276.6191
+     ],
+     "long_crop_px": 47.6,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_right_rear_fender_kf3.jpg"
+  },
+  {
+   "crop_id": "pickup_roof_kf1",
+   "set": "synth",
+   "panel": "roof",
+   "truth": [
+    {
+     "id": "old_scratch_05cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1657.5534,
+      1048.8167,
+      1782.6276,
+      1061.5256
+     ],
+     "long_crop_px": 50.6,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_roof_kf1.jpg"
+  },
+  {
+   "crop_id": "pickup_tail_lights_kf1",
+   "set": "synth",
+   "panel": "tail_lights",
+   "truth": [],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_tail_lights_kf1.jpg"
+  },
+  {
+   "crop_id": "pickup_windshield_kf1",
+   "set": "synth",
+   "panel": "windshield",
+   "truth": [
+    {
+     "id": "old_scuff_06cm",
+     "kind": "clearcoat_scuff",
+     "bbox_src": [
+      2116.9483,
+      690.898,
+      2159.6091,
+      720.4498
+     ],
+     "long_crop_px": 23.6,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/pickup/pickup_windshield_kf1.jpg"
+  },
+  {
+   "crop_id": "return_hood_kf1",
+   "set": "synth",
+   "panel": "hood",
+   "truth": [
+    {
+     "id": "old_scratch_05cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1655.8441,
+      1049.6339,
+      1781.6427,
+      1062.5262
+     ],
+     "long_crop_px": 50.8,
+     "damage": true
+    },
+    {
+     "id": "new_chip_20mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      2418.5848,
+      505.8506,
+      2454.4555,
+      515.283
+     ],
+     "long_crop_px": 14.5,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_hood_kf1.jpg"
+  },
+  {
+   "crop_id": "return_left_front_door_kf1",
+   "set": "synth",
+   "panel": "left_front_door",
+   "truth": [
+    {
+     "id": "old_scratch_02cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1386.3957,
+      1171.2915,
+      1432.8667,
+      1178.0659
+     ],
+     "long_crop_px": 17.2,
+     "damage": true
+    },
+    {
+     "id": "control_sticker_01",
+     "kind": "flat_sticker_control",
+     "bbox_src": [
+      2685.2934,
+      893.4453,
+      2771.3617,
+      952.9324
+     ],
+     "long_crop_px": 31.9,
+     "damage": false
+    },
+    {
+     "id": "new_scratch_10cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      2315.7281,
+      1314.5202,
+      2548.2059,
+      1321.5666
+     ],
+     "long_crop_px": 86.1,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_left_front_door_kf1.jpg"
+  },
+  {
+   "crop_id": "return_left_front_fender_kf1",
+   "set": "synth",
+   "panel": "left_front_fender",
+   "truth": [
+    {
+     "id": "old_chip_05mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      2043.5063,
+      976.7895,
+      2056.515,
+      988.2062
+     ],
+     "long_crop_px": 4.3,
+     "damage": true
+    },
+    {
+     "id": "new_chip_20mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      1563.6584,
+      380.7806,
+      1597.0772,
+      387.2442
+     ],
+     "long_crop_px": 11.1,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_left_front_fender_kf1.jpg"
+  },
+  {
+   "crop_id": "return_left_rear_door_kf2",
+   "set": "synth",
+   "panel": "left_rear_door",
+   "truth": [
+    {
+     "id": "old_chip_10mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      1195.3179,
+      997.8339,
+      1210.3769,
+      1018.047
+     ],
+     "long_crop_px": 14.1,
+     "damage": true
+    },
+    {
+     "id": "control_sticker_01",
+     "kind": "flat_sticker_control",
+     "bbox_src": [
+      168.1207,
+      730.4035,
+      198.1359,
+      777.0409
+     ],
+     "long_crop_px": 32.5,
+     "damage": false
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_left_rear_door_kf2.jpg"
+  },
+  {
+   "crop_id": "return_left_rear_fender_kf1",
+   "set": "synth",
+   "panel": "left_rear_fender",
+   "truth": [
+    {
+     "id": "old_chip_10mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      1692.6022,
+      936.6442,
+      1719.3684,
+      962.5491
+     ],
+     "long_crop_px": 10.5,
+     "damage": true
+    },
+    {
+     "id": "old_scuff_06cm",
+     "kind": "clearcoat_scuff",
+     "bbox_src": [
+      2594.3607,
+      193.6455,
+      2702.2107,
+      203.1337
+     ],
+     "long_crop_px": 42.5,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_left_rear_fender_kf1.jpg"
+  },
+  {
+   "crop_id": "return_rear_window_kf2",
+   "set": "synth",
+   "panel": "rear_window",
+   "truth": [
+    {
+     "id": "old_scuff_06cm",
+     "kind": "clearcoat_scuff",
+     "bbox_src": [
+      2156.3048,
+      691.999,
+      2207.4647,
+      721.7789
+     ],
+     "long_crop_px": 28.5,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_rear_window_kf2.jpg"
+  },
+  {
+   "crop_id": "return_right_front_door_kf1",
+   "set": "synth",
+   "panel": "right_front_door",
+   "truth": [
+    {
+     "id": "old_scratch_20cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1756.1801,
+      1217.4393,
+      2221.391,
+      1224.8576
+     ],
+     "long_crop_px": 172.5,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_right_front_door_kf1.jpg"
+  },
+  {
+   "crop_id": "return_right_front_fender_kf2",
+   "set": "synth",
+   "panel": "right_front_fender",
+   "truth": [
+    {
+     "id": "old_scratch_05cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1707.6288,
+      1026.7589,
+      1837.4826,
+      1036.1455
+     ],
+     "long_crop_px": 43.3,
+     "damage": true
+    },
+    {
+     "id": "new_chip_20mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      2301.088,
+      454.8861,
+      2336.8791,
+      463.9384
+     ],
+     "long_crop_px": 11.9,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_right_front_fender_kf2.jpg"
+  },
+  {
+   "crop_id": "return_right_rear_door_kf1",
+   "set": "synth",
+   "panel": "right_rear_door",
+   "truth": [
+    {
+     "id": "old_dent_12cm",
+     "kind": "shallow_dent",
+     "bbox_src": [
+      47.8307,
+      552.8999,
+      65.7021,
+      650.9371
+     ],
+     "long_crop_px": 86.2,
+     "damage": true
+    },
+    {
+     "id": "old_scratch_20cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      359.1969,
+      885.187,
+      438.6077,
+      931.3224
+     ],
+     "long_crop_px": 69.8,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_right_rear_door_kf1.jpg"
+  },
+  {
+   "crop_id": "return_right_rear_fender_kf1",
+   "set": "synth",
+   "panel": "right_rear_fender",
+   "truth": [
+    {
+     "id": "old_dent_12cm",
+     "kind": "shallow_dent",
+     "bbox_src": [
+      2210.8359,
+      902.9172,
+      2533.9553,
+      1165.2086
+     ],
+     "long_crop_px": 128.9,
+     "damage": true
+    },
+    {
+     "id": "old_scuff_06cm",
+     "kind": "clearcoat_scuff",
+     "bbox_src": [
+      1051.6077,
+      247.9507,
+      1172.1333,
+      258.9249
+     ],
+     "long_crop_px": 48.1,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_right_rear_fender_kf1.jpg"
+  },
+  {
+   "crop_id": "return_roof_kf2",
+   "set": "synth",
+   "panel": "roof",
+   "truth": [
+    {
+     "id": "old_scratch_05cm",
+     "kind": "clearcoat_scratch",
+     "bbox_src": [
+      1655.8441,
+      1049.6339,
+      1781.6427,
+      1062.5262
+     ],
+     "long_crop_px": 50.8,
+     "damage": true
+    },
+    {
+     "id": "new_chip_20mm",
+     "kind": "paint_chip",
+     "bbox_src": [
+      2418.5848,
+      505.8506,
+      2454.4555,
+      515.283
+     ],
+     "long_crop_px": 14.5,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_roof_kf2.jpg"
+  },
+  {
+   "crop_id": "return_windshield_kf2",
+   "set": "synth",
+   "panel": "windshield",
+   "truth": [
+    {
+     "id": "old_scuff_06cm",
+     "kind": "clearcoat_scuff",
+     "bbox_src": [
+      2139.0006,
+      692.9528,
+      2187.5601,
+      722.683
+     ],
+     "long_crop_px": 27.1,
+     "damage": true
+    }
+   ],
+   "path": "runs/synth_pair2_r9/crops/return/return_windshield_kf2.jpg"
+  },
+  {
+   "crop_id": "pairC_pickup_trunk_chips",
+   "set": "real",
+   "panel": "trunk_lid",
+   "targets": [
+    [
+     375,
+     95
+    ],
+    [
+     125,
+     296
+    ],
+    [
+     200,
+     352
+    ]
+   ],
+   "path": "runs/d1/uco3d_pairC/spark_redo/crop_pickup_trunk_chips.png"
+  },
+  {
+   "crop_id": "pairC_return_trunk_chips",
+   "set": "real",
+   "panel": "trunk_lid",
+   "targets": [
+    [
+     380,
+     103
+    ],
+    [
+     282,
+     142
+    ],
+    [
+     290,
+     320
+    ],
+    [
+     210,
+     355
+    ],
+    [
+     290,
+     390
+    ]
+   ],
+   "path": "runs/d1/uco3d_pairC/spark_redo/crop_return_trunk_chips.png"
+  },
+  {
+   "crop_id": "pairC_alto_hood_dent",
+   "set": "real",
+   "panel": "hood",
+   "targets": [
+    [
+     360,
+     460
+    ]
+   ],
+   "path": "runs/d1/uco3d_pairC/spark_redo/crop_alto_hood_dent.png"
+  }
+ ],
+ "rules": "- synth_pair2_r9: one stored keyframe crop per (walk, panel) among the crops that hold a planted mark or a false box of\n  the run (rule in select_synth), scored against the render's ground truth (synthetic/out/pair2/ground_truth.json,\n  read only). A box hits a mark when its centre falls inside the mark's box grown to 1.5 times its width and height,\n  or IoU > 0.1 (the synthetic scorer's rule). A false box hits no damage mark (a box on the sticker control is false).\n- pair C (uCO3D, CC BY 4.0): D1's curated crops in runs/d1/uco3d_pairC/spark_redo/ with their hand-measured target\n  points (runs/d1/uco3d_pairC/e6_redo_crops.json). A target is hit when it lies inside a box grown by a quarter of its\n  width and height (at least 10 px) or within 0.04 of the crop's long edge of the box centre. A box that hits no\n  target is \"unmatched\": the targets are the known marks, not every mark, so an unmatched box may be a real chip.",
+ "run_stored_answer_on_synth": {
+  "shown": 35,
+  "hits": 1,
+  "false": 27,
+  "boxes": 28
+ },
+ "views": {
+  "all_boxes": {
+   "low": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 3,
+     "shown_large": 38,
+     "hits_large": 3,
+     "boxes": 55,
+     "false": 52,
+     "false_damage_typed": 30,
+     "sticker": 0,
+     "beside": 9,
+     "lenient_hits": 0,
+     "median_iou": 0.235,
+     "median_offset_px": 20.0
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 9,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 40,
+     "false": 31,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 14,
+     "median_iou": null,
+     "median_offset_px": 21.3
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       2
+      ],
+      [
+       2
+      ]
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       0,
+       1,
+       4
+      ],
+      [
+       1,
+       4
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00465,
+    "calls": 56
+   },
+   "medium": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 5,
+     "shown_large": 38,
+     "hits_large": 4,
+     "boxes": 50,
+     "false": 45,
+     "false_damage_typed": 30,
+     "sticker": 0,
+     "beside": 3,
+     "lenient_hits": 0,
+     "median_iou": 0.197,
+     "median_offset_px": 22.5
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 6,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 33,
+     "false": 26,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 12,
+     "median_iou": null,
+     "median_offset_px": 19.4
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      [
+       "old_chip_05mm"
+      ]
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       2
+      ],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1
+      ],
+      [
+       0,
+       1
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00873,
+    "calls": 56
+   },
+   "high": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 2,
+     "shown_large": 38,
+     "hits_large": 2,
+     "boxes": 47,
+     "false": 45,
+     "false_damage_typed": 24,
+     "sticker": 0,
+     "beside": 4,
+     "lenient_hits": 0,
+     "median_iou": 0.179,
+     "median_offset_px": 24.2
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 6,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 35,
+     "false": 29,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 13,
+     "median_iou": null,
+     "median_offset_px": 24.8
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm"
+      ],
+      []
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       2
+      ],
+      [
+       2
+      ]
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1,
+       4
+      ],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.01065,
+    "calls": 56
+   },
+   "zoom_only": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 19,
+     "shown_large": 38,
+     "hits_large": 11,
+     "boxes": 78,
+     "false": 59,
+     "false_damage_typed": 30,
+     "sticker": 1,
+     "beside": 9,
+     "lenient_hits": 0,
+     "median_iou": 0.309,
+     "median_offset_px": 13.3
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 16,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 68,
+     "false": 49,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 18,
+     "median_iou": null,
+     "median_offset_px": 15.6
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_rear_window_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ]
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_rear_window_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      [
+       "old_scuff_06cm"
+      ]
+     ],
+     "return_right_front_door_kf1": [
+      [
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [
+       "old_dent_12cm"
+      ],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       0,
+       1,
+       2
+      ],
+      [
+       0,
+       1
+      ]
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       0,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00522,
+    "calls": 112
+   },
+   "low+zoom": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 19,
+     "shown_large": 38,
+     "hits_large": 11,
+     "boxes": 131,
+     "false": 110,
+     "false_damage_typed": 60,
+     "sticker": 1,
+     "beside": 18,
+     "lenient_hits": 0,
+     "median_iou": 0.309,
+     "median_offset_px": 13.3
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 18,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 106,
+     "false": 79,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 18,
+     "median_iou": null,
+     "median_offset_px": 17.0
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_rear_window_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_rear_window_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      [
+       "old_scuff_06cm"
+      ]
+     ],
+     "return_right_front_door_kf1": [
+      [
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [
+       "old_dent_12cm"
+      ],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       0,
+       1,
+       2
+      ],
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": null,
+    "calls": 0
+   }
+  },
+  "damage_typed": {
+   "low": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 2,
+     "shown_large": 38,
+     "hits_large": 2,
+     "boxes": 32,
+     "false": 30,
+     "false_damage_typed": 30,
+     "sticker": 0,
+     "beside": 2,
+     "lenient_hits": 0,
+     "median_iou": 0.357,
+     "median_offset_px": 15.0
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 3,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 5,
+     "false": 2,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 3,
+     "median_iou": null,
+     "median_offset_px": 25.7
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1
+      ],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00465,
+    "calls": 56
+   },
+   "medium": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 3,
+     "shown_large": 38,
+     "hits_large": 2,
+     "boxes": 33,
+     "false": 30,
+     "false_damage_typed": 30,
+     "sticker": 0,
+     "beside": 1,
+     "lenient_hits": 0,
+     "median_iou": 0.197,
+     "median_offset_px": 22.5
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 4,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 6,
+     "false": 2,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 4,
+     "median_iou": null,
+     "median_offset_px": 19.4
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      [
+       "old_chip_05mm"
+      ]
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1
+      ],
+      [
+       1
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00873,
+    "calls": 56
+   },
+   "high": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 1,
+     "shown_large": 38,
+     "hits_large": 1,
+     "boxes": 25,
+     "false": 24,
+     "false_damage_typed": 24,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 0,
+     "median_iou": 0.104,
+     "median_offset_px": 29.2
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 4,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 8,
+     "false": 4,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 7,
+     "median_iou": null,
+     "median_offset_px": 25.0
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1,
+       4
+      ],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.01065,
+    "calls": 56
+   },
+   "zoom_only": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 12,
+     "shown_large": 38,
+     "hits_large": 8,
+     "boxes": 42,
+     "false": 30,
+     "false_damage_typed": 30,
+     "sticker": 1,
+     "beside": 4,
+     "lenient_hits": 0,
+     "median_iou": 0.337,
+     "median_offset_px": 9.2
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 0,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 3,
+     "false": 3,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 0,
+     "median_iou": null,
+     "median_offset_px": null
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_scratch_20cm"
+      ],
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ]
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [],
+      []
+     ]
+    },
+    "dollars_per_call": 0.00522,
+    "calls": 112
+   },
+   "low+zoom": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 12,
+     "shown_large": 38,
+     "hits_large": 8,
+     "boxes": 73,
+     "false": 60,
+     "false_damage_typed": 60,
+     "sticker": 1,
+     "beside": 6,
+     "lenient_hits": 0,
+     "median_iou": 0.365,
+     "median_offset_px": 5.2
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 3,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 8,
+     "false": 5,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 3,
+     "median_iou": null,
+     "median_offset_px": 25.7
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_scratch_20cm"
+      ],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1
+      ],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": null,
+    "calls": 0
+   }
+  },
+  "all_boxes_tolerant": {
+   "low": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 5,
+     "shown_large": 38,
+     "hits_large": 4,
+     "boxes": 55,
+     "false": 50,
+     "false_damage_typed": 30,
+     "sticker": 0,
+     "beside": 8,
+     "lenient_hits": 0,
+     "median_iou": 0.132,
+     "median_offset_px": 20.0
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 9,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 40,
+     "false": 31,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 14,
+     "median_iou": null,
+     "median_offset_px": 21.3
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      [
+       "new_chip_20mm"
+      ]
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       2
+      ],
+      [
+       2
+      ]
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       0,
+       1,
+       4
+      ],
+      [
+       1,
+       4
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00465,
+    "calls": 56
+   },
+   "medium": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 5,
+     "shown_large": 38,
+     "hits_large": 4,
+     "boxes": 50,
+     "false": 45,
+     "false_damage_typed": 30,
+     "sticker": 0,
+     "beside": 3,
+     "lenient_hits": 0,
+     "median_iou": 0.197,
+     "median_offset_px": 22.5
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 6,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 33,
+     "false": 26,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 12,
+     "median_iou": null,
+     "median_offset_px": 19.4
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      [
+       "old_chip_05mm"
+      ]
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       2
+      ],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1
+      ],
+      [
+       0,
+       1
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00873,
+    "calls": 56
+   },
+   "high": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 3,
+     "shown_large": 38,
+     "hits_large": 3,
+     "boxes": 47,
+     "false": 44,
+     "false_damage_typed": 23,
+     "sticker": 0,
+     "beside": 4,
+     "lenient_hits": 0,
+     "median_iou": 0.104,
+     "median_offset_px": 19.1
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 6,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 35,
+     "false": 29,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 13,
+     "median_iou": null,
+     "median_offset_px": 24.8
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm"
+      ],
+      []
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       2
+      ],
+      [
+       2
+      ]
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1,
+       4
+      ],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.01065,
+    "calls": 56
+   },
+   "zoom_only": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 35,
+     "shown_large": 38,
+     "hits_large": 19,
+     "boxes": 78,
+     "false": 43,
+     "false_damage_typed": 22,
+     "sticker": 1,
+     "beside": 4,
+     "lenient_hits": 0,
+     "median_iou": 0.117,
+     "median_offset_px": 11.9
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 16,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 68,
+     "false": 49,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 18,
+     "median_iou": null,
+     "median_offset_px": 15.6
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_left_front_door_kf1": [
+      [
+       "old_scratch_02cm"
+      ],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [
+       "old_chip_05mm"
+      ],
+      [
+       "old_chip_05mm"
+      ]
+     ],
+     "pickup_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_rear_window_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ]
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [
+       "old_scuff_06cm"
+      ],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      [
+       "new_chip_20mm"
+      ]
+     ],
+     "return_left_front_door_kf1": [
+      [
+       "old_scratch_02cm"
+      ],
+      [
+       "new_scratch_10cm",
+       "old_scratch_02cm"
+      ]
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_rear_window_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      [
+       "old_scuff_06cm"
+      ]
+     ],
+     "return_right_front_door_kf1": [
+      [
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [
+       "old_dent_12cm"
+      ],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "return_roof_kf2": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "return_windshield_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       0,
+       1,
+       2
+      ],
+      [
+       0,
+       1
+      ]
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       0,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00522,
+    "calls": 112
+   },
+   "low+zoom": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 36,
+     "shown_large": 38,
+     "hits_large": 20,
+     "boxes": 131,
+     "false": 92,
+     "false_damage_typed": 52,
+     "sticker": 1,
+     "beside": 12,
+     "lenient_hits": 0,
+     "median_iou": 0.117,
+     "median_offset_px": 13.3
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 18,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 106,
+     "false": 79,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 18,
+     "median_iou": null,
+     "median_offset_px": 17.0
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_left_front_door_kf1": [
+      [
+       "old_scratch_02cm"
+      ],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [
+       "old_chip_05mm"
+      ],
+      [
+       "old_chip_05mm"
+      ]
+     ],
+     "pickup_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_rear_window_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [
+       "old_scuff_06cm"
+      ],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      [
+       "new_chip_20mm"
+      ]
+     ],
+     "return_left_front_door_kf1": [
+      [
+       "old_scratch_02cm"
+      ],
+      [
+       "new_scratch_10cm",
+       "old_scratch_02cm"
+      ]
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_rear_window_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      [
+       "old_scuff_06cm"
+      ]
+     ],
+     "return_right_front_door_kf1": [
+      [
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [
+       "old_dent_12cm"
+      ],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "return_roof_kf2": [
+      [
+       "old_scratch_05cm"
+      ],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "return_windshield_kf2": [
+      [
+       "old_scuff_06cm"
+      ],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [
+       0,
+       1,
+       2
+      ],
+      [
+       0,
+       1,
+       2
+      ]
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ],
+      [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": null,
+    "calls": 0
+   }
+  },
+  "damage_typed_tolerant": {
+   "low": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 2,
+     "shown_large": 38,
+     "hits_large": 2,
+     "boxes": 32,
+     "false": 30,
+     "false_damage_typed": 30,
+     "sticker": 0,
+     "beside": 2,
+     "lenient_hits": 0,
+     "median_iou": 0.357,
+     "median_offset_px": 15.0
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 3,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 5,
+     "false": 2,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 3,
+     "median_iou": null,
+     "median_offset_px": 25.7
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_scratch_20cm"
+      ],
+      []
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1
+      ],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00465,
+    "calls": 56
+   },
+   "medium": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 3,
+     "shown_large": 38,
+     "hits_large": 2,
+     "boxes": 33,
+     "false": 30,
+     "false_damage_typed": 30,
+     "sticker": 0,
+     "beside": 1,
+     "lenient_hits": 0,
+     "median_iou": 0.197,
+     "median_offset_px": 22.5
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 4,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 6,
+     "false": 2,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 4,
+     "median_iou": null,
+     "median_offset_px": 19.4
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      [
+       "old_chip_05mm"
+      ]
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1
+      ],
+      [
+       1
+      ]
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.00873,
+    "calls": 56
+   },
+   "high": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 2,
+     "shown_large": 38,
+     "hits_large": 2,
+     "boxes": 25,
+     "false": 23,
+     "false_damage_typed": 23,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 0,
+     "median_iou": 0.052,
+     "median_offset_px": 21.1
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 4,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 8,
+     "false": 4,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 7,
+     "median_iou": null,
+     "median_offset_px": 25.0
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [],
+      []
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      []
+     ],
+     "return_right_rear_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      []
+     ],
+     "return_roof_kf2": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1,
+       4
+      ],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": 0.01065,
+    "calls": 56
+   },
+   "zoom_only": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 20,
+     "shown_large": 38,
+     "hits_large": 13,
+     "boxes": 42,
+     "false": 22,
+     "false_damage_typed": 22,
+     "sticker": 1,
+     "beside": 2,
+     "lenient_hits": 0,
+     "median_iou": 0.196,
+     "median_offset_px": 10.9
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 0,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 3,
+     "false": 3,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 0,
+     "median_iou": null,
+     "median_offset_px": null
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [
+       "old_chip_05mm"
+      ],
+      [
+       "old_chip_05mm"
+      ]
+     ],
+     "pickup_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      []
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_scratch_20cm"
+      ],
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ]
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      [
+       "new_scratch_10cm"
+      ]
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "return_roof_kf2": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [],
+      []
+     ]
+    },
+    "dollars_per_call": 0.00522,
+    "calls": 112
+   },
+   "low+zoom": {
+    "reps": [
+     0,
+     1
+    ],
+    "synth": {
+     "answers": 50,
+     "shown": 70,
+     "hits": 20,
+     "shown_large": 38,
+     "hits_large": 13,
+     "boxes": 73,
+     "false": 52,
+     "false_damage_typed": 52,
+     "sticker": 1,
+     "beside": 4,
+     "lenient_hits": 0,
+     "median_iou": 0.185,
+     "median_offset_px": 10.6
+    },
+    "real": {
+     "answers": 6,
+     "shown": 18,
+     "hits": 3,
+     "shown_large": 0,
+     "hits_large": 0,
+     "boxes": 8,
+     "false": 5,
+     "false_damage_typed": 0,
+     "sticker": 0,
+     "beside": 0,
+     "lenient_hits": 3,
+     "median_iou": null,
+     "median_offset_px": 25.7
+    },
+    "per_crop_found": {
+     "pickup_hood_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_left_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_left_front_fender_kf1": [
+      [
+       "old_chip_05mm"
+      ],
+      [
+       "old_chip_05mm"
+      ]
+     ],
+     "pickup_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_left_rear_fender_kf3": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "pickup_rear_window_kf2": [
+      [],
+      []
+     ],
+     "pickup_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "pickup_right_front_fender_kf1": [
+      [
+       "old_scratch_05cm"
+      ],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "pickup_right_rear_door_kf3": [
+      [
+       "old_scratch_20cm"
+      ],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "pickup_right_rear_fender_kf3": [
+      [],
+      []
+     ],
+     "pickup_roof_kf1": [
+      [],
+      []
+     ],
+     "pickup_tail_lights_kf1": [
+      [],
+      []
+     ],
+     "pickup_windshield_kf1": [
+      [],
+      []
+     ],
+     "return_hood_kf1": [
+      [],
+      []
+     ],
+     "return_left_front_door_kf1": [
+      [],
+      [
+       "new_scratch_10cm"
+      ]
+     ],
+     "return_left_front_fender_kf1": [
+      [],
+      []
+     ],
+     "return_left_rear_door_kf2": [
+      [
+       "old_chip_10mm"
+      ],
+      []
+     ],
+     "return_left_rear_fender_kf1": [
+      [],
+      [
+       "old_chip_10mm"
+      ]
+     ],
+     "return_rear_window_kf2": [
+      [],
+      []
+     ],
+     "return_right_front_door_kf1": [
+      [],
+      []
+     ],
+     "return_right_front_fender_kf2": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "return_right_rear_door_kf1": [
+      [
+       "old_dent_12cm",
+       "old_scratch_20cm"
+      ],
+      [
+       "old_scratch_20cm"
+      ]
+     ],
+     "return_right_rear_fender_kf1": [
+      [],
+      [
+       "old_dent_12cm"
+      ]
+     ],
+     "return_roof_kf2": [
+      [],
+      [
+       "old_scratch_05cm"
+      ]
+     ],
+     "return_windshield_kf2": [
+      [],
+      []
+     ],
+     "pairC_pickup_trunk_chips": [
+      [],
+      []
+     ],
+     "pairC_return_trunk_chips": [
+      [
+       1
+      ],
+      []
+     ],
+     "pairC_alto_hood_dent": [
+      [
+       0
+      ],
+      [
+       0
+      ]
+     ]
+    },
+    "dollars_per_call": null,
+    "calls": 0
+   }
+  }
+ },
+ "spend": {
+  "nov1_total": 47.99636499999876,
+  "study": 1.930296
+ }
+}
