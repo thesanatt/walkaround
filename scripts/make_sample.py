@@ -18,15 +18,15 @@ on frames F1 to F2 of that walk, for a plate the run's lanes missed. On a 960 px
 which leaves a large plate readable where nothing else covers it. A video touched this way is re-encoded, so its
 bytes no longer match the hash in videos/<role>.json and bundle/manifest_run.json; the README says so.
 
-The sample in the repo was made with:
-    make_sample.py pairC_core1 --footage-credit "Footage: uCO3D (Meta), CC BY 4.0, modified; narration: our own Piper TTS track"
-        --clip clips/pickup/pickup_front_bumper_kf1_sp01.mp4 --clip clips/pickup/pickup_front_bumper_kf1_sp02.mp4
-        --clip clips/pickup/pickup_trunk_lid_kf1_sp01.mp4 --plate-block 16
-        --cover pickup:184-191:175,85,285,245 --cover pickup:190-193:140,195,280,300 --cover pickup:194-195:225,200,340,300
-        --cover pickup:196-197:300,205,420,305 --cover pickup:198-199:340,230,450,315
-(the run page opens on the front bumper, whose mark clip and control clip are the first two, and the trunk lid holds
-the chips the demo is about; the covers are the rear plate seen edge-on at 12.3 to 12.8 s of the pickup walk, before
-SAM 3.1's plate lane picked it up, and the bumper plate just after).
+The sample in the repo was made with (Oct 31, from run pairC_core2; no --plate-block and no --cover: since the
+privacy lane's blur of Oct 31 the run's own display videos carry blocks that grow with the box and tracks carried 2 s
+past their sightings, so every file is the run's own bytes except run.json):
+    make_sample.py pairC_core2 --footage-credit "Footage: uCO3D (Meta), CC BY 4.0, modified; narration: our own Piper TTS track"
+        --clip clips/pickup/pickup_trunk_lid_kf1_sp02.mp4 --clip clips/pickup/pickup_trunk_lid_kf2_sp01.mp4
+        --clip clips/pickup/pickup_hood_kf1_sp01.mp4 --clip clips/return/return_headlights_kf1_sp01.mp4
+(the run page opens on the trunk lid, the first comparable panel, whose chips pair the demo is about; the two trunk-lid
+clips hold its other marks, the hood clip shows the neighbour test's rings, and the headlight clip is the control the
+page shows beside a mark).
 """
 
 from __future__ import annotations
