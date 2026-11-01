@@ -1506,3 +1506,10 @@ eval_px_two_takes: the eval's only false alarm is a parking-sensor dot Muse Spar
   dropped and who stays, the panel's list, the SAM handle, derive_match end to end, a frozen run, the rebuild with no
   call, how_checked with no tries, the glossary); web test/fixtures.test.ts (2). test_contracts has a FixtureDrop case;
   test_match's derive_marks fake records the flag; test_match_1101's frozen leaves include the new one.
+
+Live after the change (Nov 1, about 3:05 to 3:08 AM EST): eval_px_two_takes_r7 ran with the leaf frozen in. The rear
+bumper was compared; Spark boxed three return marks there (a scuff, a reflection, a speck), none on the first run's dot,
+and flagged glare, so all three are needs_your_eye (K15) and nothing is new. No fixture landmark came back on a bumper
+crop, so nothing was dropped. On the first run's crop, five marks_v1 answers with the old prompt and five with the
+sentence all boxed a chip or scuff within 75 source pixels of the dot (docs/evidence/fixtures_1101/). The false alarm is
+not fixed by this decision; the re-run did not reach it. eval_px_two_takes_r7 rebuilds identical.
