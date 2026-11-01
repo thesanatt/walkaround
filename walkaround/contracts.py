@@ -1448,6 +1448,7 @@ class VerdictFlags(Contract):
     K14: bool = False
     K15: bool = False  # a flagged view caps a mark seen in one walk only (replaces gate G2, lead 10/31)
     K16: bool = False  # the counter-look at the other walk's same spot said same or unsure (lead 11/1, third)
+    K17: bool = False  # the two-question counter-look did not say yes, a damage mark is in the box (lead decision 5 of 11/1)
 
     def set_caps(self) -> list[str]:
         return [name for name in sorted(type(self).model_fields) if name.startswith("K") and getattr(self, name)]

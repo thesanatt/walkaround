@@ -59,6 +59,8 @@ from .contracts import (
 )
 from .marks import draw_outline
 
+from .match import CounterAnswer
+
 if TYPE_CHECKING:
     from .match import CounterAsk
 
@@ -98,14 +100,19 @@ class LookRecord(Contract):
     # walk's field holds the mark; the other walk's field holds that walk's keyframe id, the crop the spot is outlined
     # on. outlines and input_refs are [the mark's walk, the other walk], in the order shown. Both are left out of the
     # JSON on a pair look, so a pair row keeps its bytes.
-    kind: Literal["counter"] | None = None
+    # The two-question counter-look (lead decision 5 of 11/1) is kind "counter2": verdict is part 2 (does the other
+    # walk show the same mark at the spot: yes same, no different, unsure unsure) and mark_seen is part 1 (is there a
+    # damage mark in the box on the mark's own crop: yes, no or unsure). A stored "counter" row keeps its kind and is
+    # read as the one-question look. mark_seen is left out of the JSON on every other row.
+    kind: Literal["counter", "counter2"] | None = None
     mark_id: str | None = None
+    mark_seen: Literal["yes", "no", "unsure"] | None = None
 
     @model_serializer(mode="wrap")
     def _omit_pair_fields(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("kind", "mark_id"):
+            for key in ("kind", "mark_id", "mark_seen"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
@@ -221,17 +228,18 @@ def _question(panel_id: PanelId, refs: list[InputRef], *, prompt: str | None = N
     return hashlib.sha256(canonical_json(doc).encode("ascii")).hexdigest()
 
 
-def _key_fields(key: tuple[str, str], counter: str | None) -> dict[str, Any]:
-    """pickup_mark and return_mark of a row, plus kind and mark_id on a counter-look (counter is its mark id)."""
+def _key_fields(key: tuple[str, str], counter: str | None, kind: str = "counter") -> dict[str, Any]:
+    """pickup_mark and return_mark of a row, plus kind and mark_id on a counter-look (counter is its mark id; kind
+    "counter2" on the two-question counter-look)."""
     out: dict[str, Any] = {"pickup_mark": key[0], "return_mark": key[1]}
     if counter is not None:
-        out.update(kind="counter", mark_id=counter)
+        out.update(kind=kind, mark_id=counter)
     return out
 
 
-def _not_run(pair: MatchCandidate | tuple[str, str], panel_id: PanelId | None, why: str, *, counter: str | None = None) -> LookRecord:
+def _not_run(pair: MatchCandidate | tuple[str, str], panel_id: PanelId | None, why: str, *, counter: str | None = None, kind: str = "counter") -> LookRecord:
     key = pair if isinstance(pair, tuple) else (pair.pickup_mark, pair.return_mark)
-    return LookRecord(**_key_fields(key, counter), panel_id=panel_id, reason=open_weights.plain_reason(f"not run: {why}"))
+    return LookRecord(**_key_fields(key, counter, kind), panel_id=panel_id, reason=open_weights.plain_reason(f"not run: {why}"))
 
 
 def _row(
@@ -244,12 +252,14 @@ def _row(
     notes: list[str],
     baseten_failed: bool,
     counter: str | None = None,
+    kind: str = "counter",
 ) -> LookRecord:
-    """The row of a look put to a model: the last record that came back stands; if none did, the look did not run."""
+    """The row of a look put to a model: the last record that came back stands; if none did, the look did not run.
+    kind "counter2" reads the standing record as the two-question counter-look (part 1 in mark_seen)."""
     standing = next((r for r in reversed(records) if open_weights.came_back(r)), None)
     key = pair if isinstance(pair, tuple) else (pair.pickup_mark, pair.return_mark)
     common: dict[str, Any] = dict(
-        **_key_fields(key, counter),
+        **_key_fields(key, counter, kind),
         panel_id=panel_id,
         fallback=open_weights.plain_text("; ".join(notes), open_weights.LOG_TEXT_MAX) if notes else None,
         outlines=shown.outlines,
@@ -259,9 +269,14 @@ def _row(
     )
     if standing is None:
         return LookRecord(**common, reason=open_weights.plain_reason(f"not run: {notes[-1] if notes else 'no engine answered'}"))
-    verdict, reason = open_weights.look_answer(standing)
+    mark_seen = None
+    if counter is not None and kind == "counter2":
+        mark_seen, verdict, reason = open_weights.counter2_answer(standing)
+    else:
+        verdict, reason = open_weights.look_answer(standing)
     return LookRecord(
         **common,
+        mark_seen=mark_seen,
         verdict=verdict,
         reason=open_weights.plain_reason(reason),
         engine=standing.engine,
@@ -330,24 +345,27 @@ class SecondLook:
         records, notes, baseten_failed = self._ask((pair.pickup_mark, pair.return_mark), a.panel_id, shown)
         return _row(pair, a.panel_id, shown, question, records, notes=notes, baseten_failed=baseten_failed)
 
-    def counter(self, ask: "CounterAsk") -> LookVerdict | None:
+    def counter(self, ask: "CounterAsk") -> LookVerdict | CounterAnswer | None:
         """The one-walk counter-look (lead 11/1, third): the mark outlined on its own walk's crop, then the other walk's
         crop of the pair compared on with the spot outlined (ask.spot), asked with spark_client.counter_prompt in the
         same engine order as the pair look. The row (kind "counter") goes to looks.json; same, different or unsure is
-        returned, or None when the look did not run (the label stands)."""
+        returned, or None when the look did not run (the label stands). With ask.confirm_mark (lead decision 5 of
+        11/1) the same two images get spark_client.counter2_prompt, the row is kind "counter2" and the answer is a
+        CounterAnswer of both parts."""
+        kind = "counter2" if ask.confirm_mark else "counter"
         try:
-            row = self._counter(ask)
+            row = self._counter(ask, kind)
         except Exception as exc:  # a look must never stop the match stage
-            row = _not_run(ask.key, ask.panel_id, f"the look failed: {type(exc).__name__}: {redact(str(exc))}", counter=ask.mark_id)
+            row = _not_run(ask.key, ask.panel_id, f"the look failed: {type(exc).__name__}: {redact(str(exc))}", counter=ask.mark_id, kind=kind)
         self.asked[ask.key] = row
         write_json(paths.looks_json(self.run_id), [self.asked[key] for key in sorted(self.asked)])
-        return row.verdict
+        return counter_answer_of(row)
 
-    def _counter(self, ask: "CounterAsk") -> LookRecord:
+    def _counter(self, ask: "CounterAsk", kind: str) -> LookRecord:
         marks = self._load()
         mark = marks.get(ask.mark_id)
         if mark is None:
-            return _not_run(ask.key, ask.panel_id, f"{ask.mark_id} is not in marks.json", counter=ask.mark_id)
+            return _not_run(ask.key, ask.panel_id, f"{ask.mark_id} is not in marks.json", counter=ask.mark_id, kind=kind)
         box = _outline_box(mark)
         try:
             if box is None:
@@ -355,20 +373,25 @@ class SecondLook:
             image_a, box_a, ref_a = _drawn(self.run_id, self._keyframes.get(mark.kf_id), box, mark.role, f"{mark.mark_id}__counter", mark.mark_id)
             image_b, box_b, ref_b = _drawn(self.run_id, self._keyframes.get(ask.other_kf), list(ask.spot), ask.other_role, f"{mark.mark_id}__spot", ask.other_kf)
         except _NotRun as exc:
-            return _not_run(ask.key, ask.panel_id, str(exc), counter=ask.mark_id)
+            return _not_run(ask.key, ask.panel_id, str(exc), counter=ask.mark_id, kind=kind)
         shown = _Shown(images=(image_a, image_b), outlines=[box_a, box_b], refs=[ref_a, ref_b])
-        prompt = spark_client.counter_prompt(ask.panel_id, mark.role)
-        question = _question(ask.panel_id, shown.refs, prompt=prompt, engine=self.engine, effort=self.effort, max_tokens=[self.max_tokens, self.retry_max_tokens])
+        two_part = kind == "counter2"
+        prompt = spark_client.counter2_prompt(ask.panel_id, mark.role) if two_part else spark_client.counter_prompt(ask.panel_id, mark.role)
+        schema = {"schema": "counter2_v1"} if two_part else {}  # left out of the one-question hash so its old rows still match
+        question = _question(ask.panel_id, shown.refs, prompt=prompt, engine=self.engine, effort=self.effort, max_tokens=[self.max_tokens, self.retry_max_tokens], **schema)
         prior = self._prior.get(ask.key)
-        if prior is not None and prior.verdict is not None and prior.question_sha256 == question and prior.kind == "counter":
+        if prior is not None and prior.verdict is not None and prior.question_sha256 == question and prior.kind == kind:
             return prior  # a resumed run: this question already has an answer
-        records, notes, baseten_failed = self._ask(ask.key, ask.panel_id, shown, prompt=prompt, kind="counter")
-        return _row(ask.key, ask.panel_id, shown, question, records, notes=notes, baseten_failed=baseten_failed, counter=ask.mark_id)
+        records, notes, baseten_failed = self._ask(ask.key, ask.panel_id, shown, prompt=prompt, kind=kind, schema_name="counter2_v1" if two_part else None)
+        return _row(ask.key, ask.panel_id, shown, question, records, notes=notes, baseten_failed=baseten_failed, counter=ask.mark_id, kind=kind)
 
-    def _ask(self, key: tuple[str, str], panel_id: PanelId, shown: _Shown, *, prompt: str | None = None, kind: str | None = None) -> tuple[list[SparkRequestRecord], list[str], bool]:
+    def _ask(
+        self, key: tuple[str, str], panel_id: PanelId, shown: _Shown, *, prompt: str | None = None, kind: str | None = None, schema_name: str | None = None
+    ) -> tuple[list[SparkRequestRecord], list[str], bool]:
         """Every record of the look in order, the notes on why hosted Spark answered (or nothing did), and whether
-        Spark Open failed or was skipped before hosted Spark was asked. prompt and kind as the counter-look passes them
-        (None on the pair look)."""
+        Spark Open failed or was skipped before hosted Spark was asked. prompt, kind and schema_name as the counter-look
+        passes them (None on the pair look; schema_name only on the two-question counter-look)."""
+        schema = {"schema_name": schema_name} if schema_name else {}
         image_a, image_b = shown.images
         records: list[SparkRequestRecord] = []
         notes: list[str] = []
@@ -389,6 +412,7 @@ class SecondLook:
                         max_tokens=self.max_tokens,
                         retry_max_tokens=self.retry_max_tokens,
                         **({"prompt": prompt, "kind": kind} if kind else {}),
+                        **schema,
                     )
                 except open_weights.OpenWeightsError as exc:
                     self.breaker.fail(str(exc))
@@ -398,7 +422,7 @@ class SecondLook:
                     self.breaker.ok()
                     return list(result.attempts or [result.record]), [], False
         try:
-            hosted = spark_client.second_look(image_a, image_b, panel_id=panel_id, run_id=self.run_id, input_refs=shown.refs, effort=self.effort, **({"prompt": prompt} if prompt else {}))
+            hosted = spark_client.second_look(image_a, image_b, panel_id=panel_id, run_id=self.run_id, input_refs=shown.refs, effort=self.effort, **({"prompt": prompt} if prompt else {}), **schema)
         except Exception as exc:  # a missing key or a bug; what Spark Open already answered stays on the row
             notes.append(f"Muse Spark 1.3 failed: {type(exc).__name__}: {redact(str(exc))}")
         else:
@@ -512,21 +536,32 @@ def replay_second_look(run_id: str, *, th: dict | None = None) -> Callable[[Matc
     if not path.is_file() or path.stat().st_size == 0:
         return None
     rows = read_json_list(path, LookRecord)
-    return _Replay({(r.pickup_mark, r.return_mark): r.verdict for r in rows if r.kind is None}, {r.mark_id: r.verdict for r in rows if r.kind == "counter" and r.mark_id})
+    return _Replay({(r.pickup_mark, r.return_mark): r.verdict for r in rows if r.kind is None}, {r.mark_id: counter_answer_of(r) for r in rows if r.kind is not None and r.mark_id})
+
+
+def counter_answer_of(row: LookRecord) -> LookVerdict | CounterAnswer | None:
+    """What a counter row answers, by its own kind: a "counter" row its verdict (the one-question look, as stored); a
+    "counter2" row a CounterAnswer of both parts (lead decision 5 of 11/1); None when the look did not run."""
+    if row.verdict is None:
+        return None
+    if row.kind == "counter2":
+        return CounterAnswer(mark=row.mark_seen or "unsure", spot=row.verdict)
+    return row.verdict
 
 
 class _Replay:
     """replay_second_look's answer: called with a pair, the stored pair look; counter(ask), the stored counter-look of
-    the mark (lead 11/1, third). No call, no write; a pair or mark with no row, or whose look did not run, gets None."""
+    the mark (lead 11/1, third), read by the row's own kind (counter_answer_of). No call, no write; a pair or mark with
+    no row, or whose look did not run, gets None."""
 
-    def __init__(self, pairs: dict[tuple[str, str], LookVerdict | None], counters: dict[str, LookVerdict | None]) -> None:
+    def __init__(self, pairs: dict[tuple[str, str], LookVerdict | None], counters: dict[str, LookVerdict | CounterAnswer | None]) -> None:
         self.pairs = pairs
         self.counters = counters
 
     def __call__(self, pair: MatchCandidate) -> LookVerdict | None:
         return self.pairs.get((pair.pickup_mark, pair.return_mark))
 
-    def counter(self, ask: "CounterAsk") -> LookVerdict | None:
+    def counter(self, ask: "CounterAsk") -> LookVerdict | CounterAnswer | None:
         return self.counters.get(ask.mark_id)
 
 

@@ -27,8 +27,16 @@ from walkaround import geometry, match, open_weights, paths, rules, second_look,
 from walkaround import contracts as c  # noqa: E402
 from walkaround.contracts import Calibration, Confidence, FrameUsed, LookVerdict, MatchState, PanelMatch, Trace, VerdictLabel  # noqa: E402
 
-from .test_match import CROP_H, CROP_W, DOOR, RECT_MASK, RECT_MOMENTS, cal, kf, mark, runs_dir, th, wm  # noqa: F401  (cal, runs_dir, th are fixtures)
+from .test_match import CROP_H, CROP_W, DOOR, RECT_MASK, RECT_MOMENTS, cal, kf, mark, runs_dir, wm  # noqa: F401  (cal, runs_dir are fixtures)
+from .test_match import th as th_now  # noqa: F401  (a fixture)
 from .test_match_1101 import pair_run
+
+
+@pytest.fixture
+def th(th_now: dict) -> dict:
+    """These tests are the one-question counter-look of decision 3: thresholds without matching.counter_confirms_mark
+    (decision 5, tests/test_counter_confirm.py)."""
+    return {**th_now, "matching": {k: v for k, v in th_now["matching"].items() if k != "counter_confirms_mark"}}
 
 KFS = {k: kf(k, r) for k, r in (("pickup_kf1", "pickup"), ("return_kf1", "return"))}
 RUN = "01TESTRUNCOUNTER0000000000"

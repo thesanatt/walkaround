@@ -456,6 +456,15 @@ def look_answer(record: SparkRequestRecord) -> tuple[LookVerdict, str]:
     return LookVerdict.UNSURE, f"second look unusable: {record.incomplete_reason or 'the answer did not fit look_v1'}"
 
 
+def counter2_answer(record: SparkRequestRecord) -> tuple[str, LookVerdict, str]:
+    """(part 1, part 2, reason) of a counter2_v1 record that came back (lead decision 5 of 11/1): part 1 yes, no or
+    unsure, part 2 as a look verdict (spark_client.counter2_parts); unsure on both when it failed the schema or was cut."""
+    if record.valid and record.parsed is not None:
+        mark_seen, verdict = spark_client.counter2_parts(record.parsed)
+        return mark_seen, verdict, str(record.parsed.get("reason") or "")
+    return "unsure", LookVerdict.UNSURE, f"second look unusable: {record.incomplete_reason or 'the answer did not fit counter2_v1'}"
+
+
 def _log(
     run_id: str | None,
     context: dict[str, str | None] | None,
@@ -482,7 +491,7 @@ def _log(
         **fields,
     }
     if where.get("kind"):
-        line["kind"] = where["kind"]  # "counter" on the one-walk counter-look (lead 11/1, third); absent on the pair look
+        line["kind"] = where["kind"]  # "counter" or "counter2" on the one-walk counter-look (11/1); absent on the pair look
     if ledger_run_id and ledger_run_id != run_id:
         line["ledger_run_id"] = ledger_run_id
     text = json.dumps(line, sort_keys=True, ensure_ascii=True) + "\n"
@@ -825,10 +834,12 @@ def second_look(
     log_path: Path | None = None,
     prompt: str | None = None,
     kind: str | None = None,
+    schema_name: str = "look_v1",
 ) -> spark_client.LookResult:
     """spark_client.second_look on Spark Open: the same question on the same two outlined crops (pickup, return).
     pair (pickup_mark, return_mark) goes on every provenance line, and kind when given (the counter-look passes
-    "counter" with its own prompt, spark_client.counter_prompt). The last attempt that came back stands; a bad or
+    "counter" with its own prompt, spark_client.counter_prompt; the two-question counter-look passes "counter2",
+    spark_client.counter2_prompt and schema_name "counter2_v1"). The last attempt that came back stands; a bad or
     cut answer is unsure, a downgrade; no answer at all raises OpenWeightsError. ledger_run_id and log_path as in
     ask (a claim's look bills under the claim and logs into the claim folder)."""
     effort = spark_client.validate_effort(effort)
@@ -840,7 +851,7 @@ def second_look(
         prompt if prompt is not None else spark_client.look_prompt(panel_id),
         urls,
         purpose=SparkPurpose.SECOND_LOOK,
-        schema_name="look_v1",
+        schema_name=schema_name,
         run_id=run_id,
         input_refs=list(input_refs or []),
         effort=effort,
@@ -852,6 +863,9 @@ def second_look(
         log_path=log_path,
     )
     record = next(a for a in reversed(attempts) if came_back(a))
+    if schema_name == "counter2_v1":
+        mark_seen, verdict, reason = counter2_answer(record)
+        return spark_client.LookResult(verdict=verdict, reason=reason, record=record, attempts=attempts, mark_seen=mark_seen)
     verdict, reason = look_answer(record)
     return spark_client.LookResult(verdict=verdict, reason=reason, record=record, attempts=attempts)
 

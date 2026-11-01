@@ -501,6 +501,14 @@ GLOSSARY_COUNTER_LOOK = (  # match.one_walk_counter_look, lead 11/1 (third)
     "A model can only lower a label.\n"
 )
 
+GLOSSARY_COUNTER_CONFIRM = (  # match.counter_confirms_mark, lead decision 5 of 11/1; printed instead of GLOSSARY_COUNTER_LOOK
+    "counter-look: a mark seen in one walk only would be new or unseen (or not seen at return) on distance alone. If no cap already lowers it, "
+    "the second look is shown the mark in its own walk and the other walk's view of the same panel with the spot where it would sit outlined (carried through the panel frame), "
+    "and answers two questions: is there a damage mark (scratch, scuff, chip, dent, crack) in the box around the mark, and does the other walk show the same mark at the spot. "
+    "The label stands only when it says yes to the first and no to the second. Anything else is needs your eye: K17 (the second look saw no damage in the box) when the first answer is no or unsure, "
+    "K16 (the other walk may show it) when the second is yes or unsure. If it gives no answer, the label stands. A model can only lower a label.\n"
+)
+
 GLOSSARY_FIXTURES = (  # match.fixtures_not_damage, lead decision 4 of 11/1
     "factory fixture: parking sensors, badges, door handles and locks, washer nozzles, the tire valve, the wheel hub and the plate corners are part of the car, not damage. "
     "Muse Spark is asked not to box them, and a mark whose box still sits mostly on one the run found in the same view (a point Muse Spark named, or the door handle SAM found) "
@@ -523,7 +531,7 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + ((GLOSSARY_TIGHT_PAIR_K5 if "K5" in match.tight_pair_deferrable(th) else GLOSSARY_TIGHT_PAIR) if match.tight_pair_look(th) else "")
         + (GLOSSARY_KEYFRAME_PAIR if match.next_keyframe_pair(th) else "")
         + (GLOSSARY_RESHAPED if match.reshaped_panel(th) else "")
-        + (GLOSSARY_COUNTER_LOOK if match.one_walk_counter_look(th) else "")
+        + (GLOSSARY_COUNTER_CONFIRM if match.counter_confirms_mark(th) else GLOSSARY_COUNTER_LOOK if match.one_walk_counter_look(th) else "")
         + (GLOSSARY_FIXTURES if match.fixtures_not_damage(th) else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"

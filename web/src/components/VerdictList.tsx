@@ -1,5 +1,5 @@
 import type { LookRow, Mark, Verdict } from '../contracts/types.ts';
-import { lookFor, loweredByLook } from '../lib/looks.ts';
+import { lookFor, loweredByLook, loweredIds } from '../lib/looks.ts';
 import { panelName, VERDICT_LABEL } from '../lib/panels.ts';
 import { ruleTitle } from '../lib/rules.ts';
 import { SecondLookLine } from './SecondLookLine.tsx';
@@ -41,7 +41,7 @@ export function VerdictList({ verdicts, marks, looks = [] }: { verdicts: Verdict
                   {v.view_note ? <p className="small">{v.view_note}</p> : null}
                   {v.type_note ? <p className="small">{v.type_note}</p> : null}
                   {v.counter_note ? <p className="small">{v.counter_note}</p> : null}
-                  {look ? <SecondLookLine look={look} lowered={loweredByLook(v, look)} /> : null}
+                  {look ? <SecondLookLine look={look} lowered={loweredByLook(v, look)} ids={loweredIds(v, look)} /> : null}
                 </td>
                 <td className="mono small">
                   {v.distance_units === null ? '' : `${v.distance_units.toFixed(2)} units`}

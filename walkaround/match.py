@@ -111,6 +111,12 @@ def counter_looks_max(th: dict | None) -> int:
     return int((th or {}).get("matching", {}).get("counter_looks_max", 0))
 
 
+def counter_confirms_mark(th: dict | None) -> bool:
+    """Lead decision 5 of 11/1 (thresholds matching.counter_confirms_mark): the counter-look also asks whether the mark
+    is a damage mark at all, so new needs a confirmed mark. Only with one_walk_counter_look; off when absent."""
+    return one_walk_counter_look(th) and bool((th or {}).get("matching", {}).get("counter_confirms_mark", False))
+
+
 def fixtures_not_damage(th: dict | None) -> bool:
     """Lead decision 4 of 11/1 (thresholds matching.fixtures_not_damage): factory fixtures are not damage, in the marks
     prompt and in matching; off when absent, as in every run frozen before it."""
@@ -401,6 +407,7 @@ class CounterAsk:
     spot: tuple[float, float, float, float]
     w: tuple[float, float]
     radius_units: float
+    confirm_mark: bool = False  # the two-question look (lead decision 5 of 11/1): also ask whether the mark is real
 
     @property
     def other_role(self) -> str:
@@ -411,6 +418,24 @@ class CounterAsk:
         """(pickup field, return field) of its looks.json row: the mark in its own walk's field, the other walk's
         keyframe id in the other field."""
         return (self.other_kf, self.mark_id) if self.role == "return" else (self.mark_id, self.other_kf)
+
+
+YES_NO_UNSURE = ("yes", "no", "unsure")
+
+
+@dataclass(frozen=True)
+class CounterAnswer:
+    """The two-question counter-look's answer (lead decision 5 of 11/1). mark: is there a damage mark (scratch, scuff,
+    chip, dent, crack) inside the outlined box on the mark's own crop, "yes", "no" or "unsure". spot: does the other
+    walk's crop show the same mark at the outlined spot, as a look verdict (yes same, no different, unsure unsure).
+    Only ("yes", different) keeps the label; part 1 not yes is K17, part 2 not different is K16."""
+
+    mark: str
+    spot: LookVerdict
+
+    def __post_init__(self) -> None:
+        if self.mark not in YES_NO_UNSURE:
+            raise ValueError(f"mark must be one of {', '.join(YES_NO_UNSURE)}, not {self.mark!r}")
 
 
 def counter_spot(
@@ -454,6 +479,7 @@ def counter_asks(pm: PanelMatch, verdicts: list[Verdict], marks: dict[str, Mark]
     no spot is drawn there, and a mark whose spot cannot be placed (see counter_spot) is not asked."""
     if pm.state != MatchState.COMPARABLE or pm.frame_used != FrameUsed.MOMENT or not pm.kf_pair:
         return []
+    confirm = counter_confirms_mark(th)
     out: list[CounterAsk] = []
     for v in verdicts:
         if v.label not in (VerdictLabel.NEW_OR_UNSEEN, VerdictLabel.NOT_SEEN_AT_RETURN) or len(v.mark_ids) != 1:
@@ -469,7 +495,7 @@ def counter_asks(pm: PanelMatch, verdicts: list[Verdict], marks: dict[str, Mark]
         if placed is None:
             continue
         w, spot = placed
-        out.append(CounterAsk(mark_id=mark.mark_id, role=mark.role, panel_id=pm.panel_id, other_kf=kf_other.kf_id, spot=spot, w=w, radius_units=round(radius, 6)))
+        out.append(CounterAsk(mark_id=mark.mark_id, role=mark.role, panel_id=pm.panel_id, other_kf=kf_other.kf_id, spot=spot, w=w, radius_units=round(radius, 6), confirm_mark=confirm))
     return out
 
 
@@ -480,11 +506,23 @@ def rank_counter_asks(asks: list[CounterAsk], marks: dict[str, Mark]) -> list[Co
     return sorted(asks, key=lambda a: (CONFIDENCE_RANK.get(marks[a.mark_id].confidence, 3) if a.mark_id in marks else 3, order[a.mark_id], a.mark_id))
 
 
-def counter_flags(mark: Mark, flags: VerdictFlags, counters: dict[str, LookVerdict | None], skipped: dict[str, int]) -> tuple[VerdictFlags, str | None]:
-    """K16 and the counter note on a mark seen in one walk only. counters maps a mark asked to the answer (None: no
-    usable answer); skipped maps a mark the run's cap left out to the cap. same or unsure sets K16 (needs your eye);
-    different, no answer or not asked leave the label as the distance and the other caps gave it."""
+def counter_flags(
+    mark: Mark, flags: VerdictFlags, counters: dict[str, LookVerdict | CounterAnswer | None], skipped: dict[str, int], *, confirm: bool = False
+) -> tuple[VerdictFlags, str | None]:
+    """K16, K17 and the counter note on a mark seen in one walk only. counters maps a mark asked to the answer (None:
+    no usable answer); skipped maps a mark the run's cap left out to the cap. A one-question answer (a LookVerdict):
+    same or unsure sets K16 (needs your eye). A two-question answer (CounterAnswer, lead decision 5 of 11/1): part 1
+    not yes sets K17, part 2 not different sets K16, so only (yes, different) keeps the label. No answer or not asked
+    leave the label as the distance and the other caps gave it. confirm says the run asks two questions (only the
+    notes for no answer and not asked change)."""
     other = "pickup" if mark.role == "return" else "return"
+    if mark.mark_id in counters and isinstance(counters[mark.mark_id], CounterAnswer):
+        return two_question_flags(flags, counters[mark.mark_id], other)  # type: ignore[arg-type]
+    if confirm and mark.mark_id in counters and counters[mark.mark_id] is None:
+        return flags, f"the second look at the mark and the same spot in the {other} walk gave no usable answer, so the label stands"
+    if confirm and mark.mark_id not in counters and mark.mark_id in skipped:
+        n = skipped[mark.mark_id]
+        return flags, f"the second look at the mark and the same spot in the {other} walk was not asked: the run's {n} counter-look{'' if n == 1 else 's'} went to surer marks first, so the label stands"
     if mark.mark_id in counters:
         look = counters[mark.mark_id]
         what = f"the second look compared this mark with the same spot in the {other} walk"
@@ -499,6 +537,26 @@ def counter_flags(mark: Mark, flags: VerdictFlags, counters: dict[str, LookVerdi
         n = skipped[mark.mark_id]
         return flags, f"the second look at the same spot in the {other} walk was not asked: the run's {n} counter-look{'' if n == 1 else 's'} went to surer marks first, so the label stands"
     return flags, None
+
+
+def two_question_flags(flags: VerdictFlags, answer: CounterAnswer, other: str) -> tuple[VerdictFlags, str]:
+    """The two-question counter-look's caps and note (lead decision 5 of 11/1). Part 1 (a damage mark in the box on
+    the mark's own crop) no or unsure sets K17; part 2 (the same mark at the other walk's spot) same or unsure sets
+    K16; the note names every part that failed, or says the label stands on (yes, different)."""
+    failed: list[str] = []
+    update: dict[str, bool] = {}
+    if answer.mark != "yes":
+        update["K17"] = True
+        failed.append("saw no damage in the box (K17)" if answer.mark == "no" else "was unsure there is damage in the box (K17)")
+    if answer.spot == LookVerdict.SAME:
+        update["K16"] = True
+        failed.append(f"said the same mark shows at the same spot in the {other} walk: the {other} walk may show it (K16)")
+    elif answer.spot != LookVerdict.DIFFERENT:
+        update["K16"] = True
+        failed.append(f"was unsure about the same spot in the {other} walk: the {other} walk may show it (K16)")
+    if not failed:
+        return flags, f"the second look saw damage in the box and not at the same spot in the {other} walk, so the label stands"
+    return flags.model_copy(update=update), "the second look " + " and ".join(failed)
 
 
 # The sheet's how-checked line (lead 11/1, rule 2) -------------------------------------------------------------------
@@ -1210,7 +1268,7 @@ def verdicts_for(
     calibration: Calibration,
     trace_base: Trace,
     th: dict,
-    counters: dict[str, LookVerdict | None] | None = None,
+    counters: dict[str, LookVerdict | CounterAnswer | None] | None = None,
     counter_skipped: dict[str, int] | None = None,
 ) -> list[Verdict]:
     """One Verdict per pair (two when the pair lies beyond tau_eye_r, L5) and per unmatched mark, every label
@@ -1229,8 +1287,11 @@ def verdicts_for(
 
     The counter-look (lead 11/1, third): counters maps a mark seen in one walk only that went to it (derive_match picks
     them through counter_asks) to the answer, None when no usable answer came; counter_skipped maps a mark the run's
-    cap left out to the cap. counter_flags sets K16 on same or unsure and writes counter_note."""
+    cap left out to the cap. counter_flags sets K16 on same or unsure and writes counter_note. With
+    matching.counter_confirms_mark (lead decision 5 of 11/1) the answer is a CounterAnswer: K17 unless part 1 is yes,
+    K16 unless part 2 is different."""
     counters, counter_skipped = counters or {}, counter_skipped or {}
+    confirm = counter_confirms_mark(th)
     cm_per_unit = float(th["matching"]["cm_per_unit_for_print"])
     panel_marks = [marks[i] for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in marks]
     kf_status = {kf.kf_id: kf.marks_status for kf in keyframes.values() if kf.panel_id == pm.panel_id}
@@ -1345,7 +1406,7 @@ def verdicts_for(
             for mark, is_return in ((a, False), (b, True)):
                 view = flags_by_role([mark])
                 flags = flags_for(pair, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
-                flags, counter_note = counter_flags(mark, flags, counters, counter_skipped)
+                flags, counter_note = counter_flags(mark, flags, counters, counter_skipped, confirm=confirm)
                 label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
                 emit(label, ids, [mark.mark_id], None, pair, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
     unmatched = set(pm.unmatched_pickup) | set(pm.unmatched_return)
@@ -1359,7 +1420,7 @@ def verdicts_for(
         tau_eye_r = tau_r(calibration.tau_eye, r, th)
         view = flags_by_role([mark])
         flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
-        flags, counter_note = counter_flags(mark, flags, counters, counter_skipped)
+        flags, counter_note = counter_flags(mark, flags, counters, counter_skipped, confirm=confirm)
         label, ids = verdict(None, tau_pre_r, tau_eye_r, flags)
         emit(label, ids, [mark.mark_id], None, None, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
     return out
@@ -1519,7 +1580,7 @@ def derive_match(
     *,
     th: dict,
     second_look: Callable[[MatchCandidate], LookVerdict | None] | None = None,
-    counter_look: Callable[[CounterAsk], LookVerdict | None] | None = None,
+    counter_look: Callable[[CounterAsk], LookVerdict | CounterAnswer | None] | None = None,
 ) -> tuple[list[PanelMatch], list[Verdict], Calibration]:
     """Read panels, keyframes, marks, mark_tracks and calibration; gate, pair and match every panel with a keyframe
     in either walk; ask the optional second look on provisional already_there pairs (at most
@@ -1533,7 +1594,9 @@ def derive_match(
     With matching.one_walk_counter_look (lead 11/1, third), once every panel is matched, each mark seen in one walk only
     whose label came out new_or_unseen or not_seen_at_return with no cap goes to counter_look (default: the second
     look's own counter method, when it has one), surest first and at most matching.counter_looks_max per run; same or
-    unsure caps it at needs your eye (K16).
+    unsure caps it at needs your eye (K16). With matching.counter_confirms_mark (lead decision 5 of 11/1) each ask
+    carries confirm_mark and the look also says whether the box on the mark's own crop holds a damage mark: anything
+    but yes there caps it too (K17).
 
     With matching.fixtures_not_damage (lead decision 4 of 11/1) a mark whose box sits on a factory fixture of its own
     crop (fixture_drops) is left out of every panel's marks before the gates and the match, so it gets no verdict, and is
@@ -1614,7 +1677,7 @@ def derive_match(
         matches.append(pm)
         staged.append((pm, looks))
     counter = counter_look if counter_look is not None else getattr(second_look, "counter", None)
-    counters: dict[str, LookVerdict | None] = {}
+    counters: dict[str, LookVerdict | CounterAnswer | None] = {}
     skipped: dict[str, int] = {}
     if one_walk_counter_look(th) and counter is not None:
         asks = [a for pm, looks in staged for a in counter_asks(pm, verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th), marks_by_id, kf_by_id, calibration, th)]

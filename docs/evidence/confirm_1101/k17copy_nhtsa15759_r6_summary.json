@@ -1,0 +1,17 @@
+{
+ "replay_identical": true,
+ "counter2": [
+  {
+   "mark_id": "return_left_front_door_kf1_m1",
+   "mark_seen": "yes",
+   "verdict": "different",
+   "engine": "baseten",
+   "model": "meta-models/muse-spark-open-1026",
+   "key_slot": "hackathon",
+   "request_id": "chatcmpl-8beb7184aea04a5985669c65204c3788",
+   "latency_ms": 5237,
+   "reason": "First image shows severe dent/crush damage across the left front door inside the box, while second image shows the same door panel intact with clean paint and no deformation."
+  }
+ ],
+ "changed": []
+}

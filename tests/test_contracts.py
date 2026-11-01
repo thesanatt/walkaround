@@ -223,7 +223,7 @@ def test_thresholds_load_and_hash() -> None:
 
 def test_rules_table() -> None:
     assert rules.gate_ids() == [f"G{i}" for i in range(1, 11)]
-    assert rules.cap_ids() == [f"K{i}" for i in range(1, 17)]
+    assert rules.cap_ids() == [f"K{i}" for i in range(1, 18)]
     assert rules.rule("K7").label == "second look"
     assert rules.describe(["G1"])[0].startswith("G1 not filmed: ")
     with pytest.raises(KeyError):

@@ -153,10 +153,19 @@ def marks_schema(landmark_names: list[str] | None = None) -> dict[str, Any]:
 # "ok" per the structured-output page, never measured), seed_v1 (no gate row: tests/test_spark_client.py
 # test_live_seed_v1_anyof_null, about $0.01), timeline_v1 (E17) and note_prefill_v1 (E18). Copy the accepted request
 # shapes into docs/API_NOTES.md.
+ANSWERS3 = ("yes", "no", "unsure")  # each part of counter2_v1
 SCHEMAS: dict[str, dict[str, Any]] = {
     "marks_v1": marks_schema(),
     "count_v1": _obj({"points": {"type": "array", "items": _POINT}, "count": {"type": "integer"}}),
     "look_v1": _obj({"verdict": {"type": "string", "enum": [v.value for v in LookVerdict]}, "reason": {"type": "string"}}),
+    # the two-question counter-look (lead decision 5 of 11/1): is the outlined mark real, and does the other walk show it
+    "counter2_v1": _obj(
+        {
+            "mark_in_box": {"type": "string", "enum": list(ANSWERS3)},
+            "same_mark_at_spot": {"type": "string", "enum": list(ANSWERS3)},
+            "reason": {"type": "string"},
+        }
+    ),
     "seed_v1": _obj(
         {
             "found": {"type": "boolean"},
@@ -437,6 +446,34 @@ def counter_prompt(panel_id: PanelId, mark_role: str) -> str:
         "shows clean paint or a clearly different mark. Answer unsure when glare, water, dirt, blur or the view make "
         "it impossible to tell. Give a one sentence reason."
     )
+
+
+def counter2_prompt(panel_id: PanelId, mark_role: str) -> str:
+    """The two-question counter-look (lead decision 5 of 11/1): is the mark found in one walk only a damage mark at all,
+    and does the other walk's view of the same spot show it. Part 2 keeps the one-question counter-look's wording."""
+    panel = panel_display_name(panel_id)
+    other = "pickup" if mark_role == "return" else "return"
+    return (
+        f"The first image shows the {panel} of a car at {mark_role}, with one candidate mark outlined with a thin box. "
+        f"The second image shows the same {panel} at {other}, with a box outlined where that mark would sit; the box is "
+        f"larger than the mark to allow for the change of view. Deterministic matching found no mark there at {other}. "
+        "Answer two questions. mark_in_box: is there a damage mark (a scratch, scuff, chip, dent or crack) inside the "
+        "outlined box on the first image? Answer yes when you can see one. Answer no when the box shows only clean paint, "
+        "a panel seam or body line, a reflection, dirt or a part of the car such as a badge, sensor or handle. Answer "
+        "unsure when glare, water, blur or the size of the spot make it impossible to tell. same_mark_at_spot: look "
+        "inside the box on the second image. Answer yes when the same mark shows there too. Answer no when the box shows "
+        "clean paint or a clearly different mark. Answer unsure when glare, water, dirt, blur or the view make it "
+        "impossible to tell. Give a one sentence reason."
+    )
+
+
+def counter2_parts(parsed: dict[str, Any]) -> tuple[str, LookVerdict]:
+    """(part 1, part 2) of a valid counter2_v1 answer: part 1 as given (yes, no or unsure), part 2 in the look's own
+    words (yes same, no different, unsure unsure), so a row's verdict means what the one-question counter-look's did."""
+    return str(parsed["mark_in_box"]), SPOT_VERDICT[str(parsed["same_mark_at_spot"])]
+
+
+SPOT_VERDICT = {"yes": LookVerdict.SAME, "no": LookVerdict.DIFFERENT, "unsure": LookVerdict.UNSURE}
 
 
 def seed_prompt(panel_id: PanelId, phrase: str) -> str:
@@ -1003,6 +1040,7 @@ class LookResult:
     reason: str
     record: SparkRequestRecord
     attempts: list[SparkRequestRecord] = field(default_factory=list)
+    mark_seen: str | None = None  # the two-question counter-look's part 1 (yes, no, unsure); None on every other look
 
     @property
     def downgrade(self) -> bool:
@@ -1018,10 +1056,12 @@ def second_look(
     input_refs: list[InputRef] | None = None,
     effort: str = DEFAULT_EFFORT,
     prompt: str | None = None,
+    schema_name: str = "look_v1",
 ) -> LookResult:
     """Two crops (pickup, return) with the candidate marks already outlined by the caller. Invalid or truncated
     answers are UNSURE, a downgrade; the model can never upgrade. prompt replaces look_prompt (the counter-look
-    passes counter_prompt; its first crop is the mark's own walk)."""
+    passes counter_prompt; its first crop is the mark's own walk). schema_name "counter2_v1" is the two-question
+    counter-look (counter2_prompt): an invalid answer is unsure on both parts."""
     effort = validate_effort(effort)
     url_a = prepare_image(crop_a)[0]
     url_b = prepare_image(crop_b)[0]
@@ -1030,11 +1070,15 @@ def second_look(
         {"type": "input_image", "image_url": url_a},
         {"type": "input_image", "image_url": url_b},
     ]
-    attempts = _ask_attempts(parts, purpose=SparkPurpose.SECOND_LOOK, schema_name="look_v1", effort=effort, run_id=run_id, input_refs=list(input_refs or []))
+    attempts = _ask_attempts(parts, purpose=SparkPurpose.SECOND_LOOK, schema_name=schema_name, effort=effort, run_id=run_id, input_refs=list(input_refs or []))
     record = attempts[-1]
+    two_part = schema_name == "counter2_v1"
     if not record.valid or record.parsed is None:
-        why = record.incomplete_reason or "the answer did not fit look_v1"
-        return LookResult(verdict=LookVerdict.UNSURE, reason=f"second look unusable: {why}", record=record, attempts=attempts)
+        why = record.incomplete_reason or f"the answer did not fit {schema_name}"
+        return LookResult(verdict=LookVerdict.UNSURE, reason=f"second look unusable: {why}", record=record, attempts=attempts, mark_seen="unsure" if two_part else None)
+    if two_part:
+        mark_seen, verdict = counter2_parts(record.parsed)
+        return LookResult(verdict=verdict, reason=str(record.parsed.get("reason") or ""), record=record, attempts=attempts, mark_seen=mark_seen)
     return LookResult(
         verdict=LookVerdict(record.parsed["verdict"]),
         reason=str(record.parsed.get("reason") or ""),

@@ -1,0 +1,41 @@
+{
+ "replay_identical": true,
+ "counter2": [
+  {
+   "mark_id": "pickup_right_front_door_kf1_m1",
+   "mark_seen": "no",
+   "verdict": "different",
+   "engine": "baseten",
+   "model": "meta-models/muse-spark-open-1026",
+   "key_slot": "hackathon",
+   "request_id": "chatcmpl-f9ead46cbb814ddf9b2f91616b4cd3ee",
+   "latency_ms": 6160,
+   "reason": "The small box in the first image sits on clean white paint adjacent to but not enclosing the dark chip, so no damage is inside the box and no matching mark appears inside the larger second-image box."
+  }
+ ],
+ "changed": [
+  {
+   "verdict_id": "right_front_door_v2",
+   "marks": [
+    "pickup_right_front_door_kf1_m1"
+   ],
+   "before": [
+    "needs_your_eye",
+    [
+     "L4",
+     "L1",
+     "K16"
+    ]
+   ],
+   "after": [
+    "needs_your_eye",
+    [
+     "L4",
+     "L1",
+     "K17"
+    ]
+   ],
+   "note": "the second look saw no damage in the box (K17)"
+  }
+ ]
+}

@@ -3,7 +3,7 @@ import { useFileUrl } from '../lib/files.tsx';
 import { drawnPairs, offPaneMarks, paneKeyframes, panelFocus } from '../lib/focus.ts';
 import { daysBetween, formatClock, formatDateTime, formatDay, formatTime, minutesBetween } from '../lib/format.ts';
 import { keyframePairLine, markLabel, sizeLine, wallClock } from '../lib/lines.ts';
-import { lookFor, loweredByLook } from '../lib/looks.ts';
+import { lookFor, loweredByLook, loweredIds } from '../lib/looks.ts';
 import { colorForPanel, familyNoun, hexToUnit, panelName, VERDICT_LABEL } from '../lib/panels.ts';
 import { ruleLabel, ruleTitle } from '../lib/rules.ts';
 import type { RoleMedia } from '../state/types.ts';
@@ -95,7 +95,7 @@ export function VerdictCard({ v, marks, panel, looks = [] }: { v: Verdict; marks
       {v.view_note ? <p className="small">{v.view_note}</p> : null}
       {v.type_note ? <p className="small">{v.type_note}</p> : null}
       {v.counter_note ? <p className="small">{v.counter_note}</p> : null}
-      {look ? <SecondLookLine look={look} lowered={loweredByLook(v, look)} /> : null}
+      {look ? <SecondLookLine look={look} lowered={loweredByLook(v, look)} ids={loweredIds(v, look)} /> : null}
     </div>
   );
 }

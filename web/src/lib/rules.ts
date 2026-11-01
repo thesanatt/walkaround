@@ -32,6 +32,7 @@ export const RULES: Record<string, RuleText> = {
   K14: { label: "named by the renter", text: "Muse Spark boxed the mark only because the renter named it; seed_v1 gives no confidence or size, so its type or size may be the renter's words" },
   K15: { label: "view flagged", text: "Muse Spark flagged the pickup or return view of the panel wet, dirty or glare, so a mark seen in one walk only may be dirt, water or a reflection, or may have been hidden in the other walk; a mark in the same place in both walks keeps its label with a note" },
   K16: { label: "the other walk may show it", text: "a mark seen in one walk only, uncapped, went to a second look beside the other walk's crop of the same panel with the same spot outlined (mapped through the panel frame); the look said same or unsure, so needs your eye; different keeps the label" },
+  K17: { label: "the second look saw no damage in the box", text: "a mark seen in one walk only, uncapped, went to the two-question second look (lead decision 5 of 11/1); asked whether the outlined box on the mark's own crop holds a damage mark (a scratch, scuff, chip, dent or crack), it said no or unsure, so the mark is not confirmed and caps at needs your eye; only yes there and no at the other walk's spot keeps new or not seen at return" },
   L1: { label: "not seen at return", text: "d is None for a pickup mark: not_seen_at_return" },
   L2: { label: "new or unseen", text: "d is None for a return mark: new_or_unseen" },
   L3: { label: "already there", text: "d < tau_pre_r" },

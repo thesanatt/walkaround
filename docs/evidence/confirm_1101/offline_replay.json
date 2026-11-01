@@ -1,0 +1,62 @@
+{
+ "synth_pair2_r8": {
+  "asked": [
+   [
+    "pickup_left_front_door_kf3_m1",
+    true
+   ],
+   [
+    "pickup_left_front_door_kf2_m2",
+    true
+   ],
+   [
+    "return_left_front_door_kf1_m1",
+    true
+   ],
+   [
+    "return_left_front_door_kf1_m3",
+    true
+   ]
+  ],
+  "stored_counter_rows": {
+   "counter": 4
+  },
+  "labels_before": {
+   "needs_your_eye": 16,
+   "not_seen_at_return": 1,
+   "new_or_unseen": 2,
+   "not_comparable": 9,
+   "already_there": 3
+  },
+  "labels_after": {
+   "needs_your_eye": 16,
+   "not_seen_at_return": 1,
+   "new_or_unseen": 2,
+   "not_comparable": 9,
+   "already_there": 3
+  },
+  "same_labels": true
+ },
+ "pairC_r8": {
+  "asked": [
+   [
+    "pickup_right_front_door_kf1_m1",
+    true
+   ]
+  ],
+  "stored_counter_rows": {
+   "counter": 1
+  },
+  "labels_before": {
+   "not_comparable": 17,
+   "already_there": 3,
+   "needs_your_eye": 12
+  },
+  "labels_after": {
+   "not_comparable": 17,
+   "already_there": 3,
+   "needs_your_eye": 12
+  },
+  "same_labels": true
+ }
+}

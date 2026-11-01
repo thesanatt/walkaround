@@ -496,7 +496,7 @@ export interface Verdict {
   size: SizeEstimate | null;
   view_note?: string | null; // a flagged view in words (K15, or the note on a mark seen in both walks); absent when none
   type_note?: string | null; // K4 and K12 on a pair inside tau_pre in words and what the second look made of them (11/1)
-  counter_note?: string | null; // a mark seen in one walk only: what the counter-look at the other walk's same spot said (K16, 11/1)
+  counter_note?: string | null; // a mark seen in one walk only: what the counter-look at the other walk's same spot said (K16, 11/1; K17 on the two-question look)
 }
 
 export interface PanelCoverage {
@@ -625,8 +625,9 @@ export interface LookRow {
   fallback: string | null; // why hosted Spark answered, shown only as a tooltip
   request_id: string | null; // the row's own, else the last of its records
   inputs: string[]; // the two outlined crops as sent, run-relative paths
-  kind?: 'counter' | null; // the one-walk counter-look (K16): the mark's own walk first, then the other walk with the spot outlined
+  kind?: 'counter' | 'counter2' | null; // the one-walk counter-look (K16): the mark's own walk first, then the other walk with the spot outlined; counter2 asks two questions (lead decision 5 of 11/1)
   mark_id?: string | null; // on a counter-look, the mark seen in one walk only
+  mark_seen?: 'yes' | 'no' | 'unsure' | null; // counter2 only: is there a damage mark in the box on the mark's own crop (part 1); verdict is part 2
 }
 
 // One open_weights.ndjson line (walkaround/open_weights.py): one per Muse Spark Open request on Baseten, failed ones

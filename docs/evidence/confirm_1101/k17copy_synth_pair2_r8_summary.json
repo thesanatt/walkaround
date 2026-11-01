@@ -1,0 +1,137 @@
+{
+ "replay_identical": true,
+ "counter2": [
+  {
+   "mark_id": "return_left_front_door_kf1_m1",
+   "mark_seen": "no",
+   "verdict": "different",
+   "engine": "baseten",
+   "model": "meta-models/muse-spark-open-1026",
+   "key_slot": "hackathon",
+   "request_id": "chatcmpl-a9b88e5230e84f7d80f48d2e48e4c919",
+   "latency_ms": 5987,
+   "reason": "The small outlined box in the first image shows only clean dark paint with no visible scratch, scuff, chip, dent or crack, and the larger box in the second image likewise shows clean paint at that..."
+  },
+  {
+   "mark_id": "return_left_front_door_kf1_m3",
+   "mark_seen": "no",
+   "verdict": "different",
+   "engine": "baseten",
+   "model": "meta-models/muse-spark-open-1026",
+   "key_slot": "hackathon",
+   "request_id": "chatcmpl-b0dc433365a04e38ac3decd1ec95630b",
+   "latency_ms": 6275,
+   "reason": "First image small box contains only clean dark paint with no scratch, and second image large box shows the same clean area with no mark inside the corresponding spot."
+  },
+  {
+   "mark_id": "pickup_left_front_door_kf2_m2",
+   "mark_seen": "no",
+   "verdict": "different",
+   "engine": "baseten",
+   "model": "meta-models/muse-spark-open-1026",
+   "key_slot": "hackathon",
+   "request_id": "chatcmpl-af1714b7325841c9a83edf4d9201ea34",
+   "latency_ms": 6341,
+   "reason": "First box shows only clean dark paint with no scratch, scuff, chip, dent or crack, and second box at return also shows clean paint with no matching mark where deterministic matching found none."
+  },
+  {
+   "mark_id": "pickup_left_front_door_kf3_m1",
+   "mark_seen": "no",
+   "verdict": "different",
+   "engine": "baseten",
+   "model": "meta-models/muse-spark-open-1026",
+   "key_slot": "hackathon",
+   "request_id": "chatcmpl-117bb07c5fcb49caa4b71bb6171a79c5",
+   "latency_ms": 37869,
+   "reason": "First image small box shows only clean dark paint with no discernible scratch, chip, dent or crack, and second image enlarged box shows smooth clean paint with no matching mark."
+  }
+ ],
+ "changed": [
+  {
+   "verdict_id": "left_front_door_v1",
+   "marks": [
+    "pickup_left_front_door_kf3_m1"
+   ],
+   "before": [
+    "needs_your_eye",
+    [
+     "L4",
+     "L1",
+     "K16"
+    ]
+   ],
+   "after": [
+    "needs_your_eye",
+    [
+     "L4",
+     "L1",
+     "K17"
+    ]
+   ],
+   "note": "the second look saw no damage in the box (K17)"
+  },
+  {
+   "verdict_id": "left_front_door_v3",
+   "marks": [
+    "pickup_left_front_door_kf2_m2"
+   ],
+   "before": [
+    "not_seen_at_return",
+    [
+     "L1"
+    ]
+   ],
+   "after": [
+    "needs_your_eye",
+    [
+     "L4",
+     "L1",
+     "K17"
+    ]
+   ],
+   "note": "the second look saw no damage in the box (K17)"
+  },
+  {
+   "verdict_id": "left_front_door_v4",
+   "marks": [
+    "return_left_front_door_kf1_m1"
+   ],
+   "before": [
+    "new_or_unseen",
+    [
+     "L2"
+    ]
+   ],
+   "after": [
+    "needs_your_eye",
+    [
+     "L4",
+     "L2",
+     "K17"
+    ]
+   ],
+   "note": "the second look saw no damage in the box (K17)"
+  },
+  {
+   "verdict_id": "left_front_door_v6",
+   "marks": [
+    "return_left_front_door_kf1_m3"
+   ],
+   "before": [
+    "new_or_unseen",
+    [
+     "L2"
+    ]
+   ],
+   "after": [
+    "needs_your_eye",
+    [
+     "L4",
+     "L2",
+     "K17"
+    ]
+   ],
+   "note": "the second look saw no damage in the box (K17)"
+  }
+ ]
+}
