@@ -103,11 +103,13 @@ tries `BASETEN_HACKATHON_API_KEY` first (it may call only `meta-models/muse-spar
    against them. It is not calibrated yet, so it records the tracks and changes no label.
 6. Code matches marks across the walks in a moment-whitened panel frame and writes each label: already there, new or
    unseen, needs your eye, not seen at return, or not comparable. Gates G1 and G3 to G10 make a panel not comparable;
-   caps K1 to K16 lower a label. A wet, dirty or glare flag from Spark is a model's judgment, so it no longer blocks a
+   caps K1 to K17 lower a label. A wet, dirty or glare flag from Spark is a model's judgment, so it no longer blocks a
    panel (gate G2 did until Oct 31): it caps a mark seen in one walk only (K15). In the same way, Spark calling a mark
    dirt or being unsure of it (K4, K12) no longer lowers a pair in the same place in both walks by itself: that pair
    goes to the second look. A mark seen in one walk only that would be "new or unseen" also goes to it, shown beside
-   the other walk's view of the same spot; "same" or "unsure" makes it "needs your eye" (K16). When a panel's chosen
+   the other walk's view of the same spot, with two questions: is there damage in the mark's own box, and does the
+   other walk show it there. Only "yes" then "no" keeps "new"; anything else is "needs your eye" (K17 when it saw no
+   damage in the box, K16 when the other walk may show it). When a panel's chosen
    keyframe pair fails a gate of the pair, the next pair is tried. A mark whose box sits on a fixture point the run
    has (one Spark pointed at, or the door handle SAM found) is left out of matching and named under "how it was
    checked". The ids show on the page and the sheet. The second look can only lower a label.
@@ -236,6 +238,12 @@ seen in one walk only that would be "new or unseen" goes to a counter-look: Muse
 walk beside the other walk's view of the same spot, and "same" or "unsure" lowers it to "needs your eye" (rule K16).
 Asked live on a copy of that run, it said the pickup spot shows intact paint, so the dot stayed "new or unseen"
 (`docs/evidence/counter_look_1101/`). The rule did not fix this false alarm.
+
+The same look now also has to see damage in the mark's own box before a mark can stay "new" (rule K17 when it does
+not). Asked on copies of stored runs (`docs/evidence/confirm_1101/`), it saw the crushed NHTSA door, so that stays
+"new", and it saw clean paint in the boxes of the two false "new" marks on a synthetic car, so both became "needs
+your eye". A fresh run of the synthetic car still made one "new": Spark's box sits just under the real new scratch,
+and this time the look said it saw a scratch in the box.
 
 Later on Nov 1, factory fixtures stopped counting as damage: Spark's marks prompt now says not to box parking sensors,
 badges, door handles and locks, washer nozzles, fuel door edges, panel gaps and trim seams, and code leaves out of

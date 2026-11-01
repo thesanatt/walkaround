@@ -1594,3 +1594,75 @@ recall 1 of 14 eligible object-walks (was 1 of 6), 1 of 17 of all present (uncha
 46 (was 36). Two return marks on the left front door are new_or_unseen; both hit no ground-truth object (one is about
 137 source px from the real new 10 cm scratch, the other near the sticker). More panels compared means more chances
 for a false new; Spark's localization is now the limit, not coverage.
+
+## Lead decision 5 (2026-11-01): new needs a confirmed mark (K17)
+
+Behind one thresholds leaf, `matching.counter_confirms_mark` (true; it needs `matching.one_walk_counter_look`), so
+every run frozen before it asks the one-question counter-look of decision 3 and rebuilds and verifies as it did
+(checked on synth_pair2_r8, pairC_r8, synth_pair2, pairC_core3, eval_nhtsa15759_r6, eval_px_two_takes_r7). Found on
+synth_pair2_r8: two return marks on the left front door came out new_or_unseen while both boxes sat on blank paint. The
+counter-look only asked whether the other walk shows the mark, never whether the mark is real, and a new_or_unseen
+verdict is the error that would bill a renter.
+
+- Who is asked, the spot, the order and the cap: as in decision 3 (`match.counter_asks`, `counter_spot`,
+  `rank_counter_asks`, `counter_looks_max` 8). With the leaf each `match.CounterAsk` has `confirm_mark` true (a new
+  field, default false).
+- The look (`second_look.SecondLook.counter`): the same two outlined images in the same order (the mark on its own
+  keyframe crop, then the other keyframe crop with the spot) and the same engine order (Spark Open on the hackathon key
+  with meta-models/muse-spark-open-1026, the account key, then hosted Muse Spark 1.3), asked with
+  `spark_client.counter2_prompt(panel_id, mark_role)` and schema `counter2_v1`: `mark_in_box` (is there a damage mark,
+  a scratch, scuff, chip, dent or crack, inside the outlined box on the first image) and `same_mark_at_spot` (does the
+  second image show the same mark inside its box), each "yes", "no" or "unsure", plus `reason`. Part 2's wording is
+  the one-question prompt's. `open_weights.second_look` and `spark_client.second_look` take `schema_name`;
+  `LookResult.mark_seen` carries part 1. `open_weights.counter2_answer(record)` reads a record that came back: an
+  answer that fails the schema or is cut is ("unsure", unsure), a downgrade, as every look.
+- Records: a looks.json row with `kind` "counter2", `verdict` part 2 in the look's words (yes same, no different, unsure
+  unsure) and `mark_seen` part 1 (left out of every other row, so pair rows and stored "counter" rows keep their bytes).
+  question_sha256 adds `schema` "counter2_v1", so a resumed run reuses only a two-question answer. The provenance line
+  carries kind "counter2". `config/thresholds.json` spark.schema_names lists counter2_v1.
+- Verdict (`match.CounterAnswer(mark, spot)`, `match.two_question_flags`, `counter_flags(..., confirm=)`): only
+  ("yes", different) keeps new_or_unseen or not_seen_at_return, with the note "the second look saw damage in the box and
+  not at the same spot in the pickup walk, so the label stands". Part 1 "no" or "unsure" sets K17; part 2 same or unsure
+  sets K16; both can apply (rule ids then end "K16", "K17"). The note names each part that failed, for example "the
+  second look saw no damage in the box (K17)", "... was unsure there is damage in the box (K17) and said the same mark
+  shows at the same spot in the pickup walk: the pickup walk may show it (K16)". No usable answer (every engine failed,
+  or the images could not be built) keeps the label: "the second look at the mark and the same spot in the pickup walk
+  gave no usable answer, so the label stands"; a mark the cap left out keeps it with the matching note.
+- Rule K17 "the second look saw no damage in the box" in rules.py and web rules.ts; `VerdictFlags.K17`; ARCHITECTURE
+  section 6 (paragraph and the K17 row). K16 keeps its text and stays the rule for part 2.
+- Rebuild: `second_look.counter_answer_of(row)` reads a stored row by its own kind: a "counter" row is its verdict (the
+  one-question look, K16 only), a "counter2" row is a CounterAnswer, a row that did not run is None. `replay_second_look`
+  and the live `SecondLook.counter` both return it, so live and rebuild give the same bytes (tested).
+- Sheet: `sheet.GLOSSARY_COUNTER_CONFIRM` prints instead of `GLOSSARY_COUNTER_LOOK` when the leaf is on; the verdict's
+  `counter_note` prints as before.
+- Web: types.ts `LookRow.kind` adds 'counter2' and `LookRow.mark_seen?`; looks.ts `isCounterLook`, `loweredIds(v, look)`
+  (K16 and K17 for a counter2 row); SecondLookLine says "second look at the mark and the same spot in the pickup walk:
+  ..., damage in the box: no, same mark at the pickup spot: no" and names the caps code put on the verdict; MatchPane
+  and VerdictList pass them; web/dist rebuilt.
+- Tests: tests/test_counter_confirm.py (30: the leaf, the answer type, all nine answer pairs, a pickup mark, an L5 pair,
+  no answer, not asked, a stored one-question answer with the leaf on, derive_match, replay by kind, the live row faked
+  at the engine with its rebuild, a schema miss, resume, every engine failing and the hosted fallback's arguments, a run
+  frozen without the leaf, both engines' parsing, the schema and prompt, row bytes, the glossary); web
+  test/counter_confirm.test.ts (2). tests/test_counter_look.py now runs without the new leaf (it tests decision 3).
+
+Offline (no call; docs/evidence/confirm_1101/offline_replay.py, offline_replay.json): both synth_pair2_r8 and pairC_r8
+replay with the leaf added to a scratch copy's thresholds, and the same marks are asked (4 and 1, all with
+confirm_mark). Their stored counter rows are kind "counter", and a stored row keeps its kind, so part 1 has no stored
+answer and every label replays unchanged. Part 1 needs a call.
+
+Live after the change (Nov 1, about 5:25 to 5:50 AM EST, code c661a2b; LEDGER rows 61 to 63):
+
+- On non-kept copies with the stored pair looks reused (docs/evidence/confirm_1101/confirm_on_copy.py; $0.0305; each
+  copy replays identical). synth_pair2_r8: all four counter-looks answered (no, no); both false new_or_unseen marks
+  and the false not_seen_at_return became needs_your_eye (K17), and the fourth (K16 before) is now K17. pairC_r8: the
+  right front door's pickup mark (no, no), "the box sits beside the dark chip": K16 to K17, still needs your eye.
+  eval_nhtsa15759_r6, the real new mark: the crushed left front door (yes, no), so it stays new_or_unseen.
+- synth_pair2_r9 ($5.3229) and pairC_r9 ($3.4550), both rebuild identical. synth_pair2_r9 (synthetic/SCORE_pair2_r9.md,
+  geometric): 47 marks, 6 on damage, 41 false; own-panel recall 2 of 14, new damage 0 of 3; one counter-look, on
+  return_left_front_door_kf1_m3, answered (yes, no), so one new_or_unseen stays, and it hits no ground-truth object.
+  By eye its box sits on blank paint about 35 crop px under the real new 10 cm scratch (centre 29 source px left and
+  103 up), the same place as synth_pair2_r8's kf1_m3, which the look on the copy answered (no, no). Part 1 is not
+  consistent on a box that sits just beside a real mark. pairC_r9: no new_or_unseen before or after; three counter-looks
+  on right front door pickup marks, all (no, no), K17. The trunk pair is needs your eye (L4, L3, K7: the pair look said
+  different, both boxes on white paint beside the chips), not already_there as in pairC_r8; that is the pair look, not
+  this rule.
