@@ -413,7 +413,7 @@ def test_topup_route_refuses_public_runs_and_stops_on_the_pause_and_the_ceilings
     paused = post()
     assert paused.status_code == 429 and "paused" in paused.json()["reason"]
     orch.paused = False
-    write_ledger_row("2026-10-27T10:00:00-0400", None, 20.0)  # the day's card ceiling, spent elsewhere
+    write_ledger_row("2026-10-27T10:00:00-0400", None, orch.limits["daily_card_ceiling_cents"] / 100)  # the day's card ceiling, spent elsewhere
     ceiling = post()
     assert ceiling.status_code == 429 and ceiling.json()["reason"] == "live runs paused for today; the sample pair is precomputed"
     orch.update_run(run_id, lambda r: setattr(r, "keep", True))  # now listed at /api/runs
