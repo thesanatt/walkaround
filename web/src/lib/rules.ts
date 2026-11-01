@@ -31,6 +31,7 @@ export const RULES: Record<string, RuleText> = {
   K13: { label: "other walk truncated", text: "one of the two keyframes has marks_status truncated" },
   K14: { label: "named by the renter", text: "Muse Spark boxed the mark only because the renter named it; seed_v1 gives no confidence or size, so its type or size may be the renter's words" },
   K15: { label: "view flagged", text: "Muse Spark flagged the pickup or return view of the panel wet, dirty or glare, so a mark seen in one walk only may be dirt, water or a reflection, or may have been hidden in the other walk; a mark in the same place in both walks keeps its label with a note" },
+  K16: { label: "the other walk may show it", text: "a mark seen in one walk only, uncapped, went to a second look beside the other walk's crop of the same panel with the same spot outlined (mapped through the panel frame); the look said same or unsure, so needs your eye; different keeps the label" },
   L1: { label: "not seen at return", text: "d is None for a pickup mark: not_seen_at_return" },
   L2: { label: "new or unseen", text: "d is None for a return mark: new_or_unseen" },
   L3: { label: "already there", text: "d < tau_pre_r" },

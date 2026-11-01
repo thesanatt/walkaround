@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from dataclasses import dataclass
 from typing import Any, Callable
 
 import numpy as np
@@ -31,6 +32,7 @@ from .contracts import (
     LOWER_BUMPERS,
     WHEEL_PANELS,
     Calibration,
+    Confidence,
     CoverageState,
     FrameUsed,
     Keyframe,
@@ -90,6 +92,17 @@ def tight_pair_deferrable(th: dict | None) -> tuple[str, ...]:
 def reshaped_panel(th: dict | None) -> bool:
     """The reshaped-panel rule (thresholds matching.reshaped_panel, lead 11/1, second); off when absent."""
     return bool((th or {}).get("matching", {}).get("reshaped_panel", False))
+
+
+def one_walk_counter_look(th: dict | None) -> bool:
+    """The one-walk counter-look (thresholds matching.one_walk_counter_look, lead 11/1, third); off when absent, as in
+    every run frozen before it."""
+    return bool((th or {}).get("matching", {}).get("one_walk_counter_look", False))
+
+
+def counter_looks_max(th: dict | None) -> int:
+    """At most this many counter-looks per run (thresholds matching.counter_looks_max), surest marks first."""
+    return int((th or {}).get("matching", {}).get("counter_looks_max", 0))
 
 
 def next_keyframe_pair(th: dict | None) -> bool:
@@ -346,6 +359,128 @@ def tight_pair_flags(
     else:
         tail = f"the second look was not asked, so {ids} {verb} the pair as before"
     return flags, [], f"{what}: {tail}"
+
+
+# The one-walk counter-look (lead 11/1, third: K16) -------------------------------------------------------------------
+
+COUNTER_DISC_STEPS = 32  # points on the whitened circle of radius tau_eye_r mapped into the other crop
+CONFIDENCE_RANK = {Confidence.HIGH: 0, Confidence.MEDIUM: 1, Confidence.LOW: 2}
+
+
+@dataclass(frozen=True)
+class CounterAsk:
+    """One counter-look: a mark seen in one walk only whose label is new_or_unseen or not_seen_at_return with no cap,
+    and the other walk's keyframe of the pair compared on, with the spot where the mark would sit outlined. spot is
+    x1, y1, x2, y2 in that keyframe's crop pixels: the box around the mark's own box carried over and every point
+    within radius_units of w, the mark's position carried into the other walk's whitened frame (the handle residual
+    undone). radius_units is tau_eye_r at the mark: a mark found anywhere within it in the other walk would have
+    matched this one or put it in the band (needs your eye), so the look asks whether Spark missed one there."""
+
+    mark_id: str
+    role: str
+    panel_id: PanelId
+    other_kf: str
+    spot: tuple[float, float, float, float]
+    w: tuple[float, float]
+    radius_units: float
+
+    @property
+    def other_role(self) -> str:
+        return "pickup" if self.role == "return" else "return"
+
+    @property
+    def key(self) -> tuple[str, str]:
+        """(pickup field, return field) of its looks.json row: the mark in its own walk's field, the other walk's
+        keyframe id in the other field."""
+        return (self.other_kf, self.mark_id) if self.role == "return" else (self.mark_id, self.other_kf)
+
+
+def counter_spot(
+    mark: Mark, kf_own: Keyframe | None, kf_other: Keyframe, residual: Point2 | None, radius: float
+) -> tuple[tuple[float, float], tuple[float, float, float, float]] | None:
+    """Where a mark seen in one walk would sit in the other walk's keyframe crop. The match compares return marks with
+    the handle residual subtracted, so a return mark's spot in the pickup frame is w - residual and a pickup mark's
+    spot in the return frame is w + residual. The box covers the whitened circle of radius around that point and the
+    mark's own box (its corners whitened in kf_own, shifted the same way) mapped into crop pixels, clipped to the crop.
+    None when the mark has no whitened position, the keyframe has no moments, front sign or crop, or the spot's centre
+    falls outside the crop."""
+    if mark.w is None or kf_other.moments is None or kf_other.front_sign is None or kf_other.crop is None:
+        return None
+    du, dv = (float(residual[0]), float(residual[1])) if residual is not None else (0.0, 0.0)
+    sign = -1.0 if mark.role == "return" else 1.0
+    u, v = float(mark.w[0]) + sign * du, float(mark.w[1]) + sign * dv
+    try:
+        cx, cy = geometry.unwhiten((u, v), kf_other.moments, kf_other.front_sign)
+        ring = [geometry.unwhiten((u + radius * math.cos(t), v + radius * math.sin(t)), kf_other.moments, kf_other.front_sign) for t in (2 * math.pi * k / COUNTER_DISC_STEPS for k in range(COUNTER_DISC_STEPS))]
+        if mark.bbox_crop is not None and kf_own is not None and kf_own.moments is not None and kf_own.front_sign is not None:
+            x1, y1, x2, y2 = (float(c) for c in mark.bbox_crop)
+            for corner in ((x1, y1), (x2, y1), (x1, y2), (x2, y2)):
+                cu, cv = geometry.whiten(corner, kf_own.moments, kf_own.front_sign)
+                ring.append(geometry.unwhiten((cu + sign * du, cv + sign * dv), kf_other.moments, kf_other.front_sign))
+    except (ValueError, np.linalg.LinAlgError):
+        return None
+    w_px, h_px = float(kf_other.crop.w), float(kf_other.crop.h)
+    if not (0.0 <= cx < w_px and 0.0 <= cy < h_px):
+        return None
+    xs, ys = [p[0] for p in ring] + [cx], [p[1] for p in ring] + [cy]
+    box = (round(max(0.0, min(xs)), 2), round(max(0.0, min(ys)), 2), round(min(w_px, max(xs)), 2), round(min(h_px, max(ys)), 2))
+    if box[2] - box[0] < 1.0 or box[3] - box[1] < 1.0:
+        return None
+    return (round(u, 6), round(v, 6)), box
+
+
+def counter_asks(pm: PanelMatch, verdicts: list[Verdict], marks: dict[str, Mark], keyframes: dict[str, Keyframe], calibration: Calibration, th: dict) -> list[CounterAsk]:
+    """The panel's marks seen in one walk only (L1, L2, and either mark of an L5 pair) whose label is new_or_unseen or
+    not_seen_at_return, so no cap applied, each with its spot in the other walk's keyframe of the pair compared on.
+    Only a comparable panel in the moment frame has one: a wheel's frame is radius and angle on a rim that turns, so
+    no spot is drawn there, and a mark whose spot cannot be placed (see counter_spot) is not asked."""
+    if pm.state != MatchState.COMPARABLE or pm.frame_used != FrameUsed.MOMENT or not pm.kf_pair:
+        return []
+    out: list[CounterAsk] = []
+    for v in verdicts:
+        if v.label not in (VerdictLabel.NEW_OR_UNSEEN, VerdictLabel.NOT_SEEN_AT_RETURN) or len(v.mark_ids) != 1:
+            continue
+        mark = marks.get(v.mark_ids[0])
+        if mark is None or mark.role not in ROLES:
+            continue
+        kf_other = keyframes.get(pm.kf_pair[0] if mark.role == "return" else pm.kf_pair[1])
+        if kf_other is None:
+            continue
+        radius = tau_r(calibration.tau_eye, mark.r if mark.r is not None else 0.0, th)
+        placed = counter_spot(mark, keyframes.get(mark.kf_id), kf_other, pm.handle_residual, radius)
+        if placed is None:
+            continue
+        w, spot = placed
+        out.append(CounterAsk(mark_id=mark.mark_id, role=mark.role, panel_id=pm.panel_id, other_kf=kf_other.kf_id, spot=spot, w=w, radius_units=round(radius, 6)))
+    return out
+
+
+def rank_counter_asks(asks: list[CounterAsk], marks: dict[str, Mark]) -> list[CounterAsk]:
+    """Surest first: Muse Spark's confidence on the mark (high, medium, low), then the order the panels were matched
+    in (asks arrive in it), then the mark id."""
+    order = {a.mark_id: i for i, a in enumerate(asks)}
+    return sorted(asks, key=lambda a: (CONFIDENCE_RANK.get(marks[a.mark_id].confidence, 3) if a.mark_id in marks else 3, order[a.mark_id], a.mark_id))
+
+
+def counter_flags(mark: Mark, flags: VerdictFlags, counters: dict[str, LookVerdict | None], skipped: dict[str, int]) -> tuple[VerdictFlags, str | None]:
+    """K16 and the counter note on a mark seen in one walk only. counters maps a mark asked to the answer (None: no
+    usable answer); skipped maps a mark the run's cap left out to the cap. same or unsure sets K16 (needs your eye);
+    different, no answer or not asked leave the label as the distance and the other caps gave it."""
+    other = "pickup" if mark.role == "return" else "return"
+    if mark.mark_id in counters:
+        look = counters[mark.mark_id]
+        what = f"the second look compared this mark with the same spot in the {other} walk"
+        if look == LookVerdict.SAME:
+            return flags.model_copy(update={"K16": True}), f"{what} and said same: the {other} walk may show it (K16)"
+        if look == LookVerdict.UNSURE:
+            return flags.model_copy(update={"K16": True}), f"{what} and was unsure: the {other} walk may show it (K16)"
+        if look == LookVerdict.DIFFERENT:
+            return flags, f"{what} and said different, so the label stands"
+        return flags, f"the second look at the same spot in the {other} walk gave no usable answer, so the label stands"
+    if mark.mark_id in skipped:
+        n = skipped[mark.mark_id]
+        return flags, f"the second look at the same spot in the {other} walk was not asked: the run's {n} counter-look{'' if n == 1 else 's'} went to surer marks first, so the label stands"
+    return flags, None
 
 
 # The sheet's how-checked line (lead 11/1, rule 2) -------------------------------------------------------------------
@@ -942,6 +1077,8 @@ def verdicts_for(
     calibration: Calibration,
     trace_base: Trace,
     th: dict,
+    counters: dict[str, LookVerdict | None] | None = None,
+    counter_skipped: dict[str, int] | None = None,
 ) -> list[Verdict]:
     """One Verdict per pair (two when the pair lies beyond tau_eye_r, L5) and per unmatched mark, every label
     through verdict(); a not_comparable panel gives one L6 verdict naming its gates. distance_cm_est = d_pos x
@@ -955,7 +1092,12 @@ def verdicts_for(
     Tight pairs (lead 11/1, rule 1, while thresholds matching.tight_pair_second_look is on): on a pair inside tau_pre_r
     K4 and K12 are notes (trace.note_ids, type_note) when looks holds an answer for it, and cap as before when it holds
     none. A key in looks with the value None is a look put to a model that gave no usable answer; a missing key is a
-    look never asked. Marks seen in one walk only and pairs in the band keep K4 and K12 as caps."""
+    look never asked. Marks seen in one walk only and pairs in the band keep K4 and K12 as caps.
+
+    The counter-look (lead 11/1, third): counters maps a mark seen in one walk only that went to it (derive_match picks
+    them through counter_asks) to the answer, None when no usable answer came; counter_skipped maps a mark the run's
+    cap left out to the cap. counter_flags sets K16 on same or unsure and writes counter_note."""
+    counters, counter_skipped = counters or {}, counter_skipped or {}
     cm_per_unit = float(th["matching"]["cm_per_unit_for_print"])
     panel_marks = [marks[i] for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in marks]
     kf_status = {kf.kf_id: kf.marks_status for kf in keyframes.values() if kf.panel_id == pm.panel_id}
@@ -1017,7 +1159,16 @@ def verdicts_for(
         return out
 
     def emit(
-        label: VerdictLabel, ids: list[str], mark_ids: list[str], d_pos: float | None, pair: MatchCandidate | None, view_note: str | None = None, *, type_note: str | None = None, note_ids: list[str] | None = None
+        label: VerdictLabel,
+        ids: list[str],
+        mark_ids: list[str],
+        d_pos: float | None,
+        pair: MatchCandidate | None,
+        view_note: str | None = None,
+        *,
+        type_note: str | None = None,
+        note_ids: list[str] | None = None,
+        counter_note: str | None = None,
     ) -> None:
         involved = [marks[i] for i in mark_ids if i in marks]
         thresholds = _thresholds_used(calibration, th, tau_pre_r=pair.tau_pre_r if pair else None, tau_eye_r=pair.tau_eye_r if pair else None)
@@ -1038,6 +1189,7 @@ def verdicts_for(
                 trace=_trace(trace_base, ids, involved, mark_tracks, thresholds, note_ids),
                 view_note=view_note,
                 type_note=type_note,
+                counter_note=counter_note,
             )
         )
 
@@ -1060,8 +1212,9 @@ def verdicts_for(
             for mark, is_return in ((a, False), (b, True)):
                 view = flags_by_role([mark])
                 flags = flags_for(pair, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
+                flags, counter_note = counter_flags(mark, flags, counters, counter_skipped)
                 label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
-                emit(label, ids, [mark.mark_id], None, pair, one_walk_note("return" if is_return else "pickup", view))
+                emit(label, ids, [mark.mark_id], None, pair, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
     unmatched = set(pm.unmatched_pickup) | set(pm.unmatched_return)
     for mark_id, is_return in (*((i, False) for i in pm.unmatched_pickup), *((i, True) for i in pm.unmatched_return)):
         mark = marks.get(mark_id)
@@ -1073,8 +1226,9 @@ def verdicts_for(
         tau_eye_r = tau_r(calibration.tau_eye, r, th)
         view = flags_by_role([mark])
         flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
+        flags, counter_note = counter_flags(mark, flags, counters, counter_skipped)
         label, ids = verdict(None, tau_pre_r, tau_eye_r, flags)
-        emit(label, ids, [mark.mark_id], None, None, one_walk_note("return" if is_return else "pickup", view))
+        emit(label, ids, [mark.mark_id], None, None, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
     return out
 
 
@@ -1227,7 +1381,13 @@ def reshape_words(rc: ReshapeCheck) -> str:
     )
 
 
-def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate], LookVerdict | None] | None = None) -> tuple[list[PanelMatch], list[Verdict], Calibration]:
+def derive_match(
+    run_id: str,
+    *,
+    th: dict,
+    second_look: Callable[[MatchCandidate], LookVerdict | None] | None = None,
+    counter_look: Callable[[CounterAsk], LookVerdict | None] | None = None,
+) -> tuple[list[PanelMatch], list[Verdict], Calibration]:
     """Read panels, keyframes, marks, mark_tracks and calibration; gate, pair and match every panel with a keyframe
     in either walk; ask the optional second look on provisional already_there pairs (at most
     second_looks_per_pair_max); write matches.json and verdicts.json. Under a second without the second look.
@@ -1235,7 +1395,12 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
     With thresholds matching.next_keyframe_pair (rule 2) a panel whose chosen keyframe pair fails only view gates is
     compared on the first pair in keyframe_pair_order that passes every gate, and kf_pairs_tried records each pair
     tried; when none passes, the panel keeps the chosen pair and its gates. With matching.tight_pair_second_look
-    (rule 1) K4 and K12 alone never keep a pair inside tau_pre_r from the second look."""
+    (rule 1) K4 and K12 alone never keep a pair inside tau_pre_r from the second look.
+
+    With matching.one_walk_counter_look (lead 11/1, third), once every panel is matched, each mark seen in one walk only
+    whose label came out new_or_unseen or not_seen_at_return with no cap goes to counter_look (default: the second
+    look's own counter method, when it has one), surest first and at most matching.counter_looks_max per run; same or
+    unsure caps it at needs your eye (K16)."""
     from .marks import whitened_from_marks
 
     panels = _read_list(paths.panels_json(run_id), Panel)
@@ -1262,6 +1427,7 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
     masks: dict[str, np.ndarray | None] = {}
     matches: list[PanelMatch] = []
     verdicts: list[Verdict] = []
+    staged: list[tuple[PanelMatch, dict[tuple[str, str], LookVerdict | None]]] = []
     for panel in panels:
         kfs = {role: [kf for kf in keyframes if kf.panel_id == panel.panel_id and kf.role == role] for role in ROLES}
         if not kfs["pickup"] and not kfs["return"]:
@@ -1305,7 +1471,19 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
                     looks[(pair.pickup_mark, pair.return_mark)] = second_look(pair)
                     looks_used += 1
         matches.append(pm)
-        verdicts.extend(verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th))
+        staged.append((pm, looks))
+    counter = counter_look if counter_look is not None else getattr(second_look, "counter", None)
+    counters: dict[str, LookVerdict | None] = {}
+    skipped: dict[str, int] = {}
+    if one_walk_counter_look(th) and counter is not None:
+        asks = [a for pm, looks in staged for a in counter_asks(pm, verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th), marks_by_id, kf_by_id, calibration, th)]
+        cap = counter_looks_max(th)
+        ranked = rank_counter_asks(asks, marks_by_id)
+        for ask in ranked[:cap]:
+            counters[ask.mark_id] = counter(ask)
+        skipped = {ask.mark_id: cap for ask in ranked[cap:]}
+    for pm, looks in staged:
+        verdicts.extend(verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th, counters, skipped))
     write_json(paths.matches_json(run_id), matches)
     write_json(paths.verdicts_json(run_id), verdicts)
     return matches, verdicts, calibration

@@ -494,6 +494,14 @@ GLOSSARY_KEYFRAME_PAIR = (  # match.next_keyframe_pair, lead 11/1 rule 2
 )
 
 
+GLOSSARY_COUNTER_LOOK = (  # match.one_walk_counter_look, lead 11/1 (third)
+    "counter-look: a mark seen in one walk only would be new or unseen (or not seen at return) on distance alone. If no cap already lowers it, "
+    "the second look is shown the mark in its own walk and the other walk's view of the same panel with the spot where it would sit outlined (carried through the panel frame). "
+    "If the look says the same mark shows there, or is unsure, it is needs your eye (K16, the other walk may show it); if it says different, or gives no answer, the label stands. "
+    "A model can only lower a label.\n"
+)
+
+
 def glossary_md(th: dict[str, Any] | None = None) -> str:
     """The glossary appendix. The 11/1 lines print only for a run whose thresholds turn those rules on, so a sheet
     frozen before them rebuilds byte for byte."""
@@ -509,6 +517,7 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + ((GLOSSARY_TIGHT_PAIR_K5 if "K5" in match.tight_pair_deferrable(th) else GLOSSARY_TIGHT_PAIR) if match.tight_pair_look(th) else "")
         + (GLOSSARY_KEYFRAME_PAIR if match.next_keyframe_pair(th) else "")
         + (GLOSSARY_RESHAPED if match.reshaped_panel(th) else "")
+        + (GLOSSARY_COUNTER_LOOK if match.one_walk_counter_look(th) else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"
@@ -843,6 +852,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
                     ordinary_wear_line=ordinary_wear_line(first.type if first else None, pid),
                     view_line=v.view_note,
                     type_line=v.type_note,
+                    counter_line=v.counter_note,
                 )
             )
         chips: list[SheetChip] = []

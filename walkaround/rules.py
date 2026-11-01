@@ -47,6 +47,7 @@ CAPS: tuple[Rule, ...] = (
     Rule("K13", "other walk truncated", "one of the two keyframes has marks_status truncated", "6; 5 step 8"),
     Rule("K14", "named by the renter", "Muse Spark boxed the mark only because the renter named it; seed_v1 gives no confidence or size, so its type or size may be the renter's words", "6; 5 step 11"),
     Rule("K15", "view flagged", "Muse Spark flagged the pickup or return view of the panel wet, dirty or glare, so a mark seen in one walk only may be dirt, water or a reflection, or may have been hidden in the other walk; a mark in the same place in both walks keeps its label with a note", "6; marks_v1 conditions; replaces gate G2, lead 10/31"),
+    Rule("K16", "the other walk may show it", "a mark seen in one walk only, uncapped, went to a second look beside the other walk's crop of the same panel with the same spot outlined (mapped through the panel frame); the look said same or unsure, so needs your eye; different keeps the label", "6; lead 11/1 (third)"),
 )
 
 LABELS: tuple[Rule, ...] = (

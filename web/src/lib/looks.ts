@@ -81,6 +81,8 @@ export function readLooks(value: unknown): LookRow[] {
       fallback: str(row['fallback']),
       request_id: requestOf(row),
       inputs: inputsOf(row),
+      kind: row['kind'] === 'counter' ? 'counter' : null,
+      mark_id: str(row['mark_id']),
     });
   }
   return out;
@@ -135,15 +137,19 @@ export function lookEngine(look: LookRow): string {
   return 'not asked';
 }
 
-// Whether code put K7 on the verdict. Only then did a look lower it; the look's own answer never says so by itself.
-export function loweredByLook(v: Verdict): boolean {
-  return v.rule_id === 'K7' || v.trace.rule_ids.includes('K7') || v.reasons.includes('K7');
+// Whether code put the look's cap on the verdict: K7 for a pair look, K16 for a counter-look. Only then did the look
+// lower it; the look's own answer never says so by itself.
+export function loweredByLook(v: Verdict, look?: LookRow): boolean {
+  const id = look?.kind === 'counter' ? 'K16' : 'K7';
+  return v.rule_id === id || v.trace.rule_ids.includes(id) || v.reasons.includes(id);
 }
 
-// The look behind a verdict about a pair: both of its marks are the verdict's marks.
+// The look behind a verdict: a pair look when both of its marks are the verdict's marks; a counter-look when the
+// verdict is about the one mark it asked about.
 export function lookFor(v: Verdict, looks: LookRow[]): LookRow | undefined {
+  if (v.mark_ids.length === 1) return looks.find((l) => l.kind === 'counter' && l.mark_id === v.mark_ids[0]);
   if (v.mark_ids.length !== 2) return undefined;
-  return looks.find((l) => v.mark_ids.includes(l.pickup_mark) && v.mark_ids.includes(l.return_mark));
+  return looks.find((l) => l.kind !== 'counter' && v.mark_ids.includes(l.pickup_mark) && v.mark_ids.includes(l.return_mark));
 }
 
 export function lookCounts(looks: LookRow[]): Record<LookVerdict, number> {

@@ -481,6 +481,8 @@ def _log(
         "panel_id": where.get("panel_id"),
         **fields,
     }
+    if where.get("kind"):
+        line["kind"] = where["kind"]  # "counter" on the one-walk counter-look (lead 11/1, third); absent on the pair look
     if ledger_run_id and ledger_run_id != run_id:
         line["ledger_run_id"] = ledger_run_id
     text = json.dumps(line, sort_keys=True, ensure_ascii=True) + "\n"
@@ -821,15 +823,21 @@ def second_look(
     retry_max_tokens: int = RETRY_MAX_TOKENS,
     ledger_run_id: str | None = None,
     log_path: Path | None = None,
+    prompt: str | None = None,
+    kind: str | None = None,
 ) -> spark_client.LookResult:
     """spark_client.second_look on Spark Open: the same question on the same two outlined crops (pickup, return).
-    pair (pickup_mark, return_mark) goes on every provenance line. The last attempt that came back stands; a bad or
+    pair (pickup_mark, return_mark) goes on every provenance line, and kind when given (the counter-look passes
+    "counter" with its own prompt, spark_client.counter_prompt). The last attempt that came back stands; a bad or
     cut answer is unsure, a downgrade; no answer at all raises OpenWeightsError. ledger_run_id and log_path as in
     ask (a claim's look bills under the claim and logs into the claim folder)."""
     effort = spark_client.validate_effort(effort)
     urls = [spark_client.prepare_image(crop)[0] for crop in (crop_a, crop_b)]
+    context = _context(panel_id, pair)
+    if kind:
+        context["kind"] = kind
     attempts = ask_attempts(
-        spark_client.look_prompt(panel_id),
+        prompt if prompt is not None else spark_client.look_prompt(panel_id),
         urls,
         purpose=SparkPurpose.SECOND_LOOK,
         schema_name="look_v1",
@@ -839,7 +847,7 @@ def second_look(
         rpm=rpm,
         max_tokens=max_tokens,
         retry_max_tokens=retry_max_tokens,
-        context=_context(panel_id, pair),
+        context=context,
         ledger_run_id=ledger_run_id,
         log_path=log_path,
     )

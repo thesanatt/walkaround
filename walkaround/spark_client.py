@@ -404,6 +404,20 @@ def look_prompt(panel_id: PanelId) -> str:
     )
 
 
+def counter_prompt(panel_id: PanelId, mark_role: str) -> str:
+    """The counter-look (lead 11/1, third): a mark found in one walk only, and the other walk's view of the same spot."""
+    panel = panel_display_name(panel_id)
+    other = "pickup" if mark_role == "return" else "return"
+    return (
+        f"The first image shows the {panel} of a car at {mark_role}, with one mark outlined with a thin box. The second "
+        f"image shows the same {panel} at {other}, with a box outlined where that mark would sit; the box is larger than "
+        f"the mark to allow for the change of view. Deterministic matching found no mark there at {other}. Look inside "
+        f"the box on the second image. Answer same when the same mark shows there too. Answer different when the box "
+        "shows clean paint or a clearly different mark. Answer unsure when glare, water, dirt, blur or the view make "
+        "it impossible to tell. Give a one sentence reason."
+    )
+
+
 def seed_prompt(panel_id: PanelId, phrase: str) -> str:
     panel = panel_display_name(panel_id)
     return (
@@ -971,14 +985,16 @@ def second_look(
     run_id: str | None = None,
     input_refs: list[InputRef] | None = None,
     effort: str = DEFAULT_EFFORT,
+    prompt: str | None = None,
 ) -> LookResult:
     """Two crops (pickup, return) with the candidate marks already outlined by the caller. Invalid or truncated
-    answers are UNSURE, a downgrade; the model can never upgrade."""
+    answers are UNSURE, a downgrade; the model can never upgrade. prompt replaces look_prompt (the counter-look
+    passes counter_prompt; its first crop is the mark's own walk)."""
     effort = validate_effort(effort)
     url_a = prepare_image(crop_a)[0]
     url_b = prepare_image(crop_b)[0]
     parts = [
-        {"type": "input_text", "text": look_prompt(panel_id)},
+        {"type": "input_text", "text": prompt if prompt is not None else look_prompt(panel_id)},
         {"type": "input_image", "image_url": url_a},
         {"type": "input_image", "image_url": url_b},
     ]

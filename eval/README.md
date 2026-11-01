@@ -52,8 +52,9 @@ LIVE=1 .venv/bin/walkaround run <pickup> <return> --run-id eval_<pair>
 
 `eval_run.py` prints the exact command for anything missing: the run of a pair, the mark labels, and for pair C an
 optional second run for run-to-run stability. It finds a pair's runs by the sha256 of both originals
-(videos/<role>.json), by the labels' run_id, or by the names `eval_<pair>` and `eval_<pair>_<n>`; `--run PAIR=RUN_ID`
-picks one. A refused labels file stops it from writing results.json at all, so a stale file is never half updated.
+(videos/<role>.json), by the labels' run_id, or by the names `eval_<pair>` and `eval_<pair>_<n>`; the table reads the
+labels' run_id when set, else the newest of `eval_<pair>` and `eval_<pair>_<n>` (a re-run with newer code under a new
+id, Nov 1), else the newest run of the pair; `--run PAIR=RUN_ID` picks one. A refused labels file stops it from writing results.json at all, so a stale file is never half updated.
 
 `pseudo_pair.py calibrate` finds the run's pair from its id or from the sha256 of both walks and refuses a before and
 after pair (nhtsa15759) even without `--pair`.

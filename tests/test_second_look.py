@@ -562,7 +562,13 @@ def labels(verdicts: list[Verdict]) -> dict[tuple[str, ...], tuple[str, list[str
     return {tuple(v.mark_ids): (v.label.value, v.trace.rule_ids) for v in verdicts}
 
 
+def pair_look_only(th: dict) -> dict:
+    """The pair look alone: the one-walk counter-look (lead 11/1, third) off, tested in tests/test_counter_look.py."""
+    return {**th, "matching": {**th["matching"], "one_walk_counter_look": False}}
+
+
 def test_derive_match_with_the_look_lowers_only_and_the_replay_rebuilds_byte_identical(baseten, hosted, th):
+    th = pair_look_only(th)
     seed()  # p0, p1, p2 at pickup; r0, r1 at return: two pairs at d = 0 and one pickup mark unmatched
     _, plain, _ = match.derive_match(RUN, th=th)
     assert labels(plain)[("p0", "r0")][0] == labels(plain)[("p1", "r1")][0] == "already_there"
@@ -576,7 +582,7 @@ def test_derive_match_with_the_look_lowers_only_and_the_replay_rebuilds_byte_ide
             assert (label, rule_ids) == ("already_there", ["L3"])
         else:
             assert (label, rule_ids) == ("needs_your_eye", ["L4", "L3", "K7"])
-    assert labels(verdicts)[("p2",)] == labels(plain)[("p2",)]  # an unmatched mark is never looked at
+    assert labels(verdicts)[("p2",)] == labels(plain)[("p2",)]  # the pair look never looks at an unmatched mark
     live = (paths.matches_json(RUN).read_bytes(), paths.verdicts_json(RUN).read_bytes())
     kept = (paths.looks_json(RUN).read_bytes(), paths.open_weights_log(RUN).read_bytes())
     asked = len(baseten.requests)
@@ -588,6 +594,7 @@ def test_derive_match_with_the_look_lowers_only_and_the_replay_rebuilds_byte_ide
 
 
 def test_a_look_that_did_not_run_leaves_the_deterministic_label(baseten, hosted, th):
+    th = pair_look_only(th)
     seed()
     (paths.run_dir(RUN) / "crops/return/return_kf1.jpg").unlink()  # no return crop: neither look can be asked
     match.derive_match(RUN, th=th)

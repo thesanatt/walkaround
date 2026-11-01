@@ -143,7 +143,9 @@
     "reshape_iou_min": {"value": 0.5, "source": "lead decision 11/1 (second), reshaped_panel: below it the outlines differ too much to call it the same panel reshaped"},
     "reshape_aspect_tol": {"value": 0.02, "source": "lead decision 11/1 (second), reshaped_panel: |a - b| / max(a, b) of the two keyframe box aspect ratios"},
     "reshape_open_px": {"value": 5, "source": "lead decision 11/1 (second), reshaped_panel: square opening on the whitened mask difference, removes the thin rim a small misregistration leaves", "unit": "px"},
-    "reshape_blob_share_min": {"value": 0.5, "source": "lead decision 11/1 (second), reshaped_panel: the largest connected blob's share of the opened difference"}
+    "reshape_blob_share_min": {"value": 0.5, "source": "lead decision 11/1 (second), reshaped_panel: the largest connected blob's share of the opened difference"},
+    "one_walk_counter_look": {"value": true, "source": "lead decision 11/1 (third): a mark seen in one walk only (L1, L2, either mark of an L5 pair) whose label is new_or_unseen or not_seen_at_return with no cap goes to the second look with two outlined images, the mark's crop in its own walk and the other walk's crop of the same panel with the spot outlined (mapped through the whitened panel frame of the pair compared on, the handle residual undone; the box covers tau_pre_r around it). Same or unsure caps it at needs your eye (K16, the other walk may show it); different or no usable answer keeps the label. Same engine order as every look. Found on eval_px_two_takes: a parking-sensor dot Spark found in the return walk only came out new_or_unseen"},
+    "counter_looks_max": {"value": 8, "source": "lead decision 11/1 (third): at most this many counter-looks per run, Muse Spark's confidence on the mark highest first; the rest keep their label with a note"}
   },
   "staysput": {
     "window_frac_of_panel_width": {"value": 0.3, "source": "5.9 item 1"},

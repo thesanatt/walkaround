@@ -1395,3 +1395,58 @@ waited, Muse Spark Open said different, K7 lowered it (docs/evidence/claim_pairC
 this way does not pass `walkaround verify` (its stored walk files are pairC_core3's: run_id and costs in the sheet,
 and with the new leaves config_hash in every trace and a reshape record on the front bumper); its claim rebuilds byte
 for byte, and keep is false, so the sweeper deletes it.
+
+## Lead decision 3 (2026-11-01): the one-walk counter-look (K16)
+
+Behind two new thresholds leaves under `matching`, so every run frozen before them (all runs up to eval_px_two_takes)
+matches, rebuilds and verifies as it did. Found on eval_px_two_takes: a parking-sensor dot Muse Spark boxed in the
+return walk only came out new_or_unseen (L5), the eval's first false alarm.
+
+- Who is asked (`match.counter_asks`): on a comparable panel in the moment frame with a keyframe pair, every mark seen
+  in one walk only (an unmatched mark, L1 or L2, or either mark of a pair beyond tau_eye_r, L5) whose verdict came out
+  new_or_unseen or not_seen_at_return, which means no cap applied. A mark already capped is not asked. Wheels are not
+  asked (their frame is radius and angle on a rim that turns), nor a mark whose spot cannot be placed (no w, the other
+  keyframe without moments, front sign or crop, or the spot's centre outside the crop).
+- The spot (`match.counter_spot`): the mark's whitened position carried into the other walk's keyframe of the pair
+  compared on (`PanelMatch.kf_pair`): w - residual for a return mark, w + residual for a pickup mark (the match
+  subtracts the handle residual from return marks), unwhitened with that keyframe's moments and front sign. The box
+  covers the whitened circle of radius tau_eye_r (at the mark's r) around it plus the mark's own box corners carried
+  the same way, clipped to the crop. tau_eye_r because a mark found anywhere in it would have matched this one or put
+  it in the band, needs your eye, which is what K16 does.
+- `match.CounterAsk` (frozen dataclass): mark_id, role, panel_id, other_kf, spot (x1, y1, x2, y2 in the other crop's
+  pixels), w (the spot in the other frame), radius_units; `.other_role`; `.key` is (pickup field, return field) of
+  its looks.json row: the mark in its own walk's field, the other walk's keyframe id in the other.
+- Order and cap (`match.rank_counter_asks`, `matching.counter_looks_max` 8): Muse Spark's confidence on the mark (high,
+  medium, low), then panel order, then mark id; the first 8 per run are asked. derive_match computes every panel's
+  verdicts first, asks, then computes them again with the answers.
+- The look (`second_look.SecondLook.counter`): image 1 the mark outlined on its own keyframe crop
+  (crops/<role>/<mark_id>__counter.look.jpg), image 2 the other keyframe crop with the spot outlined
+  (crops/<other role>/<mark_id>__spot.look.jpg), asked with `spark_client.counter_prompt(panel_id, mark_role)` in the
+  same engine order and breaker as the pair look (Spark Open on the hackathon key with meta-models/muse-spark-open-1026,
+  the account key, then hosted Muse Spark 1.3). `open_weights.second_look` and `spark_client.second_look` take
+  `prompt` (and Spark Open `kind`); question_sha256 hashes the counter prompt, so a resumed run reuses an answered
+  counter question.
+- Records: a looks.json row with `kind` "counter" and `mark_id`, pickup_mark and return_mark as in CounterAsk.key,
+  outlines and input_refs in the order shown (the mark's walk first). Both fields are left out of a pair row, so pair
+  rows keep their bytes. open_weights.ndjson lines carry `kind` "counter" (absent on a pair look).
+- Verdict (`match.counter_flags`, `verdicts_for(..., counters, counter_skipped)`): same or unsure sets K16, so the label
+  is needs_your_eye with rule ids L4, the label rule, K16 (for example ["L4", "L5", "K16"]); different keeps the label;
+  no usable answer (verdict None: every engine failed or the images could not be built) keeps it; a mark the cap left
+  out keeps it. `Verdict.counter_note` (left out when None) says which: "the second look compared this mark with the
+  same spot in the pickup walk and said same: the pickup walk may show it (K16)"; "... and was unsure: ..."; "... and
+  said different, so the label stands"; "the second look at the same spot in the pickup walk gave no usable answer, so
+  the label stands"; "... was not asked: the run's 8 counter-looks went to surer marks first, so the label stands".
+  With no look at all (engine off, spend ceiling, deadline) nothing is asked and no note is written.
+- Rule K16 "the other walk may show it" in rules.py and web rules.ts; `VerdictFlags.K16`; ARCHITECTURE section 6.
+- Rebuild: `replay_second_look` returns an object that answers pairs as before and has `.counter(ask)` answering from
+  the counter rows by mark id, no call; derive_match uses `second_look.counter` when no `counter_look` is passed, so the
+  orchestrator needed no change. Live and rebuild ask the same marks in the same order, so the bytes match (tested).
+- Sheet: `SheetVerdictLine.counter_line` (left out when None) printed in the detail column on the same template line as
+  the type line, so a sheet without it renders byte for byte; `sheet.GLOSSARY_COUNTER_LOOK` prints when the leaf is on.
+- Web: types.ts `Verdict.counter_note?`, `LookRow.kind?`, `LookRow.mark_id?`; `lookFor` ties a counter row to the
+  one-mark verdict, `loweredByLook(v, look)` checks K16 for a counter row; SecondLookLine says "second look at the same
+  spot in the pickup walk" and links "return crop" and "pickup crop with the spot"; VerdictList and MatchPane print
+  counter_note.
+- Eval: `scripts/eval_run.py choose_primary` takes the labeled run, else the newest of eval_<pair> and
+  eval_<pair>_<n>, else the newest run of the pair, so a re-run under a new id is the table's run.
+- Tests: tests/test_counter_look.py (27), web test/counter_look.test.ts (2).

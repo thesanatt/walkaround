@@ -454,13 +454,19 @@ def pair_runs(lab: dict[str, Any], shas: dict[str, dict[str, str | None]]) -> li
 
 
 def choose_primary(lab: dict[str, Any], loaded: dict[str, RunData], override: str | None) -> str | None:
-    """The --run override, else the labeled run, else eval_<pair>, else the newest run of the pair."""
+    """The --run override, else the labeled run, else the newest of eval_<pair> and eval_<pair>_<n> (a re-run with
+    newer code under a new id, lead 11/1, third), else the newest run of the pair."""
     if override is not None:
         return override if override in loaded else None
-    for candidate in (lab.get("run_id"), f"eval_{lab['pair_id']}"):
-        if candidate in loaded:
-            return candidate
-    return max(loaded, key=lambda rid: (loaded[rid].run.created_at, rid)) if loaded else None
+    if lab.get("run_id") in loaded:
+        return lab["run_id"]
+
+    def newest(ids: list[str]) -> str | None:
+        return max(ids, key=lambda rid: (loaded[rid].run.created_at, rid)) if ids else None
+
+    pair = lab["pair_id"]
+    named = [rid for rid in loaded if rid == f"eval_{pair}" or rid.startswith(f"eval_{pair}_")]
+    return newest(named) or newest(list(loaded))
 
 
 # Mark truth --------------------------------------------------------------------------------------------------------

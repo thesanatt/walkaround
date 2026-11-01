@@ -92,7 +92,8 @@ export function VerdictCard({ v, marks, panel, looks = [] }: { v: Verdict; marks
       {size ? <p className="small">{size}</p> : null}
       {v.view_note ? <p className="small">{v.view_note}</p> : null}
       {v.type_note ? <p className="small">{v.type_note}</p> : null}
-      {look ? <SecondLookLine look={look} lowered={loweredByLook(v)} /> : null}
+      {v.counter_note ? <p className="small">{v.counter_note}</p> : null}
+      {look ? <SecondLookLine look={look} lowered={loweredByLook(v, look)} /> : null}
     </div>
   );
 }

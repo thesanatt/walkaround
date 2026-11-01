@@ -1430,6 +1430,7 @@ class VerdictFlags(Contract):
     K13: bool = False
     K14: bool = False
     K15: bool = False  # a flagged view caps a mark seen in one walk only (replaces gate G2, lead 10/31)
+    K16: bool = False  # the counter-look at the other walk's same spot said same or unsure (lead 11/1, third)
 
     def set_caps(self) -> list[str]:
         return [name for name in sorted(type(self).model_fields) if name.startswith("K") and getattr(self, name)]
@@ -1491,6 +1492,9 @@ class Verdict(Contract):
     # K4 and K12 on a pair inside tau_pre_r in words (lead 11/1): what Muse Spark typed and how sure it was, and what the
     # second look made of it (a note when it answered, the reason they still cap when it did not)
     type_note: str | None = None
+    # a mark seen in one walk only that went to the counter-look (lead 11/1, third): what the look at the other walk's
+    # same spot said and what it did to the label (K16 on same or unsure; the label stands on different or no answer)
+    counter_note: str | None = None
 
     @model_serializer(mode="wrap")
     def _omit_absent_view_note(self, handler: Any) -> Any:
@@ -1498,7 +1502,7 @@ class Verdict(Contract):
         11/1), so a run with neither rebuilds byte-identical."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("view_note", "type_note"):
+            for key in ("view_note", "type_note", "counter_note"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
@@ -1658,13 +1662,14 @@ class SheetVerdictLine(Contract):
     ordinary_wear_line: str | None = None
     view_line: str | None = None  # Verdict.view_note: a flagged view named (K15, or the note on a pair seen in both walks)
     type_line: str | None = None  # Verdict.type_note: K4 and K12 on a tight pair and what the second look made of them (11/1)
+    counter_line: str | None = None  # Verdict.counter_note: the counter-look on a mark seen in one walk only (11/1, third)
 
     @model_serializer(mode="wrap")
     def _omit_absent_view_line(self, handler: Any) -> Any:
         """A line with no flagged view and no type note serializes as it did before the fields existed (10/31, 11/1)."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("view_line", "type_line"):
+            for key in ("view_line", "type_line", "counter_line"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
