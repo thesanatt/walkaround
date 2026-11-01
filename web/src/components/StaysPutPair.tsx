@@ -1,5 +1,6 @@
 import type { Mark, MarkTrack } from '../contracts/types.ts';
 import { staysPutCaption, staysPutLine, staysPutTone } from '../lib/lines.ts';
+import { NEIGHBOUR_NOTE, neighbourCaption, neighbourTone } from '../lib/neighbours.ts';
 import { panelName } from '../lib/panels.ts';
 import { ClipTrail } from './ClipTrail.tsx';
 
@@ -17,6 +18,16 @@ const CONTROL_COLOR = '#d9a84a';
 
 // The Stays Put test as two clips side by side: the mark tracked through its own clip, and the control tracked the
 // same way. Each caption says what the track decided, nothing more, and decides nothing until Stays Put is calibrated.
+// Under each, the neighbour test in plain words (moves with its neighbours, or slides against them, with the ratio).
+function NeighbourWords({ mt, calibrated }: { mt: MarkTrack; calibrated: boolean }) {
+  const words = neighbourCaption(mt);
+  if (!words) return null;
+  return (
+    <span className={`sp-neighbours ${neighbourTone(mt, calibrated)}`}>
+      {words}.{calibrated ? '' : ` ${NEIGHBOUR_NOTE}`}
+    </span>
+  );
+}
 export function StaysPutPair({ track, control, mark, color, calibrated, numbers = false, atFrame }: StaysPutPairProps) {
   if (!track?.clip && !control?.clip) return <div className="empty">No Stays Put clip for this panel. The match below still stands on its own.</div>;
   return (
@@ -26,6 +37,7 @@ export function StaysPutPair({ track, control, mark, color, calibrated, numbers 
           <ClipTrail mt={track} color={color} caption={`the ${mark?.type ?? 'mark'} on the ${panelName(mark?.panel_id)}, tracked by SAM 3.1 through its own clip`} bare atFrame={atFrame} />
           <figcaption>
             <span className={`sp-caption ${staysPutTone(track, calibrated)}`}>{staysPutCaption(track, calibrated)}</span>
+            <NeighbourWords mt={track} calibrated={calibrated} />
             {numbers && staysPutLine(track, calibrated) ? <span className="sp-numbers mono">{staysPutLine(track, calibrated)}</span> : null}
           </figcaption>
         </figure>
@@ -37,6 +49,7 @@ export function StaysPutPair({ track, control, mark, color, calibrated, numbers 
           <ClipTrail mt={control} color={CONTROL_COLOR} caption={calibrated ? 'a reflection, tracked the same way' : 'the control clip, tracked the same way'} bare atFrame={atFrame} />
           <figcaption>
             <span className={`sp-caption ${staysPutTone(control, calibrated)}`}>{staysPutCaption(control, calibrated)}</span>
+            <NeighbourWords mt={control} calibrated={calibrated} />
             {numbers && staysPutLine(control, calibrated) ? <span className="sp-numbers mono">{staysPutLine(control, calibrated)}</span> : null}
           </figcaption>
         </figure>

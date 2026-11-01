@@ -38,6 +38,7 @@ export function VerdictList({ verdicts, marks, looks = [] }: { verdicts: Verdict
                       return m ? `${m.role} ${m.type} ${m.size_class}${m.source === 'narration_seed' ? ' (from your words)' : ''}` : id;
                     })
                     .join('; ')}
+                  {v.view_note ? <p className="small">{v.view_note}</p> : null}
                   {look ? <SecondLookLine look={look} lowered={loweredByLook(v)} /> : null}
                 </td>
                 <td className="mono small">

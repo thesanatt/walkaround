@@ -1,4 +1,4 @@
-// Mirror of walkaround/rules.py (generated from it on 2026-10-31) so every printed rule id carries its meaning on hover.
+// Mirror of walkaround/rules.py (generated from it on 2026-10-31, K15 and the retired G2 added that night) so every printed rule id carries its meaning on hover.
 // If rules.py changes, regenerate: the id set must match, or a sheet id would print here without its text.
 export interface RuleText {
   label: string;
@@ -7,7 +7,7 @@ export interface RuleText {
 
 export const RULES: Record<string, RuleText> = {
   G1: { label: "not filmed", text: "the panel is not 'filmed' in either walk" },
-  G2: { label: "crop condition", text: "wet, dirty or glare flag from Spark on either crop" },
+  G2: { label: "crop condition (retired)", text: "wet, dirty or glare flag from Spark on either crop; no longer a gate since Oct 31, a flagged view caps instead (K15)" },
   G3: { label: "blurry keyframe", text: "sharpness below 0.4 of the candidates' max on either keyframe" },
   G4: { label: "mask IoU", text: "whitened mask IoU of the paired keyframes under 0.7" },
   G5: { label: "handle self-test", text: "the door handle more than tau_pre apart between walks" },
@@ -30,6 +30,7 @@ export const RULES: Record<string, RuleText> = {
   K12: { label: "low confidence", text: "Spark confidence low on either mark" },
   K13: { label: "other walk truncated", text: "one of the two keyframes has marks_status truncated" },
   K14: { label: "named by the renter", text: "Muse Spark boxed the mark only because the renter named it; seed_v1 gives no confidence or size, so its type or size may be the renter's words" },
+  K15: { label: "view flagged", text: "Muse Spark flagged the pickup or return view of the panel wet, dirty or glare, so a mark seen in one walk only may be dirt, water or a reflection, or may have been hidden in the other walk; a mark in the same place in both walks keeps its label with a note" },
   L1: { label: "not seen at return", text: "d is None for a pickup mark: not_seen_at_return" },
   L2: { label: "new or unseen", text: "d is None for a return mark: new_or_unseen" },
   L3: { label: "already there", text: "d < tau_pre_r" },

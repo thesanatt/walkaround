@@ -1,5 +1,6 @@
 import type { Mark, MarkTrack } from '../contracts/types.ts';
 import { controlName, staysPutCaption, staysPutLine, staysPutTone } from '../lib/lines.ts';
+import { neighbourCaption, neighbourTone } from '../lib/neighbours.ts';
 import { panelName } from '../lib/panels.ts';
 
 export interface StaysPutListProps {
@@ -25,7 +26,10 @@ export function StaysPutList({ markTracks, marks = [], calibrated, missing = fal
               {mt.role} {m ? `${m.type} on the ${panelName(m.panel_id)}` : mt.mark_id}
               {mt.is_control ? `, the ${controlName(calibrated)}` : ''}
             </span>
-            <span className={`sp-caption ${staysPutTone(mt, calibrated)}`}>{staysPutCaption(mt, calibrated)}</span>
+            <span className="sp-says">
+              <span className={`sp-caption ${staysPutTone(mt, calibrated)}`}>{staysPutCaption(mt, calibrated)}</span>
+              {neighbourCaption(mt) ? <span className={`sp-neighbours ${neighbourTone(mt, calibrated)}`}>{neighbourCaption(mt)}</span> : null}
+            </span>
             <span className="mono small muted">{staysPutLine(mt, calibrated) ?? 'not run'}</span>
           </li>
         );

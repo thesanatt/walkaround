@@ -75,6 +75,7 @@ export function readLooks(value: unknown): LookRow[] {
       reason: str(answer['reason']) ?? str(row['reason']) ?? '',
       engine: str(row['engine']),
       model: str(row['model']),
+      key_slot: row['key_slot'] === 'hackathon' || row['key_slot'] === 'account' ? row['key_slot'] : null,
       fallback_from: row['fallback_from'] === 'baseten' ? 'baseten' : null,
       valid: bool(row['valid']),
       fallback: str(row['fallback']),
@@ -101,6 +102,7 @@ export function readOpenWeights(text: string | null | undefined): OpenWeightsRow
     out.push({
       request_id: str(row['request_id']),
       model: str(row['model']),
+      key_slot: str(row['key_slot']),
       purpose: str(row['purpose']),
       verdict: verdictOf(answer['verdict']) ?? verdictOf(row['verdict']),
       status: str(row['status']),

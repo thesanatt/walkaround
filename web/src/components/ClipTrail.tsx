@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { MarkTrack } from '../contracts/types.ts';
 import { useFileUrl } from '../lib/files.tsx';
+import { neighbourMarkers } from '../lib/neighbours.ts';
 
 const TRAIL = 6;
 // With reduced motion the clip waits on its first frame with its controls instead of looping on its own.
@@ -18,8 +19,9 @@ export function ClipMissing({ caption, bare = false }: { caption: string; bare?:
   );
 }
 
-// A Stays Put clip with the mark's own SAM 3.1 track: a 2 px outline and a fading trail of the last 6 frames.
-// The clip is the blurred 1008 px window cut around the mark; the boxes are in its pixels.
+// A Stays Put clip with the mark's own SAM 3.1 track: a 2 px outline and a fading trail of the last 6 frames, and a
+// small ring on each rigid neighbour SAM tracked in the same request (dashed when it was not tracked through enough of
+// the clip to count). The clip is the blurred 1008 px window cut around the mark; the boxes are in its pixels.
 // atFrame pauses the clip on one frame (a frozen kiosk capture); otherwise it plays and loops.
 export function ClipTrail({ mt, color, caption, bare = false, atFrame }: { mt: MarkTrack; color: string; caption: string; bare?: boolean; atFrame?: number }) {
   const url = useFileUrl();
@@ -62,6 +64,8 @@ export function ClipTrail({ mt, color, caption, bare = false, atFrame }: { mt: M
   if (!mt.clip) return null;
   if (missing) return <ClipMissing caption={caption} bare={bare} />;
   const trail = mt.track.filter((p) => p.f <= frame && p.f > frame - TRAIL).sort((a, b) => a.f - b.f);
+  const rings = neighbourMarkers(mt, frame);
+  const ringR = Math.max(6, mt.clip.w / 110);
   return (
     <figure className="clip-trail">
       <div className="clip-frame">
@@ -79,6 +83,12 @@ export function ClipTrail({ mt, color, caption, bare = false, atFrame }: { mt: M
               strokeWidth={p.f === frame ? 4 : 2}
               opacity={p.f === frame ? 1 : 0.15 + (0.6 * (TRAIL - (frame - p.f))) / TRAIL}
             />
+          ))}
+          {rings.map((r) => (
+            <g key={`nb-${r.id}`} className="nb-ring">
+              <circle cx={r.x} cy={r.y} r={ringR} fill="none" stroke="#10161a" strokeWidth={ringR * 0.55} opacity={0.55} />
+              <circle cx={r.x} cy={r.y} r={ringR} fill="none" stroke="#f3efe6" strokeWidth={ringR * 0.3} strokeDasharray={r.used ? undefined : `${ringR * 0.6} ${ringR * 0.5}`} />
+            </g>
           ))}
         </svg>
       </div>

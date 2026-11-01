@@ -15,6 +15,7 @@ export function SecondLookLine({ look, lowered }: { look: LookRow; lowered: bool
         <>
           second look: {lookEngine(look)}, <strong>{look.verdict}</strong>
           {look.reason ? `: ${look.reason}` : ''}
+          {look.engine === 'baseten' && look.model ? ` (${look.model})` : ''}
         </>
       ) : (
         <>second look: {look.reason || 'not asked'}</>

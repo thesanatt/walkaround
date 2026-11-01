@@ -129,6 +129,7 @@ export interface RunManifest {
   keep: boolean;
   keep_plate: boolean;
   footage_credit?: string | null; // a sample run's footage credit, shown under the walk player
+  tire_code?: string | null; // walkaround run --tire-code, normalized; the wheel ruler reads it (absent when none)
   app_commit: string | null;
   config_hash: string | null;
   thresholds: Record<string, unknown>;
@@ -247,6 +248,17 @@ export interface PanelTrack {
   panel_id: PanelId | null;
   side: Side;
   position: Position;
+  twin_check?: TwinCheck | null; // lid, light and glass tracks the twin check placed (absent on older runs)
+}
+
+// The twin check (walkaround/panels.py twin_check): which end of the car a hood or trunk-lid track's lid is on, from
+// the plate, mirror, lights and glass cues (+1 front, -1 rear, 0 silent); decided false means front or rear uncertain.
+export interface TwinCheck {
+  lid: string[];
+  votes: Record<string, number>;
+  numbers: Record<string, number>;
+  score: number;
+  decided: boolean;
 }
 
 export interface PanelRole {
@@ -434,6 +446,7 @@ export interface SizeEstimate {
   tire_code: string | null;
   threshold_type: 'body_scratch' | 'dent' | 'wheel_mark' | 'body_scuff' | null;
   refused_reason: string | null;
+  ruler_notes?: string[]; // why each other ruler next to the mark did not size it (left out of the file when empty)
 }
 
 export interface Verdict {
@@ -447,6 +460,7 @@ export interface Verdict {
   reasons: string[];
   trace: Trace;
   size: SizeEstimate | null;
+  view_note?: string | null; // a flagged view in words (K15, or the note on a mark seen in both walks); absent when none
 }
 
 export interface PanelCoverage {
@@ -504,6 +518,36 @@ export interface ClipRecord {
   h: number;
 }
 
+// One rigid neighbour SAM 3.1 tracked in the mark's clip (contracts.StaysPutNeighbour): a lane part or another mark.
+// centres are [f, x, y] in clip pixels.
+export interface StaysPutNeighbour {
+  object_id: string;
+  kind: string;
+  ref: string;
+  frames: number;
+  used: boolean;
+  residual_full_px: number | null;
+  residual_near_px: number | null;
+  centres: [number, number, number][];
+}
+
+// Stays Put by neighbours (contracts.NeighbourTest, docs/STAYS_PUT_ANCHORS.md): the mark's residual against an affine
+// fit to its neighbours over theirs, over the whole clip and within near_s of the prompt frame.
+export interface NeighbourTest {
+  verdict: 'fixed' | 'sliding' | 'inconclusive' | 'no_track' | 'not_run';
+  ratio_full: number | null;
+  ratio_near: number | null;
+  mark_full_px: number | null;
+  mark_near_px: number | null;
+  neighbours_full_px: number | null;
+  neighbours_near_px: number | null;
+  near_s: number;
+  near_frames: number;
+  used: number;
+  reason: string | null;
+  neighbours: StaysPutNeighbour[];
+}
+
 export interface MarkTrack {
   mark_id: string;
   role: Role;
@@ -522,6 +566,7 @@ export interface MarkTrack {
   curvature_cap: boolean;
   highlight_cap: boolean;
   is_control: boolean;
+  neighbour_test?: NeighbourTest | null; // absent on clips planned before the neighbour test existed
 }
 
 export type LookVerdict = 'same' | 'different' | 'unsure';
@@ -538,6 +583,7 @@ export interface LookRow {
   reason: string;
   engine: string | null;
   model: string | null;
+  key_slot?: 'hackathon' | 'account' | null; // which Baseten key answered (never the key); null for hosted Spark
   fallback_from: 'baseten' | null;
   valid: boolean | null; // false when the answer failed look_v1 (the verdict is then unsure)
   fallback: string | null; // why hosted Spark answered, shown only as a tooltip
@@ -550,6 +596,7 @@ export interface LookRow {
 export interface OpenWeightsRow {
   request_id: string | null;
   model: string | null;
+  key_slot?: string | null; // "hackathon" (meta-models/muse-spark-open-1026) or "account"
   purpose: string | null;
   verdict: LookVerdict | null;
   status: string | null; // completed, schema_miss, truncated, incomplete or failed

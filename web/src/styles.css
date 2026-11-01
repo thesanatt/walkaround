@@ -2032,6 +2032,30 @@ body.kiosk {
   color: var(--muted);
 }
 
+.sp-says {
+  display: grid;
+  gap: 2px;
+}
+
+.sp-neighbours {
+  font-size: 0.86rem;
+}
+
+.sp-neighbours.fixed {
+  color: var(--good);
+}
+
+.sp-neighbours.sliding {
+  color: var(--warn);
+}
+
+.sp-neighbours.inconclusive,
+.sp-neighbours.no_track,
+.sp-neighbours.not_run,
+.sp-neighbours.uncalibrated {
+  color: var(--muted);
+}
+
 .staysput-list li {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 3fr);

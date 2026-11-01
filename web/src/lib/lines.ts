@@ -1,4 +1,5 @@
 import type { FfprobeInfo, Mark, MarkTrack, RunManifest, SizeEstimate, VideoRecord } from '../contracts/types.ts';
+import { neighbourLine } from './neighbours.ts';
 
 // sheet._TIRE_CODE and sheet.tire_diameter_in: D = 2 x (SW x AR / 2540 + RD / 2) inches from a code like 225/60R16.
 const TIRE_CODE = /^\s*(\d{3})\s*\/\s*(\d{2})\s*[A-Za-z]*\s*(\d{2}(?:\.\d)?)\s*$/;
@@ -9,11 +10,12 @@ export function tireDiameterIn(code: string | null | undefined): number | null {
   return 2 * ((Number(m[1]) * Number(m[2])) / 2540 + Number(m[3]) / 2);
 }
 
-// sheet.size_line word for word for a stated estimate. No estimate at all prints nothing here (the sheet prints its
-// no-ruler line).
+// sheet.size_line word for word for a stated estimate, each followed by why every other ruler next to the mark did not
+// size it (ruler_notes). No estimate at all prints nothing here (the sheet prints its no-ruler line).
 export function sizeLine(size: SizeEstimate | null | undefined): string | null {
   if (!size) return null;
-  if (size.refused_reason) return `size not stated: ${size.refused_reason}`;
+  const notes = (size.ruler_notes ?? []).map((note) => `; ${note}`).join('');
+  if (size.refused_reason) return `size not stated: ${size.refused_reason}${notes}`;
   if (size.inches === null) return 'size not stated: no ruler qualified';
   let ruler = 'not recorded';
   if (size.ruler === 'plate') ruler = 'the license plate, 12 in';
@@ -23,7 +25,7 @@ export function sizeLine(size: SizeEstimate | null | undefined): string | null {
   }
   let text = `about ${size.inches.toFixed(1)} in`;
   if (size.bound_lo !== null && size.bound_hi !== null) text += `, between ${size.bound_lo.toFixed(1)} and ${size.bound_hi.toFixed(1)} in`;
-  return `${text} (ruler: ${ruler})`;
+  return `${text} (ruler: ${ruler}${notes})`;
 }
 
 function num(v: number | null): string {
@@ -44,8 +46,15 @@ function staysPutNumbers(mt: MarkTrack): string {
 }
 
 // sheet.staysput_line word for word when calibrated: "drift 0.03, b1 0.20, b2 0.01, not panned; fixed", caps
-// appended; null when not run. Uncalibrated, only the measured numbers (the verdict and its caps are left out).
+// appended; null when not run. Uncalibrated, only the measured numbers (the verdict and its caps are left out). A clip
+// with the neighbour test adds its line (lib/neighbours.ts) as the sheet does.
 export function staysPutLine(mt: MarkTrack | null | undefined, calibrated: boolean): string | null {
+  const line = staysPutDriftLine(mt, calibrated);
+  const near = line !== null && mt && mt.verdict !== 'no_track' ? neighbourLine(mt) : null;
+  return near ? `${line}; ${near}` : line;
+}
+
+function staysPutDriftLine(mt: MarkTrack | null | undefined, calibrated: boolean): string | null {
   if (!mt || mt.verdict === 'not_run') return null;
   if (mt.verdict === 'no_track') return 'no track (SAM did not follow the mark through the clip)';
   if (!calibrated) return staysPutNumbers(mt);

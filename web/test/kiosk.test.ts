@@ -229,7 +229,7 @@ describe('the scenes render each step from the stored run', () => {
     const state = await finalFixtureState();
     expect(body(state, 'hood', 0)).not.toContain('class="refusal"');
     const refusal = body(state, 'hood', 2500);
-    expect(refusal).toContain('Not compared: G2 crop condition (glare on the return frame)');
+    expect(refusal).toContain('Not compared: G2 crop condition (retired) (glare on the return frame)'); // a run stored before G2 retired (10/31)
     expect(refusal).not.toContain('Models find and compare');
     expect(body(state, 'hood', 5000)).toContain('Models find and compare; code decides.');
   });

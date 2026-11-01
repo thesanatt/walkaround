@@ -90,12 +90,13 @@ export function VerdictCard({ v, marks, panel, looks = [] }: { v: Verdict; marks
       <p className="small muted">{described.join('; ')}</p>
       {windowLine ? <p className="small">{windowLine}</p> : null}
       {size ? <p className="small">{size}</p> : null}
+      {v.view_note ? <p className="small">{v.view_note}</p> : null}
       {look ? <SecondLookLine look={look} lowered={loweredByLook(v)} /> : null}
     </div>
   );
 }
 
-// G2's flags in words: " (glare on the return frame)".
+// G2's flags in words: " (glare on the return frame)". G2 is retired (10/31); runs stored before then still name it.
 export function conditionsText(kfA: Keyframe | undefined, kfB: Keyframe | undefined): string {
   const flags = (kf: Keyframe | undefined) => (kf ? (['wet', 'dirty', 'glare', 'dark'] as const).filter((f) => kf.conditions[f]) : []);
   const parts = [

@@ -7,6 +7,7 @@ import type { DeletionRecord, Keyframe, Mark, MarkTrack, PanelMatch, PanelTrack,
 import { drawnPairs, focusTrack, joinedPairs, offPaneMarks, paneKeyframes, panelFocus, panelObjectKeys } from '../src/lib/focus.ts';
 import { sizeLine, staysPutLine, tireDiameterIn, wallClock } from '../src/lib/lines.ts';
 import { deleteFailed, PRIVACY_BEFORE, storageLine, uploadedFileIds } from '../src/lib/privacy.ts';
+import { RULES } from '../src/lib/rules.ts';
 import { replayBadgeDate, sheetFileHash } from '../src/lib/runview.ts';
 import { initialState, reduce } from '../src/state/reducer.ts';
 import type { AnyEvent } from '../src/state/types.ts';
@@ -198,6 +199,18 @@ describe('lines copied from sheet.py', () => {
     expect(sizeLine(size({ inches: 0.9, ruler: 'wheel', tire_code: '225/60R16' }))).toBe('about 0.9 in (ruler: the wheel, 26.6 in from 225/60R16, typed by you)');
     expect(sizeLine(size({ inches: 0.9, ruler: 'wheel', tire_code: 'unreadable' }))).toBe('about 0.9 in (ruler: the wheel)');
     expect(sizeLine(size({ inches: 0.9 }))).toBe('about 0.9 in (ruler: not recorded)');
+    // the other ruler's note, as sheet.size_line prints it (polish lane, 10/31)
+    const turned = 'the license plate is turned more than 30 degrees from the camera';
+    expect(sizeLine(size({ inches: 0.9, ruler: 'wheel', tire_code: '155/80R13', ruler_notes: [turned] }))).toBe(`about 0.9 in (ruler: the wheel, 22.8 in from 155/80R13, typed by you; ${turned})`);
+    expect(sizeLine(size({ refused_reason: 'tire size not given', ruler_notes: [turned] }))).toBe(`size not stated: tire size not given; ${turned}`);
+  });
+
+  it('mirrors every rule id of rules.py, K15 and the retired G2 included', () => {
+    const py = readFileSync(new URL('../../walkaround/rules.py', import.meta.url), 'utf8');
+    const ids = [...py.matchAll(/Rule\("([A-Za-z0-9]+)"/g)].map((m) => m[1]!).sort();
+    expect(Object.keys(RULES).sort()).toEqual(ids);
+    expect(RULES['K15']!.label).toBe('view flagged');
+    expect(RULES['G2']!.label).toBe('crop condition (retired)');
   });
 
   it('words a Stays Put row like sheet.staysput_line once calibrated', () => {
