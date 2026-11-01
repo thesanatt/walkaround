@@ -114,7 +114,8 @@
     "road_spray_band_bottom_frac": {"value": 0.25, "source": "5.6"},
     "count_mode_new_point_min_units": {"value": 0.1, "source": "5.7 (farther than 0.1 units from every box-mode mark)"},
     "small_mark_units": {"value": 0.03, "source": "5.7; K3"},
-    "small_mark_px": {"value": 12, "source": "5.7; K3", "unit": "px"}
+    "small_mark_px": {"value": 12, "source": "5.7; K3", "unit": "px"},
+    "sam_box_refine": {"value": {"enabled": true, "pad_px": 2, "max_objects": 16, "min_mask_px": 4, "max_crop_frac": 0.02, "fills_box_min": 0.8, "max_area_ratio": 3.0, "margin_px": 4, "margin_frac": 0.25, "min_inside": 0.5}, "source": "box fix 11/1 (walkaround/docs/evidence/box_fix_1101/): each Spark box mark goes to SAM 3.1's image endpoint as a box prompt on its crop (pad_px a side; all of a crop's boxes in one request, at most max_objects); SAM's tight box replaces Spark's when the mask has at least min_mask_px pixels, covers at most max_crop_frac of the crop, does not just fill the prompt (its box inside the prompt box and at least fills_box_min of it, SAM segmenting blank paint), its box is at most max_area_ratio times Spark's box, and at least min_inside of it lies inside Spark's box grown by max(margin_px, margin_frac x its long side); else Spark's box stays and the mark says why. Estimates from 8 probe marks. Off when absent, so runs frozen before it rebuild unchanged"}
   },
   "matching": {
     "tau_pre0_floor": {"value": 0.25, "source": "5.10 (tau_pre0 = max(0.25, 2.5 sqrt(2) sigma_within))"},

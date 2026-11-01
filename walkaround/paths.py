@@ -90,6 +90,11 @@ def spark_json(run_id: str) -> Path:
     return _file(run_dir(run_id) / "spark.json")
 
 
+def sam_marks_json(run_id: str) -> Path:
+    """SAM 3.1 image answers on mark boxes (thresholds dedup.sam_box_refine), a frozen fact like spark.json."""
+    return _file(run_dir(run_id) / "sam_marks.json")
+
+
 def voice_json(run_id: str) -> Path:
     return _file(run_dir(run_id) / "voice.json")
 

@@ -244,6 +244,14 @@ def detection_mask(det: sam_client.Detection, media_size: tuple[int, int]) -> np
         return out
     raw = decode_mask_to_raster(det.mask)
     local = np.frombuffer(raw, dtype=np.uint8).reshape(det.mask.height, det.mask.width).astype(bool)
+    # SAM 3.1 sends the raster of an object wider or taller than 1024 px scaled down to 1024 on its long side (box
+    # 1101 x 154 came with a 1024 x 143 raster, box fix 11/1); it is stretched back over its box, or the mask would sit
+    # short of the box's right and bottom edges. A raster within a pixel of the box is pasted as it came.
+    bw, bh = int(round(det.box.right - det.box.left)), int(round(det.box.bottom - det.box.top))
+    if bw > 0 and bh > 0 and (abs(local.shape[1] - bw) > 1 or abs(local.shape[0] - bh) > 1):
+        import cv2
+
+        local = cv2.resize(local.astype(np.uint8), (bw, bh), interpolation=cv2.INTER_NEAREST).astype(bool)
     ty1, tx1 = max(0, y1), max(0, x1)
     ty2, tx2 = min(h, y1 + local.shape[0]), min(w, x1 + local.shape[1])
     if ty2 > ty1 and tx2 > tx1:

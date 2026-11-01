@@ -389,6 +389,22 @@ export interface Mark {
   merged_from: string[];
   spark_request_id: string | null;
   caps: string[];
+  // Box fix 11/1 (thresholds dedup.sam_box_refine): which box the mark uses; bbox_crop above is that box. Absent on
+  // runs without the leaf.
+  box_refine?: BoxRefine;
+}
+
+export interface BoxRefine {
+  used: 'sam' | 'spark';
+  spark_bbox_crop: Box4;
+  spark_point_crop: Point2 | null;
+  sam_bbox_crop: Box4 | null;
+  sam_c: number | null;
+  mask_px: number | null;
+  inside: number | null;
+  area_ratio: number | null;
+  sam_request_id: string | null;
+  note: string;
 }
 
 export interface MatchCandidate {

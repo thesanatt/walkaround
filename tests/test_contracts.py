@@ -83,6 +83,8 @@ def _instances() -> list[c.Contract]:
         c.SparkMark(type=c.MarkKind.SCRATCH, point=c.GridPoint(x=1, y=2), bbox=c.GridBox(x_min=0, y_min=0, x_max=3, y_max=4), size_class=c.SizeClass.M, confidence=c.Confidence.LOW, note="n"),
         c.SparkMarksAnswer(marks=[], conditions=c.Conditions(), landmarks=[], neighbour_car_visible=True),
         mark,
+        c.BoxRefine(used="sam", spark_bbox_crop=[600.0, 400.0, 640.0, 420.0], spark_point_crop=[620.0, 410.0], sam_bbox_crop=[610.0, 404.0, 630.0, 418.0], sam_c=0.61, mask_px=180, inside=1.0, area_ratio=0.35, sam_request_id="resp_1"),
+        mark.model_copy(update={"box_refine": c.BoxRefine(used="spark", spark_bbox_crop=[600.0, 400.0, 640.0, 420.0], note="SAM found nothing in the box")}),
         c.WhitenedMark(mark_id="m1", role="pickup", panel_id=c.PanelId.HOOD, kf_id="kf1", u=0.1, v=0.2, r=0.2236, frame_used=c.FrameUsed.HOOD_AXIS),
         c.ClipRecord(path="clips/pickup/m1.mp4", f0_src=1200, window_px=400, windows_src=[[0, 0, 400, 400]]),
         c.TrackPoint(f=45, box_clip=[500, 500, 540, 530], c=0.89, inside_panel=True, w=[0.1, 0.2], u_rel=0.01),

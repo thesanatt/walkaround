@@ -22,7 +22,7 @@ import numpy as np
 import pytest
 from pydantic import Field
 
-from walkaround import config, contracts as c, geometry, ledger, marks, match, narration, paths, spark_client, video
+from walkaround import config, contracts as c, geometry, ledger, marks, match, narration, paths, sam_client, spark_client, video
 from walkaround.contracts import MarkKind, Noun, PanelId, PinKind, Position, Side, SizeClass, VerdictLabel
 
 REPO = Path(__file__).resolve().parent.parent
@@ -522,7 +522,15 @@ def test_marks_rebuild_then_narration_rebuild_gives_the_run_bytes_back(runs: Pat
     c.write_json(paths.panels_json("rb"), [c.Panel(panel_id=PanelId.TRUNK_LID, noun=Noun.TRUNK_LID, per_role={"pickup": c.PanelRole(windows=[[13.0, 19.7]], state=c.CoverageState.FILMED)})])
     client = MarksAndSeedSpark()
     spark_client.set_client(client)
-    asyncio.run(marks.derive_marks("rb", "pickup", [kf], th=TH))
+
+    async def no_masks(image: object, concept: str, **kw: object) -> sam_client.SegmentationRun:  # dedup.sam_box_refine: Spark's box stays
+        return sam_client.SegmentationRun(concept=concept, media="image", media_width=1, media_height=1, outcome="completed", response_id="resp_fake")
+
+    import pytest as _pytest
+
+    with _pytest.MonkeyPatch.context() as mp:
+        mp.setattr(sam_client, "segment_image", no_masks)
+        asyncio.run(marks.derive_marks("rb", "pickup", [kf], th=TH))
     derive("rb")
     assert client.calls == ["marks_v1", "seed_v1"]
     files = [paths.marks_json("rb"), paths.narration_json("rb"), narration.pieces_json("rb"), paths.calibration_json("rb")]

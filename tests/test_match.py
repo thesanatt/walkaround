@@ -16,7 +16,7 @@ import cv2
 import numpy as np
 import pytest
 
-from walkaround import config, geometry, ledger, marks, match, paths, rules, spark_client
+from walkaround import config, geometry, ledger, marks, match, paths, rules, sam_client, spark_client
 from walkaround.contracts import (
     Calibration,
     Conditions,
@@ -840,7 +840,16 @@ async def test_derive_marks_with_a_fake_spark_writes_marks_keyframes_and_sigma_v
         return marks_result(answer, request_id=f"req{n}")
 
     monkeypatch.setattr(spark_client, "find_marks", fake_find_marks)
+    sam_asked: list[str] = []
+
+    async def fake_segment_image(image: Any, concept: str, **kw: Any) -> sam_client.SegmentationRun:
+        sam_asked.append(concept)  # dedup.sam_box_refine: SAM answers completed with no mask, so Spark's boxes stay
+        return sam_client.SegmentationRun(concept=concept, media="image", media_width=1, media_height=1, outcome="completed", response_id="resp_fake")
+
+    monkeypatch.setattr(sam_client, "segment_image", fake_segment_image)
     out, updated, records = await marks.derive_marks(run_id, "pickup", kfs, th=th)
+    assert len(sam_asked) == 2  # one request per crop with box marks (the third crop's answer was cut off)
+    assert all(m.box_refine is not None and m.box_refine.used == "spark" and m.box_refine.note == "SAM found nothing in the box" for m in out if m.source == MarkSource.SPARK_BOX)
     assert len(calls) == 3 and calls[0] == (DOOR, ["handle", "lock", "mirror_base", "window_front_corner"], "low")
     assert fixture_flags == [True, True, True]  # thresholds matching.fixtures_not_damage: the prompt's fixture sentence
     assert [k.marks_status for k in updated] == [MarksStatus.COMPLETE, MarksStatus.COMPLETE, MarksStatus.TRUNCATED]
@@ -1132,6 +1141,11 @@ async def test_rerunning_the_marks_stage_writes_the_same_calibration(runs_dir: P
         crop_file.parent.mkdir(parents=True, exist_ok=True)
         cv2.imwrite(str(crop_file), np.full((CROP_H, CROP_W, 3), 60 + 30 * i, dtype=np.uint8))
     write_json(paths.keyframes_json(run_id), [*pick, *ret])
+
+    async def no_masks(image: Any, concept: str, **kw: Any) -> sam_client.SegmentationRun:  # dedup.sam_box_refine: Spark's boxes stay
+        return sam_client.SegmentationRun(concept=concept, media="image", media_width=1, media_height=1, outcome="completed", response_id="resp_fake")
+
+    monkeypatch.setattr(sam_client, "segment_image", no_masks)
 
     def fake_find_marks(crop_rgb: np.ndarray, panel_id: PanelId, **_: Any) -> spark_client.MarksResult:
         n = round((int(crop_rgb[0, 0, 0]) - 60) / 30)  # which keyframe this crop is

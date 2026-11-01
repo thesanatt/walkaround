@@ -1,0 +1,858 @@
+{
+ "rows": [
+  {
+   "canvas": "1280x441",
+   "kind": "scratch",
+   "truth_centre": [
+    620.8,
+    295.5
+   ],
+   "box": [
+    429.0,
+    262.0,
+    846.0,
+    270.0
+   ],
+   "dx": 16.7,
+   "dy": -29.5,
+   "dx_grid": 13.0,
+   "dy_grid": -66.8
+  },
+  {
+   "canvas": "1280x441",
+   "kind": "chip",
+   "truth_centre": [
+    230.4,
+    97.0
+   ],
+   "box": [
+    195.0,
+    97.0,
+    211.0,
+    103.0
+   ],
+   "dx": -27.4,
+   "dy": 3.0,
+   "dx_grid": -21.4,
+   "dy_grid": 6.8
+  },
+  {
+   "canvas": "1280x441",
+   "kind": "chip",
+   "truth_centre": [
+    1049.6,
+    97.0
+   ],
+   "box": [
+    1020.0,
+    95.0,
+    1037.0,
+    102.0
+   ],
+   "dx": -21.1,
+   "dy": 1.5,
+   "dx_grid": -16.5,
+   "dy_grid": 3.4
+  },
+  {
+   "canvas": "1280x441",
+   "kind": "chip",
+   "truth_centre": [
+    640.0,
+    220.5
+   ],
+   "box": [
+    632.0,
+    202.0,
+    649.0,
+    208.0
+   ],
+   "dx": 0.5,
+   "dy": -15.5,
+   "dx_grid": 0.4,
+   "dy_grid": -35.1
+  },
+  {
+   "canvas": "1280x441",
+   "kind": "chip",
+   "truth_centre": [
+    230.4,
+    344.0
+   ],
+   "box": [
+    195.0,
+    329.0,
+    211.0,
+    335.0
+   ],
+   "dx": -27.4,
+   "dy": -12.0,
+   "dx_grid": -21.4,
+   "dy_grid": -27.2
+  },
+  {
+   "canvas": "1280x441",
+   "kind": "chip",
+   "truth_centre": [
+    1049.6,
+    344.0
+   ],
+   "box": [
+    1020.0,
+    328.0,
+    1037.0,
+    334.0
+   ],
+   "dx": -21.1,
+   "dy": -13.0,
+   "dx_grid": -16.5,
+   "dy_grid": -29.4
+  },
+  {
+   "canvas": "1280x720",
+   "kind": "chip",
+   "truth_centre": [
+    230.4,
+    158.4
+   ],
+   "box": [
+    219.0,
+    153.0,
+    240.0,
+    165.0
+   ],
+   "dx": -0.9,
+   "dy": 0.6,
+   "dx_grid": -0.7,
+   "dy_grid": 0.8
+  },
+  {
+   "canvas": "1280x720",
+   "kind": "chip",
+   "truth_centre": [
+    1049.6,
+    158.4
+   ],
+   "box": [
+    1041.0,
+    153.0,
+    1062.0,
+    165.0
+   ],
+   "dx": 1.9,
+   "dy": 0.6,
+   "dx_grid": 1.5,
+   "dy_grid": 0.8
+  },
+  {
+   "canvas": "1280x720",
+   "kind": "chip",
+   "truth_centre": [
+    640.0,
+    360.0
+   ],
+   "box": [
+    630.0,
+    355.0,
+    650.0,
+    367.0
+   ],
+   "dx": 0.0,
+   "dy": 1.0,
+   "dx_grid": 0.0,
+   "dy_grid": 1.4
+  },
+  {
+   "canvas": "1280x720",
+   "kind": "chip",
+   "truth_centre": [
+    640.0,
+    360.0
+   ],
+   "box": [
+    447.0,
+    335.0,
+    827.0,
+    352.0
+   ],
+   "dx": -3.0,
+   "dy": -16.5,
+   "dx_grid": -2.3,
+   "dy_grid": -22.9
+  },
+  {
+   "canvas": "1280x720",
+   "kind": "chip",
+   "truth_centre": [
+    230.4,
+    561.6
+   ],
+   "box": [
+    219.0,
+    557.0,
+    240.0,
+    570.0
+   ],
+   "dx": -0.9,
+   "dy": 1.9,
+   "dx_grid": -0.7,
+   "dy_grid": 2.6
+  },
+  {
+   "canvas": "1280x720",
+   "kind": "chip",
+   "truth_centre": [
+    1049.6,
+    561.6
+   ],
+   "box": [
+    1041.0,
+    557.0,
+    1062.0,
+    569.0
+   ],
+   "dx": 1.9,
+   "dy": 1.4,
+   "dx_grid": 1.5,
+   "dy_grid": 1.9
+  },
+  {
+   "canvas": "1100x1100",
+   "kind": "scratch",
+   "truth_centre": [
+    533.5,
+    737.0
+   ],
+   "box": [
+    354.0,
+    723.0,
+    687.0,
+    752.0
+   ],
+   "dx": -13.0,
+   "dy": 0.5,
+   "dx_grid": -11.8,
+   "dy_grid": 0.5
+  },
+  {
+   "canvas": "1100x1100",
+   "kind": "chip",
+   "truth_centre": [
+    198.0,
+    242.0
+   ],
+   "box": [
+    158.0,
+    233.0,
+    179.0,
+    254.0
+   ],
+   "dx": -29.5,
+   "dy": 1.5,
+   "dx_grid": -26.8,
+   "dy_grid": 1.4
+  },
+  {
+   "canvas": "1100x1100",
+   "kind": "chip",
+   "truth_centre": [
+    902.0,
+    242.0
+   ],
+   "box": [
+    891.0,
+    233.0,
+    912.0,
+    254.0
+   ],
+   "dx": -0.5,
+   "dy": 1.5,
+   "dx_grid": -0.5,
+   "dy_grid": 1.4
+  },
+  {
+   "canvas": "1100x1100",
+   "kind": "chip",
+   "truth_centre": [
+    550.0,
+    550.0
+   ],
+   "box": [
+    540.0,
+    540.0,
+    561.0,
+    561.0
+   ],
+   "dx": 0.5,
+   "dy": 0.5,
+   "dx_grid": 0.5,
+   "dy_grid": 0.5
+  },
+  {
+   "canvas": "1100x1100",
+   "kind": "chip",
+   "truth_centre": [
+    198.0,
+    858.0
+   ],
+   "box": [
+    158.0,
+    905.0,
+    179.0,
+    926.0
+   ],
+   "dx": -29.5,
+   "dy": 57.5,
+   "dx_grid": -26.8,
+   "dy_grid": 52.3
+  },
+  {
+   "canvas": "1100x1100",
+   "kind": "chip",
+   "truth_centre": [
+    902.0,
+    858.0
+   ],
+   "box": [
+    891.0,
+    905.0,
+    912.0,
+    926.0
+   ],
+   "dx": -0.5,
+   "dy": 57.5,
+   "dx_grid": -0.5,
+   "dy_grid": 52.3
+  },
+  {
+   "canvas": "720x1280",
+   "kind": "chip",
+   "truth_centre": [
+    129.6,
+    281.6
+   ],
+   "box": [
+    123.0,
+    293.0,
+    139.0,
+    320.0
+   ],
+   "dx": 1.4,
+   "dy": 24.9,
+   "dx_grid": 1.9,
+   "dy_grid": 19.5
+  },
+  {
+   "canvas": "720x1280",
+   "kind": "chip",
+   "truth_centre": [
+    590.4,
+    281.6
+   ],
+   "box": [
+    555.0,
+    293.0,
+    571.0,
+    320.0
+   ],
+   "dx": -27.4,
+   "dy": 24.9,
+   "dx_grid": -38.1,
+   "dy_grid": 19.5
+  },
+  {
+   "canvas": "720x1280",
+   "kind": "chip",
+   "truth_centre": [
+    360.0,
+    640.0
+   ],
+   "box": [
+    325.0,
+    643.0,
+    341.0,
+    669.0
+   ],
+   "dx": -27.0,
+   "dy": 16.0,
+   "dx_grid": -37.5,
+   "dy_grid": 12.5
+  },
+  {
+   "canvas": "720x1280",
+   "kind": "scratch",
+   "truth_centre": [
+    349.2,
+    857.6
+   ],
+   "box": [
+    251.0,
+    836.0,
+    450.0,
+    864.0
+   ],
+   "dx": 1.3,
+   "dy": -7.6,
+   "dx_grid": 1.8,
+   "dy_grid": -5.9
+  },
+  {
+   "canvas": "720x1280",
+   "kind": "chip",
+   "truth_centre": [
+    129.6,
+    998.4
+   ],
+   "box": [
+    123.0,
+    1015.0,
+    139.0,
+    1042.0
+   ],
+   "dx": 1.4,
+   "dy": 30.1,
+   "dx_grid": 1.9,
+   "dy_grid": 23.5
+  },
+  {
+   "canvas": "720x1280",
+   "kind": "chip",
+   "truth_centre": [
+    590.4,
+    998.4
+   ],
+   "box": [
+    555.0,
+    1015.0,
+    571.0,
+    1042.0
+   ],
+   "dx": -27.4,
+   "dy": 30.1,
+   "dx_grid": -38.1,
+   "dy_grid": 23.5
+  }
+ ],
+ "answers": {
+  "1280x441": {
+   "sent": [
+    1280,
+    441
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "scratch",
+     "point": {
+      "x": 497,
+      "y": 601
+     },
+     "bbox": {
+      "x_min": 335,
+      "y_min": 593,
+      "x_max": 660,
+      "y_max": 610
+     },
+     "size_class": "M",
+     "confidence": "high",
+     "note": "thin white horizontal line"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 158,
+      "y": 226
+     },
+     "bbox": {
+      "x_min": 152,
+      "y_min": 220,
+      "x_max": 164,
+      "y_max": 232
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small white dot"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 803,
+      "y": 222
+     },
+     "bbox": {
+      "x_min": 797,
+      "y_min": 216,
+      "x_max": 809,
+      "y_max": 228
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small white dot"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 500,
+      "y": 463
+     },
+     "bbox": {
+      "x_min": 494,
+      "y_min": 457,
+      "x_max": 506,
+      "y_max": 469
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small white dot"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 158,
+      "y": 751
+     },
+     "bbox": {
+      "x_min": 152,
+      "y_min": 745,
+      "x_max": 164,
+      "y_max": 757
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small white dot"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 803,
+      "y": 750
+     },
+     "bbox": {
+      "x_min": 797,
+      "y_min": 744,
+      "x_max": 809,
+      "y_max": 756
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small white dot"
+    }
+   ]
+  },
+  "1280x720": {
+   "sent": [
+    1280,
+    720
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "chip",
+     "point": {
+      "x": 179,
+      "y": 220
+     },
+     "bbox": {
+      "x_min": 171,
+      "y_min": 212,
+      "x_max": 187,
+      "y_max": 228
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round white spot"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 821,
+      "y": 220
+     },
+     "bbox": {
+      "x_min": 813,
+      "y_min": 212,
+      "x_max": 829,
+      "y_max": 228
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round white spot"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 499,
+      "y": 500
+     },
+     "bbox": {
+      "x_min": 492,
+      "y_min": 493,
+      "x_max": 507,
+      "y_max": 508
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round white spot center"
+    },
+    {
+     "type": "scratch",
+     "point": {
+      "x": 497,
+      "y": 476
+     },
+     "bbox": {
+      "x_min": 349,
+      "y_min": 465,
+      "x_max": 645,
+      "y_max": 487
+     },
+     "size_class": "M",
+     "confidence": "high",
+     "note": "thin white horizontal line"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 179,
+      "y": 782
+     },
+     "bbox": {
+      "x_min": 171,
+      "y_min": 774,
+      "x_max": 187,
+      "y_max": 790
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round white spot"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 821,
+      "y": 781
+     },
+     "bbox": {
+      "x_min": 813,
+      "y_min": 773,
+      "x_max": 829,
+      "y_max": 789
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round white spot"
+    }
+   ]
+  },
+  "1100x1100": {
+   "sent": [
+    1100,
+    1100
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "scratch",
+     "point": {
+      "x": 473,
+      "y": 670
+     },
+     "bbox": {
+      "x_min": 322,
+      "y_min": 657,
+      "x_max": 624,
+      "y_max": 683
+     },
+     "size_class": "M",
+     "confidence": "high",
+     "note": "thin long white horizontal scratch"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 153,
+      "y": 221
+     },
+     "bbox": {
+      "x_min": 144,
+      "y_min": 212,
+      "x_max": 162,
+      "y_max": 230
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round light spot"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 819,
+      "y": 221
+     },
+     "bbox": {
+      "x_min": 810,
+      "y_min": 212,
+      "x_max": 828,
+      "y_max": 230
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round light spot"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 500,
+      "y": 500
+     },
+     "bbox": {
+      "x_min": 491,
+      "y_min": 491,
+      "x_max": 509,
+      "y_max": 509
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round light spot"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 153,
+      "y": 832
+     },
+     "bbox": {
+      "x_min": 144,
+      "y_min": 823,
+      "x_max": 162,
+      "y_max": 841
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round light spot"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 819,
+      "y": 832
+     },
+     "bbox": {
+      "x_min": 810,
+      "y_min": 823,
+      "x_max": 828,
+      "y_max": 841
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small round light spot"
+    }
+   ]
+  },
+  "720x1280": {
+   "sent": [
+    720,
+    1280
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "unsure",
+     "point": {
+      "x": 181,
+      "y": 239
+     },
+     "bbox": {
+      "x_min": 171,
+      "y_min": 229,
+      "x_max": 191,
+      "y_max": 249
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small round light dot"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 781,
+      "y": 239
+     },
+     "bbox": {
+      "x_min": 771,
+      "y_min": 229,
+      "x_max": 791,
+      "y_max": 249
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small round light dot"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 462,
+      "y": 512
+     },
+     "bbox": {
+      "x_min": 452,
+      "y_min": 502,
+      "x_max": 472,
+      "y_max": 522
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small round light dot"
+    },
+    {
+     "type": "scratch",
+     "point": {
+      "x": 485,
+      "y": 664
+     },
+     "bbox": {
+      "x_min": 348,
+      "y_min": 653,
+      "x_max": 623,
+      "y_max": 674
+     },
+     "size_class": "M",
+     "confidence": "high",
+     "note": "thin straight light line"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 181,
+      "y": 803
+     },
+     "bbox": {
+      "x_min": 171,
+      "y_min": 793,
+      "x_max": 191,
+      "y_max": 813
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small round light dot"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 781,
+      "y": 803
+     },
+     "bbox": {
+      "x_min": 771,
+      "y_min": 793,
+      "x_max": 791,
+      "y_max": 813
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small round light dot"
+    }
+   ]
+  }
+ }
+}

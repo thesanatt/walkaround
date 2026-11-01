@@ -60,10 +60,17 @@ function MarkGlyph({ m, ox, oy, color, z }: { m: Mark; ox: number; oy: number; c
   );
 }
 
+// Box fix 11/1: which box the mark is drawn and measured with.
+export function boxLine(m: Mark): string {
+  const r = m.box_refine;
+  if (!r) return '';
+  return r.used === 'sam' ? ' (box tightened with SAM 3.1)' : ` (Muse Spark's box: ${r.note})`;
+}
+
 export function VerdictCard({ v, marks, panel, looks = [] }: { v: Verdict; marks: Map<string, Mark>; panel: Panel | undefined; looks?: LookRow[] }) {
   const described = v.mark_ids.map((id) => {
     const m = marks.get(id);
-    return m ? `${m.role}: ${m.type}, ${m.size_class}${m.description ? `, "${m.description}"` : ''}${m.source === 'narration_seed' ? ' (seeded from your words)' : ''}` : id;
+    return m ? `${m.role}: ${m.type}, ${m.size_class}${m.description ? `, "${m.description}"` : ''}${m.source === 'narration_seed' ? ' (seeded from your words)' : ''}${boxLine(m)}` : id;
   });
   const look = lookFor(v, looks);
   const ids = [v.rule_id, ...v.trace.rule_ids.filter((r) => r !== v.rule_id)];

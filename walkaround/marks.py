@@ -703,9 +703,13 @@ def _reusable_records(records: list[SparkRequestRecord], keyframes: list[Keyfram
     return out
 
 
-def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict) -> tuple[list[Mark], list[Keyframe], float, int]:
+def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict, sam_index: Any = None) -> tuple[list[Mark], list[Keyframe], float, int]:
     """One role's marks from its keyframes' Spark results (None when Spark never saw the keyframe): marks_status and
-    conditions on each keyframe, mapping, caps, whitening, the count union, then the within-walk dedup."""
+    conditions on each keyframe, mapping, caps, the SAM box of each box mark when dedup.sam_box_refine is on (from the
+    stored answers in sam_index), whitening, the count union, then the within-walk dedup."""
+    from . import box_refine
+
+    refine = box_refine.settings(th) is not None and sam_index is not None
     marks: list[Mark] = []
     whitened: dict[str, WhitenedMark] = {}
     masks: dict[str, np.ndarray] = {}
@@ -724,6 +728,8 @@ def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict)
         if mask is not None:
             masks[kf.kf_id] = mask
         kf_marks = marks_from_answer(answer, result, kf_new, kf.crop, th=th)
+        if refine:
+            kf_marks = box_refine.refine_marks(kf_marks, kf_new, sam_index, th=th)
         kf_marks, kf_whitened = whiten_marks(kf_marks, kf_new, th=th, mask=mask)
         if count is not None and not getattr(count, "truncated", False):
             extra = count_union(kf_marks, count, result, kf_new, kf.crop, kf_whitened, th=th)
@@ -809,7 +815,8 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
             records.append(result.record)
             if count is not None:
                 records.append(count.record)
-    marks, updated, sq_sum, dof = _marks_of(root, [(kf, result, count) for kf, result, count, _ in results], th=th)
+    sam_index = await _sam_boxes(run_id, [(kf, result) for kf, result, _count, _reused in results], th=th)
+    marks, updated, sq_sum, dof = _marks_of(root, [(kf, result, count) for kf, result, count, _ in results], th=th, sam_index=sam_index)
 
     _write_role_marks(run_id, role, marks)
     write_json(spark_path, [*_read_list(spark_path, SparkRequestRecord), *records])
@@ -822,11 +829,48 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
     return marks, updated, records
 
 
+async def _sam_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: dict) -> Any:
+    """With dedup.sam_box_refine on: SAM 3.1 image requests for the box marks of each answered crop, all of a crop's
+    boxes in one request (LIVE), appended to sam_marks.json; a box whose (crop, prompt) already has a stored answer is
+    not asked again. Returns the box_refine.Index of every stored answer, or None when the leaf is off."""
+    from . import box_refine
+
+    s = box_refine.settings(th)
+    if s is None:
+        return None
+    root = paths.run_dir(run_id)
+    stored = box_refine.read_asks(run_id)
+    known = box_refine.Index(stored)
+    jobs = []
+    for kf, result in results:
+        answer = getattr(result, "answer", None)
+        if kf.crop is None or answer is None:
+            continue
+        provisional = marks_from_answer(answer, result, kf, kf.crop, th=th)
+        for chunk in box_refine.plan(provisional, kf, s):
+            todo = [o for o in chunk if not known.has(kf.crop, o.prompt)]
+            if todo:
+                jobs.append((kf, [o.model_copy(update={"object_id": j + 1}) for j, o in enumerate(todo)]))
+    if jobs:
+        semaphore = asyncio.Semaphore(int(th["orchestrator"]["sam_image_semaphore"]))
+
+        async def one(kf: Keyframe, objects: list[Any]) -> Any:
+            async with semaphore:
+                return await box_refine.ask(run_id, kf, root / kf.crop.path, objects)  # type: ignore[union-attr]
+
+        asked = await asyncio.gather(*(one(kf, objs) for kf, objs in jobs))
+        stored = [*box_refine.read_asks(run_id), *asked]
+        box_refine.write_asks(run_id, stored)
+    return box_refine.Index(stored)
+
+
 def rebuild_marks(run_id: str, role: str, *, th: dict) -> list[Mark]:
     """This role's marks.json rows, its sigma_view row and calibration.json recomputed from spark.json and keyframes.json
     with no model call (section 7 item 3). Each keyframe Spark answered for reads back the answer derive_marks used: the
-    valid answer for its (crop sha256, panel), else the last record asked for its crop. keyframes.json and spark.json
-    are frozen facts and are not written. Box mode only: count-mode points are not replayed."""
+    valid answer for its (crop sha256, panel), else the last record asked for its crop. With dedup.sam_box_refine on,
+    each box mark's SAM answer is read back from sam_marks.json (a box with no stored answer keeps Spark's box and says
+    so). keyframes.json, spark.json and sam_marks.json are frozen facts and are not written. Box mode only: count-mode
+    points are not replayed."""
     from . import spark_client
 
     root = paths.run_dir(run_id)
@@ -845,7 +889,10 @@ def rebuild_marks(run_id: str, role: str, *, th: dict) -> list[Mark]:
             continue
         h, w = _read_rgb(root / kf.crop.path).shape[:2]
         results.append((kf, spark_client.marks_result_from_record(record, orig_width=w, orig_height=h, landmarks=landmarks_for(kf.panel_id, th)), None))
-    marks, _updated, sq_sum, dof = _marks_of(root, results, th=th)
+    from . import box_refine
+
+    sam_index = box_refine.Index(box_refine.read_asks(run_id)) if box_refine.settings(th) is not None else None
+    marks, _updated, sq_sum, dof = _marks_of(root, results, th=th, sam_index=sam_index)
     _write_role_marks(run_id, role, marks)
     _record_sigma_view(run_id, role, sq_sum, dof, th=th)
     return marks

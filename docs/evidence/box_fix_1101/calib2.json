@@ -1,0 +1,1900 @@
+{
+ "answers": {
+  "1280x441_s1": {
+   "sent": [
+    1280,
+    441
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "unsure",
+     "point": {
+      "x": 110,
+      "y": 215
+     },
+     "bbox": {
+      "x_min": 105,
+      "y_min": 210,
+      "x_max": 115,
+      "y_max": 220
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 175,
+      "y": 610
+     },
+     "bbox": {
+      "x_min": 170,
+      "y_min": 605,
+      "x_max": 180,
+      "y_max": 615
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 305,
+      "y": 820
+     },
+     "bbox": {
+      "x_min": 300,
+      "y_min": 815,
+      "x_max": 310,
+      "y_max": 825
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 488,
+      "y": 620
+     },
+     "bbox": {
+      "x_min": 483,
+      "y_min": 615,
+      "x_max": 493,
+      "y_max": 625
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 645,
+      "y": 540
+     },
+     "bbox": {
+      "x_min": 640,
+      "y_min": 535,
+      "x_max": 650,
+      "y_max": 545
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 656,
+      "y": 320
+     },
+     "bbox": {
+      "x_min": 651,
+      "y_min": 315,
+      "x_max": 661,
+      "y_max": 325
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 805,
+      "y": 680
+     },
+     "bbox": {
+      "x_min": 800,
+      "y_min": 675,
+      "x_max": 810,
+      "y_max": 685
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 812,
+      "y": 490
+     },
+     "bbox": {
+      "x_min": 807,
+      "y_min": 485,
+      "x_max": 817,
+      "y_max": 495
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    }
+   ]
+  },
+  "1280x720_s1": {
+   "sent": [
+    1280,
+    720
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "chip",
+     "point": {
+      "x": 159,
+      "y": 397
+     },
+     "bbox": {
+      "x_min": 154,
+      "y_min": 392,
+      "x_max": 164,
+      "y_max": 402
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 195,
+      "y": 700
+     },
+     "bbox": {
+      "x_min": 190,
+      "y_min": 695,
+      "x_max": 200,
+      "y_max": 705
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 80,
+      "y": 913
+     },
+     "bbox": {
+      "x_min": 75,
+      "y_min": 908,
+      "x_max": 85,
+      "y_max": 918
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 373,
+      "y": 794
+     },
+     "bbox": {
+      "x_min": 368,
+      "y_min": 789,
+      "x_max": 378,
+      "y_max": 799
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 429,
+      "y": 478
+     },
+     "bbox": {
+      "x_min": 424,
+      "y_min": 473,
+      "x_max": 434,
+      "y_max": 483
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 406,
+      "y": 174
+     },
+     "bbox": {
+      "x_min": 401,
+      "y_min": 169,
+      "x_max": 411,
+      "y_max": 179
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 581,
+      "y": 333
+     },
+     "bbox": {
+      "x_min": 576,
+      "y_min": 328,
+      "x_max": 586,
+      "y_max": 338
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 764,
+      "y": 491
+     },
+     "bbox": {
+      "x_min": 759,
+      "y_min": 486,
+      "x_max": 769,
+      "y_max": 496
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "tiny light speck"
+    }
+   ]
+  },
+  "1100x1100_s1": {
+   "sent": [
+    1100,
+    1100
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "chip",
+     "point": {
+      "x": 740,
+      "y": 100
+     },
+     "bbox": {
+      "x_min": 730,
+      "y_min": 90,
+      "x_max": 750,
+      "y_max": 110
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 494,
+      "y": 154
+     },
+     "bbox": {
+      "x_min": 484,
+      "y_min": 144,
+      "x_max": 504,
+      "y_max": 164
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 929,
+      "y": 285
+     },
+     "bbox": {
+      "x_min": 919,
+      "y_min": 275,
+      "x_max": 939,
+      "y_max": 295
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 599,
+      "y": 372
+     },
+     "bbox": {
+      "x_min": 589,
+      "y_min": 362,
+      "x_max": 609,
+      "y_max": 382
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 587,
+      "y": 548
+     },
+     "bbox": {
+      "x_min": 577,
+      "y_min": 538,
+      "x_max": 597,
+      "y_max": 558
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 124,
+      "y": 597
+     },
+     "bbox": {
+      "x_min": 114,
+      "y_min": 587,
+      "x_max": 134,
+      "y_max": 607
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 453,
+      "y": 786
+     },
+     "bbox": {
+      "x_min": 443,
+      "y_min": 776,
+      "x_max": 463,
+      "y_max": 796
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 303,
+      "y": 804
+     },
+     "bbox": {
+      "x_min": 293,
+      "y_min": 794,
+      "x_max": 313,
+      "y_max": 814
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    }
+   ]
+  },
+  "720x1280_s1": {
+   "sent": [
+    720,
+    1280
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "unsure",
+     "point": {
+      "x": 433,
+      "y": 135
+     },
+     "bbox": {
+      "x_min": 425,
+      "y_min": 127,
+      "x_max": 442,
+      "y_max": 143
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 587,
+      "y": 232
+     },
+     "bbox": {
+      "x_min": 579,
+      "y_min": 224,
+      "x_max": 595,
+      "y_max": 240
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 343,
+      "y": 358
+     },
+     "bbox": {
+      "x_min": 335,
+      "y_min": 350,
+      "x_max": 351,
+      "y_max": 366
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 493,
+      "y": 461
+     },
+     "bbox": {
+      "x_min": 485,
+      "y_min": 453,
+      "x_max": 501,
+      "y_max": 469
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 763,
+      "y": 613
+     },
+     "bbox": {
+      "x_min": 755,
+      "y_min": 605,
+      "x_max": 771,
+      "y_max": 621
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 836,
+      "y": 736
+     },
+     "bbox": {
+      "x_min": 828,
+      "y_min": 728,
+      "x_max": 844,
+      "y_max": 744
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 150,
+      "y": 903
+     },
+     "bbox": {
+      "x_min": 142,
+      "y_min": 895,
+      "x_max": 158,
+      "y_max": 911
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny light speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 502,
+      "y": 911
+     },
+     "bbox": {
+      "x_min": 494,
+      "y_min": 903,
+      "x_max": 510,
+      "y_max": 919
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny light speck"
+    }
+   ]
+  },
+  "1280x441_s2": {
+   "sent": [
+    1280,
+    441
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "unsure",
+     "point": {
+      "x": 76,
+      "y": 835
+     },
+     "bbox": {
+      "x_min": 70,
+      "y_min": 822,
+      "x_max": 82,
+      "y_max": 848
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 321,
+      "y": 385
+     },
+     "bbox": {
+      "x_min": 315,
+      "y_min": 372,
+      "x_max": 327,
+      "y_max": 398
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 501,
+      "y": 763
+     },
+     "bbox": {
+      "x_min": 495,
+      "y_min": 750,
+      "x_max": 507,
+      "y_max": 776
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 534,
+      "y": 42
+     },
+     "bbox": {
+      "x_min": 528,
+      "y_min": 29,
+      "x_max": 540,
+      "y_max": 55
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 662,
+      "y": 328
+     },
+     "bbox": {
+      "x_min": 656,
+      "y_min": 315,
+      "x_max": 668,
+      "y_max": 341
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 807,
+      "y": 356
+     },
+     "bbox": {
+      "x_min": 801,
+      "y_min": 343,
+      "x_max": 813,
+      "y_max": 369
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 813,
+      "y": 608
+     },
+     "bbox": {
+      "x_min": 807,
+      "y_min": 595,
+      "x_max": 819,
+      "y_max": 621
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 933,
+      "y": 771
+     },
+     "bbox": {
+      "x_min": 927,
+      "y_min": 758,
+      "x_max": 939,
+      "y_max": 784
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white speck"
+    }
+   ]
+  },
+  "1280x720_s2": {
+   "sent": [
+    1280,
+    720
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "unsure",
+     "point": {
+      "x": 479,
+      "y": 174
+     },
+     "bbox": {
+      "x_min": 472,
+      "y_min": 167,
+      "x_max": 486,
+      "y_max": 181
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white dot on paint"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 137,
+      "y": 347
+     },
+     "bbox": {
+      "x_min": 130,
+      "y_min": 340,
+      "x_max": 144,
+      "y_max": 354
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white dot on paint"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 831,
+      "y": 343
+     },
+     "bbox": {
+      "x_min": 824,
+      "y_min": 336,
+      "x_max": 838,
+      "y_max": 350
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white dot on paint"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 275,
+      "y": 481
+     },
+     "bbox": {
+      "x_min": 268,
+      "y_min": 474,
+      "x_max": 282,
+      "y_max": 488
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white dot on paint"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 106,
+      "y": 613
+     },
+     "bbox": {
+      "x_min": 99,
+      "y_min": 606,
+      "x_max": 113,
+      "y_max": 620
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white dot on paint"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 207,
+      "y": 762
+     },
+     "bbox": {
+      "x_min": 200,
+      "y_min": 755,
+      "x_max": 214,
+      "y_max": 769
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white dot on paint"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 306,
+      "y": 890
+     },
+     "bbox": {
+      "x_min": 299,
+      "y_min": 883,
+      "x_max": 313,
+      "y_max": 897
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white dot on paint"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 767,
+      "y": 790
+     },
+     "bbox": {
+      "x_min": 760,
+      "y_min": 783,
+      "x_max": 774,
+      "y_max": 797
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "tiny white dot on paint"
+    }
+   ]
+  },
+  "1100x1100_s2": {
+   "sent": [
+    1100,
+    1100
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "chip",
+     "point": {
+      "x": 172,
+      "y": 77
+     },
+     "bbox": {
+      "x_min": 163,
+      "y_min": 68,
+      "x_max": 181,
+      "y_max": 86
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 162,
+      "y": 330
+     },
+     "bbox": {
+      "x_min": 153,
+      "y_min": 321,
+      "x_max": 171,
+      "y_max": 339
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 499,
+      "y": 311
+     },
+     "bbox": {
+      "x_min": 490,
+      "y_min": 302,
+      "x_max": 508,
+      "y_max": 320
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 247,
+      "y": 462
+     },
+     "bbox": {
+      "x_min": 238,
+      "y_min": 453,
+      "x_max": 256,
+      "y_max": 471
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 102,
+      "y": 542
+     },
+     "bbox": {
+      "x_min": 93,
+      "y_min": 533,
+      "x_max": 111,
+      "y_max": 551
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 250,
+      "y": 692
+     },
+     "bbox": {
+      "x_min": 241,
+      "y_min": 683,
+      "x_max": 259,
+      "y_max": 701
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 372,
+      "y": 682
+     },
+     "bbox": {
+      "x_min": 363,
+      "y_min": 673,
+      "x_max": 381,
+      "y_max": 691
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    },
+    {
+     "type": "chip",
+     "point": {
+      "x": 742,
+      "y": 923
+     },
+     "bbox": {
+      "x_min": 733,
+      "y_min": 914,
+      "x_max": 751,
+      "y_max": 932
+     },
+     "size_class": "S",
+     "confidence": "medium",
+     "note": "small light dot on paint"
+    }
+   ]
+  },
+  "720x1280_s2": {
+   "sent": [
+    720,
+    1280
+   ],
+   "scale": 1.0,
+   "marks": [
+    {
+     "type": "unsure",
+     "point": {
+      "x": 484,
+      "y": 126
+     },
+     "bbox": {
+      "x_min": 476,
+      "y_min": 118,
+      "x_max": 492,
+      "y_max": 134
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small light speck on dark hood"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 765,
+      "y": 237
+     },
+     "bbox": {
+      "x_min": 757,
+      "y_min": 229,
+      "x_max": 773,
+      "y_max": 245
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small light speck on dark hood"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 210,
+      "y": 512
+     },
+     "bbox": {
+      "x_min": 202,
+      "y_min": 504,
+      "x_max": 218,
+      "y_max": 520
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small light speck on dark hood"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 837,
+      "y": 500
+     },
+     "bbox": {
+      "x_min": 829,
+      "y_min": 492,
+      "x_max": 845,
+      "y_max": 508
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small light speck on dark hood"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 220,
+      "y": 819
+     },
+     "bbox": {
+      "x_min": 212,
+      "y_min": 811,
+      "x_max": 228,
+      "y_max": 827
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small light speck on dark hood"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 782,
+      "y": 830
+     },
+     "bbox": {
+      "x_min": 774,
+      "y_min": 822,
+      "x_max": 790,
+      "y_max": 838
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small light speck on dark hood"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 624,
+      "y": 892
+     },
+     "bbox": {
+      "x_min": 616,
+      "y_min": 884,
+      "x_max": 632,
+      "y_max": 900
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small light speck on dark hood"
+    },
+    {
+     "type": "unsure",
+     "point": {
+      "x": 128,
+      "y": 972
+     },
+     "bbox": {
+      "x_min": 120,
+      "y_min": 964,
+      "x_max": 136,
+      "y_max": 980
+     },
+     "size_class": "S",
+     "confidence": "low",
+     "note": "small light speck on dark hood"
+    }
+   ]
+  }
+ },
+ "rows": [
+  {
+   "canvas": "1280x441_s1",
+   "aspect": 2.9,
+   "truth": [
+    139.7,
+    92.9
+   ],
+   "dx": 1.3,
+   "dy": 2.6,
+   "gx": 0.109,
+   "gy": 0.211
+  },
+  {
+   "canvas": "1280x441_s1",
+   "aspect": 2.9,
+   "truth": [
+    220.4,
+    270.7
+   ],
+   "dx": 4.1,
+   "dy": -1.2,
+   "gx": 0.172,
+   "gy": 0.614
+  },
+  {
+   "canvas": "1280x441_s1",
+   "aspect": 2.9,
+   "truth": [
+    362.8,
+    360.5
+   ],
+   "dx": 28.2,
+   "dy": 1.5,
+   "gx": 0.283,
+   "gy": 0.818
+  },
+  {
+   "canvas": "1280x441_s1",
+   "aspect": 2.9,
+   "truth": [
+    569.4,
+    281.2
+   ],
+   "dx": 55.6,
+   "dy": -7.2,
+   "gx": 0.445,
+   "gy": 0.638
+  },
+  {
+   "canvas": "1280x441_s1",
+   "aspect": 2.9,
+   "truth": [
+    793.5,
+    241.2
+   ],
+   "dx": 32.5,
+   "dy": -2.7,
+   "gx": 0.62,
+   "gy": 0.547
+  },
+  {
+   "canvas": "1280x441_s1",
+   "aspect": 2.9,
+   "truth": [
+    804.1,
+    132.6
+   ],
+   "dx": 35.9,
+   "dy": 8.9,
+   "gx": 0.628,
+   "gy": 0.301
+  },
+  {
+   "canvas": "1280x441_s1",
+   "aspect": 2.9,
+   "truth": [
+    971.4,
+    297.7
+   ],
+   "dx": 59.6,
+   "dy": 2.8,
+   "gx": 0.759,
+   "gy": 0.675
+  },
+  {
+   "canvas": "1280x441_s1",
+   "aspect": 2.9,
+   "truth": [
+    1044.8,
+    206.0
+   ],
+   "dx": -4.8,
+   "dy": 10.5,
+   "gx": 0.816,
+   "gy": 0.467
+  },
+  {
+   "canvas": "1280x720_s1",
+   "aspect": 1.78,
+   "truth": [
+    204.0,
+    285.8
+   ],
+   "dx": 0.0,
+   "dy": 0.2,
+   "gx": 0.159,
+   "gy": 0.397
+  },
+  {
+   "canvas": "1280x720_s1",
+   "aspect": 1.78,
+   "truth": [
+    247.9,
+    502.7
+   ],
+   "dx": 2.1,
+   "dy": 1.8,
+   "gx": 0.194,
+   "gy": 0.698
+  },
+  {
+   "canvas": "1280x720_s1",
+   "aspect": 1.78,
+   "truth": [
+    101.2,
+    657.4
+   ],
+   "dx": 1.8,
+   "dy": 0.6,
+   "gx": 0.079,
+   "gy": 0.913
+  },
+  {
+   "canvas": "1280x720_s1",
+   "aspect": 1.78,
+   "truth": [
+    478.8,
+    570.1
+   ],
+   "dx": -0.8,
+   "dy": 1.9,
+   "gx": 0.374,
+   "gy": 0.792
+  },
+  {
+   "canvas": "1280x720_s1",
+   "aspect": 1.78,
+   "truth": [
+    576.4,
+    343.6
+   ],
+   "dx": -26.4,
+   "dy": 1.4,
+   "gx": 0.45,
+   "gy": 0.477
+  },
+  {
+   "canvas": "1280x720_s1",
+   "aspect": 1.78,
+   "truth": [
+    520.4,
+    125.2
+   ],
+   "dx": -0.4,
+   "dy": 0.8,
+   "gx": 0.407,
+   "gy": 0.174
+  },
+  {
+   "canvas": "1280x720_s1",
+   "aspect": 1.78,
+   "truth": [
+    742.5,
+    239.2
+   ],
+   "dx": 1.5,
+   "dy": 0.8,
+   "gx": 0.58,
+   "gy": 0.332
+  },
+  {
+   "canvas": "1280x720_s1",
+   "aspect": 1.78,
+   "truth": [
+    976.2,
+    353.2
+   ],
+   "dx": 2.3,
+   "dy": 0.8,
+   "gx": 0.763,
+   "gy": 0.491
+  },
+  {
+   "canvas": "1100x1100_s1",
+   "aspect": 1.0,
+   "truth": [
+    813.6,
+    109.3
+   ],
+   "dx": 0.9,
+   "dy": 1.2,
+   "gx": 0.74,
+   "gy": 0.099
+  },
+  {
+   "canvas": "1100x1100_s1",
+   "aspect": 1.0,
+   "truth": [
+    572.2,
+    167.6
+   ],
+   "dx": -28.7,
+   "dy": 1.9,
+   "gx": 0.52,
+   "gy": 0.152
+  },
+  {
+   "canvas": "1100x1100_s1",
+   "aspect": 1.0,
+   "truth": [
+    1021.7,
+    284.9
+   ],
+   "dx": 0.8,
+   "dy": 28.6,
+   "gx": 0.929,
+   "gy": 0.259
+  },
+  {
+   "canvas": "1100x1100_s1",
+   "aspect": 1.0,
+   "truth": [
+    686.7,
+    379.5
+   ],
+   "dx": -27.2,
+   "dy": 30.0,
+   "gx": 0.624,
+   "gy": 0.345
+  },
+  {
+   "canvas": "1100x1100_s1",
+   "aspect": 1.0,
+   "truth": [
+    673.5,
+    575.4
+   ],
+   "dx": -27.0,
+   "dy": 28.1,
+   "gx": 0.612,
+   "gy": 0.523
+  },
+  {
+   "canvas": "1100x1100_s1",
+   "aspect": 1.0,
+   "truth": [
+    165.1,
+    625.9
+   ],
+   "dx": -28.6,
+   "dy": 31.6,
+   "gx": 0.15,
+   "gy": 0.569
+  },
+  {
+   "canvas": "1100x1100_s1",
+   "aspect": 1.0,
+   "truth": [
+    526.2,
+    836.4
+   ],
+   "dx": -27.7,
+   "dy": 29.1,
+   "gx": 0.478,
+   "gy": 0.76
+  },
+  {
+   "canvas": "1100x1100_s1",
+   "aspect": 1.0,
+   "truth": [
+    332.5,
+    855.9
+   ],
+   "dx": 1.0,
+   "dy": 28.6,
+   "gx": 0.302,
+   "gy": 0.778
+  },
+  {
+   "canvas": "720x1280_s1",
+   "aspect": 0.56,
+   "truth": [
+    340.3,
+    124.7
+   ],
+   "dx": -27.8,
+   "dy": 48.8,
+   "gx": 0.473,
+   "gy": 0.097
+  },
+  {
+   "canvas": "720x1280_s1",
+   "aspect": 0.56,
+   "truth": [
+    450.2,
+    250.5
+   ],
+   "dx": -27.2,
+   "dy": 47.0,
+   "gx": 0.625,
+   "gy": 0.196
+  },
+  {
+   "canvas": "720x1280_s1",
+   "aspect": 0.56,
+   "truth": [
+    274.0,
+    397.1
+   ],
+   "dx": -26.5,
+   "dy": 61.4,
+   "gx": 0.381,
+   "gy": 0.31
+  },
+  {
+   "canvas": "720x1280_s1",
+   "aspect": 0.56,
+   "truth": [
+    381.6,
+    529.4
+   ],
+   "dx": -26.1,
+   "dy": 61.1,
+   "gx": 0.53,
+   "gy": 0.414
+  },
+  {
+   "canvas": "720x1280_s1",
+   "aspect": 0.56,
+   "truth": [
+    576.6,
+    721.0
+   ],
+   "dx": -26.6,
+   "dy": 64.0,
+   "gx": 0.801,
+   "gy": 0.563
+  },
+  {
+   "canvas": "720x1280_s1",
+   "aspect": 0.56,
+   "truth": [
+    656.9,
+    895.1
+   ],
+   "dx": -54.4,
+   "dy": 47.4,
+   "gx": 0.912,
+   "gy": 0.699
+  },
+  {
+   "canvas": "720x1280_s1",
+   "aspect": 0.56,
+   "truth": [
+    108.2,
+    1127.0
+   ],
+   "dx": 0.3,
+   "dy": 29.5,
+   "gx": 0.15,
+   "gy": 0.88
+  },
+  {
+   "canvas": "720x1280_s1",
+   "aspect": 0.56,
+   "truth": [
+    389.0,
+    1160.3
+   ],
+   "dx": -27.0,
+   "dy": 6.2,
+   "gx": 0.54,
+   "gy": 0.907
+  },
+  {
+   "canvas": "1280x441_s2",
+   "aspect": 2.9,
+   "truth": [
+    98.7,
+    360.2
+   ],
+   "dx": -0.7,
+   "dy": 8.8,
+   "gx": 0.077,
+   "gy": 0.817
+  },
+  {
+   "canvas": "1280x441_s2",
+   "aspect": 2.9,
+   "truth": [
+    355.9,
+    175.0
+   ],
+   "dx": 55.6,
+   "dy": -4.5,
+   "gx": 0.278,
+   "gy": 0.397
+  },
+  {
+   "canvas": "1280x441_s2",
+   "aspect": 2.9,
+   "truth": [
+    569.7,
+    330.0
+   ],
+   "dx": 72.3,
+   "dy": 7.0,
+   "gx": 0.445,
+   "gy": 0.748
+  },
+  {
+   "canvas": "1280x441_s2",
+   "aspect": 2.9,
+   "truth": [
+    584.5,
+    41.1
+   ],
+   "dx": 99.5,
+   "dy": -22.1,
+   "gx": 0.457,
+   "gy": 0.093
+  },
+  {
+   "canvas": "1280x441_s2",
+   "aspect": 2.9,
+   "truth": [
+    770.6,
+    138.1
+   ],
+   "dx": 77.4,
+   "dy": 6.9,
+   "gx": 0.602,
+   "gy": 0.313
+  },
+  {
+   "canvas": "1280x441_s2",
+   "aspect": 2.9,
+   "truth": [
+    1048.5,
+    162.3
+   ],
+   "dx": -15.0,
+   "dy": -4.8,
+   "gx": 0.819,
+   "gy": 0.368
+  },
+  {
+   "canvas": "1280x441_s2",
+   "aspect": 2.9,
+   "truth": [
+    1066.0,
+    273.8
+   ],
+   "dx": -25.0,
+   "dy": -5.3,
+   "gx": 0.833,
+   "gy": 0.621
+  },
+  {
+   "canvas": "1280x441_s2",
+   "aspect": 2.9,
+   "truth": [
+    1169.0,
+    338.3
+   ],
+   "dx": 26.0,
+   "dy": 2.2,
+   "gx": 0.913,
+   "gy": 0.767
+  },
+  {
+   "canvas": "1280x720_s2",
+   "aspect": 1.78,
+   "truth": [
+    584.5,
+    125.3
+   ],
+   "dx": 29.0,
+   "dy": 0.2,
+   "gx": 0.457,
+   "gy": 0.174
+  },
+  {
+   "canvas": "1280x720_s2",
+   "aspect": 1.78,
+   "truth": [
+    175.5,
+    249.0
+   ],
+   "dx": -0.0,
+   "dy": 1.5,
+   "gx": 0.137,
+   "gy": 0.346
+  },
+  {
+   "canvas": "1280x720_s2",
+   "aspect": 1.78,
+   "truth": [
+    1119.5,
+    246.1
+   ],
+   "dx": -55.0,
+   "dy": 1.4,
+   "gx": 0.875,
+   "gy": 0.342
+  },
+  {
+   "canvas": "1280x720_s2",
+   "aspect": 1.78,
+   "truth": [
+    352.0,
+    346.2
+   ],
+   "dx": 0.5,
+   "dy": 0.3,
+   "gx": 0.275,
+   "gy": 0.481
+  },
+  {
+   "canvas": "1280x720_s2",
+   "aspect": 1.78,
+   "truth": [
+    135.6,
+    440.5
+   ],
+   "dx": 0.9,
+   "dy": 1.0,
+   "gx": 0.106,
+   "gy": 0.612
+  },
+  {
+   "canvas": "1280x720_s2",
+   "aspect": 1.78,
+   "truth": [
+    265.2,
+    547.5
+   ],
+   "dx": 0.3,
+   "dy": 2.0,
+   "gx": 0.207,
+   "gy": 0.76
+  },
+  {
+   "canvas": "1280x720_s2",
+   "aspect": 1.78,
+   "truth": [
+    392.4,
+    639.9
+   ],
+   "dx": 0.1,
+   "dy": 1.6,
+   "gx": 0.307,
+   "gy": 0.889
+  },
+  {
+   "canvas": "1280x720_s2",
+   "aspect": 1.78,
+   "truth": [
+    1038.3,
+    568.6
+   ],
+   "dx": -55.8,
+   "dy": 0.9,
+   "gx": 0.811,
+   "gy": 0.79
+  },
+  {
+   "canvas": "1100x1100_s2",
+   "aspect": 1.0,
+   "truth": [
+    216.5,
+    83.8
+   ],
+   "dx": -27.0,
+   "dy": 1.7,
+   "gx": 0.197,
+   "gy": 0.076
+  },
+  {
+   "canvas": "1100x1100_s2",
+   "aspect": 1.0,
+   "truth": [
+    178.5,
+    361.5
+   ],
+   "dx": -0.0,
+   "dy": 2.0,
+   "gx": 0.162,
+   "gy": 0.329
+  },
+  {
+   "canvas": "1100x1100_s2",
+   "aspect": 1.0,
+   "truth": [
+    576.8,
+    339.5
+   ],
+   "dx": -27.3,
+   "dy": 3.0,
+   "gx": 0.524,
+   "gy": 0.309
+  },
+  {
+   "canvas": "1100x1100_s2",
+   "aspect": 1.0,
+   "truth": [
+    271.4,
+    506.7
+   ],
+   "dx": 1.1,
+   "dy": 1.8,
+   "gx": 0.247,
+   "gy": 0.461
+  },
+  {
+   "canvas": "1100x1100_s2",
+   "aspect": 1.0,
+   "truth": [
+    112.1,
+    594.8
+   ],
+   "dx": 0.4,
+   "dy": 1.7,
+   "gx": 0.102,
+   "gy": 0.541
+  },
+  {
+   "canvas": "1100x1100_s2",
+   "aspect": 1.0,
+   "truth": [
+    274.3,
+    760.7
+   ],
+   "dx": 1.2,
+   "dy": 0.8,
+   "gx": 0.249,
+   "gy": 0.692
+  },
+  {
+   "canvas": "1100x1100_s2",
+   "aspect": 1.0,
+   "truth": [
+    437.5,
+    749.4
+   ],
+   "dx": -28.0,
+   "dy": 1.1,
+   "gx": 0.398,
+   "gy": 0.681
+  },
+  {
+   "canvas": "1100x1100_s2",
+   "aspect": 1.0,
+   "truth": [
+    843.8,
+    1014.5
+   ],
+   "dx": -27.3,
+   "dy": 1.0,
+   "gx": 0.767,
+   "gy": 0.922
+  },
+  {
+   "canvas": "720x1280_s2",
+   "aspect": 0.56,
+   "truth": [
+    375.9,
+    146.1
+   ],
+   "dx": -26.9,
+   "dy": 15.9,
+   "gx": 0.522,
+   "gy": 0.114
+  },
+  {
+   "canvas": "720x1280_s2",
+   "aspect": 0.56,
+   "truth": [
+    577.5,
+    282.8
+   ],
+   "dx": -26.0,
+   "dy": 21.2,
+   "gx": 0.802,
+   "gy": 0.221
+  },
+  {
+   "canvas": "720x1280_s2",
+   "aspect": 0.56,
+   "truth": [
+    152.5,
+    615.2
+   ],
+   "dx": -1.0,
+   "dy": 40.8,
+   "gx": 0.212,
+   "gy": 0.481
+  },
+  {
+   "canvas": "720x1280_s2",
+   "aspect": 0.56,
+   "truth": [
+    657.6,
+    611.3
+   ],
+   "dx": -54.6,
+   "dy": 29.2,
+   "gx": 0.913,
+   "gy": 0.478
+  },
+  {
+   "canvas": "720x1280_s2",
+   "aspect": 0.56,
+   "truth": [
+    158.5,
+    986.3
+   ],
+   "dx": 0.5,
+   "dy": 62.7,
+   "gx": 0.22,
+   "gy": 0.771
+  },
+  {
+   "canvas": "720x1280_s2",
+   "aspect": 0.56,
+   "truth": [
+    618.9,
+    1023.4
+   ],
+   "dx": -55.4,
+   "dy": 39.6,
+   "gx": 0.86,
+   "gy": 0.799
+  },
+  {
+   "canvas": "720x1280_s2",
+   "aspect": 0.56,
+   "truth": [
+    478.3,
+    1096.2
+   ],
+   "dx": -28.3,
+   "dy": 46.3,
+   "gx": 0.664,
+   "gy": 0.856
+  },
+  {
+   "canvas": "720x1280_s2",
+   "aspect": 0.56,
+   "truth": [
+    92.3,
+    1177.1
+   ],
+   "dx": 0.2,
+   "dy": 67.4,
+   "gx": 0.128,
+   "gy": 0.92
+  }
+ ],
+ "summary": {
+  "0.56": {
+   "n": 16,
+   "dx_med": -26.75,
+   "dy_med": 46.65,
+   "abs_med": 59.0,
+   "far_over_20px": 16
+  },
+  "1.0": {
+   "n": 16,
+   "dx_med": -27.0,
+   "dy_med": 1.95,
+   "abs_med": 27.7,
+   "far_over_20px": 11
+  },
+  "1.78": {
+   "n": 16,
+   "dx_med": 0.2,
+   "dy_med": 0.95,
+   "abs_med": 2.0,
+   "far_over_20px": 4
+  },
+  "2.9": {
+   "n": 16,
+   "dx_med": 30.35,
+   "dy_med": 1.85,
+   "abs_med": 30.4,
+   "far_over_20px": 11
+  }
+ }
+}

@@ -1275,23 +1275,33 @@ def note_prefill(claim_text: str, agreement_pdf: Path, *, run_id: str | None = N
 # ----------------------------------------------------------------------------------------------------------------
 
 
+def _axis_scales(result: MarksResult) -> tuple[float, float]:
+    """Sent pixels per crop pixel on each axis. prepare_image rounds each side on its own, so one scale (taken from the
+    width) is off on the other axis by up to half a sent pixel over the whole side (0.7 crop px at the bottom of a
+    700 x 1500 crop, box fix 11/1)."""
+    sx = result.sent_width / result.orig_width if result.orig_width else (result.scale or 1.0)
+    sy = result.sent_height / result.orig_height if result.orig_height else (result.scale or 1.0)
+    return sx or 1.0, sy or 1.0
+
+
 def _undo_resize(v: int, scale: float, dim: int) -> int:
     return int(min(max(round(v / (scale or 1.0)), 0), dim - 1))
 
 
 def point_to_crop_pixels(p: GridPoint, result: MarksResult) -> tuple[int, int]:
-    """Grid -> pixels of the sent image -> pixels of the crop before the resize."""
+    """Grid -> pixels of the sent image -> pixels of the crop before the resize, each axis by its own side."""
     px, py = grid_to_pixels(p.x, p.y, result.sent_width, result.sent_height)
-    return _undo_resize(px, result.scale, result.orig_width), _undo_resize(py, result.scale, result.orig_height)
+    sx, sy = _axis_scales(result)
+    return _undo_resize(px, sx, result.orig_width), _undo_resize(py, sy, result.orig_height)
 
 
 def box_to_crop_pixels(b: GridBox, result: MarksResult) -> tuple[int, int, int, int]:
     """The same for a box; right and bottom stay half-open and at least one pixel past the left and top."""
     sx1, sy1, sx2, sy2 = grid_box_to_pixels(b, result.sent_width, result.sent_height)
-    scale = result.scale or 1.0
-    x1, y1 = _undo_resize(sx1, scale, result.orig_width), _undo_resize(sy1, scale, result.orig_height)
-    x2 = int(min(max(round(sx2 / scale), x1 + 1), result.orig_width))
-    y2 = int(min(max(round(sy2 / scale), y1 + 1), result.orig_height))
+    ax, ay = _axis_scales(result)
+    x1, y1 = _undo_resize(sx1, ax, result.orig_width), _undo_resize(sy1, ay, result.orig_height)
+    x2 = int(min(max(round(sx2 / ax), x1 + 1), result.orig_width))
+    y2 = int(min(max(round(sy2 / ay), y1 + 1), result.orig_height))
     return x1, y1, x2, y2
 
 

@@ -1666,3 +1666,44 @@ Live after the change (Nov 1, about 5:25 to 5:50 AM EST, code c661a2b; LEDGER ro
   on right front door pickup marks, all (no, no), K17. The trunk pair is needs your eye (L4, L3, K7: the pair look said
   different, both boxes on white paint beside the chips), not already_there as in pairC_r8; that is the pair look, not
   this rule.
+
+## Box fix (2026-11-01): SAM-tightened mark boxes, two transform fixes
+
+Why: Sanat saw mark boxes sitting a little off the marks. The evidence is in docs/evidence/box_fix_1101/NOTES.md. Our
+transforms put no systematic shift on a box (synthetic median dx +1.2, dy -1.5 crop px; pair C -5.8, -4.5). Muse Spark
+misses by whole steps of about 28 sent pixels (one vision patch).
+
+- thresholds `dedup.sam_box_refine` (value: enabled, pad_px 2, max_objects 16, min_mask_px 4, max_crop_frac 0.02,
+  fills_box_min 0.8, max_area_ratio 3.0, margin_px 4, margin_frac 0.25, min_inside 0.5). Off when absent, so runs
+  frozen before it rebuild unchanged.
+- `walkaround/box_refine.py`: `settings(th)`; `MarkObject(mark_id, object_id, prompt)`; `BoxAsk(kf_id, role,
+  crop_path, crop_sha256, crop_w, crop_h, objects, answer)`, where answer is a `claim.SamAnswer` as a plain dict;
+  `plan(marks, kf, s)` gives a crop's Spark box marks in requests of at most max_objects, ids from 1; `concept(objects,
+  crop)`; `ask(run_id, kf, crop_path, objects)` (LIVE, one `sam_client.segment_image`; a check that did not complete
+  is stored as such); `read_asks` and `write_asks` (`paths.sam_marks_json`, a frozen fact like spark.json);
+  `Index(asks)` keyed by (crop sha256, prompt box); `decide(mark, answer, det, crop, s) -> BoxRefine` (pure);
+  `apply(mark, refine, crop, th)` sets bbox_crop, point_crop (box centre), bbox_src, point_src, size_px_src and K3
+  by px from SAM's box when used; `refine_marks(marks, kf, index, th=)` (pure, no call).
+- `contracts.BoxRefine(used "sam" | "spark", spark_bbox_crop, spark_point_crop, sam_bbox_crop, sam_c, mask_px, inside,
+  area_ratio, sam_request_id, note)` and `Mark.box_refine`, left out of the JSON when None, so old marks keep their
+  bytes. `paths.sam_marks_json(run_id)` = runs/<id>/sam_marks.json.
+- marks: `_marks_of(..., sam_index=)` refines right after `marks_from_answer`, before whitening, so dedup, matching,
+  sizes and the look outlines use the refined box. `derive_marks` calls `_sam_boxes` (LIVE: one request per crop
+  chunk under `orchestrator.sam_image_semaphore`; a (crop, prompt) with a stored answer is not asked again).
+  `rebuild_marks` reads sam_marks.json, and a box with no stored answer keeps Spark's box with "no SAM answer is
+  stored for this box".
+- Ledger: `sam_image` rows (one per request) with the run id; tag `marks_<kf_id>`; raw events under
+  sam/<role>/images/.
+- Transform fixes: `privacy.detection_mask` stretches a raster SAM sent scaled down (an object over 1024 px) back over
+  its box (pair C claims: 6 of 101 stored detections; both claim runs rebuild the same files with and without it).
+  `spark_client.point_to_crop_pixels` and `box_to_crop_pixels` now undo the resize per axis (only D1's gate script
+  calls them).
+- Web: `Mark.box_refine` and `BoxRefine` in types.ts. "How it was checked" says "(box tightened with SAM 3.1)" or
+  "(Muse Spark's box: <reason>)" (`MatchPane.boxLine`). Every overlay already draws bbox_crop in the crop's own SVG
+  space, so it shows the refined box.
+- Tests: tests/test_box_fix.py (25: the grid per axis, the per-axis helpers, a dot through cut_crop and back, the
+  scaled raster, every `decide` branch, `apply`, `plan`, bytes without the field, derive asks once, rebuild replays
+  with no call, leaf off); web test/box_overlay.test.ts (8: the box sits on the crop pixels it names in the card frame
+  and the crop figure at three aspects, the refined box is drawn, the "How it was checked" line). tests/conftest.py
+  makes `sam_client.client` raise in every test unless LIVE=1 (a marks test paid for 5 SAM requests before it).
+  test_match, test_narration and test_pipeline fake SAM where they run derive_marks with today's thresholds.

@@ -26,3 +26,23 @@ def pytest_configure(config) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
         cmd = ["ffmpeg", "-loglevel", "error", "-y", *args, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-map_metadata", "-1", str(target)]
         subprocess.run(cmd, check=True)
+
+
+import os  # noqa: E402
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _no_live_sam_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without LIVE=1 no test reaches SAM 3.1 on the Meta Model API: sam_client.client raises unless the test fakes it
+    (or segment_image) itself. Box fix 11/1: a marks test paid for 5 SAM image requests when the SAM box leaf came on.
+    Spark tests already inject fakes through spark_client.set_client."""
+    if os.environ.get("LIVE") == "1":
+        return
+    from walkaround import sam_client
+
+    def no_sam() -> None:
+        raise RuntimeError("no live SAM call in tests; fake sam_client.client or segment_image (LIVE=1 to allow)")
+
+    monkeypatch.setattr(sam_client, "client", no_sam)

@@ -1194,6 +1194,24 @@ class SparkMarksAnswer(Contract):
     neighbour_car_visible: bool = False
 
 
+class BoxRefine(Contract):
+    """How a Spark box mark got the box it uses (thresholds dedup.sam_box_refine, box_fix 11/1): SAM 3.1's tight box
+    of its mask when that mask is small and sits on Spark's box, else Spark's own box with the reason. Spark's box and
+    point are kept here, so both boxes stay on the row; the mark's bbox_crop, point_crop, bbox_src, point_src and
+    size_px_src are those of the box used."""
+
+    used: Literal["sam", "spark"]
+    spark_bbox_crop: Box4
+    spark_point_crop: Point2 | None = None
+    sam_bbox_crop: Box4 | None = None  # the tight box of SAM's mask, when SAM answered with one
+    sam_c: float | None = None
+    mask_px: int | None = None
+    inside: float | None = None  # share of SAM's tight box inside Spark's box grown by the margin
+    area_ratio: float | None = None  # SAM's tight box area over Spark's box area
+    sam_request_id: str | None = None
+    note: str = ""  # why Spark's box was kept, in words; empty when SAM's box is used
+
+
 class Mark(Contract):
     """One derived/marks.json entry. Grid coords are what Spark said; crop, src and w are code's mappings."""
 
@@ -1221,6 +1239,14 @@ class Mark(Contract):
     merged_from: list[str] = Field(default_factory=list)
     spark_request_id: str | None = None
     caps: list[str] = Field(default_factory=list)  # K ids set upstream
+    box_refine: BoxRefine | None = None  # left out of the JSON when absent, so marks of runs without the leaf keep their bytes
+
+    @model_serializer(mode="wrap")
+    def _omit_box_refine(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("box_refine") is None:
+            data.pop("box_refine", None)
+        return data
 
 
 class WhitenedMark(Contract):

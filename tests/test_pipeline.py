@@ -170,7 +170,10 @@ async def test_run_pair_self_pair_end_to_end_then_rebuild_and_verify(offline: di
     pickup_kfs = [k for k in kfs if k.role == "pickup"]
     return_kfs = [k for k in kfs if k.role == "return"]
     assert pickup_kfs and len(return_kfs) == len(pickup_kfs)
-    assert len(calls["image"]) == 2 * len({k.f_proxy for k in pickup_kfs}) + 2 * len(clips)
+    boxes = [t for t in calls["image"] if t.startswith("<0f>")]  # dedup.sam_box_refine: one request per pickup crop with box marks
+    pickup_marks = [m for m in c.read_json_list(paths.marks_json(run_id), c.Mark) if m.role == "pickup" and m.source == c.MarkSource.SPARK_BOX]
+    assert len(boxes) == len({m.kf_id for m in pickup_marks}) and all(m.box_refine is not None for m in pickup_marks)
+    assert len(calls["image"]) - len(boxes) == 2 * len({k.f_proxy for k in pickup_kfs}) + 2 * len(clips)
     assert len(calls["spark"]) == len({k.crop.sha256 for k in pickup_kfs if k.crop})
     for kf in kfs:
         assert kf.crop is not None and (paths.run_dir(run_id) / kf.crop.path).is_file()
