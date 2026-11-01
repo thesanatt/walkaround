@@ -1387,3 +1387,11 @@ into a scratch dir, outbound sockets refused; the rebuilt matches.json and verdi
   apart; blob 42%); right front door, roof, rear bumper and headlights fail G1 too (no test). No other verdict changed.
 - pairC_core3: no verdict changed. The front bumper reaches the test and fails both (aspect 5.692 vs 2.837, blob 48%);
   the hood fails G8 too, the right front door G9 too, the rest G1 too. The trunk chips are dirt with dirt (no K5).
+
+Live after the change (round 5, Nov 1): eval_px4228872_cut and eval_px_two_takes were run with both leaves frozen in
+(no tight K5 pair and no reshape precondition arose on either). The claim on pairC_core3_claim2 (a non-kept copy of
+pairC_core3 whose frozen thresholds got the six leaves) is the first claim whose second look ran live: K4 and K5
+waited, Muse Spark Open said different, K7 lowered it (docs/evidence/claim_pairC_core3_claim2/). A claim copy made
+this way does not pass `walkaround verify` (its stored walk files are pairC_core3's: run_id and costs in the sheet,
+and with the new leaves config_hash in every trace and a reshape record on the front bumper); its claim rebuilds byte
+for byte, and keep is false, so the sweeper deletes it.
