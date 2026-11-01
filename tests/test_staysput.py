@@ -394,9 +394,10 @@ class Scene:
     lags the panel by 0.8 px per frame (a reflection). panned: the panel stays centred and turns away instead. plate:
     a yellow plate with a random texture, fixed on the panel. face: a magenta face that stays still in the frame."""
 
-    def __init__(self, *, panned: bool = False, highlight: bool = True, paint_frames: range | None = None, plate: bool = False, face: bool = False) -> None:
+    def __init__(self, *, panned: bool = False, highlight: bool = True, paint_frames: range | None = None, plate: bool = False, face: bool = False, parts: bool = False) -> None:
         rng = np.random.default_rng(7)
         self.panned, self.highlight, self.paint_frames, self.with_plate, self.with_face = panned, highlight, paint_frames, plate, face
+        self.with_parts = parts
         texture = rng.integers(0, 41, size=(160, 400, 3), dtype=np.uint8)
         self.texture = texture + np.array([40, 60, 130], dtype=np.uint8)  # blue paint: saturated, never red or white
         bg = rng.integers(25, 70, size=(SRC[1], SRC[0], 3), dtype=np.uint8)
@@ -431,11 +432,22 @@ class Scene:
         p = self.panel(i)
         return [p[0] + 75, 180.0, p[0] + 99, 190.0]
 
+    def parts(self, i: int) -> list[list[float]]:
+        """Eight green 8 px squares fixed on the panel, four around the paint and four around the glint's path (never
+        on it): rigid neighbours."""
+        p = self.panel(i)
+        spots = [(30, 115), (95, 120), (35, 160), (90, 158), (175, 150), (235, 150), (175, 195), (235, 195)]
+        return [[p[0] + dx, float(y), p[0] + dx + 8, float(y + 8)] for dx, y in spots]
+
     def frame(self, i: int) -> np.ndarray:
         rgb = self.background.copy()
         x1, y1, x2, y2 = (int(round(v)) for v in self.panel(i))
         tex = cv2.resize(self.texture[:, :300], (x2 - x1, y2 - y1), interpolation=cv2.INTER_LINEAR)
         rgb[y1:y2, x1:x2] = tex
+        if self.with_parts:
+            for b in self.parts(i):
+                bx1, by1, bx2, by2 = (int(round(v)) for v in b)
+                rgb[by1:by2, bx1:bx2] = (30, 220, 40)
         if (b := self.paint(i)) is not None:
             bx1, by1, bx2, by2 = (int(round(v)) for v in b)
             rgb[by1:by2, bx1:bx2] = (230, 20, 20)
@@ -472,6 +484,7 @@ def walks(tmp_path_factory: pytest.TempPathFactory) -> dict[str, tuple[Scene, Pa
         "moving24": (Scene(), 24),
         "plate": (Scene(highlight=False, plate=True), 30),
         "face": (Scene(highlight=False, face=True), 30),
+        "parts": (Scene(parts=True), 30),
     }
     return {name: (scene, encode(scene, root / f"{name}.mp4", fps)) for name, (scene, fps) in scenes.items()}
 
@@ -599,6 +612,8 @@ def colour_mask(rgb: np.ndarray, kind: str) -> np.ndarray:
         return (r > 170) & (g > 130) & (b < 90)
     if kind == "magenta":
         return (r > 150) & (g < 100) & (b > 150)
+    if kind == "green":
+        return (r < 90) & (g > 180) & (b < 90)
     return (r > 215) & (g > 215) & (b > 215)
 
 
@@ -626,7 +641,7 @@ def track_blobs(frames: list[np.ndarray], prompt: str) -> tuple[list[str], int]:
     for oid, *nums in objects:
         x1, y1, x2, y2 = (int(v) for v in nums[:4])
         patch = frames[k][y1 : y2 + 1, x1 : x2 + 1]
-        kind = "red" if colour_mask(patch, "red").mean() > 0.2 else "white" if colour_mask(patch, "white").mean() > 0.2 else None
+        kind = next((k for k in ("red", "white", "green") if colour_mask(patch, k).mean() > 0.2), None)
         if kind is None:
             continue
         start = ((x1 + x2) / 2, (y1 + y2) / 2)
@@ -998,3 +1013,287 @@ def test_the_blurred_clip_and_its_lane_are_served_and_the_plan_is_not() -> None:
     assert privacy.served_file_allowed(run, "derived/mark_tracks.json", run_owner=False)
     assert not privacy.served_file_allowed(run, "clips/pickup/staysput.json", run_owner=True)
     assert not privacy.served_file_allowed(run, "clips/pickup/.staysput.json.123.456.tmp", run_owner=True)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# Stays Put by neighbours (docs/STAYS_PUT_ANCHORS.md)
+# ----------------------------------------------------------------------------------------------------------------
+
+NEIGHBOUR_FIXTURES = ROOT / "fixtures" / "staysput"  # boxes only, from the anchor_exp_1031 lanes (uCO3D CC BY 4.0, Pexels License)
+S550_PARTS = [("3", "door handle", "front"), ("4", "door handle", "rear"), ("5", "side mirror", "m"), ("6", "wheel", "rear"), ("7", "tail light", "t"), ("8", "wheel", "front")]
+
+
+def stored_lane(name: str) -> list[c.IndexFrame]:
+    return c.read_json_list(NEIGHBOUR_FIXTURES / f"{name}.index.json", c.IndexFrame)
+
+
+def test_the_neighbour_test_gives_the_leads_numbers_on_the_two_stored_clips() -> None:
+    """docs/STAYS_PUT_ANCHORS.md: paint on the pair C trunk lid 0.6 and 0.8x its neighbours, the reflection on the black
+    S550's rear door 4.8 and 3.8x, the crease on its rear quarter 0.7 and 0.3x (over the clip, within 0.5 s)."""
+    trunk = staysput.neighbour_test(stored_lane("neighbours_trunk"), "1", [(str(i), "mark", f"a{i}") for i in range(2, 7)], n_frames=91, prompt_frame=45, fps=1479 / 50, th=TH)
+    assert trunk.verdict == c.StaysPutVerdict.FIXED and trunk.used == 5 and trunk.near_frames == 15
+    assert (round(trunk.ratio_full, 1), round(trunk.ratio_near, 1)) == (0.6, 0.8)
+    assert (round(trunk.mark_near_px, 1), [nb.frames for nb in trunk.neighbours]) == (14.1, [91, 91, 83, 91, 91])
+    reflection = staysput.neighbour_test(stored_lane("neighbours_s550"), "1", S550_PARTS, n_frames=90, prompt_frame=45, fps=30.0, th=TH)
+    crease = staysput.neighbour_test(stored_lane("neighbours_s550"), "2", S550_PARTS, n_frames=90, prompt_frame=45, fps=30.0, th=TH)
+    assert reflection.verdict == c.StaysPutVerdict.SLIDING and (round(reflection.ratio_full, 1), round(reflection.ratio_near, 1)) == (4.8, 3.8)
+    assert (round(reflection.mark_full_px, 1), round(reflection.mark_near_px, 1), round(reflection.neighbours_full_px, 2)) == (27.4, 7.9, 5.75)
+    assert crease.verdict == c.StaysPutVerdict.FIXED and (round(crease.ratio_full, 1), round(crease.ratio_near, 1)) == (0.7, 0.3)
+    assert all(nb.used and nb.frames == 90 and len(nb.centres) == 90 for nb in reflection.neighbours)
+    assert [round(nb.residual_full_px, 1) for nb in reflection.neighbours] == [1.8, 4.4, 1.8, 9.1, 10.9, 7.1]  # handles and mirror about 1x
+
+
+def camera(f: int, x0: float, y0: float) -> tuple[float, float]:
+    """A camera that rotates, zooms and pans a little each frame (an affine of the prompt frame 45)."""
+    d = f - 45
+    s, a = 1.0 + 0.004 * d, 0.003 * d
+    x, y = x0 - 500.0, y0 - 400.0
+    return (500.0 + s * (math.cos(a) * x - math.sin(a) * y) + 3.0 * d, 400.0 + s * (math.sin(a) * x + math.cos(a) * y) + 1.5 * d)
+
+
+def synthetic_lane(objects: dict[str, Any], *, n: int = 91, drop: dict[str, set[int]] | None = None, jitter: float = 0.8, seed: int = 5) -> list[c.IndexFrame]:
+    """Boxes of 9 px around each object's centre per frame, with SAM-like jitter, rounded to whole pixels."""
+    rng = np.random.default_rng(seed)
+    frames = []
+    for f in range(n):
+        objs = []
+        for oid, at in objects.items():
+            x, y = at(f)
+            x, y = x + rng.normal(0, jitter), y + rng.normal(0, jitter)
+            if drop and f in drop.get(oid, set()):
+                continue
+            objs.append(c.IndexObject(id=oid, box=[int(round(x - 4.5)), int(round(y - 4.5)), int(round(x + 4.5)), int(round(y + 4.5))], c=0.9))
+        frames.append(c.IndexFrame(frame=f, objects=objs))
+    return frames
+
+
+SPOTS = [(380.0, 300.0), (640.0, 320.0), (420.0, 520.0), (610.0, 500.0), (300.0, 420.0), (700.0, 410.0)]
+
+
+def rigid_scene() -> dict[str, Any]:
+    objects: dict[str, Any] = {"paint": lambda f: camera(f, 520.0, 430.0), "glint": lambda f: camera(f, 480.0 + 1.2 * (f - 45), 380.0)}
+    for i, (x, y) in enumerate(SPOTS):
+        objects[f"n{i}"] = lambda f, x=x, y=y: camera(f, x, y)
+    return objects
+
+
+def run_neighbours(frames: list[c.IndexFrame], oid: str, ids: list[str], **kw: Any) -> c.NeighbourTest:
+    return staysput.neighbour_test(frames, oid, [(i, "wheel", i) for i in ids], n_frames=kw.pop("n", 91), prompt_frame=45, fps=30.0, th=kw.pop("th", TH), **kw)
+
+
+def test_paint_moves_with_its_neighbours_and_a_glint_slides_against_them() -> None:
+    frames = synthetic_lane(rigid_scene())
+    ids = [f"n{i}" for i in range(6)]
+    paint, glint = run_neighbours(frames, "paint", ids), run_neighbours(frames, "glint", ids)
+    assert paint.verdict == c.StaysPutVerdict.FIXED and paint.ratio_full < 1.5 and paint.ratio_near < 1.5 and paint.used == 6, paint
+    assert glint.verdict == c.StaysPutVerdict.SLIDING and glint.ratio_full > 2.5 and glint.ratio_near > 2.5, glint
+    assert glint.ratio_full > glint.ratio_near  # the slide adds up over the whole clip
+    assert run_neighbours(frames, "glint", ids).to_json() == glint.to_json()  # pure
+
+
+def test_fewer_than_four_neighbours_through_the_clip_is_inconclusive() -> None:
+    frames = synthetic_lane(rigid_scene(), drop={"n3": set(range(0, 30)), "n4": set(range(60, 91)), "n5": {45}})
+    nt = run_neighbours(frames, "glint", [f"n{i}" for i in range(6)])
+    assert nt.verdict == c.StaysPutVerdict.INCONCLUSIVE and nt.used == 3 and nt.ratio_full is None
+    assert nt.reason == "3 neighbours tracked through the clip, 4 needed"
+    assert [nb.used for nb in nt.neighbours] == [True, True, True, False, False, False]  # 61 frames, 60 frames, no prompt frame
+    assert [nb.frames for nb in nt.neighbours] == [91, 91, 91, 61, 60, 90]
+
+
+def test_a_neighbour_on_most_of_the_clip_still_counts_and_a_lost_mark_is_no_track() -> None:
+    drop = set(range(0, 18))  # 73 of 91 frames: just over 80%
+    frames = synthetic_lane(rigid_scene(), drop={"n0": drop, "paint": set(range(0, 20))})
+    nt = run_neighbours(frames, "glint", [f"n{i}" for i in range(6)])
+    assert nt.used == 6 and nt.verdict == c.StaysPutVerdict.SLIDING
+    lost = run_neighbours(frames, "paint", [f"n{i}" for i in range(6)])
+    assert lost.verdict == c.StaysPutVerdict.NO_TRACK and lost.ratio_full is None and lost.used == 6
+
+
+def test_neighbours_that_do_not_move_keep_the_ratio_finite() -> None:
+    still: dict[str, Any] = {"paint": lambda f: (520.0, 430.0)}
+    still.update({f"n{i}": (lambda f, x=x, y=y: (x, y)) for i, (x, y) in enumerate(SPOTS)})
+    nt = run_neighbours(synthetic_lane(still, jitter=0.0), "paint", [f"n{i}" for i in range(6)])
+    assert nt.verdict == c.StaysPutVerdict.FIXED and nt.ratio_full == pytest.approx(0.0, abs=1e-9) and nt.neighbours_full_px == pytest.approx(0.0, abs=1e-9)
+
+
+def test_neighbours_on_one_line_fix_no_affine() -> None:
+    line = {"paint": lambda f: camera(f, 520.0, 430.0)}
+    line.update({f"n{i}": (lambda f, x=x: camera(f, x, 300.0)) for i, x in enumerate((300.0, 400.0, 500.0, 600.0, 700.0))})
+    nt = run_neighbours(synthetic_lane(line, jitter=0.0), "paint", [f"n{i}" for i in range(5)])
+    assert nt.verdict == c.StaysPutVerdict.INCONCLUSIVE and nt.ratio_full is None and nt.reason == "too few frames with three neighbours in view"
+
+
+def part(kind: str, ref: str, box: list[float]) -> Any:
+    return staysput._Cand(kind, ref, (box[0], box[1], box[2], box[3]), staysput._long(box))
+
+
+def row_of_parts(*dx: float) -> list[Any]:
+    return [part("wheel", f"w{i}", [500 + d - 5, 495, 500 + d + 5, 505]) for i, d in enumerate(dx)]
+
+
+PANEL = [0.0, 0.0, 2000.0, 1000.0]
+TH_1008 = c.load_thresholds()  # the product's 1008 px clip: the mark floor below is in its pixels
+
+
+def test_the_window_takes_what_it_holds_then_grows_to_six_neighbours() -> None:
+    # needs: 2 x (|dx| + 5) x 1.15 = 126.5, 149.5, 287.5, 356.5 (inside the 400 px base), 471.5, 609.5, 701.5, 931.5
+    cands = row_of_parts(50, -60, 120, -150, 200, -260, 300, 400)
+    side, chosen = staysput.pick_neighbours([[490, 490, 510, 510]], ["m"], (500.0, 500.0), 400.0, PANEL, cands, TH_1008)
+    assert [c_.ref for c_ in chosen] == ["w0", "w1", "w2", "w3", "w4", "w5"] and side == pytest.approx(609.5)
+    # a mark of 8 px caps the window at 1008 x 8 / 16 = 504 px, so it stops at five
+    side, chosen = staysput.pick_neighbours([[496, 496, 504, 504]], ["m"], (500.0, 500.0), 400.0, PANEL, cands, TH_1008)
+    assert len(chosen) == 5 and side == pytest.approx(471.5)
+    # the panel caps it too: 1.5 x 300 px
+    side, chosen = staysput.pick_neighbours([[490, 490, 510, 510]], ["m"], (500.0, 500.0), 400.0, [0, 0, 300, 200], cands, TH_1008)
+    assert len(chosen) == 4 and side == 400.0  # 450 px holds no fifth: the next needs 471.5
+
+
+def test_a_window_that_cannot_reach_four_neighbours_stays_sharp() -> None:
+    cands = row_of_parts(50, 300, -330)  # one inside the base window, two far out
+    side, chosen = staysput.pick_neighbours([[490, 490, 510, 510]], ["m"], (500.0, 500.0), 400.0, PANEL, cands, TH_1008)
+    assert side == 400.0 and [c_.ref for c_ in chosen] == ["w0"]
+    # the clip's own marks are neighbours of each other: with three marks of its own, two more reach four
+    side, chosen = staysput.pick_neighbours([[490, 490, 510, 510]] * 3, ["a", "b", "c"], (500.0, 500.0), 400.0, PANEL, cands, TH_1008, member_rigid=3)
+    assert side == pytest.approx(2 * 335 * 1.15) and len(chosen) == 3
+
+
+def test_parts_that_repeat_or_are_too_big_are_skipped_and_the_object_cap_holds() -> None:
+    cands = row_of_parts(50, -60, 120, -150)
+    cands.append(part("rear window", "dup", [546, 495, 556, 505]))  # the first wheel seen again by another lane
+    cands.append(part("windshield", "big", [300, 300, 700, 700]))  # 400 px: longer than half any window it fits in
+    cands.append(part("mark", "m9", [520, 520, 540, 540]))  # a mark is never deduped against parts
+    side, chosen = staysput.pick_neighbours([[490, 490, 510, 510]], ["m"], (500.0, 500.0), 400.0, PANEL, cands, TH_1008)
+    assert "dup" not in [c_.ref for c_ in chosen] and "big" not in [c_.ref for c_ in chosen] and "m9" in [c_.ref for c_ in chosen]
+    assert chosen[0].ref == "m9"  # nearest first
+    side, chosen = staysput.pick_neighbours([[490, 490, 510, 510]] * 14, [f"k{i}" for i in range(14)], (500.0, 500.0), 400.0, PANEL, cands, TH_1008)
+    assert len(chosen) == 2  # 14 marks leave room for 2 objects of the 16
+    th = copy.deepcopy(TH_1008)
+    th["staysput"]["neighbour_window_max_growth"] = 1.0  # an explicit growth cap keeps the base window
+    side, chosen = staysput.pick_neighbours([[490, 490, 510, 510]], ["m"], (500.0, 500.0), 400.0, PANEL, row_of_parts(50, -60, 120, -150, 200, -260), th)
+    assert side == 400.0 and len(chosen) == 4
+
+
+def neighbour_kf(**kw: Any) -> c.Keyframe:
+    base = dict(kf_id="k", role="pickup", panel_id=c.PanelId.LEFT_FRONT_DOOR, track_id="pickup_car_door_00", f_proxy=10, pts=0.6667,
+                score=c.KeyframeScore(area=1, completeness=1, sharpness=1, glare=0, frontality=1, total=1), aspect_ratio=1.5, box_src=[100.0, 100.0, 500.0, 360.0])
+    return c.Keyframe(**{**base, **kw})
+
+
+def lane_track(track_id: str, noun: c.Noun, box_proxy: list[float], *, frame: int = 10, border: float = 0.0) -> c.PanelTrack:
+    row = c.FrameObs(frame=frame, pts=frame / 15, box=box_proxy, box_area_frac=0.01, in_car_box=True, c=0.9, border_frac=border)
+    return c.PanelTrack(track_id=track_id, role="pickup", noun=noun, sam_object_ids=["0"], fragments=[c.TrackFragment(object_id="0", first_frame=frame, last_frame=frame)], per_frame=[row])
+
+
+def test_neighbour_candidates_are_rigid_marks_lane_parts_and_the_handle() -> None:
+    marks = [
+        chip("k_m1", bbox_src=[200.0, 200.0, 220.0, 214.0]).model_copy(update={"panel_id": c.PanelId.LEFT_FRONT_DOOR}),
+        chip("k_m2", bbox_src=[300.0, 200.0, 320.0, 214.0]).model_copy(update={"type": c.MarkKind.REFLECTION}),
+        chip("k_m3", bbox_src=[300.0, 250.0, 320.0, 264.0]).model_copy(update={"type": c.MarkKind.UNSURE}),
+        chip("k_m4", bbox_src=[300.0, 300.0, 303.0, 302.0]),  # under the 2 px floor of a 640 px walk? no: 3 px long side passes
+        chip("other_m1", bbox_src=[300.0, 300.0, 320.0, 314.0]).model_copy(update={"kf_id": "other"}),
+    ]
+    tracks = [
+        lane_track("pickup_wheel_00", c.Noun.WHEEL, [50.0, 160.0, 90.0, 200.0]),
+        lane_track("pickup_side_mirror_00", c.Noun.SIDE_MIRROR, [30.0, 40.0, 45.0, 52.0], border=0.2),  # cut by the frame edge
+        lane_track("pickup_car_door_00", c.Noun.CAR_DOOR, [50.0, 50.0, 250.0, 180.0]),  # the keyframe's own panel
+        lane_track("pickup_car_door_01", c.Noun.CAR_DOOR, [250.0, 50.0, 300.0, 180.0]),  # a panel is never a neighbour
+        lane_track("pickup_face_00", c.Noun.FACE, [10.0, 10.0, 20.0, 20.0]),
+        lane_track("pickup_tail_light_00", c.Noun.TAIL_LIGHT, [280.0, 60.0, 300.0, 80.0], frame=11),  # not seen on the keyframe
+    ]
+    kf = neighbour_kf(handle=c.HandleRecord(point_src=[400.0, 200.0], c=0.9))
+    cands = staysput.neighbour_candidates(marks, tracks, kf, th=TH, src_size=SRC, proxy_size=PROXY)
+    assert [(x.kind, x.ref) for x in cands] == [("mark", "k_m1"), ("mark", "k_m4"), ("wheel", "pickup_wheel_00"), ("door handle", "k_handle")]
+    assert cands[2].box == (100.0, 320.0, 180.0, 400.0)  # proxy to source
+    assert cands[3].box == pytest.approx((368.0, 192.0, 432.0, 208.0))  # 0.08 and 0.02 of the 400 px door around the point
+
+
+def test_a_group_whose_marks_ride_as_neighbours_gets_no_clip_of_its_own() -> None:
+    marks = [chip(f"k_m{i}", bbox_src=[x, 200.0, x + 12.0, 212.0]) for i, x in enumerate((100.0, 160.0, 300.0, 350.0), start=1)]
+    kf = neighbour_kf(panel_id=c.PanelId.HOOD, track_id="pickup_hood_00", box_src=[50.0, 100.0, 550.0, 340.0])
+    parts = [lane_track("pickup_wheel_00", c.Noun.WHEEL, [60.0, 125.0, 70.0, 135.0]), lane_track("pickup_side_mirror_00", c.Noun.SIDE_MIRROR, [40.0, 75.0, 50.0, 82.5])]
+    walk = staysput._Walk(role="pickup", src=Path("unused"), src_size=SRC, proxy_size=PROXY, proxy_fps=15.0, proxy_pts=[], tracks={t.track_id: t for t in parts},
+                          privacy_tracks=[], keyframes={"k": kf}, marks=marks)
+    th = copy.deepcopy(TH_1008)
+    th["staysput"]["window_min_px"] = 120
+    capped = copy.deepcopy(th)  # thresholds.json caps the growth at 2x the base side (integrator 10/31)
+    th["staysput"]["neighbour_window_max_growth"] = 1000.0  # staysput.DEFAULTS: no cap, the lane's own geometry
+    items = [staysput._item(m, staysput._mark_box(m, 2.0)[0]) for m in marks]
+    groups = staysput._group(items, staysput._base_side(kf, th), th)
+    assert [[it.mark_id for it in g[0]] for g in groups] == [["k_m1", "k_m2"], ["k_m3", "k_m4"]]
+    base = staysput._base_side(kf, th)
+    assert all(side <= 2.0 * base + 1e-6 for _g, _members, _centre, side, _near in staysput._neighbour_layout(walk, kf, groups, capped))
+    layout = staysput._neighbour_layout(walk, kf, groups, th)
+    assert len(layout) == 1  # the first clip grew to hold k_m3 and k_m4 as neighbours, so they are tested there
+    g, members, _centre, side, near = layout[0]
+    assert g == 1 and [it.mark_id for it in members] == ["k_m1", "k_m2", "k_m3", "k_m4"]
+    assert [x.ref for x in near] == ["pickup_side_mirror_00", "pickup_wheel_00"] and side == pytest.approx(2 * 226 * 1.15)
+    th["staysput"]["neighbours_min"] = 6  # four neighbours are then too few: the window stays at its base and both groups keep a clip
+    assert [len(x[1]) for x in staysput._neighbour_layout(walk, kf, groups, th)] == [2, 2]
+
+
+def add_part_tracks(run_id: str, role: str, scene: Scene) -> None:
+    """The scene's green squares as lane tracks (wheel, side mirror, headlight, tail light in turn), proxy pixels."""
+    pts = json.loads(paths.pts_map_path(run_id, role).read_text())
+    nouns = [c.Noun.WHEEL, c.Noun.SIDE_MIRROR, c.Noun.HEADLIGHT, c.Noun.TAIL_LIGHT]
+    tracks = c.read_json_list(paths.tracks_json(run_id), c.PanelTrack)
+    for j in range(len(scene.parts(0))):
+        rows = [c.FrameObs(frame=f, pts=pts[f], box=[v / 2 for v in scene.parts(2 * f)[j]], box_area_frac=0.001, in_car_box=True, c=0.9) for f in range(len(pts))]
+        tracks.append(c.PanelTrack(track_id=f"{role}_part_{j:02d}", role=role, noun=nouns[j % 4], sam_object_ids=[str(j)],
+                                   fragments=[c.TrackFragment(object_id=str(j), first_frame=0, last_frame=len(pts) - 1)], c_present_share=1.0, per_frame=rows))
+    c.write_json(paths.tracks_json(run_id), tracks)
+
+
+def test_derive_tracks_neighbours_in_the_same_request_and_rebuilds_them(offline: dict[str, Any], walks: dict[str, Any]) -> None:
+    from walkaround import sheet
+
+    scene, src = walks["parts"]
+    build_walk("spn1", "pickup", scene, src)
+    add_part_tracks("spn1", "pickup", scene)
+    rows = {r.mark_id: r for r in derive("spn1")}
+    plans = staysput._read_plans("spn1", "pickup")
+    assert plans is not None and len(plans.clips) == 2 and kinds(offline["calls"]).count("video") == 2  # no extra request
+    for plan in plans.clips:
+        assert plan.neighbour_rule == staysput.NEIGHBOUR_RULE and len(plan.objects) == 1 and len(plan.neighbours) == 4
+        assert [nb.object_id for nb in plan.neighbours] == ["2", "3", "4", "5"] and plan.prompt_text.count("<|box;") == 5
+        assert plan.window_px == pytest.approx(120.0)  # four neighbours inside the base window: no zoom out
+    paint, ctrl = rows["pickup_hood_kf1_m1"], rows["pickup_hood_kf1_ctrl"]
+    assert paint.verdict == c.StaysPutVerdict.FIXED and ctrl.verdict == c.StaysPutVerdict.SLIDING  # the drift test as before
+    pn, cn = paint.neighbour_test, ctrl.neighbour_test
+    assert pn is not None and pn.verdict == c.StaysPutVerdict.FIXED and pn.used == 4 and pn.ratio_full < 1.5 and pn.ratio_near < 1.5, pn
+    assert cn is not None and cn.verdict == c.StaysPutVerdict.SLIDING and cn.used == 4 and cn.ratio_full > 2.5 and cn.ratio_near > 2.5, cn
+    assert {nb.ref for nb in pn.neighbours} == {"pickup_part_00", "pickup_part_01", "pickup_part_02", "pickup_part_03"}
+    assert all(len(nb.centres) >= 80 for nb in pn.neighbours)
+    assert sheet.neighbour_line(paint).startswith("neighbour test: moves with its 4 neighbours, ") and sheet.neighbour_line(paint).endswith("; fixed")
+    assert sheet.neighbour_line(ctrl).startswith("neighbour test: slides against its 4 neighbours, ")
+    line = sheet.staysput_line(paint, calibrated=False)
+    assert line is not None and "neighbour test: moves with" in line and line.endswith(sheet.STAYSPUT_UNCALIBRATED)
+    live = paths.mark_tracks_json("spn1").read_bytes()
+    paths.mark_tracks_json("spn1").unlink()
+    staysput.rebuild_staysput("spn1", th=TH)
+    assert paths.mark_tracks_json("spn1").read_bytes() == live and kinds(offline["calls"]).count("video") == 2
+
+
+def test_with_the_neighbour_test_off_clips_and_rows_are_as_before(offline: dict[str, Any], walks: dict[str, Any]) -> None:
+    scene, src = walks["parts"]
+    build_walk("spn2", "pickup", scene, src)
+    add_part_tracks("spn2", "pickup", scene)
+    th = copy.deepcopy(TH)
+    th["staysput"]["neighbours_enabled"] = False
+    rows = derive("spn2", th=th)
+    plans = staysput._read_plans("spn2", "pickup")
+    assert all(p.neighbour_rule is None and p.neighbours == [] and p.prompt_text.count("<|box;") == 1 for p in plans.clips)
+    assert all(r.neighbour_test is None for r in rows)
+    assert b"neighbour_test" not in paths.mark_tracks_json("spn2").read_bytes()  # a row without the test keeps the old shape
+    assert "neighbour_test" not in c.MarkTrack(mark_id="m", role="pickup").to_json()
+
+
+def test_a_clip_lane_that_never_answers_lists_its_planned_neighbours(offline: dict[str, Any], walks: dict[str, Any]) -> None:
+    scene, src = walks["parts"]
+    build_walk("spn3", "pickup", scene, src)
+    add_part_tracks("spn3", "pickup", scene)
+    offline["fail_clips"] = True
+    rows = derive("spn3")
+    for r in rows:
+        assert r.verdict == c.StaysPutVerdict.NOT_RUN and r.neighbour_test is not None
+        assert r.neighbour_test.verdict == c.StaysPutVerdict.NOT_RUN and len(r.neighbour_test.neighbours) == 4
+        assert all(nb.frames == 0 and not nb.used for nb in r.neighbour_test.neighbours)

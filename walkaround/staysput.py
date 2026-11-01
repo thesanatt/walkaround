@@ -55,12 +55,15 @@ from .contracts import (
     MarkKind,
     MarkTrack,
     Moments,
+    NeighbourTest,
+    Noun,
     PanelId,
     PanelTrack,
     Point2,
     Role,
     Sha256,
     Size2,
+    StaysPutNeighbour,
     StaysPutVerdict,
     TrackPoint,
     VideoRecord,
@@ -98,7 +101,38 @@ DEFAULTS: dict[str, float] = {
     "control_blob_max_frac": 0.15,  # of the hood mask: a larger glare region is paint in sun, not a highlight
     "check_box_covered_min": 0.9,  # share of a prompt-frame check box the walk's grown plate and face track boxes cover
     "clip_frames_max": 181,  # 3 s at 60 fps; a faster walk gets a shorter clip
+    # Stays Put by neighbours (docs/STAYS_PUT_ANCHORS.md); thresholds.json carries the same leaves with their sources.
+    "neighbours_max": 12,
+    "neighbours_target": 6,
+    "neighbours_min": 4,
+    "neighbour_track_share_min": 0.8,
+    "neighbour_fixed_below": 1.5,
+    "neighbour_sliding_above": 2.5,
+    "neighbour_near_half_window_s": 0.5,
+    "neighbour_window_margin": 1.15,
+    "neighbour_window_max_panel_frac": 1.5,
+    "neighbour_window_max_growth": 1000.0,  # no growth cap unless thresholds.json sets one
+    "neighbour_mark_min_clip_px": 16,
+    "neighbour_part_max_window_frac": 0.5,
+    "neighbour_residual_floor_px": 0.5,
+    "neighbour_dedupe_iou": 0.5,
+    "neighbour_handle_half_w_frac": 0.08,
+    "neighbour_handle_half_h_frac": 0.02,
 }
+NEIGHBOUR_RULE = 1  # the neighbour test as built 10/31; a plan without it was made before the test existed
+RIGID_MARK_KINDS = frozenset({MarkKind.SCRATCH, MarkKind.SCUFF, MarkKind.CHIP, MarkKind.DENT, MarkKind.CRACK, MarkKind.DIRT})
+HANDLE_KIND = "door handle"  # from the keyframe's handle check (a point), never a lane
+NEIGHBOUR_NOUNS: tuple[Noun, ...] = (
+    Noun.SIDE_MIRROR,
+    Noun.WHEEL,
+    Noun.HEADLIGHT,
+    Noun.TAIL_LIGHT,
+    Noun.LICENSE_PLATE,
+    Noun.CAR_WINDOW,
+    Noun.WINDSHIELD,
+    Noun.REAR_WINDOW,
+)
+NEIGHBOUR_KINDS: tuple[str, ...] = ("mark", HANDLE_KIND, *(n.value for n in NEIGHBOUR_NOUNS))  # the tie-break order
 
 
 def _sp(th: dict[str, Any], key: str) -> float:
@@ -121,6 +155,17 @@ class PlanObject(Contract):
     box_clip: Box4  # the same box in clip pixels, before the prompt padding
     point_crop: Point2 | None = None  # keyframe crop pixels, for the curvature cap
     bbox_crop: Box4 | None = None  # keyframe crop pixels, for the highlight cap
+
+
+class PlanNeighbour(Contract):
+    """A rigid neighbour prompted in the clip after the marks (docs/STAYS_PUT_ANCHORS.md): a lane part at the keyframe,
+    the keyframe's door handle, or a mark that is tested in another clip. object_id is the SAM object id."""
+
+    object_id: str
+    kind: str  # "mark", "door handle" or a lane noun
+    ref: str  # the mark id, the track id or "<kf_id>_handle"
+    box_src: Box4  # at the prompt frame, source pixels
+    box_clip: Box4  # the same box in clip pixels, before the prompt padding
 
 
 class ClipCheck(Contract):
@@ -152,6 +197,8 @@ class ClipPlan(Contract):
     windows_src: list[Box4]
     panel_src: list[Optional[Box4]]  # panel box per clip frame in source pixels; None where unknown
     objects: list[PlanObject]
+    neighbours: list[PlanNeighbour] = Field(default_factory=list)  # prompted after the objects, ids continuing theirs
+    neighbour_rule: int | None = None  # NEIGHBOUR_RULE when the neighbour test was planned; None on older plans
     prompt_text: str = ""
     check: ClipCheck | None = None
     clip: ClipRecord | None = None
@@ -789,7 +836,171 @@ def prompt_for(
     return _prompt_text(boxes, clip_size, frame, th)
 
 
-def _plan(walk: _Walk, kf: Keyframe, members: list[_Item], centre: tuple[float, float], side: float, span: tuple[int, int, int], panels: list[BoxF | None], g: int, th: dict[str, Any]) -> ClipPlan:
+# ----------------------------------------------------------------------------------------------------------------
+# Neighbours (docs/STAYS_PUT_ANCHORS.md): rigid things tracked in the same clip request as the marks
+# ----------------------------------------------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _Cand:
+    """A neighbour the clip could prompt: a rigid mark on the keyframe, a lane part at the keyframe, or its handle."""
+
+    kind: str  # one of NEIGHBOUR_KINDS
+    ref: str
+    box: tuple[float, float, float, float]  # source pixels at the prompt frame
+    long_side: float  # source pixels
+
+
+def _neighbours_on(th: dict[str, Any]) -> bool:
+    return bool(th["staysput"].get("neighbours_enabled", True))
+
+
+def _long(b: Any) -> float:
+    return max(float(b[2]) - float(b[0]), float(b[3]) - float(b[1]))
+
+
+def _iou(a: Any, b: Any) -> float:
+    iw = min(a[2], b[2]) - max(a[0], b[0])
+    ih = min(a[3], b[3]) - max(a[1], b[1])
+    if iw <= 0 or ih <= 0:
+        return 0.0
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - iw * ih
+    return iw * ih / union if union > 0 else 0.0
+
+
+def _row_at(track: PanelTrack, frame: int) -> Any:
+    return next((r for r in track.per_frame if r.frame == frame), None)
+
+
+def neighbour_candidates(walk_marks: list[Mark], tracks: list[PanelTrack], kf: Keyframe, *, th: dict[str, Any], src_size: tuple[int, int], proxy_size: tuple[int, int]) -> list[_Cand]:
+    """What a clip on kf may track as neighbours, in source pixels at the keyframe: every other mark on the same crop
+    whose type sits on the paint (not a reflection, not unsure) and that is big enough for a clip; the lane parts SAM
+    saw on the keyframe's own proxy frame (side mirror, wheel, lights, plate, windows; never a face, the car or a
+    panel) whose box the frame edge does not cut; and the keyframe's door handle, boxed from its point."""
+    min_px = _min_box_px(th, src_size)
+    out: list[_Cand] = []
+    for m in sorted(walk_marks, key=lambda m: m.mark_id):
+        if m.kf_id != kf.kf_id or m.type not in RIGID_MARK_KINDS:
+            continue
+        box, _why = _mark_box(m, min_px)
+        if box is not None:
+            out.append(_Cand("mark", m.mark_id, (box[0], box[1], box[2], box[3]), _long(box)))
+    for t in sorted(tracks, key=lambda t: t.track_id):
+        if t.noun not in NEIGHBOUR_NOUNS or t.track_id == kf.track_id:
+            continue
+        row = _row_at(t, kf.f_proxy)
+        if row is None or row.border_frac > 0:
+            continue
+        b = geometry.proxy_to_src(row.box, proxy_size, src_size)
+        if b[2] > b[0] and b[3] > b[1]:
+            out.append(_Cand(t.noun.value, t.track_id, (b[0], b[1], b[2], b[3]), _long(b)))
+    if kf.handle.point_src is not None:
+        x, y = (float(v) for v in kf.handle.point_src)
+        width = float(kf.box_src[2]) - float(kf.box_src[0])
+        hw, hh = _sp(th, "neighbour_handle_half_w_frac") * width, _sp(th, "neighbour_handle_half_h_frac") * width
+        if hw > 0 and hh > 0:
+            out.append(_Cand(HANDLE_KIND, f"{kf.kf_id}_handle", (x - hw, y - hh, x + hw, y + hh), 2.0 * max(hw, hh)))
+    return out
+
+
+def pick_neighbours(
+    member_boxes: list[Any],
+    member_ids: list[str],
+    centre: tuple[float, float],
+    side0: float,
+    panel_box: Any,
+    cands: list[_Cand],
+    th: dict[str, Any],
+    *,
+    member_rigid: int = 0,
+) -> tuple[float, list[_Cand]]:
+    """(window side, neighbours) for one clip. Candidates go nearest first by the window side each needs (twice its
+    farthest box edge from the clip centre, times neighbour_window_margin). Every candidate the base window already
+    holds is taken; the window then grows until it holds neighbours_target of them. It never grows past
+    neighbour_window_max_panel_frac of the panel's long side, nor so far that a mark in the clip (its own or a
+    neighbour mark) falls under neighbour_mark_min_clip_px on its long side; a part longer than
+    neighbour_part_max_window_frac of the window, or one overlapping a part already taken (IoU at least
+    neighbour_dedupe_iou), is skipped. At most neighbours_max, and marks plus neighbours stay within
+    max_objects_per_clip. The clip's own marks that sit on the paint (member_rigid of them) are neighbours of each
+    other too, so they count toward the target. A window that grew but still holds fewer than neighbours_min goes back
+    to the base side and keeps what that holds, so the marks stay sharp for a test that cannot run. The growth is also
+    capped at neighbour_window_max_growth x the base side."""
+    sp = th["staysput"]
+    size = float(th["media"]["clip_size_px"])
+    target, most, least = int(_sp(th, "neighbours_target")), int(_sp(th, "neighbours_max")), int(_sp(th, "neighbours_min"))
+    room = min(most, int(sp["max_objects_per_clip"]) - len(member_boxes))
+    if room <= 0:
+        return side0, []
+    floor, margin = _sp(th, "neighbour_mark_min_clip_px"), _sp(th, "neighbour_window_margin")
+    by_marks = size * min(_long(b) for b in member_boxes) / floor if member_boxes else math.inf
+    limit = max(side0, min(_sp(th, "neighbour_window_max_panel_frac") * _long(panel_box), by_marks, _sp(th, "neighbour_window_max_growth") * side0))
+    part_frac, dedupe = _sp(th, "neighbour_part_max_window_frac"), _sp(th, "neighbour_dedupe_iou")
+    cx, cy = centre
+    taken_ids = set(member_ids)
+    scored = []
+    for c in cands:
+        if c.kind == "mark" and c.ref in taken_ids:
+            continue
+        reach = max(abs(c.box[0] - cx), abs(c.box[2] - cx), abs(c.box[1] - cy), abs(c.box[3] - cy))
+        scored.append((2.0 * reach * margin, NEIGHBOUR_KINDS.index(c.kind), c.ref, c))
+    scored.sort(key=lambda s: s[:3])
+    have = max(0, int(member_rigid) - 1)  # the fewest own marks any mark of the clip sees as neighbours
+    side, chosen, needs = side0, [], []
+    for need, _rank, _ref, c in scored:
+        if len(chosen) >= room or (need > side and len(chosen) + have >= target):
+            break
+        new_side = max(side, need)
+        new_limit = min(limit, max(side0, size * c.long_side / floor)) if c.kind == "mark" else limit
+        if new_side > new_limit:
+            continue
+        if c.kind != "mark" and (c.long_side > part_frac * new_side or any(o.kind != "mark" and _iou(c.box, o.box) >= dedupe for o in chosen)):
+            continue
+        side, limit = new_side, new_limit
+        chosen.append(c)
+        needs.append(need)
+    if len(chosen) + have < least and side > side0:
+        chosen = [c for c, need in zip(chosen, needs) if need <= side0]
+        side = side0
+    return side, chosen
+
+
+def _neighbour_layout(walk: _Walk, kf: Keyframe, groups: list[tuple[list[_Item], tuple[float, float], float]], th: dict[str, Any]) -> list[tuple[int, list[_Item], tuple[float, float], float, list[_Cand]]]:
+    """(group number, members, centre, side, neighbours) per clip of one keyframe. A group whose marks all ride as
+    neighbours in an earlier clip of the keyframe gets no clip of its own: its marks are tested in that clip instead,
+    so every mark is a tested object in exactly one clip."""
+    cands = neighbour_candidates(walk.marks, list(walk.tracks.values()), kf, th=th, src_size=walk.src_size, proxy_size=walk.proxy_size)
+    out: list[list[Any]] = []
+    covered: dict[str, int] = {}
+    for g, (members, centre, side) in enumerate(groups, start=1):
+        if all(it.mark_id in covered for it in members):
+            for it in members:
+                slot = out[covered[it.mark_id]]
+                slot[4] = [c for c in slot[4] if not (c.kind == "mark" and c.ref == it.mark_id)]
+                slot[1] = [*slot[1], it]
+            continue
+        boxes = [it.box_src for it in members]
+        rigid = sum(1 for it in members if not it.is_control and it.type in RIGID_MARK_KINDS)
+        grown, chosen = pick_neighbours(boxes, [it.mark_id for it in members], centre, side, kf.box_src, cands, th, member_rigid=rigid)
+        for c in chosen:
+            if c.kind == "mark":
+                covered.setdefault(c.ref, len(out))
+        out.append([g, list(members), centre, grown, chosen])
+    return [(g, members, centre, side, chosen) for g, members, centre, side, chosen in out]
+
+
+def _plan(
+    walk: _Walk,
+    kf: Keyframe,
+    members: list[_Item],
+    centre: tuple[float, float],
+    side: float,
+    span: tuple[int, int, int],
+    panels: list[BoxF | None],
+    g: int,
+    th: dict[str, Any],
+    neighbours: list[_Cand] | None = None,
+) -> ClipPlan:
+    """One clip: the marks as objects 1..m, then the neighbours (None: the neighbour test is off for this walk)."""
     f0, n, k = span
     size = int(th["media"]["clip_size_px"])
     windows = [_square(c, side) for c in _window_centres(centre, kf.box_src, panels, k)]
@@ -807,6 +1018,10 @@ def _plan(walk: _Walk, kf: Keyframe, members: list[_Item], centre: tuple[float, 
                 bbox_crop=None if it.bbox_crop is None else list(it.bbox_crop),
             )
         )
+    near = [
+        PlanNeighbour(object_id=str(len(objects) + j), kind=c.kind, ref=c.ref, box_src=list(c.box), box_clip=_to_clip(c.box, windows[k], size))
+        for j, c in enumerate(neighbours or [], start=1)
+    ]
     clip_id = f"{kf.kf_id}_sp{g:02d}"
     plan = ClipPlan(
         clip_id=clip_id,
@@ -824,15 +1039,18 @@ def _plan(walk: _Walk, kf: Keyframe, members: list[_Item], centre: tuple[float, 
         windows_src=windows,
         panel_src=panels,
         objects=objects,
+        neighbours=near,
+        neighbour_rule=None if neighbours is None else NEIGHBOUR_RULE,
     )
     try:
-        return plan.model_copy(update={"prompt_text": _prompt_text([o.box_clip for o in objects], size, k, th)})
+        return plan.model_copy(update={"prompt_text": _prompt_text([o.box_clip for o in objects] + [nb.box_clip for nb in near], size, k, th)})
     except sam_client.ObjectPromptError as exc:
         return plan.model_copy(update={"status": "failed", "error": f"object prompt refused: {getattr(exc, 'code', type(exc).__name__)}"})
 
 
 def _plans(walk: _Walk, items: list[_Item], th: dict[str, Any]) -> tuple[list[ClipPlan], list[tuple[_Item, str]]]:
-    """Clips per keyframe (controls group last), then the per-walk clip cap: controls, then by mark confidence."""
+    """Clips per keyframe (controls group last), each with its neighbours when the test is on, then the per-walk clip
+    cap: controls, then by mark confidence."""
     times_us = [_us(t) for t in walk.times]
     frames = clip_frames(walk.times, th)
     by_kf: dict[str, list[_Item]] = {}
@@ -848,8 +1066,13 @@ def _plans(walk: _Walk, items: list[_Item], th: dict[str, Any]) -> tuple[list[Cl
             continue
         panels = panel_boxes(walk.tracks[kf.track_id], kf, walk.times, span[0], span[1], src_size=walk.src_size, proxy_size=walk.proxy_size, th=th)
         members_in_order = sorted(by_kf[kf_id], key=lambda it: (it.is_control and it.rank < 0, it.mark_id))
-        for g, (members, centre, side) in enumerate(_group(members_in_order, _base_side(kf, th), th), start=1):
-            plan = _plan(walk, kf, members, centre, side, span, panels, g, th)
+        groups = _group(members_in_order, _base_side(kf, th), th)
+        if _neighbours_on(th):
+            layout = _neighbour_layout(walk, kf, groups, th)
+        else:
+            layout = [(g, members, centre, side, None) for g, (members, centre, side) in enumerate(groups, start=1)]
+        for g, members, centre, side, near in layout:
+            plan = _plan(walk, kf, members, centre, side, span, panels, g, th, near)
             ranked.append(((min(it.rank for it in members), 0, plan.clip_id), plan, members))
     cap = int(_sp(th, "max_clips_per_walk"))
     ranked.sort(key=lambda r: r[0])
@@ -858,7 +1081,10 @@ def _plans(walk: _Walk, items: list[_Item], th: dict[str, Any]) -> tuple[list[Cl
     return sorted((p for _, p, _ in ranked[:cap]), key=lambda p: p.clip_id), dropped
 
 
-_KEY_FIELDS = ("clip_id", "kf_id", "panel_id", "lane_id", "src_size", "proxy_size", "size", "prompt_frame", "f0_src", "pts_src", "window_px", "windows_src", "panel_src", "objects", "prompt_text")
+_KEY_FIELDS = (
+    "clip_id", "kf_id", "panel_id", "lane_id", "src_size", "proxy_size", "size", "prompt_frame", "f0_src", "pts_src", "window_px", "windows_src",
+    "panel_src", "objects", "neighbours", "neighbour_rule", "prompt_text",
+)
 
 
 def _plan_key(plan: ClipPlan) -> str:
@@ -1292,6 +1518,137 @@ def analyse(
     )
 
 
+def _centres(frames: list[IndexFrame], n: int) -> dict[str, dict[int, tuple[float, float]]]:
+    """Box centre per object id and clip frame (the first record of a frame wins), clip pixels."""
+    out: dict[str, dict[int, tuple[float, float]]] = {}
+    for fr in frames:
+        if not 0 <= fr.frame < n:
+            continue
+        for obj in fr.objects:
+            out.setdefault(obj.id, {}).setdefault(fr.frame, _center(obj.box))
+    return out
+
+
+def _affine_residuals(anchors: dict[str, dict[int, tuple[float, float]]], target: dict[int, tuple[float, float]], frames: range, k: int) -> list[float]:
+    """Per frame f of frames (not k) where target and at least 3 anchors have a box on both k and f: how far target's
+    centre on f is from where the least-squares affine taking the anchors' centres on k to theirs on f puts its centre
+    on k. Clip pixels."""
+    if k not in target:
+        return []
+    out: list[float] = []
+    for f in frames:
+        if f == k or f not in target:
+            continue
+        ids = [a for a, pts in anchors.items() if k in pts and f in pts]
+        if len(ids) < 3:
+            continue
+        src = np.array([[anchors[a][k][0], anchors[a][k][1], 1.0] for a in ids], dtype=np.float64)
+        dst = np.array([anchors[a][f] for a in ids], dtype=np.float64)
+        matrix, _res, rank, _sv = np.linalg.lstsq(src, dst, rcond=None)
+        if rank < 3:  # anchors on one line (or one point) fix no affine
+            continue
+        pred = np.array([target[k][0], target[k][1], 1.0], dtype=np.float64) @ matrix
+        out.append(float(math.hypot(target[f][0] - pred[0], target[f][1] - pred[1])))
+    return out
+
+
+def _median(values: list[float]) -> float | None:
+    return float(np.median(np.asarray(values, dtype=np.float64))) if values else None
+
+
+def neighbour_test(
+    track_frames: list[IndexFrame],
+    object_id: str,
+    neighbours: list[tuple[str, str, str]],
+    *,
+    n_frames: int,
+    prompt_frame: int,
+    fps: float | None,
+    th: dict[str, Any],
+) -> NeighbourTest:
+    """Stays Put by neighbours (docs/STAYS_PUT_ANCHORS.md) for one object of a clip lane. neighbours are (object id,
+    kind, ref) in prompt order. A neighbour is in the fit when SAM returned it on its prompt frame and on at least
+    neighbour_track_share_min of the clip. Per window (the whole clip, and round(neighbour_near_half_window_s x fps)
+    frames either side of the prompt frame): the mark's median residual against the affine fit to the neighbours, and
+    the median over the neighbours of each one's median leave-one-out residual (floored at
+    neighbour_residual_floor_px); the ratio is the first over the second. fixed when both ratios are under
+    neighbour_fixed_below, sliding when both are over neighbour_sliding_above, else inconclusive. no_track when the
+    mark itself has a box on fewer than no_track_box_share_below of the clip; inconclusive with fewer than
+    neighbours_min neighbours in the fit. Pure: the same lane gives the same numbers, live and in rebuild."""
+    sp = th["staysput"]
+    near_s = _sp(th, "neighbour_near_half_window_s")
+    rate = float(fps) if fps else float(th["media"]["source_fps_assumed"])
+    near = max(1, int(round(near_s * rate)))
+    k, n = int(prompt_frame), int(n_frames)
+    pts = _centres(track_frames, n)
+    share_min, least = _sp(th, "neighbour_track_share_min"), int(_sp(th, "neighbours_min"))
+    used = {oid: pts[oid] for oid, _kind, _ref in neighbours if oid in pts and k in pts[oid] and n > 0 and len(pts[oid]) / n >= share_min}
+    mark = pts.get(object_id, {})
+    windows = {"full": range(0, n), "near": range(max(0, k - near), min(n, k + near + 1))}
+    loo: dict[str, dict[str, float | None]] = {name: {} for name in windows}
+    numbers: dict[str, float | None] = {}
+    verdict, reason = StaysPutVerdict.INCONCLUSIVE, None
+    if n <= 0 or k not in mark or len(mark) / n < float(sp["no_track_box_share_below"]):
+        verdict, reason = StaysPutVerdict.NO_TRACK, "SAM did not follow the mark through enough of the clip"
+    elif len(used) < least:
+        reason = f"{len(used)} neighbours tracked through the clip, {least} needed"
+    else:
+        floor = _sp(th, "neighbour_residual_floor_px")
+        ratios: dict[str, float | None] = {}
+        for name, span in windows.items():
+            own = _median(_affine_residuals(used, mark, span, k))
+            for oid in used:
+                loo[name][oid] = _median(_affine_residuals({a: p for a, p in used.items() if a != oid}, used[oid], span, k))
+            per = [v for v in loo[name].values() if v is not None]
+            group = _median(per)
+            numbers[f"mark_{name}_px"], numbers[f"neighbours_{name}_px"] = own, group
+            ratios[name] = None if own is None or group is None else own / max(group, floor)
+        numbers["ratio_full"], numbers["ratio_near"] = ratios["full"], ratios["near"]
+        full, close = ratios["full"], ratios["near"]
+        fixed_below, sliding_above = _sp(th, "neighbour_fixed_below"), _sp(th, "neighbour_sliding_above")
+        if full is None or close is None:
+            reason = "too few frames with three neighbours in view"
+        elif full < fixed_below and close < fixed_below:
+            verdict = StaysPutVerdict.FIXED
+        elif full > sliding_above and close > sliding_above:
+            verdict = StaysPutVerdict.SLIDING
+        else:
+            reason = f"not under {fixed_below:g}x in both windows nor over {sliding_above:g}x in both"
+    rows = [
+        StaysPutNeighbour(
+            object_id=oid,
+            kind=kind,
+            ref=ref,
+            frames=len(pts.get(oid, {})),
+            used=oid in used,
+            residual_full_px=loo["full"].get(oid),
+            residual_near_px=loo["near"].get(oid),
+            centres=[[float(f), x, y] for f, (x, y) in sorted(pts.get(oid, {}).items())],
+        )
+        for oid, kind, ref in neighbours
+    ]
+    return NeighbourTest(verdict=verdict, near_s=near_s, near_frames=near, used=len(used), reason=reason, neighbours=rows, **numbers)
+
+
+def _neighbour_refs(plan: ClipPlan, obj: PlanObject) -> list[tuple[str, str, str]]:
+    """obj's neighbours in its clip: the plan's neighbours, then the clip's other marks that sit on the paint."""
+    refs = [(nb.object_id, nb.kind, nb.ref) for nb in plan.neighbours]
+    refs += [(o.object_id, "mark", o.mark_id) for o in plan.objects if o.object_id != obj.object_id and not o.is_control and o.type in RIGID_MARK_KINDS]
+    return refs
+
+
+def _neighbour_row(frames: list[IndexFrame] | None, plan: ClipPlan, obj: PlanObject, th: dict[str, Any]) -> NeighbourTest | None:
+    """The row's neighbour test: None for a plan made before the test existed, not_run (with the planned neighbours)
+    when the clip lane gave no answer."""
+    if plan.neighbour_rule is None:
+        return None
+    refs = _neighbour_refs(plan, obj)
+    if frames is None:
+        near_s = _sp(th, "neighbour_near_half_window_s")
+        return NeighbourTest(near_s=near_s, neighbours=[StaysPutNeighbour(object_id=oid, kind=kind, ref=ref) for oid, kind, ref in refs])
+    return neighbour_test(frames, obj.object_id, refs, n_frames=len(plan.windows_src), prompt_frame=plan.prompt_frame, fps=_fps(plan.pts_src), th=th)
+
+
 def _lane_frames(run_id: str, record: LaneRecord) -> list[IndexFrame]:
     if record.index_path is None:
         return []
@@ -1314,6 +1671,7 @@ def _plan_tracks(run_id: str, plan: ClipPlan, kf: Keyframe | None, direction: in
             "curvature_cap": curvature,
             "highlight_cap": highlight,
         }
+        extra["neighbour_test"] = _neighbour_row(frames if ran else None, plan, obj, th)
         if not ran or kf is None or kf.moments is None or kf.crop is None:
             rows.append(MarkTrack(mark_id=obj.mark_id, role=plan.role, verdict=StaysPutVerdict.NOT_RUN, **extra))
             continue
