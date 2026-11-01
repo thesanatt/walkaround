@@ -18,15 +18,16 @@ on frames F1 to F2 of that walk, for a plate the run's lanes missed. On a 960 px
 which leaves a large plate readable where nothing else covers it. A video touched this way is re-encoded, so its
 bytes no longer match the hash in videos/<role>.json and bundle/manifest_run.json; the README says so.
 
-The sample in the repo was made with (Oct 31, from run pairC_core2; no --plate-block and no --cover: since the
-privacy lane's blur of Oct 31 the run's own display videos carry blocks that grow with the box and tracks carried 2 s
-past their sightings, so every file is the run's own bytes except run.json):
-    make_sample.py pairC_core2 --footage-credit "Footage: uCO3D (Meta), CC BY 4.0, modified; narration: our own Piper TTS track"
-        --clip clips/pickup/pickup_trunk_lid_kf1_sp02.mp4 --clip clips/pickup/pickup_trunk_lid_kf2_sp01.mp4
-        --clip clips/pickup/pickup_hood_kf1_sp01.mp4 --clip clips/return/return_headlights_kf1_sp01.mp4
-(the run page opens on the trunk lid, the first comparable panel, whose chips pair the demo is about; the two trunk-lid
-clips hold its other marks, the hood clip shows the neighbour test's rings, and the headlight clip is the control the
-page shows beside a mark).
+The sample in the repo was made with (Nov 1, from run pairC_core3, no --plate-block and no --cover: the run's own display
+videos carry blocks that grow with the box and plate tracks carried 3 s past their sightings with the path cover, so
+every file is the run's own bytes except run.json; no --footage-credit either, so run.json keeps the credit the run's
+sealed sheet prints):
+    make_sample.py pairC_core3 --clip clips/pickup/pickup_trunk_lid_kf1_sp01.mp4 --clip clips/pickup/pickup_trunk_lid_kf1_sp02.mp4
+        --clip clips/return/return_trunk_lid_kf1_sp01.mp4 --clip clips/pickup/pickup_hood_kf1_sp01.mp4
+        --clip clips/return/return_headlights_kf1_sp01.mp4
+(the run page opens on the trunk lid, the first comparable panel, whose chips pair the demo is about: the chip's own
+clip in each walk, the clip of the lid's other two pickup marks, the hood clip with the neighbour test's rings, and the
+headlight clip, the control the page shows beside a mark).
 """
 
 from __future__ import annotations

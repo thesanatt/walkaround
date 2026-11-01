@@ -1412,34 +1412,36 @@ def test_derive_records_what_the_cap_ranked_first(offline: dict[str, Any], walks
     assert "paired" not in staysput.RolePlans(role="pickup").to_json()  # a walk planned before 11/1 keeps its bytes
 
 
-SAMPLE = Path(__file__).resolve().parent.parent / "samples" / "pairC_core2"
+SAMPLE = Path(__file__).resolve().parent.parent / "samples" / "pairC_core3"  # the sample since 11/1 (pairC_core2 before)
 
 
-@pytest.mark.skipif(not (SAMPLE / "derived" / "marks.json").is_file(), reason="no pairC_core2 sample in this checkout")
+@pytest.mark.skipif(not (SAMPLE / "derived" / "marks.json").is_file(), reason="no pairC_core3 sample in this checkout")
 def test_on_pair_c_the_trunk_chips_get_a_clip_in_both_walks(offline: dict[str, Any]) -> None:
     """The sample's own files (marks with the seed rows, keyframes, panels, the lane summaries, the pts maps) and a
-    29.58 fps timeline like the uCO3D original's: the narrated chip and its return twin were over the cap on 10/31."""
-    run = paths.run_dir("pc2")
+    timeline at the original's fps. pairC_core3 was planned under the order of 11/1 and its clips folder holds both
+    chips' clips; under the confidence order alone the return chip would have been over the cap (on pairC_core2, the
+    sample of 10/31, both chips were)."""
+    run = paths.run_dir("pc3")
     shutil.copytree(SAMPLE, run, dirs_exist_ok=True, ignore=shutil.ignore_patterns("*.mp4", "*.ndjson.gz", "*.pdf", "*.m4a", "*.jpg", "bundle", "sheet", "clips", "chips"))
     th = json.loads((run / "run.json").read_text())["thresholds"]
-    pairs = staysput.cross_walk_pairs("pc2", th=th)
-    assert ("pickup_trunk_lid_kf1_m1", "return_trunk_lid_kf1_m2") in pairs  # the match's own pair on 10/31 (matches.json)
+    pairs = staysput.cross_walk_pairs("pc3", th=th)
+    assert ("pickup_trunk_lid_kf1_m1", "return_trunk_lid_kf1_m2") in pairs  # the match's own pair (matches.json)
     stored = [(p["pickup_mark"], p["return_mark"]) for pm in json.loads((run / "derived" / "matches.json").read_text()) for p in pm["pairs"] if p["d"] < p["tau_eye_r"]]
     assert set(stored) <= set(pairs)
-    assert staysput.seeded_marks("pc2") == {"pickup_right_front_door_kf1_seed_t2", "pickup_trunk_lid_kf1_m1"}
-    for role, chip_id in (("pickup", "pickup_trunk_lid_kf1_m1"), ("return", "return_trunk_lid_kf1_m2")):
-        walk = staysput._load_walk("pc2", role)
+    assert staysput.seeded_marks("pc3") == {"pickup_right_front_door_kf1_m1", "pickup_trunk_lid_kf1_m1"}
+    for role, chip_id, over_cap_before in (("pickup", "pickup_trunk_lid_kf1_m1", False), ("return", "return_trunk_lid_kf1_m2", True)):
+        walk = staysput._load_walk("pc3", role)
         assert walk is not None
         probe = json.loads((run / "videos" / f"{role}.json").read_text())["ffprobe"]
         walk.times = [i / probe["fps_avg"] for i in range(int(probe["duration_s"] * probe["fps_avg"]))]
         items = [staysput._item(m, box) for m in walk.marks if staysput._why_not(walk.keyframes.get(m.kf_id), walk) is None and (box := staysput._mark_box(m, staysput._min_box_px(th, walk.src_size))[0]) is not None]
         before = {o.mark_id for p in staysput._plans(walk, items, th)[0] for o in p.objects}
-        walk.paired, walk.seeded, notes = staysput._priorities("pc2", walk, th)
+        walk.paired, walk.seeded, notes = staysput._priorities("pc3", walk, th)
         plans, _dropped = staysput._plans(walk, items, th)
         after = {o.mark_id for p in plans for o in p.objects}
-        assert notes == [] and chip_id not in before and chip_id in after and len(plans) == 16
-        if role == "pickup":
-            assert {"pickup_right_front_door_kf1_seed_t2", "pickup_trunk_lid_kf1_m2"} & after == {"pickup_right_front_door_kf1_seed_t2"}  # the door seed in, a dirt mark out
+        assert notes == [] and (chip_id not in before) == over_cap_before and chip_id in after and len(plans) == 16
+        clip = next(p.clip_id for p in plans if chip_id in {o.mark_id for o in p.objects})
+        assert (SAMPLE / "clips" / role / f"{clip}.mp4").is_file()  # the clip the live run made for the chip
 
 
 # ----------------------------------------------------------------------------------------------------------------
