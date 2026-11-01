@@ -6,12 +6,22 @@ mark is measured from its own SAM mask or SAM track, never from a Spark box (D1 
 of the crop width). Every size carries its interval and the ruler it came from; anything that breaks a rule of 5.12
 comes back as a refusal with its reason, and the Hertz comparison is refused, not the size, when the interval straddles
 the threshold (compare_hertz; sheet.threshold_line prints it). The wheel needs the tire code the renter typed: 5.12
-refuses an unknown code ("tire size not given", section 14 item 21). Everything here is arithmetic except size_marks
-and size_verdicts, which read a run's derived files.
+refuses an unknown code ("tire size not given", section 14 item 21); a walk takes it from the run manifest
+(RunManifest.tire_code, walkaround run --tire-code). Everything here is arithmetic except size_marks and size_verdicts,
+which read a run's frozen files.
+
+A walk's mark is sized on the frame where its ruler faces the camera best, not only on the keyframe it was found on:
+every keyframe of the walk inside the mark's Stays Put clip is a candidate, the plate (or wheel) measured on that
+keyframe and the mark's extent measured by its own track around the same frame, so ruler and mark stay on one frame as
+5.12 asks. The most frontal ruler that sizes the mark wins (the plate before the wheel), and the size carries
+ruler_notes: why each other ruler next to the mark did not size it, which the sheet prints after the ruler used. A plate
+flatter than a 12 by 6 in plate seen from 45 degrees above (ruler.plate_hw_min) is not this ruler: a European or Indian
+strip plate would read as frontal and size every mark too small.
 """
 
 from __future__ import annotations
 
+import json
 import math
 import re
 import statistics
@@ -47,12 +57,17 @@ from .contracts import (
 Box4 = list[float]
 
 PLATE_FRONTAL_HW = 0.5  # a US plate is 12 in by 6 in, so a frontal plate's apparent h / w is 0.5
+PLATE_HW_MIN = 0.35  # thresholds ruler.plate_hw_min (estimate): 0.5 x cos 45, a 12 by 6 in plate seen from 45 degrees above
+NEAR_FRAMES = 3  # a mark's extent on a frame is the median of its track boxes within this many clip frames of it
+NEAR_POINTS_MIN = 3  # track boxes that extent needs
 # The camera distance enters the depth term of the bound. With a ruler in frame it follows from the ruler's pixels per
 # inch and a focal length; phone video does not carry one, so a main camera's horizontal field of view is assumed
 # (ruler.camera_hfov_deg overrides it once thresholds.json carries it).
 CAMERA_HFOV_DEG = 70.0  # estimate
 INCH_M = 0.0254
 NO_PLATE = "no license plate measured on that frame"
+NO_WHEEL = "no wheel measured on that frame"
+NOT_A_US_PLATE = "the license plate is flatter than a 12 by 6 in plate, so its size is not known"
 # 5.12: an unknown code is refused, since the US market spans 28.4 in +/- 12% (claim_first_and_metrology.md section 6).
 TIRE_NOT_GIVEN = "tire size not given"
 TIRE_UNREADABLE = "the tire code typed could not be read"
@@ -149,6 +164,8 @@ def plate_ruler(blur: BlurRecord, *, th: dict[str, Any], source_kf: str | None =
         return f"the license plate mask is under c {float(r['plate_c_min']):g}"
     if blur.plate_ruler_px < float(r["plate_min_px"]):
         return f"the license plate is under {float(r['plate_min_px']):g} px"
+    if blur.plate_tilt_hw is not None and blur.plate_tilt_hw < float(r.get("plate_hw_min", PLATE_HW_MIN)):
+        return NOT_A_US_PLATE  # a strip plate reads as frontal; its long side is not 12 in
     tilt = tilt_from_aspect(blur.plate_tilt_hw)
     if tilt > float(r["plate_tilt_max_deg"]):
         return f"the license plate is turned more than {float(r['plate_tilt_max_deg']):g} degrees from the camera"
@@ -260,16 +277,18 @@ def extent_from_mask(mask: np.ndarray, *, scale: float = 1.0, offset: tuple[floa
     return MarkExtent(long_px=long_px / scale, axis_deg=angle, center=(offset[0] + cx / scale, offset[1] + cy / scale), proxy=proxy)
 
 
-def extent_from_track(mt: MarkTrack | None, *, min_points: int = 5) -> MarkExtent | None:
+def extent_from_track(mt: MarkTrack | None, *, min_points: int = 5, frames: tuple[int, int] | None = None) -> MarkExtent | None:
     """The median extent of a Stays Put track in source pixels (5.12: the mark's own SAM track in the clip frames cut
-    from the original). A track box gives a range: the long side when the mark lies along an image axis, the
-    diagonal when it lies across it."""
+    from the original), over the whole clip or only clip frames lo to hi (frames). A track box gives a range: the long
+    side when the mark lies along an image axis, the diagonal when it lies across it."""
     if mt is None or mt.clip is None or mt.verdict in (StaysPutVerdict.NO_TRACK, StaysPutVerdict.NOT_RUN):
         return None
     clip = mt.clip
     longs, diags, xs, ys, wide = [], [], [], [], 0
     for p in mt.track:
         if not p.inside_panel or p.f < 0 or p.f >= len(clip.windows_src):
+            continue
+        if frames is not None and not frames[0] <= p.f <= frames[1]:
             continue
         win = clip.windows_src[p.f]
         s = (float(win[2]) - float(win[0])) / float(clip.w)  # source pixels per clip pixel
@@ -480,14 +499,155 @@ def _wheel_rulers(kf: Keyframe, tracks: list[PanelTrack], video: VideoRecord | N
     return out
 
 
+def run_tire_code(run_id: str) -> str | None:
+    """The tire code typed for the run (RunManifest.tire_code, from walkaround run --tire-code), or None."""
+    path = paths.run_json(run_id)
+    try:
+        code = json.loads(path.read_text(encoding="utf-8")).get("tire_code") if path.is_file() else None
+    except (OSError, ValueError, AttributeError):
+        return None
+    return code if isinstance(code, str) and code.strip() else None
+
+
+def _clip_times(run_id: str) -> dict[str, list[float]]:
+    """mark id -> the source times of its Stays Put clip's frames (clips/<role>/staysput.json); empty for a walk
+    without plans (a sample copy keeps none)."""
+    from . import staysput  # here, not at import: staysput pulls in the SAM and video clients
+
+    out: dict[str, list[float]] = {}
+    for path in sorted(paths.run_dir(run_id).glob(f"clips/*/{staysput.PLAN_NAME}")):
+        try:
+            plans = read_json(path, staysput.RolePlans)
+        except (OSError, ValueError):
+            continue
+        for plan in plans.clips:
+            for obj in plan.objects:
+                out[obj.mark_id] = [float(t) for t in plan.pts_src]
+    return out
+
+
+def _frame_at(times: list[float], t: float) -> int | None:
+    """The clip frame shown at source time t, or None when t is outside the clip by more than half a frame."""
+    if not times:
+        return None
+    half = 0.5 * statistics.median([b - a for a, b in zip(times, times[1:])]) if len(times) > 1 else 0.02
+    j = min(range(len(times)), key=lambda i: (abs(times[i] - t), i))
+    return j if abs(times[j] - t) <= half + 1e-6 else None
+
+
+@dataclass(frozen=True)
+class _View:
+    """A frame a ruler may size a mark on: a keyframe of the mark's walk and the mark's extent on that frame."""
+
+    kf: Keyframe
+    extent: MarkExtent | None
+    dt: float  # seconds from the mark's own keyframe
+
+
+def _views(kf: Keyframe, mt: MarkTrack | None, times: list[float] | None, walk: list[Keyframe]) -> list[_View]:
+    """Every keyframe of the walk inside the mark's Stays Put clip, with the mark's extent from its own track around
+    that frame (ruler and mark on one frame). Without the clip's frame times: the mark's keyframe and the track's
+    median extent over the clip."""
+    if mt is None or mt.clip is None or not times:
+        return [_View(kf, extent_from_track(mt), 0.0)]
+    views = []
+    for k in walk:
+        j = _frame_at(times, k.pts)
+        if j is not None:
+            views.append(_View(k, extent_from_track(mt, min_points=NEAR_POINTS_MIN, frames=(j - NEAR_FRAMES, j + NEAR_FRAMES)), abs(k.pts - kf.pts)))
+    if not any(v.kf.kf_id == kf.kf_id for v in views):
+        views.insert(0, _View(kf, extent_from_track(mt), 0.0))
+    return views
+
+
+def _plate_tilt(blur: BlurRecord) -> float:
+    return tilt_from_aspect(blur.plate_tilt_hw) if blur.plate_ruler_px is not None else math.inf
+
+
+def _best_view(m: Mark, pairs: list[tuple[_View, Ruler | str]], kind: RulerKind, *, th: dict[str, Any], frame_w: int | None) -> tuple[SizeEstimate | None, str, bool]:
+    """(size, "", True) from the most frontal ruler of one kind that sizes the mark (ties: the frame nearest the mark's
+    keyframe); else (None, why, whether any ruler of that kind qualified on its own)."""
+    usable = sorted(((r.tilt_deg, v.dt, v.kf.kf_id, i) for i, (v, r) in enumerate(pairs) if isinstance(r, Ruler)))
+    refusals: list[str] = []
+    for *_, i in usable:
+        v, r = pairs[i]
+        s = size_estimate(v.extent, r, mark_type=m.type, panel_id=m.panel_id, frame_w=frame_w, th=th)
+        if s.inches is not None:
+            return s, "", True
+        refusals.append(str(s.refused_reason))
+    if refusals:
+        near = [x for x in refusals if x != no_ruler_reason(th)]
+        return None, (near or refusals)[0], True
+    failed = [(v, r) for v, r in pairs if isinstance(r, str)]
+    if kind == RulerKind.PLATE:  # the most frontal plate seen says why
+        seen = sorted(((_plate_tilt(v.kf.blur), v.dt, v.kf.kf_id, r) for v, r in failed if r != NO_PLATE))
+        return None, seen[0][-1] if seen else NO_PLATE, False
+    reasons = [r for _, _, r in sorted((v.dt, v.kf.kf_id, r) for v, r in failed)]
+    fixable = [r for r in reasons if r in (TIRE_NOT_GIVEN, TIRE_UNREADABLE)]
+    return None, (fixable or reasons or [NO_WHEEL])[0], False
+
+
+def _note(kind: RulerKind, reason: str, th: dict[str, Any]) -> str:
+    """Why a ruler next to the mark did not size it, as the sheet prints it after the ruler used."""
+    name = "the license plate" if kind == RulerKind.PLATE else "the wheel"
+    if reason == no_ruler_reason(th):
+        return f"{name} is more than {float(th['ruler']['ruler_max_distance_m']):g} m from this mark"
+    if reason in (NO_PLATE, NO_WHEEL) or reason.startswith(name):
+        return reason
+    return f"{name}: {reason}"
+
+
+def _size_mark(m: Mark, kf: Keyframe, views: list[_View], tracks: list[PanelTrack], video: VideoRecord | None, *, tire_code: str | None, th: dict[str, Any], frame_w: int | None) -> SizeEstimate:
+    """5.12 for one walk mark over its candidate frames: a crop flag on the mark's own keyframe refuses first; then the
+    plate (plate-adjacent panels) and the wheel (wheel, fender and lower-bumper marks) each on their most frontal view,
+    the plate first. The refusal follows best_size: with a ruler that qualified, the mark side speaks; else a tire
+    code the renter can fix, the plate's reason, the wheel's, or no ruler near."""
+    if kf.conditions.any_flag():
+        return SizeEstimate(refused_reason=CROP_FLAG)
+    kinds = [k for k, ok in ((RulerKind.PLATE, m.panel_id in PLATE_PANELS), (RulerKind.WHEEL, m.panel_id in WHEEL_RULER_PANELS)) if ok]
+    if not kinds:
+        return SizeEstimate(refused_reason=no_ruler_reason(th))
+    sized: dict[RulerKind, SizeEstimate] = {}
+    why: dict[RulerKind, tuple[str, bool]] = {}
+    for kind in kinds:
+        pairs: list[tuple[_View, Ruler | str]] = []
+        for v in views:
+            found = [plate_ruler(v.kf.blur, th=th, source_kf=v.kf.kf_id)] if kind == RulerKind.PLATE else _wheel_rulers(v.kf, tracks, video, tire_code=tire_code, th=th)
+            pairs += [(v, r) for r in found]
+        size, reason, qualified = _best_view(m, pairs, kind, th=th, frame_w=frame_w)
+        if size is not None:
+            sized[kind] = size
+        else:
+            why[kind] = (reason, qualified)
+    used = next((k for k in kinds if k in sized), None)
+    if used is not None:
+        return sized[used].model_copy(update={"ruler_notes": [_note(k, why[k][0], th) for k in kinds if k in why]})
+    qualified = [why[k][0] for k in kinds if why[k][1]]
+    if qualified:
+        near = [x for x in qualified if x != no_ruler_reason(th)]
+        main = (near or qualified)[0]
+    else:
+        fixable = [why[k][0] for k in kinds if why[k][0] in (TIRE_NOT_GIVEN, TIRE_UNREADABLE)]
+        failed = [why[k][0] for k in kinds if why[k][0] not in (NO_PLATE, NO_WHEEL)]
+        main = (fixable or failed or [no_ruler_reason(th)])[0]
+    notes = [_note(k, why[k][0], th) for k in kinds if why[k][0] != main]
+    return SizeEstimate(refused_reason=main, ruler_notes=notes)
+
+
 def size_marks(run_id: str, *, th: dict[str, Any], tire_code: str | None = None) -> dict[str, SizeEstimate]:
-    """One SizeEstimate per mark of marks.json: the plate on the mark's keyframe frame (plate-adjacent panels), then
-    the wheels whose track boxes sit on that frame (wheel, fender and lower-bumper marks; they need tire_code); the
-    mark's extent from its Stays Put track. A mark with no track is refused, never sized from its Spark box."""
+    """One SizeEstimate per mark of marks.json: the plate (plate-adjacent panels) and the wheels (wheel, fender and
+    lower-bumper marks; they need the tire code: tire_code, else the run's own) on the most frontal of the walk's
+    keyframes inside the mark's Stays Put clip, the mark's extent from its own track on that frame. A mark with no
+    track is refused, never sized from its Spark box."""
+    code = run_tire_code(run_id) if tire_code is None else tire_code
     marks: list[Mark] = _read_list(paths.marks_json(run_id), Mark)
     keyframes = {k.kf_id: k for k in _read_list(paths.keyframes_json(run_id), Keyframe)}
     tracks: list[PanelTrack] = _read_list(paths.tracks_json(run_id), PanelTrack)
     mark_tracks = {mt.mark_id: mt for mt in _read_list(paths.mark_tracks_json(run_id), MarkTrack)}
+    times = _clip_times(run_id)
+    walks: dict[str, list[Keyframe]] = {}
+    for k in sorted(keyframes.values(), key=lambda k: (k.pts, k.kf_id)):
+        walks.setdefault(k.role, []).append(k)
     videos: dict[str, VideoRecord | None] = {}
     out: dict[str, SizeEstimate] = {}
     for m in marks:
@@ -498,13 +658,9 @@ def size_marks(run_id: str, *, th: dict[str, Any], tire_code: str | None = None)
         if kf.role not in videos:
             videos[kf.role] = _video(run_id, kf.role)
         video = videos[kf.role]
-        rulers: list[Ruler | str] = [plate_ruler(kf.blur, th=th, source_kf=kf.kf_id)] if m.panel_id in PLATE_PANELS else []
-        if m.panel_id in WHEEL_RULER_PANELS:
-            rulers += _wheel_rulers(kf, tracks, video, tire_code=tire_code, th=th)
         frame_w = video.ffprobe.display_width if video is not None and video.ffprobe is not None else None
-        out[m.mark_id] = best_size(
-            extent_from_track(mark_tracks.get(m.mark_id)), rulers, mark_type=m.type, panel_id=m.panel_id, frame_w=frame_w, th=th, crop_flag=kf.conditions.any_flag()
-        )
+        views = _views(kf, mark_tracks.get(m.mark_id), times.get(m.mark_id), walks.get(kf.role, []))
+        out[m.mark_id] = _size_mark(m, kf, views, tracks, video, tire_code=code, th=th, frame_w=frame_w)
     return out
 
 
@@ -523,7 +679,7 @@ def attach_sizes(verdicts: list[Verdict], sizes: dict[str, SizeEstimate], marks:
 
 def size_verdicts(run_id: str, *, th: dict[str, Any], tire_code: str | None = None) -> list[Verdict]:
     """verdicts.json with a size on every mark verdict, written back; the same on a rebuild since every input is a
-    frozen file."""
+    frozen file (the tire code too: tire_code, else the run manifest's)."""
     verdicts: list[Verdict] = _read_list(paths.verdicts_json(run_id), Verdict)
     if not verdicts:
         return []
@@ -536,8 +692,11 @@ def size_verdicts(run_id: str, *, th: dict[str, Any], tire_code: str | None = No
 __all__ = [
     "CAMERA_HFOV_DEG",
     "MarkExtent",
+    "NOT_A_US_PLATE",
     "NO_MARK_MASK",
     "NO_PLATE",
+    "NO_WHEEL",
+    "PLATE_HW_MIN",
     "PLATE_PANELS",
     "Ruler",
     "TIRE_NOT_GIVEN",
@@ -553,6 +712,7 @@ __all__ = [
     "no_ruler_reason",
     "normalize_tire_code",
     "plate_ruler",
+    "run_tire_code",
     "size_estimate",
     "size_marks",
     "size_verdicts",

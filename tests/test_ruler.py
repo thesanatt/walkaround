@@ -470,3 +470,187 @@ def test_size_verdicts_writes_a_size_on_each_mark_verdict(runs: Path) -> None:
     c.write_json(paths.verdicts_json("r2"), verdicts)
     ruler.size_verdicts("r2", th=TH)
     assert paths.verdicts_json("r2").read_bytes() == first  # the same bytes on a rebuild
+
+
+# The most frontal view, the run's tire code and the notes on the other ruler (polish lane, Oct 31) ----------------------
+
+
+def test_a_strip_plate_is_not_the_12_in_ruler() -> None:
+    strip = ruler.plate_ruler(blur(337.0, 0.12), th=TH)  # the pair C front plate on pairC_core1: 337 px, h / w 0.12
+    assert strip == ruler.NOT_A_US_PLATE
+    seen_from_above = ruler.plate_ruler(blur(240.0, 0.5 * math.cos(math.radians(40))), th=TH)  # a US plate from 40 degrees up
+    assert isinstance(seen_from_above, ruler.Ruler) and seen_from_above.tilt_deg == 0.0
+    old = {**TH, "ruler": {k: v for k, v in TH["ruler"].items() if k != "plate_hw_min"}}  # a run frozen before the key
+    assert ruler.plate_ruler(blur(337.0, 0.12), th=old) == ruler.NOT_A_US_PLATE  # the module's 0.35 stands in
+    assert TH["ruler"]["plate_hw_min"] == ruler.PLATE_HW_MIN
+
+
+def turned_plate(deg: float, x: float = 900.0) -> c.BlurRecord:
+    cos = math.cos(math.radians(deg))
+    return blur(240.0 * cos, 0.5 / cos, box=[x, 700.0, x + 240.0 * cos, 820.0])
+
+
+def write_clip_run(run_id: str, *, with_plan: bool = True) -> str:
+    """A return walk: the trunk-lid mark's keyframe shows the plate turned 40 degrees, the rear bumper keyframe half a
+    second later inside the mark's clip shows it at 10 degrees, and a rear window keyframe outside the clip shows it
+    frontal. The mark's own track: 30 source px wide and level on every clip frame."""
+    write_run(run_id)
+    score = c.KeyframeScore(area=1, completeness=1, sharpness=1, glare=0, frontality=1, total=1)
+    kf = lambda kf_id, pid, pts, b: c.Keyframe(kf_id=kf_id, role="return", panel_id=pid, track_id="t", f_proxy=round(pts * 15), pts=pts, score=score, aspect_ratio=1.5, box_src=[600.0, 500.0, 1600.0, 1000.0], blur=b)  # noqa: E731
+    kfs = [
+        kf("return_trunk_lid_kf1", c.PanelId.TRUNK_LID, 5.0, turned_plate(40)),
+        kf("return_rear_bumper_kf1", c.PanelId.REAR_BUMPER, 5.5, turned_plate(10)),
+        kf("return_rear_window_kf1", c.PanelId.REAR_WINDOW, 9.0, turned_plate(0)),
+    ]
+    c.write_json(paths.keyframes_json(run_id), kfs)
+    mark_id = "return_trunk_lid_kf1_m1"
+    c.write_json(paths.marks_json(run_id), [c.Mark(mark_id=mark_id, role="return", panel_id=c.PanelId.TRUNK_LID, kf_id="return_trunk_lid_kf1", source=c.MarkSource.SPARK_BOX, type=c.MarkKind.SCRATCH, confidence=c.Confidence.HIGH, size_class=c.SizeClass.S)])
+    window = [500.0, 400.0, 1508.0, 1408.0]
+    mt = track([[480.0, 350.0, 510.0, 356.0]] * 91, window=window).model_copy(update={"mark_id": mark_id})
+    mt = mt.model_copy(update={"clip": mt.clip.model_copy(update={"path": "clips/return/return_trunk_lid_kf1_sp01.mp4", "f0_src": 105})})
+    c.write_json(paths.mark_tracks_json(run_id), [mt])
+    if with_plan:
+        from walkaround import staysput
+
+        obj = staysput.PlanObject(object_id="1", mark_id=mark_id, type=c.MarkKind.SCRATCH, box_src=[980.0, 750.0, 1010.0, 756.0], box_clip=[480.0, 350.0, 510.0, 356.0])
+        plan = staysput.ClipPlan(
+            clip_id="return_trunk_lid_kf1_sp01", role="return", kf_id="return_trunk_lid_kf1", panel_id=c.PanelId.TRUNK_LID, lane_id="sp_return_trunk_lid_kf1_sp01",
+            src_size=[W, 1080], proxy_size=[960, 540], size=1008, prompt_frame=45, f0_src=105, pts_src=[3.5 + i / 30 for i in range(91)],
+            window_px=1008.0, windows_src=[window] * 91, panel_src=[None] * 91, objects=[obj], status="answered",
+        )
+        c.write_json(paths.run_dir(run_id) / "clips" / "return" / staysput.PLAN_NAME, staysput.RolePlans(role="return", complete=True, clips=[plan]))
+    return mark_id
+
+
+def test_the_most_frontal_plate_in_the_marks_clip_sizes_it_on_that_frame(runs: Path) -> None:
+    mark_id = write_clip_run("fr1")
+    s = ruler.size_marks("fr1", th=TH)[mark_id]
+    assert s.ruler == c.RulerKind.PLATE and s.ruler_source_kf == "return_rear_bumper_kf1"  # 10 degrees, inside the clip
+    assert s.inches == pytest.approx(30.0 / 20.0 / math.cos(math.radians(10)))  # a level mark along the turned axis
+    assert s.ruler_notes == []  # a trunk-lid mark has no wheel next to it
+
+
+def test_without_the_clip_plan_only_the_marks_own_keyframe_counts(runs: Path) -> None:
+    mark_id = write_clip_run("fr2", with_plan=False)
+    s = ruler.size_marks("fr2", th=TH)[mark_id]
+    assert s.inches is None and s.refused_reason == "the license plate is turned more than 30 degrees from the camera"
+
+
+def test_a_refusal_names_the_most_frontal_plate_the_clip_saw(runs: Path) -> None:
+    mark_id = write_clip_run("fr3")
+    kfs = c.read_json_list(paths.keyframes_json("fr3"), c.Keyframe)
+    kfs[1] = kfs[1].model_copy(update={"blur": blur(50.0, 0.5)})  # the 10 degree view is now too small to measure
+    c.write_json(paths.keyframes_json("fr3"), kfs)
+    s = ruler.size_marks("fr3", th=TH)[mark_id]
+    assert s.refused_reason == "the license plate is under 60 px"  # 0 degrees beats 40: the frontal view says why
+
+
+def test_the_run_tire_code_on_the_manifest_sizes_wheel_marks(runs: Path) -> None:
+    write_run("tc1")
+    assert ruler.run_tire_code("tc1") is None
+    assert ruler.size_marks("tc1", th=TH)["return_left_rear_wheel_kf0_m1"].refused_reason == ruler.TIRE_NOT_GIVEN
+    run = c.read_json(paths.run_json("tc1"), c.RunManifest).model_copy(update={"tire_code": "225/60R16"})
+    c.write_json(paths.run_json("tc1"), run)
+    assert ruler.run_tire_code("tc1") == "225/60R16"
+    w = ruler.size_marks("tc1", th=TH)["return_left_rear_wheel_kf0_m1"]
+    assert w.ruler == c.RulerKind.WHEEL and w.tire_code == "225/60R16"
+    assert ruler.size_marks("tc1", th=TH, tire_code="")["return_left_rear_wheel_kf0_m1"].refused_reason == ruler.TIRE_NOT_GIVEN  # an explicit "none"
+    c.write_json(paths.verdicts_json("tc1"), [c.Verdict(verdict_id="w1", panel_id=c.PanelId.LEFT_REAR_WHEEL, label=c.VerdictLabel.NEW_OR_UNSEEN, rule_id="L2", mark_ids=["return_left_rear_wheel_kf0_m1"])])
+    (v,) = ruler.size_verdicts("tc1", th=TH)
+    assert v.size.ruler == c.RulerKind.WHEEL and sheet.size_line(v.size).endswith("(ruler: the wheel, 26.6 in from 225/60R16, typed by you)")
+
+
+def test_the_size_says_why_the_other_ruler_was_not_used(runs: Path) -> None:
+    write_run("nt1")
+    plate_sized = ruler.size_marks("nt1", th=TH)["return_rear_bumper_kf0_m1"]
+    assert plate_sized.ruler == c.RulerKind.PLATE and plate_sized.ruler_notes == [ruler.NO_WHEEL]  # no wheel box on that frame
+    tracks = c.read_json_list(paths.tracks_json("nt1"), c.PanelTrack)
+    near = c.FrameObs(frame=40, pts=13.3, box=[480.0, 360.0, 560.0, 440.0], box_area_frac=0.04, in_car_box=True, c=0.9)  # a wheel on the bumper frame
+    tracks[0] = tracks[0].model_copy(update={"per_frame": [*tracks[0].per_frame, near]})
+    c.write_json(paths.tracks_json("nt1"), tracks)
+    assert ruler.size_marks("nt1", th=TH)["return_rear_bumper_kf0_m1"].ruler_notes == ["the wheel: tire size not given"]
+    kfs = c.read_json_list(paths.keyframes_json("nt1"), c.Keyframe)
+    kfs[0] = kfs[0].model_copy(update={"blur": turned_plate(40)})
+    c.write_json(paths.keyframes_json("nt1"), kfs)
+    refused = ruler.size_marks("nt1", th=TH)["return_rear_bumper_kf0_m1"]
+    assert refused.refused_reason == ruler.TIRE_NOT_GIVEN  # the reason the renter can fix comes first
+    assert refused.ruler_notes == ["the license plate is turned more than 30 degrees from the camera"]
+    assert sheet.size_line(refused) == "size not stated: tire size not given; the license plate is turned more than 30 degrees from the camera"
+
+
+def test_the_sheet_line_names_the_ruler_used_then_why_another_was_not() -> None:
+    s = c.SizeEstimate(inches=1.2, bound_lo=0.9, bound_hi=1.6, ruler=c.RulerKind.WHEEL, tire_code="155/80R13", ruler_notes=["the license plate is flatter than a 12 by 6 in plate, so its size is not known"])
+    assert sheet.size_line(s) == "about 1.2 in, between 0.9 and 1.6 in (ruler: the wheel, 22.8 in from 155/80R13, typed by you; the license plate is flatter than a 12 by 6 in plate, so its size is not known)"
+    assert sheet.size_line(c.SizeEstimate(inches=1.5, bound_lo=1.3, bound_hi=1.7, ruler=c.RulerKind.PLATE)) == "about 1.5 in, between 1.3 and 1.7 in (ruler: the license plate, 12 in)"
+
+
+# walkaround run --tire-code ------------------------------------------------------------------------------------------
+
+
+def test_the_cli_reads_the_tire_code_before_spending(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    from walkaround import __main__ as cli
+
+    walk = tmp_path / "walk.mp4"
+    walk.write_bytes(b"x")
+    monkeypatch.delenv("LIVE", raising=False)
+    parse = cli.build_parser().parse_args
+    assert cli.cmd_run(parse(["run", str(walk), str(walk), "--tire-code", "bogus"]), orch=None) == 2  # type: ignore[arg-type]
+    assert "the tire code typed could not be read: 'bogus'" in capsys.readouterr().err
+    args = parse(["run", str(walk), str(walk), "--tire-code", "P155/80 R13 77S"])
+    assert cli.cmd_run(args, orch=None) == 2 and args.tire_code == "155/80R13"  # type: ignore[arg-type]
+    assert "tire code 155/80R13 (22.8 in); set LIVE=1" in capsys.readouterr().err
+
+
+def test_a_run_the_cli_creates_carries_the_tire_code(runs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """--tire-code travels through pipeline.run_pair_async to Orchestrator.create_run (integrator 10/31: no wrapper)."""
+    import asyncio
+
+    from walkaround import __main__ as cli
+    from walkaround import pipeline
+
+    made: dict[str, object] = {}
+
+    class Orch:
+        def run_exists(self, run_id: str) -> bool:
+            return False
+
+        async def create_run(self, **kwargs: object) -> c.RunManifest:
+            made.update(kwargs)
+            return c.RunManifest(run_id=str(kwargs["run_id"]), created_at="2026-10-31T23:00:00Z", tire_code=kwargs.get("tire_code"))  # type: ignore[arg-type]
+
+        def load_run(self, run_id: str) -> c.RunManifest:
+            return c.RunManifest(run_id=run_id, created_at="2026-10-31T23:00:00Z", tire_code=made.get("tire_code"))  # type: ignore[arg-type]
+
+        async def run_pipeline(self, run_id: str) -> c.RunManifest:
+            return self.load_run(run_id)
+
+    async def staged(*_args: object, **_kw: object) -> None:
+        return None
+
+    monkeypatch.setattr(pipeline, "stage_local_file", staged)
+    walk = tmp_path / "walk.mp4"
+    walk.write_bytes(b"not a video")
+    args = cli.build_parser().parse_args(["run", str(walk), str(walk), "--run-id", "tc_cli", "--tire-code", "155/80R13", "--quiet"])
+    asyncio.run(cli._run_local(Orch(), args))  # type: ignore[arg-type]
+    assert made["tire_code"] == "155/80R13" and made["run_id"] == "tc_cli"
+
+
+def test_create_run_stores_the_tire_code_on_run_json(runs: Path) -> None:
+    import asyncio
+
+    from walkaround.orchestrator import FileEventLog, Orchestrator
+
+    orch = Orchestrator(th=c.load_thresholds(), engine=c.SamEngine.META_MODEL_API, max_concurrent_runs=1, media_workers=1, decode_workers=1, events=FileEventLog(), delays_path=runs / "delays.json")
+    run = asyncio.run(orch.create_run(mode=c.RunMode.CAR, kind=c.RunKind.PAIR, keep_plate=False, run_id="tc_orch", tire_code="155/80R13"))
+    assert run.tire_code == "155/80R13" and ruler.run_tire_code("tc_orch") == "155/80R13"
+    plain = asyncio.run(orch.create_run(mode=c.RunMode.CAR, kind=c.RunKind.PAIR, keep_plate=False, run_id="tc_none"))
+    assert plain.tire_code is None and "tire_code" not in paths.run_json("tc_none").read_text()
+
+
+def test_the_new_fields_round_trip_and_stay_out_of_the_bytes_when_empty() -> None:
+    plain = c.SizeEstimate(refused_reason=ruler.TIRE_NOT_GIVEN)
+    noted = plain.model_copy(update={"ruler_notes": ["the license plate is turned more than 30 degrees from the camera"]})
+    assert "ruler_notes" not in plain.to_json() and c.SizeEstimate.from_json(noted.to_json()) == noted
+    run = c.RunManifest(run_id="r", created_at="2026-10-31T23:00:00Z")
+    typed = run.model_copy(update={"tire_code": "155/80R13"})
+    assert "tire_code" not in run.to_json() and c.RunManifest.from_json(typed.to_json()).tire_code == "155/80R13"

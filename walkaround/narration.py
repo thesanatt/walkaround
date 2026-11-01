@@ -22,6 +22,11 @@ mark as one this walk already has on the panel (match.cost d under tau_eye_r, fr
 to that mark instead, so no twin competes with it in the match. Not found is recorded, never invented. Seed outcomes
 are recorded in narration_pieces.json; every attempt goes to spark.json and every question to seeds.json at the run
 root, so rebuild_narration replays narration.json, narration_pieces.json and the seed marks with no model call.
+
+Voice can write speaker markers such as <|speaker_A|> into a transcript, and a cut can fall inside one (pairC_core1:
+"... the handle <|speaker_" then "A|>  trunk lid ..."). The words shown (NarrationTurn.text, a transcript with no
+turns, the sheet's chips) leave the marker out; turns are still cut on the raw words and the seed question keeps them,
+so the questions stored in seeds.json still find their answers.
 """
 
 from __future__ import annotations
@@ -122,6 +127,7 @@ OTHER_FORMS: dict[str, tuple[str, ...]] = {
 }
 # Truncated mark words fixed in the phrase Spark reads (the transcript itself is kept as heard).
 ASR_FIXES = {"scrat": "scratch", "scratc": "scratch", "scrach": "scratch"}
+SPEAKER_MARKER = re.compile(r"<\|[^<>|]{0,64}\|>")  # Voice's "<|speaker_A|>"; left out of the words shown
 
 SIDE_TERMS = ("left", "right", "driver", "driver's", "drivers", "passenger", "passenger's", "passengers")
 POSITION_WORDS = {"front": Position.FRONT, "rear": Position.REAR, "back": Position.REAR}
@@ -298,6 +304,40 @@ def _phrase(text: str) -> str:
     return _ASR_FIX.sub(lambda m: ASR_FIXES[m.group(1).lower()], text).replace('"', "'")
 
 
+MARKER_CHANGE = "written before Voice's speaker markers left the words shown (Oct 31), and verify rebuilds with today's code"
+
+
+def why_rebuild_differs(run_id: str, name: str) -> str | None:
+    """For walkaround verify: the known change behind a differing derived/narration.json, when the stored file still
+    shows a speaker marker in its words."""
+    if name != "derived/narration.json":
+        return None
+    try:
+        text = paths.narration_json(run_id).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return MARKER_CHANGE if SPEAKER_MARKER.search(text) or "|>" in text else None
+
+
+def shown_text(text: str) -> str:
+    """text as shown: Voice's speaker markers left out and the spaces they leave closed up; unchanged with no marker."""
+    return " ".join(SPEAKER_MARKER.sub(" ", text).split()) if SPEAKER_MARKER.search(text) else text
+
+
+def _shown_span(text: str, a: int, b: int, markers: list[tuple[int, int]]) -> str:
+    """text[a:b] as shown, with every character of a speaker marker left out, also when the cut falls inside one;
+    the piece's own words unchanged when no marker touches it."""
+    hits = [(s, e) for s, e in markers if s < b and e > a]
+    if not hits:
+        return text[a:b].strip()
+    keep, at = [], a
+    for s, e in hits:
+        keep.append(text[at : max(at, s)])
+        at = max(at, min(e, b))
+    keep.append(text[at:b])
+    return " ".join("".join(keep).split())
+
+
 @dataclass(frozen=True)
 class _MarkWord:
     first: int  # token indices
@@ -467,6 +507,7 @@ class Piece:
     kinds: tuple[MarkKind | None, ...]  # mark words heard and not negated, in order
     size: SizeClass | None
     keywords: tuple[str, ...]
+    shown: str = ""  # text as shown: speaker markers left out (text keeps the raw words the seed question uses)
 
     @property
     def turn_id(self) -> str:
@@ -482,6 +523,7 @@ def split_turn(text: str, start_ms: int, end_ms: int, *, turn: int, keywords: li
     the turn's time in proportion to its character offsets. A turn naming one panel or none comes back whole. A piece
     names one slot: "front and rear bumpers have scuffs" is about the rear bumper."""
     text = text.strip()
+    markers = [m.span() for m in SPEAKER_MARKER.finditer(text)]
     tokens = _tokens(text)
     words = _mark_words(text, tokens)
     mentions = _mentions(text, tokens, words, side_words(passenger))
@@ -517,6 +559,7 @@ def split_turn(text: str, start_ms: int, end_ms: int, *, turn: int, keywords: li
                 kinds=kinds,
                 size=size,
                 keywords=tuple(keywords_heard(piece_text, keywords)),
+                shown=_shown_span(text, a, b, markers),
             )
         )
     return pieces
@@ -786,7 +829,7 @@ def _seed_mark(root: Path, q: Question, record: SparkRequestRecord, box: GridBox
         type=mark_type,
         confidence=SEED_CONFIDENCE,
         size_class=size,
-        description=q.phrase,
+        description=_phrase(q.piece.shown or q.piece.text),  # the words as shown; note keeps what Spark read
         grid_point=point,
         grid_bbox=box,
         bbox_crop=bbox_crop,
@@ -933,7 +976,7 @@ def _role_doc(turns: list[NarrationTurn], record: VoiceRecord) -> NarrationRole:
     """The walk's turns. A transcript that came back with no turns rides along as heard (section 14 item 16b: shown
     without pins, never "no narration found") once contracts.NarrationRole carries a transcript field."""
     if not turns and record.response.transcript.strip() and "transcript" in NarrationRole.model_fields:
-        return NarrationRole(turns=turns, transcript=record.response.transcript)  # type: ignore[call-arg]
+        return NarrationRole(turns=turns, transcript=shown_text(record.response.transcript))  # type: ignore[call-arg]
     return NarrationRole(turns=turns)
 
 
@@ -966,7 +1009,7 @@ def _settle(run_id: str, th: dict, all_walks: list[Walk], *, cut_chips: bool) ->
                     turn_id=piece.turn_id,
                     start_ms=piece.turn_ms[0],
                     end_ms=piece.turn_ms[1],
-                    text=piece.text,
+                    text=piece.shown,
                     keywords_hit=list(piece.keywords),
                     pinned_panel=pin.panel,
                     pin_seconds=pin.seconds,

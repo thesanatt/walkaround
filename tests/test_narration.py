@@ -657,6 +657,77 @@ def test_a_walk_with_no_voice_record_is_left_out(runs: Path):
     assert result.per_role == {} and result.mode_applied is True
 
 
+# Voice's speaker markers ---------------------------------------------------------------------------------------------
+
+# ENDPOINTING on the same narrated pickup inside run pairC_core1 (Oct 31): two turns, a speaker marker in the first one.
+MARKED = {
+    "transcript": "pick up work, starting at the front bumper, hood looks clean, front door like scratch near the handle <|speaker_A|>  trunk lid two small chips by the edge rear bumper looks fine",
+    "audioDurationMs": 19760,
+    "turns": [
+        {"turnId": 0, "startMs": 0, "endMs": 16140, "transcript": "pick up work, starting at the front bumper, hood looks clean, front door like scratch near the handle <|speaker_A|>  trunk lid two small chips by the edge"},
+        {"turnId": 1, "startMs": 16700, "endMs": 18540, "transcript": "rear bumper looks fine"},
+    ],
+}
+
+
+def test_a_cut_inside_a_speaker_marker_keeps_the_raw_words_and_shows_none_of_it():
+    pieces = narration.split_turn(MARKED["turns"][0]["transcript"], 0, 16140, turn=1, keywords=KEYWORDS)
+    assert [(p.text, p.start_ms, p.end_ms) for p in pieces] == [  # the cut and the spans are the ones pairC_core1 stored
+        ("pick up work, starting at the front bumper,", 0, 4611),
+        ("hood looks clean,", 4611, 6498),
+        ("front door like scratch near the handle <|speaker_", 6498, 11738),
+        ("A|>  trunk lid two small chips by the edge", 11738, 16140),
+    ]
+    assert [p.shown for p in pieces] == ["pick up work, starting at the front bumper,", "hood looks clean,", "front door like scratch near the handle", "trunk lid two small chips by the edge"]
+    assert narration.shown_text("front door <|speaker_B|> scratch") == "front door scratch"
+    assert narration.shown_text("hood  looks clean") == "hood  looks clean"  # no marker: the words exactly as heard
+    assert piece("hood  looks clean", 0, 1000).shown == "hood  looks clean"
+
+
+def test_the_words_shown_drop_speaker_markers_and_the_seed_questions_keep_them(runs: Path):
+    make_run("sp1", response=MARKED)
+    client = fake()
+    derive("sp1")
+    t = turns("sp1")
+    assert [v.text for v in t.values()] == [
+        "pick up work, starting at the front bumper,",
+        "hood looks clean,",
+        "front door like scratch near the handle",
+        "trunk lid two small chips by the edge",
+        "rear bumper looks fine",
+    ]
+    assert not any("<|" in v.text or "|>" in v.text for v in t.values())
+    asks = {a.turn_id: a.phrase for a in c.read_json_list(narration.seeds_json("sp1"), narration.SeedAsk)}
+    assert asks == {"t1_3": "front door like scratch near the handle <|speaker_", "t1_4": "A|>  trunk lid two small chips by the edge"}
+    assert any('"A|>  trunk lid two small chips by the edge"' in p for p in client.prompts)  # what Spark read, as before
+    (seed,) = seed_marks("sp1")
+    assert seed.description == "trunk lid two small chips by the edge"
+    # the stored questions still find their answers: a rebuild asks nothing and writes the same bytes
+    files = [paths.narration_json("sp1"), narration.pieces_json("sp1"), paths.marks_json("sp1")]
+    before = [f.read_bytes() for f in files]
+    blown = fake(lambda prompt: AssertionError("a rebuild never calls Spark"))
+    narration.rebuild_narration("sp1", th=TH)
+    assert blown.prompts == [] and [f.read_bytes() for f in files] == before
+
+
+def test_verify_can_say_why_an_older_narration_differs(runs: Path):
+    make_run("sp2", response=MARKED)
+    fake()
+    derive("sp2")
+    assert narration.why_rebuild_differs("sp2", "derived/narration.json") is None  # today's file shows no marker
+    doc = c.read_json(paths.narration_json("sp2"), c.Narration)
+    turns_ = [t.model_copy(update={"text": "A|>  trunk lid two small chips by the edge"}) if t.turn_id == "t1_4" else t for t in doc.per_role["pickup"].turns]
+    c.write_json(paths.narration_json("sp2"), doc.model_copy(update={"per_role": {"pickup": doc.per_role["pickup"].model_copy(update={"turns": turns_})}}))
+    assert narration.why_rebuild_differs("sp2", "derived/narration.json") == narration.MARKER_CHANGE
+    assert narration.why_rebuild_differs("sp2", "derived/marks.json") is None
+
+
+def test_a_transcript_with_no_turns_is_shown_without_its_markers():
+    response = c.VoiceResponse(transcript="front door <|speaker_A|> small scratch", audioDurationMs=5000, turns=[])
+    record = c.VoiceRecord(role="pickup", request=c.VoiceRequest(mode=c.VoiceMode.ENDPOINTING, model="m"), response=response, mode_applied=False)
+    assert narration._role_doc([], record).transcript == "front door small scratch"
+
+
 def test_the_same_question_on_the_same_crop_bytes_is_asked_once(runs: Path):
     make_run("m13", roles=("pickup", "return"))  # identical words and byte-identical crops in both walks
     client = fake()
