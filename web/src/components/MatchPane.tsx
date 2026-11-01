@@ -27,6 +27,8 @@ export interface MatchPaneProps {
   showDates?: boolean;
   showRefusal?: boolean;
   moment?: boolean; // the video's moment: no video times or units on the pane, the card is the label and two dates
+  maxCards?: number; // the kiosk: at most this many cards, the focus verdict's first, then a line counting the rest
+  holdCards?: boolean; // the kiosk: hidden cards keep their place, so the frames do not move when the cards show
 }
 
 interface Sizes {
@@ -177,7 +179,7 @@ export function DatesCard({ kfA, kfB, videos, media, run, stacked = false }: { k
 // Spark boxes on top, one line per joined pair whose marks are both on the frames shown. Code wrote the labels below;
 // the pane only draws them.
 export function MatchPane(props: MatchPaneProps) {
-  const { panelId, match, panel, keyframes, marks, verdicts, videos, media, run, looks = [], aligned = false, showCards = true, showDates = true, showRefusal = true, moment = false } = props;
+  const { panelId, match, panel, keyframes, marks, verdicts, videos, media, run, looks = [], aligned = false, showCards = true, showDates = true, showRefusal = true, moment = false, maxCards, holdCards = false } = props;
   const url = useFileUrl();
   if (!panelId) return <div className="empty">Pick a panel to see its two frames.</div>;
   const markById = new Map(marks.map((m) => [m.mark_id, m]));
@@ -208,6 +210,7 @@ export function MatchPane(props: MatchPaneProps) {
   const tint = `tint-${panelId}`;
   const clip = `clip-${panelId}`;
   const panelVerdicts = verdicts.filter((v) => v.panel_id === panelId);
+  const cards = maxCards !== undefined && panelVerdicts.length > maxCards ? [...(focus.verdict ? [focus.verdict] : []), ...panelVerdicts.filter((v) => v !== focus.verdict)].slice(0, maxCards) : panelVerdicts;
   const z = sizesFor(W);
 
   return (
@@ -267,13 +270,14 @@ export function MatchPane(props: MatchPaneProps) {
           <DatesCard kfA={kfA} kfB={kfB} videos={videos} media={media} run={run} />
         </div>
       ) : null}
-      {!moment && showCards && panelVerdicts.length ? (
-        <div className="verdict-cards">
-          {panelVerdicts.map((v) => (
+      {!moment && (showCards || holdCards) && panelVerdicts.length ? (
+        <div className={`verdict-cards${showCards ? '' : ' hidden'}`}>
+          {cards.map((v) => (
             <VerdictCard key={v.verdict_id} v={v} marks={markById} panel={panel} looks={looks} />
           ))}
         </div>
       ) : null}
+      {!moment && (showCards || holdCards) && cards.length < panelVerdicts.length ? <p className={`small muted cards-more${showCards ? '' : ' hidden'}`}>and {panelVerdicts.length - cards.length} more on the sheet</p> : null}
       {!moment && showDates && match?.state === 'comparable' && kfA && kfB ? <DatesCard kfA={kfA} kfB={kfB} videos={videos} media={media} run={run} /> : null}
     </div>
   );

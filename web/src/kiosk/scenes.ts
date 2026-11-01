@@ -142,7 +142,7 @@ export const SCENES: Scene[] = [
     name: 'tape',
     beat: 'B10',
     layout: 'verdict',
-    heading: 'added between the walks',
+    heading: '', // the panel's verdict label, from the run (KioskPage.sceneHeading)
     panel: 'left_front_door',
     replay: 'final',
     holdMs: 8000,

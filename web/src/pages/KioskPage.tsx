@@ -36,6 +36,18 @@ import { SheetPage } from './SheetPage.tsx';
 
 const WIDTH = 1920;
 const HEIGHT = 1080;
+// The verdict scene shows this many cards at most (the rest are on the sheet), so the frames keep a useful size and
+// the cards fit above the credit band.
+export const KIOSK_CARDS = 2;
+
+// The verdict scene's heading is the label of the verdict the panel leads with (the one its card and the moment
+// show), in the app's own words; every other scene has a fixed heading.
+export function sceneHeading(scene: Scene, state: RunState, panelId: string | null): string {
+  if (scene.layout !== 'verdict') return scene.heading;
+  const match = state.matches.find((m) => m.panel_id === panelId);
+  const v = panelFocus(panelId, match, state.verdicts).verdict;
+  return v ? (VERDICT_LABEL[v.label] ?? v.label) : '';
+}
 
 function sceneUrl(runId: string, scene: Scene, query: URLSearchParams): string {
   const q = new URLSearchParams(query);
@@ -136,32 +148,38 @@ export function KioskPage({ runId, query }: { runId: string; query: URLSearchPar
       .catch(() => setMock(false));
   }, []);
   const credit = scene.footage ? (state.run?.footage_credit ?? null) : null;
+  const heading = sceneHeading(scene, state, panelId);
 
   return (
     <RunFiles runId={runId} view="kiosk">
       <div className="kiosk-frame" style={fit ? { transform: `scale(${scale})` } : undefined}>
         <div className="kiosk-stage" style={{ width: WIDTH, height: HEIGHT }}>
-          {ready ? (
-            <div className={`kiosk-scene kiosk-${scene.layout}`}>
-              <header className="kiosk-head">
-                <span className="wordmark">Walkaround</span>
-                {scene.heading ? <span className="kiosk-heading">{scene.heading}</span> : null}
-                {panelId && scene.panel !== null ? <span className="kiosk-panel">{panelName(panelId)}</span> : null}
-              </header>
-              <SceneBody scene={scene} state={state} panelId={panelId} elapsed={elapsed} t={t} upgraded={query.get('form') === 'upgraded'} runId={runId} lanes={lanes.store} query={query} />
-            </div>
-          ) : started ? (
-            status === 'error' ? <div className="kiosk-start">This run could not be loaded for the kiosk.</div> : null
-          ) : (
-            <div className="kiosk-start">
-              <p>
-                Kiosk for run {runId}, scene {scene.name} ({scene.beat}).
-              </p>
-              <p className="small">Space or the right arrow starts it; the arrows move between scenes.</p>
-            </div>
-          )}
-          {credit && ready ? <div className="kiosk-credit">{credit}</div> : null}
-          <ReplayBadge date={badgeDate} />
+          <div className="kiosk-main">
+            {ready ? (
+              <div className={`kiosk-scene kiosk-${scene.layout}`}>
+                <header className="kiosk-head">
+                  <span className="wordmark">Walkaround</span>
+                  {heading ? <span className="kiosk-heading">{heading}</span> : null}
+                  {panelId && scene.panel !== null ? <span className="kiosk-panel">{panelName(panelId)}</span> : null}
+                </header>
+                <SceneBody scene={scene} state={state} panelId={panelId} elapsed={elapsed} t={t} upgraded={query.get('form') === 'upgraded'} runId={runId} lanes={lanes.store} query={query} />
+              </div>
+            ) : started ? (
+              status === 'error' ? <div className="kiosk-start">This run could not be loaded for the kiosk.</div> : null
+            ) : (
+              <div className="kiosk-start">
+                <p>
+                  Kiosk for run {runId}, scene {scene.name} ({scene.beat}).
+                </p>
+                <p className="small">Space or the right arrow starts it; the arrows move between scenes.</p>
+              </div>
+            )}
+          </div>
+          {/* The footer band: the footage credit wraps left of the replay badge, and the scene ends above it. */}
+          <footer className="kiosk-foot">
+            {credit && ready ? <div className="kiosk-credit">{credit}</div> : null}
+            <ReplayBadge date={badgeDate} />
+          </footer>
           {mock ? <div className="kiosk-mock">mock data from the dev server, not a run</div> : null}
         </div>
       </div>
@@ -311,7 +329,7 @@ export function SceneBody({ scene, state, panelId, elapsed, t, upgraded, runId, 
       );
     }
     case 'verdict':
-      return <MatchPane {...matchProps} showCards={step !== 'frames'} showDates={false} />;
+      return <MatchPane {...matchProps} showCards={step !== 'frames'} showDates={false} maxCards={KIOSK_CARDS} holdCards />;
     case 'hood':
       return (
         <div className="kiosk-stack">

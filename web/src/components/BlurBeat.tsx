@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 import type { Keyframe } from '../contracts/types.ts';
 import { useFileUrl } from '../lib/files.tsx';
 import { boxSrcToCrop } from '../lib/geometry.ts';
@@ -17,7 +19,7 @@ export function BlurBeat({ kf }: { kf: Keyframe | undefined }) {
   const plates = kf.blur.plate_boxes.length;
   const faces = kf.blur.face_boxes.length;
   return (
-    <figure className="crop blur-beat">
+    <figure className="crop blur-beat" style={{ '--crop-w': crop.w, '--crop-h': crop.h } as CSSProperties}>
       <div className="crop-frame">
         <img src={url(crop.path)} width={crop.w} height={crop.h} alt={`${panelName(kf.panel_id)} keyframe with plates and faces pixelated`} />
         <svg viewBox={`0 0 ${crop.w} ${crop.h}`} aria-hidden="true">

@@ -2,10 +2,10 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
-import type { Event, ReplayPayload } from '../src/contracts/types.ts';
+import type { Event, ReplayPayload, Verdict } from '../src/contracts/types.ts';
 import { CHECK_ROWS, CROP_MARKS, revealCount, SCENES, sceneByName, stepAt, ticks, type Scene } from '../src/kiosk/scenes.ts';
 import { LaneStore } from '../src/lanes/laneStore.ts';
-import { SceneBody, sourceFor } from '../src/pages/KioskPage.tsx';
+import { KIOSK_CARDS, SceneBody, sceneHeading, sourceFor } from '../src/pages/KioskPage.tsx';
 import { BUNDLED_DELAYS, startReplay, type Pacer } from '../src/state/replay.ts';
 import { scheduleReplay } from '../src/state/schedule.ts';
 import type { AnyEvent, RunState } from '../src/state/types.ts';
@@ -236,11 +236,40 @@ describe('the scenes render each step from the stored run', () => {
 
   it('tape: the frames first, then the card with the pickup window, no dates', async () => {
     const state = await finalFixtureState();
-    expect(body(state, 'tape', 0)).not.toContain('verdict-card');
+    const frames = body(state, 'tape', 0);
+    expect(frames).not.toContain('class="verdict-cards"');
+    expect(frames).toContain('class="verdict-cards hidden"'); // held in place, so the frames do not move when it shows
     const card = body(state, 'tape', 1500);
     expect(card).toContain('new or unseen');
     expect(card).toContain('This panel was filmed at pickup');
     expect(card).not.toContain('dates-card');
+  });
+
+  it('tape: the heading is the label of the verdict the panel leads with, in the app own words', async () => {
+    const state = await finalFixtureState();
+    const tape = sceneByName('tape');
+    const base = state.verdicts.find((v) => v.panel_id === 'left_front_door')!;
+    const others = state.verdicts.filter((v) => v.panel_id !== 'left_front_door');
+    const only = (...labels: Verdict['label'][]) => ({ ...state, verdicts: [...others, ...labels.map((label, i) => ({ ...base, verdict_id: `v${i}`, label }))] });
+    expect(sceneHeading(tape, only('new_or_unseen'), 'left_front_door')).toBe('new or unseen');
+    expect(sceneHeading(tape, only('needs_your_eye'), 'left_front_door')).toBe('needs your eye');
+    expect(sceneHeading(tape, only('needs_your_eye', 'already_there'), 'left_front_door')).toBe('already there'); // the card's lead
+    expect(sceneHeading(tape, only(), 'left_front_door')).toBe('');
+    expect(sceneHeading(tape, state, 'left_front_door')).not.toBe('added between the walks');
+    expect(sceneHeading(sceneByName('hood'), state, 'hood')).toBe('sky on the hood');
+  });
+
+  it('tape: at most the kiosk number of cards, the lead verdict first, the rest counted', async () => {
+    const state = await finalFixtureState();
+    const lead = state.verdicts.find((v) => v.panel_id === 'left_front_door')!;
+    const eyes = [1, 2, 3, 4].map((i) => ({ ...lead, verdict_id: `eye_${i}`, label: 'needs_your_eye' as const }));
+    const already = { ...lead, verdict_id: 'already_1', label: 'already_there' as const };
+    const many = { ...state, verdicts: [...state.verdicts.filter((v) => v.panel_id !== 'left_front_door'), ...eyes, already] };
+    const card = body(many, 'tape', 1500);
+    expect(count(card, 'class="verdict-card ')).toBe(KIOSK_CARDS);
+    expect(card.indexOf('verdict-card already_there')).toBeLessThan(card.indexOf('verdict-card needs_your_eye'));
+    expect(card).toContain(`and ${5 - KIOSK_CARDS} more on the sheet`);
+    expect(body(state, 'tape', 1500)).not.toContain('more on the sheet');
   });
 
   it('says what is missing instead of drawing nothing', async () => {

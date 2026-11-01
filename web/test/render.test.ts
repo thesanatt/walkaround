@@ -75,7 +75,7 @@ describe('the changed components render against the fixture run', () => {
     expect(count(page, 'class="join-line"')).toBe(1);
     expect(page).toContain('One mark of this panel was found on another frame of its walk');
     const crops = html(createElement(CropView, { role: 'pickup', panelId: 'right_rear_door', keyframes: [...state.keyframes, other], marks }));
-    expect(count(crops, '<figure class="crop">')).toBe(2);
+    expect(count(crops, '<figure class="crop" ')).toBe(2);
     expect(crops).toContain('pickup, another frame');
   });
 

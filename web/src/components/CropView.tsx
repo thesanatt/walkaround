@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 import type { Keyframe, Mark } from '../contracts/types.ts';
 import { useFileUrl } from '../lib/files.tsx';
 import { bestKeyframe } from '../lib/focus.ts';
@@ -33,7 +35,7 @@ export function CropFigure({ kf, marks, title, shown }: { kf: Keyframe; marks: M
   const label = { fontSize: Math.round(w / 34), strokeWidth: Math.max(3, w / 220) };
   const stroke = Math.max(3, w / 400);
   return (
-    <figure className="crop">
+    <figure className="crop" style={{ '--crop-w': w, '--crop-h': h } as CSSProperties}>
       <div className="crop-frame">
         <img src={url(kf.crop.path)} width={w} height={h} alt={`${panelName(kf.panel_id)} from the ${title} walk at ${formatClock(kf.pts)}, plates and faces pixelated`} />
         <svg viewBox={`0 0 ${w} ${h}`} aria-hidden="true">

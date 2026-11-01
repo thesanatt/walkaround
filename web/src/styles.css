@@ -1256,6 +1256,8 @@ body.kiosk {
 
 .kiosk-stage {
   position: relative;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
@@ -1269,17 +1271,33 @@ body.kiosk {
 }
 
 .kiosk-stage .replay-badge {
-  position: absolute;
-  right: 28px;
-  bottom: 24px;
+  position: static;
+  flex: none;
+  margin-left: auto;
   font-size: 20px;
   padding: 8px 16px;
+}
+
+/* the scene fills what the footer band leaves and clips there, so nothing it draws can cover the credit or the badge */
+.kiosk-main {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.kiosk-foot {
+  flex: none;
+  display: flex;
+  align-items: flex-end;
+  gap: 40px;
+  padding: 0 28px 24px 56px;
 }
 
 .kiosk-scene {
   position: absolute;
   inset: 0;
-  padding: 36px 56px 72px;
+  padding: 36px 56px 32px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 24px;
@@ -1341,7 +1359,7 @@ body.kiosk {
 }
 
 .kiosk-walk-narrow {
-  width: 1100px;
+  width: 1040px;
 }
 
 .kiosk-stage .panel-row button {
@@ -1372,7 +1390,8 @@ body.kiosk {
 }
 
 .kiosk-stage .sheet-frame {
-  height: 900px;
+  display: block;
+  height: 100%;
 }
 
 .kiosk-stage .sealed-card dl,
@@ -1392,6 +1411,20 @@ body.kiosk {
 .kiosk-crops .crop,
 .kiosk-blur .crop {
   width: 1180px;
+}
+
+/* a tall crop is drawn narrower, so the frame and its caption end above the credit band; the caption lines up with
+   the frame and keeps a readable width */
+.kiosk-crops .crop-frame,
+.kiosk-blur .crop-frame {
+  width: min(100%, calc(720px * var(--crop-w, 4) / var(--crop-h, 3)));
+  margin: 0 auto;
+}
+
+.kiosk-crops .crop figcaption,
+.kiosk-blur .crop figcaption {
+  width: min(100%, max(640px, calc(720px * var(--crop-w, 4) / var(--crop-h, 3))));
+  margin: 0 auto;
 }
 
 .kiosk-line {
@@ -2237,11 +2270,41 @@ body.kiosk {
 /* kiosk scenes added for the video beats ----------------------------------------------------------------- */
 
 .kiosk-credit {
-  position: absolute;
-  left: 56px;
-  bottom: 26px;
+  flex: 1 1 auto;
+  min-width: 0;
   font-size: 18px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
   color: var(--muted);
+}
+
+/* the verdict scene: the frames shrink to the height the cards leave (the cards hold their place from the first step,
+   so the frames never move) */
+.kiosk-verdict .match-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: none;
+}
+
+.kiosk-verdict .match-pane svg {
+  flex: 0 1 auto;
+  min-height: 0;
+  height: auto;
+  background: none;
+}
+
+.kiosk-verdict .match-pane > p,
+.kiosk-verdict .verdict-cards {
+  flex: none;
+}
+
+.kiosk-verdict .verdict-cards {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
+.kiosk-verdict .verdict-card {
+  font-size: 20px;
 }
 
 .kiosk-stage .how-checked.big dl {
