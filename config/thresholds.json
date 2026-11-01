@@ -73,7 +73,10 @@
     "crop_pad_frac": {"value": 0.1, "source": "5.3"},
     "crop_long_edge_px": {"value": 1280, "source": "5.3; API notes Spark", "unit": "px"},
     "keyframe_decode_budget_s_per_video": {"value": 60, "source": "5 step 5 fallback; 14 item 34", "unit": "s"},
-    "keyframe_top_k_under_budget": {"value": 2, "source": "14 item 34"}
+    "keyframe_top_k_under_budget": {"value": 2, "source": "14 item 34"},
+    "fast_mask_decode": {"value": true, "source": "panels lane 11/1: walkaround/fastmask.py, the same rasters as meta_sam_parser bit for bit on every mask of pairC_core1's walk lanes, about 7x faster; false sends every keyframe mask to the DecodePool"},
+    "keyframe_panels_in_flight": {"value": 4, "source": "panels lane 11/1, estimate: panels scored, tested and blurred at once; each blur is 2 image requests, under orchestrator.sam_image_semaphore 16"},
+    "twin_check": {"value": {"plate_inside_min": 0.8, "plate_share_min": 0.5, "mirror_near_lid_sizes": 1.0, "mirror_far_lid_sizes": 1.5, "adjacent_lid_sizes": 0.25, "presence_margin": 0.4, "min_frames": 5, "weights": {"plate": 2, "mirror": 2, "lights": 1, "glass": 1}, "margin_min": 2, "neighbour_majority": 2.0, "neighbour_share_min": 0.5}, "source": "panels lane 11/1, measured offline on pairC_core1's stored lanes: plate on the lid in 84 to 96 of 92 to 96 plate frames on trunk lids and 0 of 65 to 71 on hoods; mirror 0.21 to 0.47 lid sizes from hoods and 2.6 from trunk lids; lights and glass placed by a lid were beside it on 97 to 100 percent of their frames, a mud flap the tail light lane tracked on 37 percent; margins and min_frames are estimates; absent (a run frozen before 11/1) means no check"}
   },
   "coverage": {
     "filmed_completeness_min": {"value": 0.85, "source": "5.4"},
@@ -166,7 +169,24 @@
     "panned_inconclusive_share_caption_threshold": {"value": 0.5, "source": "5.9 item 8"},
     "d1_pass_box_share": {"value": 0.8, "source": "11 E5"},
     "d1_pass_drift_max": {"value": 0.08, "source": "11 E5"},
-    "d1_reflection_drift_min": {"value": 0.16, "source": "11 E5"}
+    "d1_reflection_drift_min": {"value": 0.16, "source": "11 E5"},
+    "neighbours_enabled": {"value": true, "source": "lead 10/31, docs/STAYS_PUT_ANCHORS.md: each clip also tracks rigid neighbours in the same SAM 3.1 request (no extra request); off plans clips as before"},
+    "neighbours_max": {"value": 12, "source": "lead 10/31, docs/STAYS_PUT_ANCHORS.md (up to 12 neighbours; marks plus neighbours stay within max_objects_per_clip)"},
+    "neighbours_target": {"value": 6, "source": "estimate (the window grows until it holds 6 neighbours; the two clips measured on 10/31 had 5 and 6)"},
+    "neighbours_min": {"value": 4, "source": "lead 10/31, docs/STAYS_PUT_ANCHORS.md (fewer than 4 neighbours tracked through the clip is inconclusive)"},
+    "neighbour_track_share_min": {"value": 0.8, "source": "lead 10/31, docs/STAYS_PUT_ANCHORS.md (a neighbour is in the fit when tracked on 80% of the clip)"},
+    "neighbour_fixed_below": {"value": 1.5, "source": "lead 10/31, docs/STAYS_PUT_ANCHORS.md (fixed when the mark's residual is under 1.5x its neighbours' in both windows; paint measured 0.6 and 0.8x, a crease 0.7 and 0.3x)"},
+    "neighbour_sliding_above": {"value": 2.5, "source": "lead 10/31, docs/STAYS_PUT_ANCHORS.md (sliding when over 2.5x in both windows; a reflection on the black S550 measured 4.8 and 3.8x)"},
+    "neighbour_near_half_window_s": {"value": 0.5, "source": "lead 10/31, docs/STAYS_PUT_ANCHORS.md (the second window, +/- 0.5 s around the prompt frame)", "unit": "s"},
+    "neighbour_window_margin": {"value": 1.15, "source": "estimate (a neighbour's box sits inside the clip window with 15% to spare at the prompt frame)"},
+    "neighbour_window_max_panel_frac": {"value": 1.5, "source": "estimate (a clip window never grows past 1.5 x the panel's long side; the measured trunk clip used about 1.2)"},
+    "neighbour_mark_min_clip_px": {"value": 16, "source": "estimate (the window never grows so far that a mark falls under 16 clip pixels on its long side)", "unit": "px"},
+    "neighbour_part_max_window_frac": {"value": 0.5, "source": "estimate (a lane part longer than half the window is too big to follow as one point)"},
+    "neighbour_residual_floor_px": {"value": 0.5, "source": "estimate (half a clip pixel, the step of a SAM box centre; keeps the ratio finite when neighbours do not move)", "unit": "px"},
+    "neighbour_dedupe_iou": {"value": 0.5, "source": "estimate (two lane boxes overlapping this much are one part, e.g. the rear window seen by two lanes)"},
+    "neighbour_handle_half_w_frac": {"value": 0.08, "source": "estimate (the door handle box from its point: half width 0.08 x the door's width)"},
+    "neighbour_handle_half_h_frac": {"value": 0.02, "source": "estimate (half height 0.02 x the door's width)"},
+    "neighbour_window_max_growth": {"value": 2.0, "source": "integrator 10/31, on the Stays Put lane's live clips of the pair C trunk lid (ledger run id sp_neigh_pairC_1031): windows grown 2.4x and 3x the 400 px base (969 and 1181 px) lost the faint marks on 13 to 84 of 89 frames, while pairC_core1's 400 px windows held the chip, the scratch and one dirt mark on all 89; a window grows at most 2x its base side (estimate between the two; the S550 clips may then find fewer than 4 neighbours)"}
   },
   "spark": {
     "model": {"value": "muse-spark-1.3", "source": "API notes"},
@@ -207,6 +227,13 @@
     "track_box_dilation_px": {"value": 24, "source": "8 item 3 (estimate)", "unit": "px"},
     "pixel_block_px_at_4k": {"value": 20, "source": "8 item 3 (estimate)", "unit": "px"},
     "track_gap_bridge_s": {"value": 0.5, "source": "8 item 3", "unit": "s"},
+    "box_blocks_across": {"value": 4, "source": "privacy lane 10/31, measured on pairC_core1: 5 px blocks on the 960 px display video left a 111 x 127 px plate box readable at 4.4 s of the return walk; every pixelated box or mask now spans at most 4 blocks on its long side (32 px blocks there), at any size"},
+    "track_box_union_s": {"value": 0.1, "source": "privacy lane 10/31: each sighting's box also covers the frames this close to it (2 at 15 fps), so a one-frame box glitch (pairC_core1 return frame 70, a 14 x 18 px box) never uncovers the plate", "unit": "s"},
+    "track_carry_s": {"value": 2.0, "source": "privacy lane 10/31, measured on pairC_core1: the pickup rear plate shows edge-on from frame 185 (12.33 s), 30 frames before its track starts at frame 215 (14.33 s); a plate or face track is carried this long before each first sighting and after each last one", "unit": "s"},
+    "track_carry_fit_s": {"value": 0.4, "source": "estimate (the sightings next to a track's edge that a carried box takes its size and speed from)", "unit": "s"},
+    "track_carry_grow_per_s": {"value": 0.5, "source": "estimate (an extrapolated carried box grows by half its size per second carried; used where no optical flow follows it: crops, clips, and any display frame the flow loses)"},
+    "track_carry_speed_max_frac_per_s": {"value": 1.0, "source": "estimate (a carried box moves at most one frame width per second; the fastest pan on pairC_core1, pickup frames 194 to 196, was about 45 px a frame at 15 fps, 0.7 frame widths per second)"},
+    "track_flow_grow_per_s": {"value": 0.2, "source": "estimate (a carried box that optical flow follows on the display video grows by a fifth of its size per second, for drift; on pairC_core1 it stayed on the pickup rear plate over the 30 frames before that track starts, checked by eye)"},
     "image_check_nouns": {"value": ["license plate", "face"], "source": "5 step 7"},
     "image_checks_in_flight": {"value": 16, "source": "5 step 7"},
     "keep_plate_default": {"value": false, "source": "8 item 5"},
@@ -251,6 +278,7 @@
     "plate_min_px": {"value": 60, "source": "5.12", "unit": "px"},
     "plate_c_min": {"value": 0.5, "source": "5.12"},
     "plate_tilt_max_deg": {"value": 30, "source": "5.12", "unit": "deg"},
+    "plate_hw_min": {"value": 0.35, "source": "estimate (polish lane, Oct 31): a 12 x 6 in plate seen up to 45 degrees from above reads h / w 0.5 x cos 45 = 0.35, while a European 520 x 110 mm or Indian 500 x 120 mm strip reads 0.21 to 0.24 frontal (the pair C front plate read 0.06 to 0.25 on pairC_core1); a flatter plate is refused as a ruler"},
     "wheel_min_px": {"value": 120, "source": "5.12", "unit": "px"},
     "wheel_c_min": {"value": 0.5, "source": "5.12"},
     "ruler_max_distance_m": {"value": 0.6, "source": "5.12", "unit": "m"},
@@ -283,7 +311,8 @@
     "sam_vote_requests": {"value": 14, "source": "5 step 13"},
     "passenger_side_is": {"value": "right", "source": "5.11 (US)"},
     "dark_v_max": {"value": 0.15, "source": "estimate (pixels darker than this are left out of the claim's saturation tests: JPEG chroma noise)"},
-    "on_panel_frac": {"value": 0.025, "source": "how far off the panel mask a claim mark's point may sit, over the crop's long side: Spark point jitter on real marks 2.0 to 2.4% of crop width (D1 E6 re-run)"}
+    "on_panel_frac": {"value": 0.025, "source": "how far off the panel mask a claim mark's point may sit, over the crop's long side: Spark point jitter on real marks 2.0 to 2.4% of crop width (D1 E6 re-run)"},
+    "view_flag_caps": {"value": true, "source": "integrator 10/31, from the lead's decision of 10/31 (G2 retired: Spark's wet, dirty and glare are model judgments and only lower a label): a flagged pickup frame no longer stops a claim comparison; a claim mark the pickup walk shows nothing near gets K15 when no complete, sharp pickup frame of the panel is clean; absent (runs frozen before 10/31) keeps the old refusal, so their claims rebuild from what they recorded"}
   },
   "eval": {
     "recall_radius_units": {"value": 0.25, "source": "10 item 3"},

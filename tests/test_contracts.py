@@ -66,6 +66,7 @@ def _instances() -> list[c.Contract]:
         c.AnchorReprompt(request_id="resp_2", frame=90, box=[10, 10, 200, 300], negative_points=[[50.0, 60.0]]),
         c.FrameObs(frame=3, pts=0.2, box=[1.0, 2.0, 3.0, 4.0], box_area_frac=0.05, in_car_box=True, c=None, border_frac=0.0),
         c.PanelTrack(track_id="t1", role="pickup", noun=c.Noun.CAR_DOOR, sam_object_ids=["0"], fragments=[c.TrackFragment(object_id="0", first_frame=0, last_frame=9)], per_frame=[c.FrameObs(frame=0, pts=0.0, box=[0, 0, 10, 10], box_area_frac=0.1, in_car_box=True)], panel_id=c.PanelId.LEFT_FRONT_DOOR, side=c.Side.LEFT, position=c.Position.FRONT),
+        c.TwinCheck(lid=["return_hood_00", "return_trunk_lid_00"], votes={"plate": -1, "mirror": -1, "lights": 0, "glass": 0}, numbers={"plate_on_lid_share": 0.91, "mirror_gap_lid_sizes": 2.57}, score=-4.0, decided=True),
         c.SideVotes(R1=2, R2=1),
         c.PanelRole(track_ids=["t1"], windows=[[8.0, 14.0]], seconds_visible=6.0, state=c.CoverageState.FILMED, keyframe_ids=["kf1"]),
         c.Panel(panel_id=c.PanelId.LEFT_FRONT_DOOR, noun=c.Noun.CAR_DOOR, side=c.Side.LEFT, position=c.Position.FRONT, instance_from=c.InstanceFrom.TRACKS, front_sign=1, per_role={"pickup": c.PanelRole(state=c.CoverageState.FILMED)}, comparable=True),
@@ -86,6 +87,8 @@ def _instances() -> list[c.Contract]:
         c.ClipRecord(path="clips/pickup/m1.mp4", f0_src=1200, window_px=400, windows_src=[[0, 0, 400, 400]]),
         c.TrackPoint(f=45, box_clip=[500, 500, 540, 530], c=0.89, inside_panel=True, w=[0.1, 0.2], u_rel=0.01),
         c.MarkTrack(mark_id="m1", role="pickup", b1=0.2, b2=0.01, b_pass=True, panned=False, drift_rms=0.03, sign_agreement=0.5, pairs_n=12, verdict=c.StaysPutVerdict.FIXED),
+        c.StaysPutNeighbour(object_id="3", kind="side mirror", ref="pickup_side_mirror_00", frames=90, used=True, residual_full_px=1.8, residual_near_px=0.9, centres=[[45.0, 232.5, 249.5]]),
+        c.NeighbourTest(verdict=c.StaysPutVerdict.SLIDING, ratio_full=4.77, ratio_near=3.83, mark_full_px=27.4, used=6, near_frames=15, neighbours=[c.StaysPutNeighbour(object_id="3", kind="wheel", ref="t")]),
         c.MatchCandidate(pickup_mark="m1", return_mark="m2", d=0.18, d_pos=0.08, type_cost=0.1, size_cost=0.0, r_mean=0.5, tau_pre_r=0.28, tau_eye_r=0.56, ratio=None, margin=None, mutual=True),
         c.MarkGroup(type=c.MarkKind.CHIP, n_pickup=4, n_return=5, text="4 chips here at pickup, 5 at return, 1 new or unseen"),
         c.PanelMatch(panel_id=c.PanelId.LEFT_FRONT_DOOR, state=c.MatchState.COMPARABLE, kf_pair=["kf1", "kf9"], aspect_diff=0.02, mask_iou=0.81, handle_residual=[0.01, -0.02]),
@@ -217,7 +220,7 @@ def test_thresholds_load_and_hash() -> None:
 
 def test_rules_table() -> None:
     assert rules.gate_ids() == [f"G{i}" for i in range(1, 11)]
-    assert rules.cap_ids() == [f"K{i}" for i in range(1, 15)]
+    assert rules.cap_ids() == [f"K{i}" for i in range(1, 16)]
     assert rules.rule("K7").label == "second look"
     assert rules.describe(["G1"])[0].startswith("G1 not filmed: ")
     with pytest.raises(KeyError):

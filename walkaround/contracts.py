@@ -16,7 +16,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_serializer
 
 FLOAT_PLACES = 6
 
@@ -661,6 +661,7 @@ class RunManifest(Contract):
     keep: bool = False  # sample and eval runs survive the sweeper
     keep_plate: bool = False  # the renter's explicit choice at upload (section 8)
     footage_credit: str | None = None  # a sample run's footage credit, shown under the walk player
+    tire_code: str | None = None  # walkaround run --tire-code, normalized (225/60R16); the wheel ruler reads it (polish lane)
     app_commit: str | None = None
     config_hash: str | None = None
     thresholds: dict[str, Any] = Field(default_factory=dict)  # the whole plain dict, frozen at creation
@@ -678,6 +679,14 @@ class RunManifest(Contract):
     events_head_hash: str | None = None
     counts: RunCounts = Field(default_factory=RunCounts)
     errors: list[RunError] = Field(default_factory=list)
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_tire_code(self, handler: Any) -> Any:
+        """A run with no tire code typed serializes as it did before the field existed (10/31)."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("tire_code") is None:
+            data.pop("tire_code", None)
+        return data
 
 
 class FfprobeInfo(Contract):
@@ -988,6 +997,20 @@ class FrameObs(Contract):
     complete: bool | None = None
 
 
+class TwinCheck(Contract):
+    """The twin check (panels lane, 11/1): which end of the car a hood or trunk-lid track's lid is on, and for a light
+    or glass track the end of the placed lid it sits beside. votes are +1 for the front, -1 for the rear and 0 when a
+    cue is silent (plate, mirror, lights, glass; next_to_lid for lights and glass); numbers holds what each vote was
+    measured from. decided false (lids only) means the evidence was split: the track keeps its lane's slot as a
+    placeholder and its panel is side_uncertain (G6)."""
+
+    lid: list[str]  # the lid tracks judged to show one lid (box IoU on shared frames), or for a light or glass track the lid it sat beside
+    votes: dict[str, int] = Field(default_factory=dict)
+    numbers: dict[str, float] = Field(default_factory=dict)
+    score: float = 0.0  # the weighted sum of votes
+    decided: bool = True
+
+
 class PanelTrack(Contract):
     """One derived/tracks.json entry: a merged track with its canonical panel id and side once voted."""
 
@@ -1003,6 +1026,15 @@ class PanelTrack(Contract):
     panel_id: PanelId | None = None  # filled by the side vote; None until then or for car, car window, plate, face
     side: Side = Side.NONE
     position: Position = Position.NONE
+    twin_check: TwinCheck | None = None  # lid, light and glass tracks the twin check placed (thresholds panels.twin_check)
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_twin_check(self, handler: Any) -> Any:
+        """A track the twin check did not place serializes as it did before the field existed (11/1)."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("twin_check") is None:
+            data.pop("twin_check", None)
+        return data
 
 
 class SideVotes(Contract):
@@ -1230,6 +1262,41 @@ class TrackPoint(Contract):
     u_rel: float | None = None
 
 
+class StaysPutNeighbour(Contract):
+    """One rigid neighbour SAM 3.1 tracked in the mark's clip (docs/STAYS_PUT_ANCHORS.md): a lane part (door handle,
+    side mirror, wheel, light, plate, window) or another mark on the panel. Residuals are its own leave-one-out medians
+    in clip pixels; centres are its box centres as [f, x, y] in clip pixels, for the page's markers."""
+
+    object_id: str
+    kind: str  # "mark" or the lane noun
+    ref: str  # the mark id, the track id or "<kf_id>_handle"
+    frames: int = 0
+    used: bool = False  # tracked on at least staysput.neighbour_track_share_min of the clip, so it is in the fit
+    residual_full_px: float | None = None
+    residual_near_px: float | None = None
+    centres: list[Annotated[list[float], Field(min_length=3, max_length=3)]] = Field(default_factory=list)
+
+
+class NeighbourTest(Contract):
+    """Stays Put by neighbours for one mark: the median distance in clip pixels between the mark and where an affine
+    fit to its neighbours puts it, divided by the neighbours' own leave-one-out median, over the whole clip (full) and
+    within near_s of the prompt frame (near). fixed when both ratios are under 1.5, sliding when both are over 2.5,
+    else inconclusive; fewer than 4 neighbours tracked through the clip is inconclusive."""
+
+    verdict: StaysPutVerdict = StaysPutVerdict.NOT_RUN
+    ratio_full: float | None = None
+    ratio_near: float | None = None
+    mark_full_px: float | None = None
+    mark_near_px: float | None = None
+    neighbours_full_px: float | None = None
+    neighbours_near_px: float | None = None
+    near_s: float = 0.5
+    near_frames: int = 0
+    used: int = 0  # neighbours in the fit
+    reason: str | None = None
+    neighbours: list[StaysPutNeighbour] = Field(default_factory=list)
+
+
 class MarkTrack(Contract):
     mark_id: str
     role: Role
@@ -1248,6 +1315,16 @@ class MarkTrack(Contract):
     curvature_cap: bool = False
     highlight_cap: bool = False
     is_control: bool = False
+    neighbour_test: NeighbourTest | None = None  # None: the clip was planned before the neighbour test existed
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_neighbour_test(self, handler: Any) -> Any:
+        """A row without a neighbour test serializes as it did before the field existed, so older runs rebuild
+        byte-identical."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("neighbour_test") is None:
+            data.pop("neighbour_test", None)
+        return data
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -1312,6 +1389,7 @@ class VerdictFlags(Contract):
     K12: bool = False
     K13: bool = False
     K14: bool = False
+    K15: bool = False  # a flagged view caps a mark seen in one walk only (replaces gate G2, lead 10/31)
 
     def set_caps(self) -> list[str]:
         return [name for name in sorted(type(self).model_fields) if name.startswith("K") and getattr(self, name)]
@@ -1335,6 +1413,15 @@ class SizeEstimate(Contract):
     tire_code: str | None = None
     threshold_type: ThresholdType | None = None
     refused_reason: str | None = None
+    ruler_notes: list[str] = Field(default_factory=list)  # why each other ruler next to the mark did not size it (polish lane)
+
+    @model_serializer(mode="wrap")
+    def _omit_empty_ruler_notes(self, handler: Any) -> Any:
+        """A size with no note on another ruler serializes as it did before the field existed (10/31)."""
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("ruler_notes"):
+            data.pop("ruler_notes", None)
+        return data
 
 
 class Verdict(Contract):
@@ -1350,6 +1437,16 @@ class Verdict(Contract):
     reasons: list[str] = Field(default_factory=list)
     trace: Trace = Field(default_factory=Trace)
     size: SizeEstimate | None = None
+    view_note: str | None = None  # the flagged view in words: why K15 capped it, or the note on a pair seen in both walks
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_view_note(self, handler: Any) -> Any:
+        """A verdict with no flagged view serializes as it did before the field existed (10/31), so a run with no view
+        flag rebuilds byte-identical."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("view_note") is None:
+            data.pop("view_note", None)
+        return data
 
 
 class Calibration(Contract):
@@ -1504,6 +1601,15 @@ class SheetVerdictLine(Contract):
     staysput_line: str | None = None  # drift, b1, b2, panned
     size_line: str | None = None  # "about 0.9 in, between 0.6 and 1.3 in (ruler: ...)" or "size not stated: ..."
     ordinary_wear_line: str | None = None
+    view_line: str | None = None  # Verdict.view_note: a flagged view named (K15, or the note on a pair seen in both walks)
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_view_line(self, handler: Any) -> Any:
+        """A line with no flagged view serializes as it did before the field existed (10/31)."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("view_line") is None:
+            data.pop("view_line", None)
+        return data
 
 
 class SheetChip(Contract):

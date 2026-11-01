@@ -20,7 +20,7 @@ class Rule:
 
 GATES: tuple[Rule, ...] = (
     Rule("G1", "not filmed", "the panel is not 'filmed' in either walk", "6; states 5.4"),
-    Rule("G2", "crop condition", "wet, dirty or glare flag from Spark on either crop", "6; marks_v1 conditions"),
+    Rule("G2", "crop condition (retired)", "wet, dirty or glare flag from Spark on either crop; no longer a gate since Oct 31, a flagged view caps instead (K15)", "6; marks_v1 conditions; retired by the lead 10/31"),
     Rule("G3", "blurry keyframe", "sharpness below 0.4 of the candidates' max on either keyframe", "6; 5.3"),
     Rule("G4", "mask IoU", "whitened mask IoU of the paired keyframes under 0.7", "6; 5.8"),
     Rule("G5", "handle self-test", "the door handle more than tau_pre apart between walks", "6; 5.8"),
@@ -46,6 +46,7 @@ CAPS: tuple[Rule, ...] = (
     Rule("K12", "low confidence", "Spark confidence low on either mark", "6; marks_v1"),
     Rule("K13", "other walk truncated", "one of the two keyframes has marks_status truncated", "6; 5 step 8"),
     Rule("K14", "named by the renter", "Muse Spark boxed the mark only because the renter named it; seed_v1 gives no confidence or size, so its type or size may be the renter's words", "6; 5 step 11"),
+    Rule("K15", "view flagged", "Muse Spark flagged the pickup or return view of the panel wet, dirty or glare, so a mark seen in one walk only may be dirt, water or a reflection, or may have been hidden in the other walk; a mark in the same place in both walks keeps its label with a note", "6; marks_v1 conditions; replaces gate G2, lead 10/31"),
 )
 
 LABELS: tuple[Rule, ...] = (
