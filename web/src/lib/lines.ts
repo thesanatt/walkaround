@@ -1,4 +1,4 @@
-import type { FfprobeInfo, KeyframePairTry, Mark, MarkTrack, PanelMatch, RunManifest, SizeEstimate, VideoRecord } from '../contracts/types.ts';
+import type { FfprobeInfo, KeyframePairTry, Mark, MarkTrack, PanelMatch, ReshapeCheck, RunManifest, SizeEstimate, VideoRecord } from '../contracts/types.ts';
 import { neighbourLine } from './neighbours.ts';
 import { ruleLabel } from './rules.ts';
 
@@ -133,7 +133,20 @@ function gateWords(gate: string, t: KeyframePairTry): string {
   return `${gate} ${label}`;
 }
 
+// match.reshape_words word for word.
+export function reshapeWords(rc: ReshapeCheck): string {
+  const head = rc.called ? 'outline changed in place (L7)' : 'not called reshaped';
+  const blob = rc.blob_share === null ? 'nothing left after the opening' : `largest blob ${(rc.blob_share * 100).toFixed(0)}% of the mask difference`;
+  return `${head}: keyframes ${rc.kf_pair[0]} with ${rc.kf_pair[1]}, IoU ${rc.mask_iou.toFixed(2)}, box aspect ratios ${rc.aspect_ratios[0].toFixed(3)} and ${rc.aspect_ratios[1].toFixed(3)} (${(rc.aspect_off * 100).toFixed(1)}% apart), ${blob}`;
+}
+
 export function keyframePairLine(match: PanelMatch | null | undefined): string | null {
+  const line = triesLine(match);
+  if (match?.reshape) return line ? `${line}; ${reshapeWords(match.reshape)}` : reshapeWords(match.reshape);
+  return line;
+}
+
+function triesLine(match: PanelMatch | null | undefined): string | null {
   const tries = match?.kf_pairs_tried ?? [];
   if (!tries.length) return null;
   const pairWords = (t: KeyframePairTry) => `${t.kf_pair[0]} with ${t.kf_pair[1]}`;

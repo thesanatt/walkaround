@@ -56,6 +56,7 @@ LABELS: tuple[Rule, ...] = (
     Rule("L4", "needs your eye", "tau_pre_r <= d < tau_eye_r, or any K flag lowered the label", "6, labels paragraph"),
     Rule("L5", "beyond the band", "d >= tau_eye_r: both marks keep their unmatched labels", "6, labels paragraph"),
     Rule("L6", "not comparable", "a G rule failed for the panel; both best frames still show", "6, panel gates"),
+    Rule("L7", "outline changed in place", "G4 alone failed on every keyframe pair tried, the best whitened mask IoU is from 0.5 to under 0.7, the two keyframes' box aspect ratios agree within 2% and the largest blob of the mask difference holds at least half of it: the panel may be reshaped, so needs your eye; never already there or new", "6, panel gates; lead 11/1"),  # noqa: E501
 )
 
 EXITS: tuple[Rule, ...] = (

@@ -785,6 +785,12 @@ def verdict_metrics(run: RunData, lab: dict[str, Any], judged: dict[str, Judged]
             not_compared += 1
             rows.append({"panel_id": pid, "label": truth, "call": "not compared (no keyframe in either walk)"})
             continue
+        if pm.state != MatchState.COMPARABLE and pm.reshape is not None and pm.reshape.called:
+            # lead 11/1 (second): outline changed in place, one needs-your-eye verdict for the panel (L7)
+            changed_total += bool(changed)
+            nye_panels += 1
+            rows.append({"panel_id": pid, "label": truth, "call": "needs_your_eye", "rule": "L7"})
+            continue
         if pm.state != MatchState.COMPARABLE:
             not_comparable += 1
             gates.update(r for r in pm.reasons if r.startswith("G"))

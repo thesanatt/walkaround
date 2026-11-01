@@ -256,4 +256,16 @@ describe('keyframePairLine is match.how_checked word for word (11/1)', () => {
     expect(text(t('p1', 'r1', ['G4']))).toBe('not compared: keyframes p1 with r1 (G4 mask IoU: not measured), and the panel has no other keyframe pair');
     expect(text(t('p1', 'r1', ['G5', 'G10']))).toMatch(/G10 is a panel gate, so no other pair was tried$/);
   });
+
+  it('adds the reshaped-panel test as match.reshape_words does (lead 11/1, second)', () => {
+    const reshape = { kf_pair: ['a', 'b'] as [string, string], mask_iou: 0.699, aspect_ratios: [0.988, 0.984] as [number, number], aspect_off: 0.004049, blob_share: 0.64, called: true };
+    const line = keyframePairLine({ kf_pairs_tried: [t('a', 'b', ['G4'], 0.699)], reshape } as unknown as PanelMatch);
+    expect(line).toBe(
+      'not compared: keyframes a with b (G4 mask IoU 0.70), and the panel has no other keyframe pair; outline changed in place (L7): keyframes a with b, IoU 0.70, box aspect ratios 0.988 and 0.984 (0.4% apart), largest blob 64% of the mask difference',
+    );
+    expect(keyframePairLine({ kf_pairs_tried: [], reshape: { ...reshape, called: false, blob_share: null } } as unknown as PanelMatch)).toBe(
+      'not called reshaped: keyframes a with b, IoU 0.70, box aspect ratios 0.988 and 0.984 (0.4% apart), nothing left after the opening',
+    );
+    expect(RULES.L7?.label).toBe('outline changed in place');
+  });
 });

@@ -35,6 +35,7 @@ from .contracts import (
     FrameUsed,
     Keyframe,
     KeyframePairTry,
+    ReshapeCheck,
     LaneRecord,
     LaneStatus,
     LookVerdict,
@@ -69,11 +70,26 @@ LOWERABLE = (VerdictLabel.ALREADY_THERE, VerdictLabel.NEW_OR_UNSEEN, VerdictLabe
 VIEW_GATES = ("G3", "G4", "G5", "G8", "G9")  # gates of the keyframe pair: another pair of the panel may pass them (rule 2)
 PANEL_GATES = ("G1", "G6", "G7", "G10")  # gates of the panel: no other keyframe pair changes them, so none is tried
 TYPE_CAPS = ("K4", "K12")  # what Muse Spark typed and how sure it was: notes on a tight pair the second look answered (rule 1)
+TYPE_CAPS_K5 = ("K4", "K5", "K12")  # rule 1 with matching.tight_pair_k5 (lead 11/1, second): the two types disagreeing waits too
+PANEL_VERDICT_RULES = ("L6", "L7")  # one verdict for the whole panel, naming every mark of it: no size, no mark pair
 
 
 def tight_pair_look(th: dict | None) -> bool:
     """Rule 1 of 11/1 is on (thresholds matching.tight_pair_second_look); off when absent, as in runs frozen before."""
     return bool((th or {}).get("matching", {}).get("tight_pair_second_look", False))
+
+
+def tight_pair_deferrable(th: dict | None) -> tuple[str, ...]:
+    """The caps rule 1 defers on a pair inside tau_pre_r: none while it is off; K4 and K12 (runs frozen with
+    tight_pair_second_look but without tight_pair_k5, pairC_core3 among them); K4, K5 and K12 with both leaves on."""
+    if not tight_pair_look(th):
+        return ()
+    return TYPE_CAPS_K5 if (th or {}).get("matching", {}).get("tight_pair_k5", False) else TYPE_CAPS
+
+
+def reshaped_panel(th: dict | None) -> bool:
+    """The reshaped-panel rule (thresholds matching.reshaped_panel, lead 11/1, second); off when absent."""
+    return bool((th or {}).get("matching", {}).get("reshaped_panel", False))
 
 
 def next_keyframe_pair(th: dict | None) -> bool:
@@ -267,13 +283,17 @@ def both_walks_note(flags: dict[str, list[str]], *, same_place: bool) -> str | N
 
 
 def _spark_words(a: Mark, b: Mark, deferred: list[str], roles: tuple[str, str] = ROLES) -> str:
-    """What K4 and K12 stand for on this pair, in words with their ids. roles names the two marks (a claim passes
+    """What K4, K5 and K12 stand for on this pair, in words with their ids. roles names the two marks (a claim passes
     ("pickup", "claim"))."""
     typed = None
-    if "K4" in deferred:
+    if "K4" in deferred or "K5" in deferred:
         typed = f"both marks {a.type.value}" if a.type == b.type else f"the {roles[0]} mark {a.type.value} and the {roles[1]} mark {b.type.value}"
-    low = [role for role, m in zip(roles, (a, b)) if "K12" in m.caps]
-    where = f"the {low[0]} mark" if len(low) == 1 else "both marks"
+        if "K5" in deferred:
+            typed = f"{typed} (K4), two kinds that disagree (K5)" if "K4" in deferred else f"{typed}, two kinds that disagree (K5)"
+            if "K12" in deferred:
+                return f"Muse Spark typed {typed}, with low confidence on {_low_where(a, b, roles)} (K12)"
+            return f"Muse Spark typed {typed}"
+    where = _low_where(a, b, roles)
     if typed and "K12" in deferred:
         return f"Muse Spark typed {typed} (K4), with low confidence on {where} (K12)"
     if typed:
@@ -281,8 +301,21 @@ def _spark_words(a: Mark, b: Mark, deferred: list[str], roles: tuple[str, str] =
     return f"Muse Spark's confidence was low on {where} (K12)"
 
 
+def _low_where(a: Mark, b: Mark, roles: tuple[str, str]) -> str:
+    low = [role for role, m in zip(roles, (a, b)) if "K12" in m.caps]
+    return f"the {low[0]} mark" if len(low) == 1 else "both marks"
+
+
 def tight_pair_flags(
-    pair: MatchCandidate, a: Mark, b: Mark, flags: VerdictFlags, look: LookVerdict | None, *, asked: bool, roles: tuple[str, str] = ROLES
+    pair: MatchCandidate,
+    a: Mark,
+    b: Mark,
+    flags: VerdictFlags,
+    look: LookVerdict | None,
+    *,
+    asked: bool,
+    roles: tuple[str, str] = ROLES,
+    deferrable: tuple[str, ...] = TYPE_CAPS,
 ) -> tuple[VerdictFlags, list[str], str | None]:
     """Rule 1 on a pair inside tau_pre_r (the caller checks d < tau_pre_r): once the second look answered (same,
     different or unsure), K4 and K12 are notes and lower nothing, so only the look (K7) or another cap can lower the
@@ -290,8 +323,9 @@ def tight_pair_flags(
     every engine failed or the look could not be built) rather than not asked at all (spend ceiling, deadline, look
     budget, the look turned off). Returns the flags for verdict(), the note ids and the type note; ([], None) when
     neither K4 nor K12 is set. roles names the two marks in the note: a claim passes ("pickup", "claim") (integration
-    11/1: claims follow rule 1 under the same leaf)."""
-    deferred = [k for k in TYPE_CAPS if getattr(flags, k)]
+    11/1: claims follow rule 1 under the same leaf). deferrable is tight_pair_deferrable(th): K5 joins K4 and K12
+    under matching.tight_pair_k5 (lead 11/1, second)."""
+    deferred = [k for k in deferrable if getattr(flags, k)]
     if not deferred:
         return flags, [], None
     what = _spark_words(a, b, deferred, roles)
@@ -332,6 +366,13 @@ def how_checked(pm: PanelMatch) -> str | None:
     """The sheet's how-it-was-checked line for a panel: the keyframe pair it was compared on and every pair tried
     before it with the gates each failed; for a panel no pair passed, every pair tried. None when the match recorded
     no tries (keyframes in one walk only, or a run frozen before 11/1)."""
+    line = _how_checked_tries(pm)
+    if pm.reshape is not None:
+        return f"{line}; {reshape_words(pm.reshape)}" if line else reshape_words(pm.reshape)
+    return line
+
+
+def _how_checked_tries(pm: PanelMatch) -> str | None:
     tries = pm.kf_pairs_tried
     if not tries:
         return None
@@ -935,6 +976,30 @@ def verdicts_for(
             out_flags[role] = [f for f in VIEW_FLAGS if f in found]
         return out_flags
 
+    if pm.state == MatchState.NOT_COMPARABLE and pm.reshape is not None and pm.reshape.called:
+        # lead 11/1, second: a panel whose outline changed in place is a person's call, never already there or new
+        rc = pm.reshape
+        thresholds = _thresholds_used(calibration, th, tau_pre_r=None, tau_eye_r=None)
+        thresholds.update(
+            {
+                "mask_iou": rc.mask_iou,
+                "aspect_off": rc.aspect_off,
+                "blob_share": rc.blob_share,
+                **{k: th["matching"][k] for k in ("mask_iou_min", "reshape_iou_min", "reshape_aspect_tol", "reshape_open_px", "reshape_blob_share_min")},
+            }
+        )
+        out.append(
+            Verdict(
+                verdict_id=vid(),
+                panel_id=pm.panel_id,
+                label=VerdictLabel.NEEDS_YOUR_EYE,
+                rule_id="L7",
+                mark_ids=sorted({m.mark_id for m in panel_marks}),
+                reasons=rules.describe(["L7", "G4"]),
+                trace=_trace(trace_base, ["L7", "G4"], panel_marks, mark_tracks, thresholds),
+            )
+        )
+        return out
     if pm.state == MatchState.NOT_COMPARABLE:
         gate_ids = [r for r in pm.reasons if r.startswith("G")]
         rule_ids = ["L6", *gate_ids]
@@ -976,7 +1041,7 @@ def verdicts_for(
             )
         )
 
-    tight = tight_pair_look(th)
+    tight, deferrable = tight_pair_look(th), tight_pair_deferrable(th)
     for pair in pm.pairs:
         a, b = marks.get(pair.pickup_mark), marks.get(pair.return_mark)
         if a is None or b is None:
@@ -988,7 +1053,7 @@ def verdicts_for(
             notes: list[str] = []
             type_note = None
             if tight and pair.d < pair.tau_pre_r:
-                flags, notes, type_note = tight_pair_flags(pair, a, b, flags, look, asked=key in looks)
+                flags, notes, type_note = tight_pair_flags(pair, a, b, flags, look, asked=key in looks, deferrable=deferrable)
             label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
             emit(label, ids, [a.mark_id, b.mark_id], pair.d_pos, pair, both_walks_note(flags_by_role([a, b]), same_place=pair.d < pair.tau_pre_r), type_note=type_note, note_ids=notes)
         else:
@@ -1119,6 +1184,49 @@ def _pair_gates(
     return KeyframePairTry(kf_pair=[kf_p.kf_id, kf_r.kf_id], gates=gates, mask_iou=mask_iou, frames_agree=agree)
 
 
+def reshape_check(run_id: str, tries: list[KeyframePairTry], kf_by_id: dict[str, Keyframe], th: dict, masks: dict[str, np.ndarray | None] | None = None) -> ReshapeCheck | None:
+    """The reshaped-panel test (thresholds matching.reshaped_panel, lead 11/1, second). Its precondition: G4 is the only
+    failing gate on every keyframe pair tried and the best measured whitened mask IoU (the first pair on a tie) is in
+    [reshape_iou_min, mask_iou_min). Then on that pair: the two keyframes' box aspect ratios agree within
+    reshape_aspect_tol (a turned camera changes the aspect) and the largest blob of the opened mask difference holds at
+    least reshape_blob_share_min of it (a turned camera spreads the difference along the outline). None when the
+    precondition fails; called says both tests passed. It compares no marks, so it never says already there or new."""
+    m = th["matching"]
+    if not tries or any(t.gates != ["G4"] for t in tries):
+        return None
+    measured = [t for t in tries if t.mask_iou is not None]
+    if not measured:
+        return None
+    best = max(measured, key=lambda t: t.mask_iou)  # type: ignore[arg-type, return-value]
+    if not float(m["reshape_iou_min"]) <= float(best.mask_iou) < float(m["mask_iou_min"]):  # type: ignore[arg-type]
+        return None
+    kf_p, kf_r = kf_by_id.get(best.kf_pair[0]), kf_by_id.get(best.kf_pair[1])
+    if kf_p is None or kf_r is None or kf_p.moments is None or kf_r.moments is None or kf_p.front_sign is None or kf_r.front_sign is None:
+        return None
+    ra, rb = float(kf_p.aspect_ratio), float(kf_r.aspect_ratio)
+    off = abs(ra - rb) / max(ra, rb) if max(ra, rb) > 0 else 1.0
+    masks = {} if masks is None else masks
+    for kf in (kf_p, kf_r):
+        if kf.kf_id not in masks:
+            masks[kf.kf_id] = _load_mask(run_id, kf)
+    ma, mb = masks[kf_p.kf_id], masks[kf_r.kf_id]
+    share = None
+    if ma is not None and mb is not None:
+        share = geometry.mask_difference_blob_share(ma, kf_p.moments, kf_p.front_sign, mb, kf_r.moments, kf_r.front_sign, open_px=int(m["reshape_open_px"]))
+    called = off <= float(m["reshape_aspect_tol"]) and share is not None and share >= float(m["reshape_blob_share_min"])
+    return ReshapeCheck(kf_pair=list(best.kf_pair), mask_iou=float(best.mask_iou), aspect_ratios=[ra, rb], aspect_off=off, blob_share=share, called=called)  # type: ignore[arg-type]
+
+
+def reshape_words(rc: ReshapeCheck) -> str:
+    """The reshaped-panel test in words for the how-checked line (lib/lines.ts reshapeWords mirrors it)."""
+    head = "outline changed in place (L7)" if rc.called else "not called reshaped"
+    blob = "nothing left after the opening" if rc.blob_share is None else f"largest blob {rc.blob_share * 100:.0f}% of the mask difference"
+    return (
+        f"{head}: keyframes {rc.kf_pair[0]} with {rc.kf_pair[1]}, IoU {rc.mask_iou:.2f}, box aspect ratios "
+        f"{rc.aspect_ratios[0]:.3f} and {rc.aspect_ratios[1]:.3f} ({rc.aspect_off * 100:.1f}% apart), {blob}"
+    )
+
+
 def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate], LookVerdict | None] | None = None) -> tuple[list[PanelMatch], list[Verdict], Calibration]:
     """Read panels, keyframes, marks, mark_tracks and calibration; gate, pair and match every panel with a keyframe
     in either walk; ask the optional second look on provisional already_there pairs (at most
@@ -1149,7 +1257,8 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
     looks_budget = int(th["spark"]["second_looks_per_pair_max"])
     looks_used = 0
     retry = next_keyframe_pair(th)
-    deferred = TYPE_CAPS if tight_pair_look(th) else ()
+    reshaped = reshaped_panel(th)
+    deferred = tight_pair_deferrable(th)
     masks: dict[str, np.ndarray | None] = {}
     matches: list[PanelMatch] = []
     verdicts: list[Verdict] = []
@@ -1174,6 +1283,8 @@ def derive_match(run_id: str, *, th: dict, second_look: Callable[[MatchCandidate
                         break
             pm = match_panel(panel, panel_marks["pickup"], panel_marks["return"], whitened, (kf_p, kf_r), list(used.gates), calibration, th)
             pm = pm.model_copy(update={"mask_iou": used.mask_iou, "kf_pairs_tried": tries if retry else []})
+            if reshaped and pm.state == MatchState.NOT_COMPARABLE:
+                pm = pm.model_copy(update={"reshape": reshape_check(run_id, tries, kf_by_id, th, masks)})
         else:
             gates = panel_gates(panel, kfs["pickup"][0] if kfs["pickup"] else None, kfs["return"][0] if kfs["return"] else None, mask_iou=None, residual=None, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
             pm = PanelMatch(

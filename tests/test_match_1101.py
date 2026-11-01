@@ -55,7 +55,7 @@ from walkaround.contracts import (
 
 from .test_match import CROP_H, CROP_W, DOOR, RECT_MASK, cal, kf, mark, panel, runs_dir, th, wm  # noqa: F401  (cal, runs_dir, th are fixtures)
 
-RULES_1101 = ("tight_pair_second_look", "next_keyframe_pair")
+RULES_1101 = ("tight_pair_second_look", "next_keyframe_pair", "tight_pair_k5", "reshaped_panel")  # the last two: lead 11/1, second
 
 
 def frozen(th: dict, *leaves: str) -> dict:
@@ -505,7 +505,7 @@ def test_the_sheet_prints_how_it_was_checked_the_type_note_and_the_glossary_line
     html = sheet.render_html(model)
     assert f"how it was checked: {door.how_checked}" in html and f"<div>{note}</div>" in html and html.isascii()
     glossary = model.appendices["B glossary"]
-    assert sheet.GLOSSARY_TIGHT_PAIR in glossary and sheet.GLOSSARY_KEYFRAME_PAIR in glossary and glossary.isascii() and "--" not in glossary
+    assert sheet.GLOSSARY_TIGHT_PAIR_K5 in glossary and sheet.GLOSSARY_KEYFRAME_PAIR in glossary and glossary.isascii() and "--" not in glossary
     old = sheet.glossary_md(frozen(th))
     assert sheet.GLOSSARY_TIGHT_PAIR not in old and sheet.GLOSSARY_KEYFRAME_PAIR not in old and old == sheet.glossary_md()
-    assert "K1 to K15" in old and sheet.glossary_md(frozen(th, "next_keyframe_pair")) == old.replace("units:", sheet.GLOSSARY_TIGHT_PAIR + "units:", 1)
+    assert "K1 to K15" in old and sheet.glossary_md(frozen(th, "next_keyframe_pair", "tight_pair_k5", "reshaped_panel")) == old.replace("units:", sheet.GLOSSARY_TIGHT_PAIR + "units:", 1)

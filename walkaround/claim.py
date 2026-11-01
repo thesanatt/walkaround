@@ -1179,7 +1179,10 @@ def _compare(
     # Rule 1 of 11/1 (match.tight_pair_look, read from the run's frozen thresholds): on a near pair inside tau_pre_r, K4
     # and K12 wait for the second look as on a walk pair, and cap as before when it gives no answer. Runs frozen before
     # lack the leaf, so their claims rebuild unchanged.
+    # K5 joins them under matching.tight_pair_k5 (lead 11/1, second): the claim mark typed another kind waits for the
+    # look too.
     tight = match.tight_pair_look(th) and near and not ambiguous and partner is not None and pair is not None and pair.d < pair.tau_pre_r
+    deferrable = match.tight_pair_deferrable(th)
 
     def flags_of(look: LookVerdict | None) -> VerdictFlags:
         flags = match.flags_for(pair, claim_mark, partner if near else None, match.staysput_caps(view.mark_tracks, th), look, kf_status, return_mark=True, view_flagged=view_flagged)
@@ -1195,7 +1198,7 @@ def _compare(
     def judge(look: LookVerdict | None, *, defer: bool = False) -> tuple[VerdictLabel, list[str]]:
         flags = flags_of(look)
         if defer:
-            flags = flags.model_copy(update={k: False for k in match.TYPE_CAPS})
+            flags = flags.model_copy(update={k: False for k in deferrable})
         return match.verdict(pair.d if pair is not None else None, tau_pre_r, tau_eye_r, flags)
 
     label, ids = judge(None)
@@ -1206,7 +1209,7 @@ def _compare(
             label, ids = judge(look, defer=tight)
     type_note = None
     if tight and partner is not None and pair is not None:
-        _, _, type_note = match.tight_pair_flags(pair, partner, claim_mark, flags_of(look), look, asked=look is not None, roles=("pickup", "claim"))
+        _, _, type_note = match.tight_pair_flags(pair, partner, claim_mark, flags_of(look), look, asked=look is not None, roles=("pickup", "claim"), deferrable=deferrable)
     kf_pickup = view.keyframes.get(partner.kf_id) if near and partner is not None else kf
     pm = PanelMatch(
         panel_id=pid,

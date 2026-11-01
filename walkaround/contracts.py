@@ -1368,6 +1368,19 @@ class KeyframePairTry(Contract):
     frames_agree: bool = True
 
 
+class ReshapeCheck(Contract):
+    """The reshaped-panel test (thresholds matching.reshaped_panel, lead 11/1, second), recorded on a panel G4 alone kept
+    from being compared on every keyframe pair tried with the best whitened mask IoU in [reshape_iou_min,
+    mask_iou_min). called is True when both tests passed: the panel is needs your eye (L7, outline changed in place)."""
+
+    kf_pair: Annotated[list[str], Field(min_length=2, max_length=2)]  # the pair with the best IoU, [kf_pickup, kf_return]
+    mask_iou: float
+    aspect_ratios: Annotated[list[float], Field(min_length=2, max_length=2)]  # the two keyframes' box aspect ratios
+    aspect_off: float  # |a - b| / max(a, b)
+    blob_share: float | None = None  # the largest blob's share of the opened difference; None when the opening left nothing
+    called: bool = False
+
+
 class PanelMatch(Contract):
     panel_id: PanelId
     state: MatchState
@@ -1383,14 +1396,18 @@ class PanelMatch(Contract):
     groups: list[MarkGroup] = Field(default_factory=list)
     # every keyframe pair tried in order, the chosen pair first (thresholds matching.next_keyframe_pair, lead 11/1)
     kf_pairs_tried: list[KeyframePairTry] = Field(default_factory=list)
+    # the reshaped-panel test where its precondition held (thresholds matching.reshaped_panel, lead 11/1, second)
+    reshape: ReshapeCheck | None = None
 
     @model_serializer(mode="wrap")
     def _omit_no_tries(self, handler: Any) -> Any:
-        """A panel matched without the next-pair rule serializes as it did before the field existed (11/1), so every
-        run frozen before it rebuilds byte-identical."""
+        """A panel matched without the next-pair rule (or the reshaped-panel rule) serializes as it did before the field
+        existed (11/1), so every run frozen before it rebuilds byte-identical."""
         data = handler(self)
         if isinstance(data, dict) and not data.get("kf_pairs_tried"):
             data.pop("kf_pairs_tried", None)
+        if isinstance(data, dict) and data.get("reshape") is None:
+            data.pop("reshape", None)
         return data
 
 

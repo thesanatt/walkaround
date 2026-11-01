@@ -37,6 +37,7 @@ export const RULES: Record<string, RuleText> = {
   L4: { label: "needs your eye", text: "tau_pre_r <= d < tau_eye_r, or any K flag lowered the label" },
   L5: { label: "beyond the band", text: "d >= tau_eye_r: both marks keep their unmatched labels" },
   L6: { label: "not comparable", text: "a G rule failed for the panel; both best frames still show" },
+  L7: { label: "outline changed in place", text: "G4 alone failed on every keyframe pair tried, the best whitened mask IoU is from 0.5 to under 0.7, the two keyframes' box aspect ratios agree within 2% and the largest blob of the mask difference holds at least half of it: the panel may be reshaped, so needs your eye; never already there or new" },
   E1: { label: "no car panel", text: "the claim image shows no car panel" },
   E2: { label: "naming disagreed", text: "Spark and the SAM vote name different panels: two candidates and one tap, recorded as the renter's input" },
   E2b: { label: "side unknown", text: "no side from the text or Spark: both sides shown" },

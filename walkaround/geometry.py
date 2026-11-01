@@ -250,6 +250,24 @@ def whitened_mask_iou(mask_a: np.ndarray, mom_a: Moments, sign_a: int, mask_b: n
     return int(np.count_nonzero(a & b)) / union if union else 0.0
 
 
+def mask_difference_blob_share(mask_a: np.ndarray, mom_a: Moments, sign_a: int, mask_b: np.ndarray, mom_b: Moments, sign_b: int, *, open_px: int, grid: int = 256) -> float | None:
+    """How concentrated the difference of two whitened panel masks is (the reshaped-panel test, lead 11/1, second): the
+    symmetric difference on the IoU grid, opened with an open_px square to drop the thin rim a small misregistration
+    leaves, then the largest 8-connected blob's share of what is left. A turned camera spreads the difference along the
+    outline; a reshaped panel concentrates it. None when either mask is empty or the opening leaves nothing."""
+    if not np.asarray(mask_a).any() or not np.asarray(mask_b).any():
+        return None
+    a = whitened_mask(mask_a, mom_a, sign_a, grid=grid)
+    b = whitened_mask(mask_b, mom_b, sign_b, grid=grid)
+    diff = (a ^ b).astype(np.uint8)
+    opened = cv2.morphologyEx(diff, cv2.MORPH_OPEN, np.ones((int(open_px), int(open_px)), np.uint8))
+    total = int(np.count_nonzero(opened))
+    if total == 0:
+        return None
+    n, _, stats, _ = cv2.connectedComponentsWithStats(opened, connectivity=8)
+    return int(stats[1:, cv2.CC_STAT_AREA].max()) / total if n > 1 else None
+
+
 # Secondary frames: wheels, bumpers, hoods ------------------------------------------------------------------------
 
 

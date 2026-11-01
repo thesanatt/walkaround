@@ -1331,3 +1331,59 @@ What the integrator changed on top of the match lane and the Stays Put ranking a
   confidence of 49/81 at full precision put a vote score 1e-6 off the rebuild. Claims stored before keep their bytes.
 - The sample is samples/pairC_core3 (run pairC_core3, Nov 1, the round 4 code): the first live run whose trunk chips
   came out already there after a second look (Muse Spark Open, same). tests/test_staysput.py reads it.
+
+## Lead decisions, second set (2026-11-01): K5 on tight pairs; the reshaped panel
+
+Both sit behind new thresholds leaves under `matching`, so every run frozen before them (pairC_core3, eval_nhtsa15759,
+eval_px4228872_front and all older runs) matches, rebuilds and verifies as it did. Offline, no model call.
+
+1. K5 on tight pairs (`matching.tight_pair_k5` true, read only while `tight_pair_second_look` is on;
+   `match.tight_pair_deferrable(th)` gives (), ("K4", "K12") or ("K4", "K5", "K12")). Like K4 and K12 since round 4,
+   K5 (the two marks typed as incompatible kinds) no longer caps a pair inside tau_pre_r by itself: it waits for the
+   second look (Spark Open on the hackathon key first, as before), is a note once the look answered (same keeps L3;
+   different or unsure lowers through K7) and caps as before when the look gives no usable answer. Marks in one walk
+   only and pairs in the band keep it as a cap. Note that K5 adds the incompatible type cost (0.4) to d, so in a walk
+   a K5 pair is inside tau_pre_r only far from the panel centre; claims add the claim's radius to tau and reach it
+   more often (pairC_core3_claim claim_4: d 0.684 inside 0.754).
+   - `match.tight_pair_flags(..., deferrable=TYPE_CAPS)`: the caller passes `tight_pair_deferrable(th)`.
+     `derive_match` (which pairs are asked), `verdicts_for` and `claim._compare` (judge and the note) all read it.
+   - Words (`match._spark_words`): "Muse Spark typed the pickup mark dirt and the return mark chip (K4), two kinds
+     that disagree (K5), with low confidence on the pickup mark (K12): a note here, ..."; K5 alone: "Muse Spark typed
+     the pickup mark dent and the return mark scratch, two kinds that disagree (K5): ..."; no answer: "..., so K4, K5
+     and K12 cap the pair as before". `Trace.note_ids` lists them in the order K4, K5, K12. A claim names the claim
+     mark, as before.
+   - Sheet: `sheet.GLOSSARY_TIGHT_PAIR_K5` replaces `GLOSSARY_TIGHT_PAIR` when K5 is deferrable. rules.py K5 text
+     unchanged (stored in verdicts.json reasons).
+
+2. Reshaped panel (`matching.reshaped_panel` true; `match.reshaped_panel(th)`, `match.reshape_check`,
+   `geometry.mask_difference_blob_share`; numbers in `reshape_iou_min` 0.5, `reshape_aspect_tol` 0.02,
+   `reshape_open_px` 5, `reshape_blob_share_min` 0.5). Precondition: the panel is not comparable, G4 is the only
+   failing gate on every keyframe pair tried (`kf_pairs_tried`, or the one pair when the next-pair rule is off) and
+   the best measured whitened mask IoU (the first pair on a tie; pairs whose axes disagree have none) is in [0.5, 0.7).
+   Then on that pair: (a) the two keyframes' box aspect ratios (Keyframe.aspect_ratio) agree, |a - b| / max(a, b) <=
+   0.02; (b) the symmetric difference of the two whitened masks on the IoU grid, after a 5 px square opening, has its
+   largest 8-connected blob holding at least half of what is left (None when the opening leaves nothing: fails).
+   - Records: `PanelMatch.reshape: ReshapeCheck | None` (kf_pair, mask_iou, aspect_ratios, aspect_off, blob_share,
+     called), written only where the precondition held and left out of the JSON otherwise. The panel keeps state
+     not_comparable and its gates (no mark was compared).
+   - Verdict: when called, `verdicts_for` emits one panel verdict needs_your_eye, rule_id "L7" (new, rules.py and
+     rules.ts: "outline changed in place"), trace.rule_ids ["L7", "G4"], reasons L7 and G4 described, mark_ids every
+     mark of the panel, the trace thresholds holding the measured IoU, aspect_off, blob_share and the five leaves. It
+     never says already there or new and names no pair. When not called, L6 as before.
+   - `match.PANEL_VERDICT_RULES` ("L6", "L7"): no size, no ruler line (ruler.attach_sizes, sheet). The sheet's
+     not-comparable list leaves a called panel out (it is listed with its verdict). `match.how_checked` adds
+     `match.reshape_words` ("outline changed in place (L7): keyframes A with B, IoU 0.70, box aspect ratios 0.988 and
+     0.984 (0.4% apart), largest blob 64% of the mask difference"; "not called reshaped: ..." when a test failed);
+     web lib/lines.ts reshapeWords mirrors it word for word, MatchPane adds one sentence to the refusal.
+     `sheet.GLOSSARY_RESHAPED` prints when the leaf is on. scripts/eval_run.py counts a called panel as a
+     needs-your-eye panel call (row "call": "needs_your_eye", "rule": "L7").
+   - Web types: `ReshapeCheck`, `PanelMatch.reshape?`.
+
+Replayed offline (docs/evidence/replay_1101/replay.py: each run's frozen thresholds plus the six new leaves, rebuilt
+into a scratch dir, outbound sockets refused; the rebuilt matches.json and verdicts.json are beside it):
+- eval_nhtsa15759: the struck left rear door is needs your eye (L7) on pickup_left_rear_door_kf3 with
+  return_left_rear_door_kf1 (IoU 0.699, aspect ratios 0.988 and 0.984, 0.4% apart, largest blob 64%), its two return
+  marks named. Its other G4 panels: the front bumper reaches the test and fails both (aspect 3.384 vs 9.968, 66.1%
+  apart; blob 42%); right front door, roof, rear bumper and headlights fail G1 too (no test). No other verdict changed.
+- pairC_core3: no verdict changed. The front bumper reaches the test and fails both (aspect 5.692 vs 2.837, blob 48%);
+  the hood fails G8 too, the right front door G9 too, the rest G1 too. The trunk chips are dirt with dirt (no K5).

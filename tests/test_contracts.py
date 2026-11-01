@@ -93,6 +93,7 @@ def _instances() -> list[c.Contract]:
         c.MarkGroup(type=c.MarkKind.CHIP, n_pickup=4, n_return=5, text="4 chips here at pickup, 5 at return, 1 new or unseen"),
         c.PanelMatch(panel_id=c.PanelId.LEFT_FRONT_DOOR, state=c.MatchState.COMPARABLE, kf_pair=["kf1", "kf9"], aspect_diff=0.02, mask_iou=0.81, handle_residual=[0.01, -0.02]),
         c.KeyframePairTry(kf_pair=["kf1", "kf8"], gates=["G4"], mask_iou=None, frames_agree=False),  # match lane 11/1 (rule 2)
+        c.ReshapeCheck(kf_pair=["kf3", "kf1"], mask_iou=0.699, aspect_ratios=[0.988, 0.984], aspect_off=0.004, blob_share=0.64, called=True),  # lead 11/1 (second)
         c.VerdictFlags(return_mark=True, K2=True, K6=True),
         c.Trace(rule_ids=["L3", "K2"], thresholds={"tau_pre": 0.25}, spark_request_ids=["resp_1"], event_seqs=[3, 4], config_hash=SHA),
         c.SizeEstimate(inches=0.9, bound_lo=0.6, bound_hi=1.3, ruler=c.RulerKind.PLATE, ruler_source_kf="kf1", threshold_type=c.ThresholdType.DENT),

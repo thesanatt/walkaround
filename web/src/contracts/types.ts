@@ -423,6 +423,17 @@ export interface KeyframePairTry {
   frames_agree: boolean;
 }
 
+// The reshaped-panel test (thresholds matching.reshaped_panel, lead 11/1, second): recorded where G4 alone failed on every
+// keyframe pair tried with the best IoU in [0.5, 0.7); called means the panel is needs your eye (L7).
+export interface ReshapeCheck {
+  kf_pair: [string, string];
+  mask_iou: number;
+  aspect_ratios: [number, number];
+  aspect_off: number;
+  blob_share: number | null;
+  called: boolean;
+}
+
 export interface PanelMatch {
   panel_id: PanelId;
   state: 'comparable' | 'not_comparable';
@@ -437,6 +448,7 @@ export interface PanelMatch {
   unmatched_return: string[];
   groups: MarkGroup[];
   kf_pairs_tried?: KeyframePairTry[]; // every pair tried in order, the chosen pair first; absent in runs matched before 11/1
+  reshape?: ReshapeCheck | null; // absent unless the reshaped-panel precondition held
 }
 
 export interface Trace {

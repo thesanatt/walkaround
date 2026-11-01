@@ -79,6 +79,8 @@ Per pair, from the run (runs/<id>/ or eval/snapshots/<id>/) and eval/labels/<pai
   that would bill the renter.
 - **Panel calls.** A comparable panel is called changed when any verdict on it is new_or_unseen, needs your eye when
   any is needs_your_eye and none is new, else unchanged. A call is right when it agrees with the panel's changed label.
+  A panel the reshaped-panel rule calls "outline changed in place" (L7, runs made after its leaf, Nov 1) counts as a
+  needs-your-eye panel call, not as not comparable.
   Needs-your-eye panels, not-comparable panels (with their gate ids) and panels with no keyframe are counted apart.
 - **Needs your eye** share of the verdicts on comparable panels, and **re-shoot match**: pickup marks on unchanged
   comparable panels that got already_there.

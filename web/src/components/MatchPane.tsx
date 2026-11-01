@@ -249,6 +249,7 @@ export function MatchPane(props: MatchPaneProps) {
       {showRefusal && match?.state === 'not_comparable' ? (
         <p className="refusal">
           Not compared: {match.reasons.map((id) => `${id} ${ruleLabel(id)}${id === 'G2' ? conditionsText(kfA, kfB) : ''}`).join('; ')}. Both best frames are shown so you can look yourself.
+          {match.reshape?.called ? ' The outline changed in place, so this panel needs your eye (L7).' : ''}
         </p>
       ) : null}
       {match?.state === 'comparable' && !match.pairs.length && !panelVerdicts.length ? <p className="small muted">Compared: no marks on either frame.</p> : null}

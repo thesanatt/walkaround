@@ -477,6 +477,16 @@ GLOSSARY_TIGHT_PAIR = (  # match.tight_pair_look, lead 11/1 rule 1
     "So Spark's type (dirt, reflection or unsure, K4) and its low confidence (K12) are notes on that pair, and the second look compares the two crops and may lower it (K7). "
     "If the second look gives no answer, K4 and K12 cap the pair at needs your eye as before. A mark seen in one walk only, or a pair in the band, keeps K4 and K12 as caps.\n"
 )
+GLOSSARY_TIGHT_PAIR_K5 = (  # match.tight_pair_deferrable with matching.tight_pair_k5, lead 11/1 (second)
+    "tight pair: a pair inside tau_pre is already there because the mark sits in the same place in both walks, whatever Muse Spark called it. "
+    "So Spark's type (dirt, reflection or unsure, K4), the two types disagreeing (K5) and its low confidence (K12) are notes on that pair, and the second look compares the two crops and may lower it (K7). "
+    "If the second look gives no answer, K4, K5 and K12 cap the pair at needs your eye as before. A mark seen in one walk only, or a pair in the band, keeps them as caps.\n"
+)
+GLOSSARY_RESHAPED = (  # match.reshaped_panel, lead 11/1 (second)
+    "outline changed in place: a panel that fails only the mask IoU gate (G4) on every keyframe pair tried, with the best IoU from 0.5 to under 0.7, "
+    "is needs your eye (L7) instead of not comparable when the two keyframes' box shapes agree within 2% and the outline difference sits in one place (its largest blob holds at least half of it). "
+    "A turned camera changes the box shape or spreads the difference along the whole outline; a crushed panel does neither. No marks are compared, so it never says already there or new.\n"
+)
 GLOSSARY_KEYFRAME_PAIR = (  # match.next_keyframe_pair, lead 11/1 rule 2
     "keyframe pair: each panel is compared on one pickup keyframe and one return keyframe. When that pair fails a gate of the pair (G3, G4, G5, G8 or G9), "
     "the panel's other keyframe pairs are tried in a fixed order (clean views first, then the two keyframe scores, then keyframe number) and the first that passes every gate is used. "
@@ -496,8 +506,9 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         "not seen at return: a pickup mark with no return mark near it (L1).\n"
         "not comparable: a panel gate failed (G1, G3 to G10); both best frames still show with the reason (L6).\n"
         "view flagged: Muse Spark said a frame shows water, dirt or glare. That is a model's judgment, so it no longer blocks a panel (gate G2 did that until Oct 31). A mark seen in one walk only is capped at needs your eye (K15); a mark in the same place in both walks keeps its label, with a note.\n"
-        + (GLOSSARY_TIGHT_PAIR if match.tight_pair_look(th) else "")
+        + ((GLOSSARY_TIGHT_PAIR_K5 if "K5" in match.tight_pair_deferrable(th) else GLOSSARY_TIGHT_PAIR) if match.tight_pair_look(th) else "")
         + (GLOSSARY_KEYFRAME_PAIR if match.next_keyframe_pair(th) else "")
+        + (GLOSSARY_RESHAPED if match.reshaped_panel(th) else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"
@@ -821,7 +832,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
         for v in [v for v in verdicts if v.panel_id == pid]:
             first = next((marks_by_id[i] for i in v.mark_ids if i in marks_by_id), None)
             sp = next((s for s in (staysput_line(mt_by_mark[i], calibrated=staysput_calibrated) for i in v.mark_ids if i in mt_by_mark) if s), None)
-            size_text = size_line(v.size) if v.size is not None or v.rule_id != "L6" else None  # not comparable: no size, no ruler line
+            size_text = size_line(v.size) if v.size is not None or v.rule_id not in match.PANEL_VERDICT_RULES else None  # a panel verdict: no size, no ruler line
             extra = threshold_line(v.size, th)
             lines.append(
                 SheetVerdictLine(
@@ -856,7 +867,8 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     not_comparable: list[SheetNotComparable] = []
     for pid in PanelId:
         pm = match_by_panel.get(pid)
-        ids = list(pm.reasons) if pm is not None and pm.state.value == "not_comparable" else []
+        reshaped = pm is not None and pm.reshape is not None and pm.reshape.called  # needs your eye (L7), listed with its verdict
+        ids = list(pm.reasons) if pm is not None and pm.state.value == "not_comparable" and not reshaped else []
         if not ids and pid in panel_by_id and not panel_by_id[pid].comparable and panel_by_id[pid].not_comparable_reasons:
             ids = list(panel_by_id[pid].not_comparable_reasons)
         if ids:

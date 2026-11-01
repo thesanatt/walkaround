@@ -712,7 +712,7 @@ def attach_sizes(verdicts: list[Verdict], sizes: dict[str, SizeEstimate], marks:
     out: list[Verdict] = []
     for v in verdicts:
         size = None
-        if len(v.mark_ids) <= 2 and v.mark_ids and v.rule_id != "L6":
+        if len(v.mark_ids) <= 2 and v.mark_ids and v.rule_id not in ("L6", "L7"):  # a panel verdict names every mark of it
             ordered = sorted(v.mark_ids, key=lambda i: 0 if (marks.get(i) is not None and marks[i].role == "return") else 1)
             size = sizes.get(ordered[0])
         out.append(v.model_copy(update={"size": size}))
