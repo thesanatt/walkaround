@@ -103,8 +103,10 @@ tries `BASETEN_HACKATHON_API_KEY` first (it may call only `meta-models/muse-spar
 6. Code matches marks across the walks in a moment-whitened panel frame and writes each label: already there, new or
    unseen, needs your eye, not seen at return, or not comparable. Gates G1 and G3 to G10 make a panel not comparable;
    caps K1 to K15 lower a label. A wet, dirty or glare flag from Spark is a model's judgment, so it no longer blocks a
-   panel (gate G2 did until Oct 31): it caps a mark seen in one walk only (K15). The ids show on the page and the
-   sheet. The second look can only lower a label.
+   panel (gate G2 did until Oct 31): it caps a mark seen in one walk only (K15). In the same way, Spark calling a mark
+   dirt or being unsure of it (K4, K12) no longer lowers a pair in the same place in both walks by itself: that pair
+   goes to the second look. When a panel's chosen keyframe pair fails a gate of the pair, the next pair is tried. The
+   ids show on the page and the sheet. The second look can only lower a label.
 7. The sheet (HTML, PDF, JSON) shows both frames, the hashes, the coverage list, the deletions and the privacy line. A
    closing manifest seals it.
 
