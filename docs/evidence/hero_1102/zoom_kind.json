@@ -1,0 +1,54 @@
+{
+ "pairC_core3": {
+  "nearest": {
+   "n": 48,
+   "median_iou": 0.353,
+   "mean_iou": 0.308,
+   "median_offset_px": 11.0,
+   "on_mark": 34,
+   "iou_ge_05": 12
+  },
+  "prefer_kind": {
+   "n": 48,
+   "median_iou": 0.377,
+   "mean_iou": 0.319,
+   "median_offset_px": 10.4,
+   "on_mark": 35,
+   "iou_ge_05": 13
+  },
+  "prefer_vs_nearest": {
+   "wins": 1,
+   "losses": 0,
+   "ties": 47,
+   "boxes_changed": 1,
+   "changed": [
+    "pickup_hood_kf3_m1"
+   ]
+  }
+ },
+ "synth_pair2_r9": {
+  "nearest": {
+   "n": 41,
+   "median_iou": 0.242,
+   "mean_iou": 0.306,
+   "median_offset_px": 9.9,
+   "on_mark": 22,
+   "iou_ge_05": 12
+  },
+  "prefer_kind": {
+   "n": 41,
+   "median_iou": 0.242,
+   "mean_iou": 0.306,
+   "median_offset_px": 9.9,
+   "on_mark": 22,
+   "iou_ge_05": 12
+  },
+  "prefer_vs_nearest": {
+   "wins": 0,
+   "losses": 0,
+   "ties": 41,
+   "boxes_changed": 0,
+   "changed": []
+  }
+ }
+}

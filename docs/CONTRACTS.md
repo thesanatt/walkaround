@@ -1930,3 +1930,50 @@ derive_match runs the step right after match_panel (before the second look, so a
 tight pair) and, if it raises, keeps the moment match and records `registration failed: <error>` as the fit. The
 sheet's glossary prints a registration line only when the leaf is on. The web's rules table (web/src/lib/rules.ts) and
 contract types do not have K18 or the new fields yet.
+
+## hero_focus1 fixes (2026-11-02): glass and debris lines, colour on the paint, panel conditions, K19, same walk, zoom kind
+
+Why: on runs/hero_focus1 (ideal footage) the run got the real scrape right and missed all five tape strips; 37 needs
+your eye lines, 11 of them glass and 9 front bumper debris. Diagnosis, studies and replays:
+walkaround/docs/evidence/hero_1102/NOTES.md. Seven thresholds leaves, each absent from every run frozen before them, so
+those rebuild identical (verified on ten runs); config/thresholds.json turns all seven on.
+
+- `matching.glass_by_eye` ({"enabled", "panels"}, default windshield and rear_window). `match.glass_by_eye(th)` gives the
+  panel set. derive_match leaves a glass panel's marks out of matching (no pairs, no registration, no looks), writes
+  `PanelMatch.by_eye = [ByEyeLine(kind "glass", text match.GLASS_LINE, mark_ids)]` and no verdict for the panel, not
+  even L6.
+- `matching.debris_by_eye` ({"enabled", "types"}, default dirt). `match.debris_split(pm, verdicts, marks, keyframes,
+  th)`, pure, after verdicts_for on a compared panel: a needs_your_eye verdict whose every mark has a listed type and
+  whose views (the compared pair and its marks' keyframes; wet, dirty or glare) are flagged leaves the list; its marks
+  go into one `ByEyeLine(kind "debris", text match.DEBRIS_LINE)`; the kept verdicts are numbered again.
+- `contracts.ByEyeLine {kind "glass" | "debris", text, mark_ids}`; `PanelMatch.by_eye`, left out of the JSON when
+  empty. `match.by_eye_words(pm)` gives the sheet's lines; `SheetPanelBlock.by_eye_lines` (left out when empty); the
+  template prints "Check by eye: ..." under how-it-was-checked and skips "No marks compared" when a line is there.
+- `matching.colour_on_paint` ({"enabled"}). `spark_client.COLOUR_SENTENCE` after the fixtures and seams sentences
+  (with seams on, `SEAMS_SENTENCE_COLOUR` names it too); `find_marks(..., colour=)`, `marks_prompt(..., colour=)`; every
+  marks call passes it (marks, zoom refine, second pass, halves, claim). `counter2_prompt(..., colour=)` adds "or a
+  stripe or patch of a clearly different colour on the paint such as paint transfer, tape or a sticker" to part 1;
+  SecondLook reads the leaf. With the leaf off every prompt is byte-identical to before.
+- `matching.conditions_on_panel` ({"enabled"}). `marks_prompt(..., panel_conditions=)`: "conditions describe the <panel>
+  itself, not the rest of the crop" in place of "the whole crop"; `find_marks(..., panel_conditions=)` at every call.
+- `matching.inside_other_box` ({"enabled"}), new cap K19 "the other walk boxed a mark over this spot" (rules table,
+  `VerdictFlags.K19`). `match.covered_by_other_walk(pm, marks, keyframes) -> {mark_id: covering mark_id}`, pure: a
+  one-walk mark (unmatched, or in a pair beyond tau_eye_r) whose box, whitened in its own keyframe in the frame the match
+  compares in (return less the handle residual), lies at least `COVERED_SHARE_MIN` (0.5) inside the whitened box of a
+  mark of the other walk on its compared keyframe. verdicts_for sets K19 there; it lowers only.
+- `matching.same_walk_register` ({"enabled"}). `match.same_walk_config(th)` (the registration leaf with
+  register.DEFAULTS, or the defaults). `match.same_walk_step(panel_marks, compared, cache, th) -> (panel_marks, changed,
+  notes)`, in derive_match on a compared non-wheel panel before match_panel: per walk, each mark of another keyframe is
+  mapped through `cache.fit(its kf, the compared kf)` (register.align); landing inside or within register.coincide_px of
+  a compared-keyframe mark it leaves matching (`SameWalkNote.merged_into`) and that mark loses K2; landing elsewhere on
+  the crop it is re-placed there (kf_id, bbox_crop, point_crop, then marks.whiten_marks) and replaces its row in
+  derive_match's marks and whitened maps; a refused fit or a box off the crop leaves it as it was.
+  `contracts.SameWalkNote {mark_id, from_kf, to_kf, merged_into, model, reproj_px}`; `PanelMatch.same_walk`, left out
+  when empty; how_checked prints "same walk: ..." (`same_walk_words`). marks.json is not changed.
+- `dedup.spark_zoom_refine.prefer_kind` (bool). `zoom_refine.decide(..., kind_first=)`: when the mark's type is in
+  `zoom_refine.DAMAGE_TYPES` the nearest zoom box of a damage type is taken, else the nearest box.
+- Sheet glossary: one line each for glass, debris, colour on the paint and K19, printed only with the leaf on.
+- Web: nothing changed. web/src/lib/rules.ts and web/src/contracts/types.ts lack K19, by_eye and same_walk, so the run
+  page shows neither the check-by-eye lines nor K19's text yet.
+- Tests: tests/test_hero_1102.py (18). tests/test_match.py's shared `th` fixture drops the six matching leaves, as it
+  drops registration, because its fixtures predate them; the zoom study pin runs without prefer_kind.

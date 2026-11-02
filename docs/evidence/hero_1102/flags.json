@@ -1,0 +1,106 @@
+{
+ "hero_focus1": {
+  "stored": {
+   "wet": 2,
+   "dirty": 37,
+   "glare": 0,
+   "dark": 0,
+   "n": 70,
+   "any_k15": 38
+  },
+  "control": {
+   "wet": 2,
+   "dirty": 38,
+   "glare": 0,
+   "dark": 0,
+   "n": 70,
+   "any_k15": 38
+  },
+  "new": {
+   "wet": 2,
+   "dirty": 31,
+   "glare": 0,
+   "dark": 0,
+   "n": 70,
+   "any_k15": 31
+  }
+ },
+ "lexi_pair2": {
+  "stored": {
+   "wet": 0,
+   "dirty": 7,
+   "glare": 40,
+   "dark": 59,
+   "n": 78,
+   "any_k15": 43
+  },
+  "control": {
+   "wet": 0,
+   "dirty": 9,
+   "glare": 42,
+   "dark": 52,
+   "n": 78,
+   "any_k15": 46
+  },
+  "new": {
+   "wet": 0,
+   "dirty": 7,
+   "glare": 34,
+   "dark": 50,
+   "n": 78,
+   "any_k15": 38
+  }
+ },
+ "pairC_r16": {
+  "stored": {
+   "wet": 0,
+   "dirty": 28,
+   "glare": 24,
+   "dark": 1,
+   "n": 63,
+   "any_k15": 41
+  },
+  "control": {
+   "wet": 0,
+   "dirty": 24,
+   "glare": 23,
+   "dark": 1,
+   "n": 63,
+   "any_k15": 37
+  },
+  "new": {
+   "wet": 0,
+   "dirty": 22,
+   "glare": 16,
+   "dark": 2,
+   "n": 63,
+   "any_k15": 31
+  }
+ },
+ "eval_nhtsa15759_r16": {
+  "stored": {
+   "wet": 0,
+   "dirty": 0,
+   "glare": 36,
+   "dark": 7,
+   "n": 78,
+   "any_k15": 36
+  },
+  "control": {
+   "wet": 0,
+   "dirty": 0,
+   "glare": 34,
+   "dark": 6,
+   "n": 78,
+   "any_k15": 34
+  },
+  "new": {
+   "wet": 0,
+   "dirty": 0,
+   "glare": 34,
+   "dark": 0,
+   "n": 78,
+   "any_k15": 34
+  }
+ }
+}

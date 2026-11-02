@@ -1,0 +1,1388 @@
+{
+ "run": "rr_eval_nhtsa15759_r16",
+ "variant": "glass+debris+zoom+prompt+k19+reg",
+ "summary": {
+  "needs_your_eye": 20,
+  "not_seen_at_return": 3,
+  "new_or_unseen": 1,
+  "not_comparable": 12,
+  "already_there": 1,
+  "by_eye_lines": 2
+ },
+ "verdicts": [
+  {
+   "verdict_id": "left_front_door_v1",
+   "panel": "left_front_door",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "K1",
+    "K5"
+   ],
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m2",
+    "return_left_front_door_kf1_m1"
+   ],
+   "types": [
+    "scuff/high",
+    "dent/high"
+   ],
+   "notes": [
+    "yellow-black calibration tape horizontal",
+    "large crash crush across door panel"
+   ],
+   "boxes": [
+    [
+     51.0,
+     387.0,
+     397.0,
+     400.0
+    ],
+    [
+     34.686,
+     288.292,
+     453.686,
+     477.292
+    ]
+   ],
+   "d": 0.100889
+  },
+  {
+   "verdict_id": "left_front_door_v2",
+   "panel": "left_front_door",
+   "label": "not_seen_at_return",
+   "rule_ids": [
+    "L1"
+   ],
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m1"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow-black calibration tape horizontal"
+   ],
+   "boxes": [
+    [
+     49.0,
+     269.0,
+     392.0,
+     284.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_door_v3",
+   "panel": "left_front_door",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K19"
+   ],
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m3"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow-black calibration tape horizontal"
+   ],
+   "boxes": [
+    [
+     36.0,
+     445.0,
+     402.0,
+     461.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_door_v4",
+   "panel": "left_front_door",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K19"
+   ],
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m4"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow-black calibration tape horizontal low"
+   ],
+   "boxes": [
+    [
+     42.0,
+     526.0,
+     404.0,
+     543.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_door_v5",
+   "panel": "left_front_door",
+   "label": "not_seen_at_return",
+   "rule_ids": [
+    "L1"
+   ],
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m5"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow-black vertical tape on door seam"
+   ],
+   "boxes": [
+    [
+     405.0,
+     239.0,
+     436.0,
+     583.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_door_v6",
+   "panel": "left_front_door",
+   "label": "new_or_unseen",
+   "rule_ids": [
+    "L2"
+   ],
+   "mark_ids": [
+    "return_left_front_door_kf1_m2"
+   ],
+   "types": [
+    "dent/high"
+   ],
+   "notes": [
+    "lower door buckling and creasing"
+   ],
+   "boxes": [
+    [
+     152.0,
+     484.0,
+     566.0,
+     583.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_rear_door_v1",
+   "panel": "left_rear_door",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L7",
+    "G4"
+   ],
+   "mark_ids": [
+    "pickup_left_rear_door_kf1_m1",
+    "pickup_left_rear_door_kf1_m3",
+    "pickup_left_rear_door_kf1_m4",
+    "pickup_left_rear_door_kf1_m5",
+    "return_left_rear_door_kf1_m1",
+    "return_left_rear_door_kf1_m2",
+    "return_left_rear_door_kf1_m3",
+    "return_left_rear_door_kf1_m4",
+    "return_left_rear_door_kf1_m6",
+    "return_left_rear_door_kf2_m1",
+    "return_left_rear_door_kf2_m2"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/high",
+    "scuff/high",
+    "scuff/high",
+    "dent/high",
+    "scuff/high",
+    "scuff/high",
+    "scuff/high",
+    "scuff/high",
+    "dent/high",
+    "scratch/medium"
+   ],
+   "notes": [
+    "checkered tape strip on door",
+    "tape with round target sticker",
+    "checkered tape on lower door",
+    "black pre-test sticker on door",
+    "extensive side impact crush of door",
+    "yellow-black tape stripe on door",
+    "white test label sticker",
+    "lower yellow-black tape stripe",
+    "bottom yellow-black tape stripe",
+    "large crash crush across door",
+    "white paint crease scratches"
+   ],
+   "boxes": [
+    [
+     313.0,
+     256.0,
+     520.0,
+     283.0
+    ],
+    [
+     320.0,
+     390.0,
+     459.0,
+     433.0
+    ],
+    [
+     297.0,
+     526.0,
+     385.0,
+     543.0
+    ],
+    [
+     454.0,
+     279.0,
+     518.0,
+     348.0
+    ],
+    [
+     61.404,
+     220.1,
+     510.404,
+     536.1
+    ],
+    [
+     53.0,
+     273.0,
+     517.0,
+     301.0
+    ],
+    [
+     270.0,
+     348.0,
+     276.0,
+     355.0
+    ],
+    [
+     0.0,
+     398.0,
+     396.0,
+     424.0
+    ],
+    [
+     50.0,
+     521.0,
+     349.0,
+     548.0
+    ],
+    [
+     58.58,
+     231.467,
+     460.58,
+     578.467
+    ],
+    [
+     162.769,
+     413.256,
+     286.769,
+     488.256
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_door_v1",
+   "panel": "right_front_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "pickup_right_front_door_kf1_m1",
+    "pickup_right_front_door_kf1_m2",
+    "pickup_right_front_door_kf1_m3",
+    "pickup_right_front_door_kf2_m2",
+    "pickup_right_front_door_kf2_m3",
+    "pickup_right_front_door_kf3_m1",
+    "pickup_right_front_door_kf3_m3"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/medium",
+    "scuff/medium",
+    "scuff/high",
+    "scuff/medium",
+    "scuff/high",
+    "scuff/high"
+   ],
+   "notes": [
+    "white test sticker on door",
+    "small black tape on door",
+    "black tape holding wire on door",
+    "small black tape patch",
+    "black tape on door edge",
+    "black tape square on paint",
+    "black tape square on door"
+   ],
+   "boxes": [
+    [
+     362.057,
+     328.218,
+     592.057,
+     423.218
+    ],
+    [
+     315.0,
+     238.0,
+     346.0,
+     265.0
+    ],
+    [
+     443.855,
+     265.833,
+     474.855,
+     288.833
+    ],
+    [
+     414.0,
+     247.0,
+     451.0,
+     288.0
+    ],
+    [
+     524.0,
+     240.0,
+     551.0,
+     273.0
+    ],
+    [
+     321.0,
+     238.0,
+     345.0,
+     265.0
+    ],
+    [
+     445.362,
+     258.733,
+     470.362,
+     278.733
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_rear_door_v1",
+   "panel": "right_rear_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_fender_v1",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L3",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_left_front_fender_kf1_m3",
+    "return_left_front_fender_kf3_m3"
+   ],
+   "types": [
+    "scuff/medium",
+    "scuff/high"
+   ],
+   "notes": [
+    "small green round sticker on fender",
+    "yellow black check tape lower horizontal"
+   ],
+   "boxes": [
+    [
+     509.0,
+     274.0,
+     522.0,
+     284.0
+    ],
+    [
+     504.0,
+     247.0,
+     582.0,
+     267.0
+    ]
+   ],
+   "d": 0.104813
+  },
+  {
+   "verdict_id": "left_front_fender_v2",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L3",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_left_front_fender_kf1_m1",
+    "return_left_front_fender_kf1_m3"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow-black test tape vertical on fender",
+    "lower tape with target on fender"
+   ],
+   "boxes": [
+    [
+     504.625,
+     94.9,
+     573.625,
+     470.9
+    ],
+    [
+     444.0,
+     265.0,
+     561.0,
+     305.0
+    ]
+   ],
+   "d": 0.244321
+  },
+  {
+   "verdict_id": "left_front_fender_v3",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K15",
+    "K19"
+   ],
+   "mark_ids": [
+    "pickup_left_front_fender_kf1_m2"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow-black test tape across top of fender"
+   ],
+   "boxes": [
+    [
+     429.0,
+     145.0,
+     540.0,
+     158.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_fender_v4",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15"
+   ],
+   "mark_ids": [
+    "return_left_front_fender_kf3_m2"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow black check tape upper horizontal"
+   ],
+   "boxes": [
+    [
+     433.0,
+     137.0,
+     619.0,
+     155.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_fender_v5",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15"
+   ],
+   "mark_ids": [
+    "return_left_front_fender_kf2_m3"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "short checkered tape at top of fender"
+   ],
+   "boxes": [
+    [
+     435.0,
+     137.0,
+     553.0,
+     149.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_fender_v6",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15",
+    "K2"
+   ],
+   "mark_ids": [
+    "return_left_front_fender_kf1_m4"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "vertical tape down lower fender edge"
+   ],
+   "boxes": [
+    [
+     492.0,
+     302.0,
+     550.0,
+     447.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_fender_v7",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15",
+    "K2"
+   ],
+   "mark_ids": [
+    "return_left_front_fender_kf2_m1"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "vertical checkered test tape on fender"
+   ],
+   "boxes": [
+    [
+     514.0,
+     89.0,
+     558.0,
+     340.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_fender_v8",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15",
+    "K2"
+   ],
+   "mark_ids": [
+    "return_left_front_fender_kf2_m2"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "horizontal checkered test tape on fender"
+   ],
+   "boxes": [
+    [
+     442.0,
+     266.0,
+     525.0,
+     281.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_fender_v9",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15",
+    "K2"
+   ],
+   "mark_ids": [
+    "return_left_front_fender_kf3_m1"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow black check tape vertical stripe"
+   ],
+   "boxes": [
+    [
+     477.416,
+     92.791,
+     509.416,
+     365.791
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_rear_fender_v1",
+   "panel": "left_rear_fender",
+   "label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "mark_ids": [
+    "pickup_left_rear_fender_kf1_m1",
+    "return_left_rear_fender_kf1_m1"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/high"
+   ],
+   "notes": [
+    "crash-test alignment tape stripe on paint",
+    "yellow black test tape on quarter"
+   ],
+   "boxes": [
+    [
+     303.0,
+     142.0,
+     567.0,
+     170.0
+    ],
+    [
+     264.0,
+     135.0,
+     549.0,
+     165.0
+    ]
+   ],
+   "d": 0.127425
+  },
+  {
+   "verdict_id": "left_rear_fender_v2",
+   "panel": "left_rear_fender",
+   "label": "not_seen_at_return",
+   "rule_ids": [
+    "L1"
+   ],
+   "mark_ids": [
+    "pickup_left_rear_fender_kf1_m2"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "crash-test alignment tape stripe on paint"
+   ],
+   "boxes": [
+    [
+     310.0,
+     235.0,
+     482.0,
+     260.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_rear_fender_v3",
+   "panel": "left_rear_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_left_rear_fender_kf2_m2"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "black pre-test sticker on panel"
+   ],
+   "boxes": [
+    [
+     320.0,
+     174.0,
+     411.0,
+     237.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_rear_fender_v4",
+   "panel": "left_rear_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_left_rear_fender_kf2_m4"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow black test tape stripe"
+   ],
+   "boxes": [
+    [
+     494.0,
+     320.0,
+     536.0,
+     346.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_rear_fender_v5",
+   "panel": "left_rear_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_left_rear_fender_kf2_m5"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow black test tape stripe low"
+   ],
+   "boxes": [
+    [
+     644.0,
+     406.0,
+     668.0,
+     428.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_fender_v1",
+   "panel": "right_front_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "pickup_right_front_fender_kf1_m1",
+    "pickup_right_front_fender_kf1_m2",
+    "pickup_right_front_fender_kf2_m2",
+    "pickup_right_front_fender_kf2_m3"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/high",
+    "scuff/medium",
+    "scuff/medium"
+   ],
+   "notes": [
+    "black tape patch on rear fender",
+    "black tape holding cable on fender",
+    "dark tape square on fender",
+    "dark tape square on fender"
+   ],
+   "boxes": [
+    [
+     280.0,
+     146.0,
+     325.0,
+     185.0
+    ],
+    [
+     484.0,
+     188.0,
+     509.0,
+     209.0
+    ],
+    [
+     479.0,
+     172.0,
+     515.0,
+     193.0
+    ],
+    [
+     486.155,
+     170.233,
+     515.155,
+     191.233
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_rear_fender_v1",
+   "panel": "right_rear_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "pickup_right_rear_fender_kf1_m1",
+    "pickup_right_rear_fender_kf1_m2",
+    "pickup_right_rear_fender_kf1_m3",
+    "pickup_right_rear_fender_kf2_m1",
+    "pickup_right_rear_fender_kf2_m2"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/high",
+    "scuff/medium",
+    "scuff/high",
+    "scuff/high"
+   ],
+   "notes": [
+    "small grey tape on C-pillar",
+    "black tape holding test cables",
+    "dark tape around cable entry",
+    "grey tape patch on paint",
+    "black tape holding cables"
+   ],
+   "boxes": [
+    [
+     294.0,
+     68.0,
+     332.0,
+     91.0
+    ],
+    [
+     160.0,
+     120.0,
+     240.0,
+     156.0
+    ],
+    [
+     151.0,
+     179.0,
+     205.0,
+     235.0
+    ],
+    [
+     292.0,
+     69.0,
+     323.0,
+     91.0
+    ],
+    [
+     130.0,
+     131.0,
+     161.0,
+     155.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "hood_v1",
+   "panel": "hood",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "K1",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_hood_kf1_m1",
+    "return_hood_kf3_m1"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/high"
+   ],
+   "notes": [
+    "yellow black tape stripe on hood",
+    "yellow black striped tape down center hood"
+   ],
+   "boxes": [
+    [
+     585.0,
+     36.0,
+     616.0,
+     288.0
+    ],
+    [
+     729.0,
+     10.415,
+     872.0,
+     303.415
+    ]
+   ],
+   "d": 0.65289
+  },
+  {
+   "verdict_id": "hood_v2",
+   "panel": "hood",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15",
+    "K2"
+   ],
+   "mark_ids": [
+    "return_hood_kf1_m2"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "black post-test label sticker"
+   ],
+   "boxes": [
+    [
+     890.0,
+     99.0,
+     1048.0,
+     148.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "hood_v3",
+   "panel": "hood",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15",
+    "K2"
+   ],
+   "mark_ids": [
+    "return_hood_kf2_m2"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "black tape patch on paint"
+   ],
+   "boxes": [
+    [
+     910.0,
+     153.0,
+     1061.0,
+     228.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "roof_v1",
+   "panel": "roof",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   "mark_ids": [
+    "pickup_roof_kf1_m1",
+    "pickup_roof_kf1_m2",
+    "pickup_roof_kf2_m1",
+    "pickup_roof_kf2_m2",
+    "pickup_roof_kf2_m3",
+    "pickup_roof_kf3_m1",
+    "pickup_roof_kf3_m2",
+    "return_roof_kf3_m1"
+   ],
+   "types": [
+    "scuff/medium",
+    "scuff/low",
+    "scuff/high",
+    "scuff/medium",
+    "scuff/medium",
+    "scuff/high",
+    "scuff/medium",
+    "scuff/low"
+   ],
+   "notes": [
+    "yellow striped tape on roof center",
+    "small yellow patch on left roof",
+    "yellow striped tape on roof center",
+    "yellow patch on left roof edge",
+    "white sticker on roof top edge",
+    "yellow striped tape on roof center",
+    "yellow striped patch on left roof edge",
+    "yellow patch on left roof edge"
+   ],
+   "boxes": [
+    [
+     507.0,
+     12.0,
+     572.0,
+     38.0
+    ],
+    [
+     126.0,
+     15.0,
+     197.0,
+     28.0
+    ],
+    [
+     511.0,
+     7.0,
+     575.0,
+     30.0
+    ],
+    [
+     102.0,
+     28.0,
+     135.0,
+     43.0
+    ],
+    [
+     353.0,
+     49.0,
+     585.0,
+     61.0
+    ],
+    [
+     564.0,
+     42.0,
+     615.0,
+     77.0
+    ],
+    [
+     108.0,
+     15.0,
+     148.0,
+     30.0
+    ],
+    [
+     112.0,
+     36.0,
+     147.0,
+     50.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "front_bumper_v1",
+   "panel": "front_bumper",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4"
+   ],
+   "mark_ids": [
+    "return_front_bumper_kf1_m1",
+    "return_front_bumper_kf1_m2",
+    "return_front_bumper_kf1_m4",
+    "return_front_bumper_kf2_m1",
+    "return_front_bumper_kf2_m2",
+    "return_front_bumper_kf2_m4",
+    "return_front_bumper_kf3_m1",
+    "return_front_bumper_kf3_m2"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/medium",
+    "scuff/medium",
+    "scuff/high",
+    "scratch/medium",
+    "scuff/medium",
+    "scuff/high",
+    "chip/low"
+   ],
+   "notes": [
+    "yellow and black tape stripe",
+    "white writing on trim",
+    "white writing on trim",
+    "yellow black tape strip on paint",
+    "small white scratch on red paint",
+    "white RREAR marking sticker",
+    "yellow black tape stripe",
+    "tiny white speck on paint"
+   ],
+   "boxes": [
+    [
+     776.0,
+     0.0,
+     896.0,
+     40.0
+    ],
+    [
+     267.043,
+     31.733,
+     325.043,
+     37.733
+    ],
+    [
+     1124.0,
+     24.0,
+     1179.0,
+     37.0
+    ],
+    [
+     791.0,
+     0.0,
+     833.0,
+     31.0
+    ],
+    [
+     988.0,
+     23.0,
+     1026.0,
+     32.0
+    ],
+    [
+     1081.0,
+     17.0,
+     1126.0,
+     26.0
+    ],
+    [
+     669.0,
+     22.0,
+     688.0,
+     33.0
+    ],
+    [
+     754.0,
+     21.0,
+     797.0,
+     30.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "rear_bumper_v1",
+   "panel": "rear_bumper",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4"
+   ],
+   "mark_ids": [
+    "pickup_rear_bumper_kf1_m1",
+    "pickup_rear_bumper_kf2_m1",
+    "pickup_rear_bumper_kf2_m2"
+   ],
+   "types": [
+    "scuff/high",
+    "scuff/high",
+    "unsure/low"
+   ],
+   "notes": [
+    "black tape patch on paint",
+    "black tape patch on bumper",
+    "small light speck on paint"
+   ],
+   "boxes": [
+    [
+     822.0,
+     88.0,
+     997.0,
+     107.0
+    ],
+    [
+     787.0,
+     11.0,
+     947.0,
+     27.0
+    ],
+    [
+     945.0,
+     16.0,
+     990.0,
+     21.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_rear_wheel_v1",
+   "panel": "left_rear_wheel",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_left_rear_fender_kf1_m3"
+   ],
+   "types": [
+    "scuff/high"
+   ],
+   "notes": [
+    "crash-test alignment tape stripe on paint"
+   ],
+   "boxes": [
+    [
+     169.0,
+     95.0,
+     268.0,
+     120.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_wheel_v1",
+   "panel": "right_front_wheel",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "right_rear_wheel_v1",
+   "panel": "right_rear_wheel",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "headlights_v1",
+   "panel": "headlights",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "tail_lights_v1",
+   "panel": "tail_lights",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "mirrors_v1",
+   "panel": "mirrors",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G6"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  }
+ ],
+ "by_eye": [
+  {
+   "panel": "windshield",
+   "kind": "glass",
+   "text": "glass: check by eye; reflections make marks on glass unreliable",
+   "n": 8,
+   "mark_ids": [
+    "pickup_windshield_kf1_m1",
+    "pickup_windshield_kf1_m3",
+    "pickup_windshield_kf1_m4",
+    "pickup_windshield_kf1_m5",
+    "pickup_windshield_kf2_m2",
+    "return_windshield_kf2_m1",
+    "return_windshield_kf2_m2",
+    "return_windshield_kf3_m1"
+   ]
+  },
+  {
+   "panel": "rear_window",
+   "kind": "glass",
+   "text": "glass: check by eye; reflections make marks on glass unreliable",
+   "n": 5,
+   "mark_ids": [
+    "pickup_rear_window_kf1_m1",
+    "pickup_rear_window_kf1_m2",
+    "pickup_rear_window_kf2_m1",
+    "pickup_rear_window_kf2_m2",
+    "pickup_rear_window_kf2_m3"
+   ]
+  }
+ ]
+}

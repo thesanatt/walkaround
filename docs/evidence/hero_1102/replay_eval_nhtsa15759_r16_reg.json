@@ -1,0 +1,333 @@
+{
+ "run": "eval_nhtsa15759_r16",
+ "variant": "reg",
+ "summary": {
+  "new_or_unseen": 1,
+  "needs_your_eye": 1,
+  "not_comparable": 14,
+  "by_eye_lines": 0
+ },
+ "verdicts": [
+  {
+   "verdict_id": "left_front_door_v1",
+   "panel": "left_front_door",
+   "label": "new_or_unseen",
+   "rule_ids": [
+    "L2"
+   ],
+   "mark_ids": [
+    "return_left_front_door_kf1_m1"
+   ],
+   "types": [
+    "dent/high"
+   ],
+   "notes": [
+    "large side-impact deformation of front door"
+   ],
+   "boxes": [
+    [
+     54.844,
+     284.594,
+     450.844,
+     542.594
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_rear_door_v1",
+   "panel": "left_rear_door",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L7",
+    "G4"
+   ],
+   "mark_ids": [
+    "return_left_rear_door_kf1_m1",
+    "return_left_rear_door_kf1_m2",
+    "return_left_rear_door_kf2_m1"
+   ],
+   "types": [
+    "dent/high",
+    "scratch/medium",
+    "dent/high"
+   ],
+   "notes": [
+    "extensive side impact crushing",
+    "paint creasing scratches in dent",
+    "large side-impact crush denting across door"
+   ],
+   "boxes": [
+    [
+     46.603,
+     201.158,
+     504.603,
+     549.158
+    ],
+    [
+     132.997,
+     453.289,
+     280.997,
+     525.289
+    ],
+    [
+     0.0,
+     201.072,
+     502.0,
+     549.072
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_door_v1",
+   "panel": "right_front_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "right_rear_door_v1",
+   "panel": "right_rear_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_fender_v1",
+   "panel": "right_front_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "right_rear_fender_v1",
+   "panel": "right_rear_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "roof_v1",
+   "panel": "roof",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "front_bumper_v1",
+   "panel": "front_bumper",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4"
+   ],
+   "mark_ids": [
+    "return_front_bumper_kf2_m1",
+    "return_front_bumper_kf3_m1"
+   ],
+   "types": [
+    "scuff/medium",
+    "unsure/low"
+   ],
+   "notes": [
+    "small white scuff on red paint",
+    "small white speck on red paint"
+   ],
+   "boxes": [
+    [
+     811.0,
+     13.0,
+     850.0,
+     22.0
+    ],
+    [
+     669.0,
+     23.0,
+     690.0,
+     33.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "rear_bumper_v1",
+   "panel": "rear_bumper",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_wheel_v1",
+   "panel": "right_front_wheel",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "right_rear_wheel_v1",
+   "panel": "right_rear_wheel",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "headlights_v1",
+   "panel": "headlights",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "tail_lights_v1",
+   "panel": "tail_lights",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "mirrors_v1",
+   "panel": "mirrors",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G6"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "windshield_v1",
+   "panel": "windshield",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4"
+   ],
+   "mark_ids": [
+    "return_windshield_kf2_m1"
+   ],
+   "types": [
+    "reflection/high"
+   ],
+   "notes": [
+    "round white light reflection on glass"
+   ],
+   "boxes": [
+    [
+     816.0,
+     184.0,
+     869.0,
+     204.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "rear_window_v1",
+   "panel": "rear_window",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "pickup_rear_window_kf2_m1"
+   ],
+   "types": [
+    "reflection/medium"
+   ],
+   "notes": [
+    "bright light reflection on glass"
+   ],
+   "boxes": [
+    [
+     629.0,
+     184.0,
+     740.0,
+     209.0
+    ]
+   ],
+   "d": null
+  }
+ ],
+ "by_eye": []
+}

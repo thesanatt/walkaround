@@ -1,0 +1,880 @@
+{
+ "run": "hero_focus1",
+ "variant": "glass+debris+zoom",
+ "summary": {
+  "already_there": 3,
+  "needs_your_eye": 12,
+  "not_comparable": 8,
+  "by_eye_lines": 7
+ },
+ "verdicts": [
+  {
+   "verdict_id": "left_front_door_v1",
+   "panel": "left_front_door",
+   "label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m1",
+    "return_left_front_door_kf1_m1"
+   ],
+   "types": [
+    "scratch/medium",
+    "scratch/medium"
+   ],
+   "notes": [
+    "dark scratches lower door",
+    "dark scratches near lower door"
+   ],
+   "boxes": [
+    [
+     261.844,
+     639.433,
+     305.844,
+     662.433
+    ],
+    [
+     244.0,
+     600.0,
+     285.0,
+     619.0
+    ]
+   ],
+   "d": 0.093674
+  },
+  {
+   "verdict_id": "left_front_door_v2",
+   "panel": "left_front_door",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K12",
+    "K15",
+    "K18"
+   ],
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m2"
+   ],
+   "types": [
+    "scratch/low"
+   ],
+   "notes": [
+    "tiny dark speck"
+   ],
+   "boxes": [
+    [
+     317.0,
+     624.0,
+     338.0,
+     636.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_door_v3",
+   "panel": "left_front_door",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15"
+   ],
+   "mark_ids": [
+    "return_left_front_door_kf1_m2"
+   ],
+   "types": [
+    "scratch/medium"
+   ],
+   "notes": [
+    "small dark nick"
+   ],
+   "boxes": [
+    [
+     305.0,
+     571.0,
+     327.0,
+     591.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_door_v4",
+   "panel": "left_front_door",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K12",
+    "K15",
+    "K18",
+    "K4"
+   ],
+   "mark_ids": [
+    "return_left_front_door_kf1_m3"
+   ],
+   "types": [
+    "unsure/low"
+   ],
+   "notes": [
+    "small blue rectangular mark"
+   ],
+   "boxes": [
+    [
+     478.0,
+     469.0,
+     502.0,
+     489.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_door_v1",
+   "panel": "right_front_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "left_front_fender_v1",
+   "panel": "left_front_fender",
+   "label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "mark_ids": [
+    "pickup_left_front_fender_kf1_s2",
+    "return_left_front_fender_kf1_m2"
+   ],
+   "types": [
+    "scratch/medium",
+    "dirt/low"
+   ],
+   "notes": [
+    "thin horizontal line on fender",
+    "small speck on lower fender"
+   ],
+   "boxes": [
+    [
+     589.659,
+     518.8,
+     632.409,
+     526.133
+    ],
+    [
+     511.0,
+     437.0,
+     542.0,
+     450.0
+    ]
+   ],
+   "d": 0.016818
+  },
+  {
+   "verdict_id": "left_front_fender_v2",
+   "panel": "left_front_fender",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K12",
+    "K15",
+    "K3"
+   ],
+   "mark_ids": [
+    "pickup_left_front_fender_kf1_s3"
+   ],
+   "types": [
+    "scratch/low"
+   ],
+   "notes": [
+    "diagonal mark on fender edge"
+   ],
+   "boxes": [
+    [
+     624.656,
+     568.667,
+     630.102,
+     574.4
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "left_rear_fender_v1",
+   "panel": "left_rear_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "return_left_rear_fender_kf1_m1",
+    "return_left_rear_fender_kf2_m2"
+   ],
+   "types": [
+    "chip/medium",
+    "dirt/low"
+   ],
+   "notes": [
+    "small brown rust chip on wheel arch edge",
+    "tiny dark speck on quarter"
+   ],
+   "boxes": [
+    [
+     624.0,
+     374.0,
+     649.0,
+     388.0
+    ],
+    [
+     649.0,
+     321.0,
+     666.0,
+     337.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_fender_v1",
+   "panel": "right_front_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4"
+   ],
+   "mark_ids": [
+    "pickup_right_front_fender_kf1_m3",
+    "return_right_front_fender_kf1_m1",
+    "return_right_front_fender_kf1_m2",
+    "return_right_front_fender_kf1_m3",
+    "return_right_front_fender_kf2_m1"
+   ],
+   "types": [
+    "chip/low",
+    "scuff/medium",
+    "unsure/low",
+    "dirt/low",
+    "scratch/high"
+   ],
+   "notes": [
+    "tiny dark nick",
+    "horizontal scuff scratches on fender",
+    "small dark spot chip or dirt",
+    "tiny speck on fender",
+    "horizontal scratches on fender"
+   ],
+   "boxes": [
+    [
+     518.793,
+     152.8,
+     532.793,
+     160.8
+    ],
+    [
+     806.0,
+     330.0,
+     954.0,
+     356.0
+    ],
+    [
+     911.116,
+     339.633,
+     928.116,
+     348.633
+    ],
+    [
+     914.543,
+     339.7,
+     930.543,
+     348.7
+    ],
+    [
+     430.737,
+     314.206,
+     616.737,
+     376.206
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "right_rear_fender_v1",
+   "panel": "right_rear_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4"
+   ],
+   "mark_ids": [
+    "pickup_right_rear_fender_kf1_m1",
+    "return_right_rear_fender_kf1_m1"
+   ],
+   "types": [
+    "chip/high",
+    "chip/high"
+   ],
+   "notes": [
+    "rusted paint chip at arch edge",
+    "rusted chip on fender lip"
+   ],
+   "boxes": [
+    [
+     248.0,
+     425.0,
+     292.0,
+     448.0
+    ],
+    [
+     268.0,
+     400.0,
+     310.0,
+     424.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "hood_v1",
+   "panel": "hood",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K15"
+   ],
+   "mark_ids": [
+    "pickup_hood_kf1_m1"
+   ],
+   "types": [
+    "scratch/medium"
+   ],
+   "notes": [
+    "thin curved line on right hood"
+   ],
+   "boxes": [
+    [
+     937.0,
+     104.0,
+     1046.0,
+     160.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "hood_v2",
+   "panel": "hood",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K12",
+    "K15",
+    "K3",
+    "K4"
+   ],
+   "mark_ids": [
+    "return_hood_kf1_s2"
+   ],
+   "types": [
+    "unsure/low"
+   ],
+   "notes": [
+    "tiny dark dash"
+   ],
+   "boxes": [
+    [
+     1073.867,
+     110.347,
+     1081.414,
+     117.067
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "roof_v1",
+   "panel": "roof",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   "mark_ids": [
+    "return_roof_kf1_m1",
+    "return_roof_kf1_m2",
+    "return_roof_kf1_m3"
+   ],
+   "types": [
+    "dirt/medium",
+    "dirt/low",
+    "dirt/low"
+   ],
+   "notes": [
+    "small brown debris on trim",
+    "tiny dark speck on roof edge",
+    "tiny dark speck on roof rail"
+   ],
+   "boxes": [
+    [
+     456.0,
+     17.0,
+     487.0,
+     26.0
+    ],
+    [
+     220.859,
+     38.217,
+     242.859,
+     42.217
+    ],
+    [
+     520.843,
+     15.469,
+     539.843,
+     19.469
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "front_bumper_v1",
+   "panel": "front_bumper",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K12",
+    "K15",
+    "K2",
+    "K4"
+   ],
+   "mark_ids": [
+    "pickup_front_bumper_kf1_m3"
+   ],
+   "types": [
+    "unsure/low"
+   ],
+   "notes": [
+    "speck could be chip or dirt"
+   ],
+   "boxes": [
+    [
+     508.0,
+     343.0,
+     536.0,
+     359.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "rear_bumper_v1",
+   "panel": "rear_bumper",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L3",
+    "K12",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_rear_bumper_kf1_m1",
+    "return_rear_bumper_kf2_s1"
+   ],
+   "types": [
+    "scuff/low",
+    "scratch/low"
+   ],
+   "notes": [
+    "faint vertical mark on left corner",
+    "faint vertical line on paint"
+   ],
+   "boxes": [
+    [
+     127.0,
+     170.0,
+     172.0,
+     200.0
+    ],
+    [
+     145.662,
+     313.4,
+     152.166,
+     337.058
+    ]
+   ],
+   "d": 0.209391
+  },
+  {
+   "verdict_id": "left_rear_wheel_v1",
+   "panel": "left_rear_wheel",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "notes": [],
+   "boxes": [],
+   "d": null
+  },
+  {
+   "verdict_id": "right_front_wheel_v1",
+   "panel": "right_front_wheel",
+   "label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "mark_ids": [
+    "pickup_right_front_wheel_kf1_m1",
+    "return_right_front_wheel_kf1_m1"
+   ],
+   "types": [
+    "dirt/medium",
+    "dirt/medium"
+   ],
+   "notes": [
+    "brown brake dust grime on lower spokes",
+    "brown brake dust grime on rim"
+   ],
+   "boxes": [
+    [
+     275.0,
+     367.0,
+     393.0,
+     431.0
+    ],
+    [
+     237.798,
+     337.451,
+     399.798,
+     426.451
+    ]
+   ],
+   "d": 0.017056
+  },
+  {
+   "verdict_id": "headlights_v1",
+   "panel": "headlights",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "return_headlights_kf2_m1"
+   ],
+   "types": [
+    "reflection/low"
+   ],
+   "notes": [
+    "dark spot on amber reflector"
+   ],
+   "boxes": [
+    [
+     90.0,
+     35.0,
+     129.0,
+     48.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "tail_lights_v1",
+   "panel": "tail_lights",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K4"
+   ],
+   "mark_ids": [
+    "pickup_tail_lights_kf1_m1"
+   ],
+   "types": [
+    "dirt/medium"
+   ],
+   "notes": [
+    "tiny dark speck on white paint"
+   ],
+   "boxes": [
+    [
+     201.707,
+     83.667,
+     213.707,
+     89.667
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "tail_lights_v2",
+   "panel": "tail_lights",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K12"
+   ],
+   "mark_ids": [
+    "pickup_tail_lights_kf1_m3"
+   ],
+   "types": [
+    "scratch/low"
+   ],
+   "notes": [
+    "thin diagonal line on paint"
+   ],
+   "boxes": [
+    [
+     422.0,
+     13.0,
+     452.0,
+     47.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "tail_lights_v3",
+   "panel": "tail_lights",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K12",
+    "K4"
+   ],
+   "mark_ids": [
+    "pickup_tail_lights_kf1_m4"
+   ],
+   "types": [
+    "dirt/low"
+   ],
+   "notes": [
+    "small speck near fuel door"
+   ],
+   "boxes": [
+    [
+     576.016,
+     77.1,
+     588.016,
+     82.1
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "tail_lights_v4",
+   "panel": "tail_lights",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K12",
+    "K4"
+   ],
+   "mark_ids": [
+    "return_tail_lights_kf1_s2"
+   ],
+   "types": [
+    "reflection/low"
+   ],
+   "notes": [
+    "dark blurry shadow on lens"
+   ],
+   "boxes": [
+    [
+     369.65,
+     67.733,
+     410.797,
+     96.0
+    ]
+   ],
+   "d": null
+  },
+  {
+   "verdict_id": "mirrors_v1",
+   "panel": "mirrors",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   "mark_ids": [
+    "return_mirrors_kf1_m1",
+    "return_mirrors_kf1_m2",
+    "return_mirrors_kf1_m3",
+    "return_mirrors_kf2_m1",
+    "return_mirrors_kf2_m2",
+    "return_mirrors_kf2_m3"
+   ],
+   "types": [
+    "unsure/low",
+    "unsure/low",
+    "unsure/low",
+    "dirt/low",
+    "dirt/low",
+    "unsure/low"
+   ],
+   "notes": [
+    "tiny dark speck on mirror cap",
+    "tiny dark speck on mirror cap",
+    "tiny dark speck on mirror edge",
+    "small dark speck on mirror cap",
+    "small dark speck on mirror cap",
+    "faint dark spot on cap"
+   ],
+   "boxes": [
+    [
+     142.418,
+     48.3,
+     150.418,
+     53.3
+    ],
+    [
+     168.913,
+     52.733,
+     176.913,
+     56.733
+    ],
+    [
+     152.918,
+     52.4,
+     159.918,
+     56.4
+    ],
+    [
+     164.743,
+     49.633,
+     171.743,
+     54.633
+    ],
+    [
+     191.158,
+     48.967,
+     197.158,
+     53.967
+    ],
+    [
+     174.726,
+     55.833,
+     180.726,
+     58.833
+    ]
+   ],
+   "d": null
+  }
+ ],
+ "by_eye": [
+  {
+   "panel": "left_front_door",
+   "kind": "debris",
+   "text": "debris on this panel; check by eye",
+   "n": 1,
+   "mark_ids": [
+    "return_left_front_door_kf1_m4"
+   ]
+  },
+  {
+   "panel": "left_front_fender",
+   "kind": "debris",
+   "text": "debris on this panel; check by eye",
+   "n": 2,
+   "mark_ids": [
+    "return_left_front_fender_kf1_m1",
+    "return_left_front_fender_kf1_m3"
+   ]
+  },
+  {
+   "panel": "hood",
+   "kind": "debris",
+   "text": "debris on this panel; check by eye",
+   "n": 2,
+   "mark_ids": [
+    "pickup_hood_kf2_m1",
+    "return_hood_kf1_s1"
+   ]
+  },
+  {
+   "panel": "front_bumper",
+   "kind": "debris",
+   "text": "debris on this panel; check by eye",
+   "n": 8,
+   "mark_ids": [
+    "pickup_front_bumper_kf1_m1",
+    "pickup_front_bumper_kf1_m2",
+    "pickup_front_bumper_kf1_m4",
+    "pickup_front_bumper_kf1_m5",
+    "return_front_bumper_kf1_m1",
+    "return_front_bumper_kf1_m2",
+    "return_front_bumper_kf1_m3",
+    "return_front_bumper_kf1_m4"
+   ]
+  },
+  {
+   "panel": "left_front_wheel",
+   "kind": "debris",
+   "text": "debris on this panel; check by eye",
+   "n": 1,
+   "mark_ids": [
+    "pickup_left_front_wheel_kf2_m1"
+   ]
+  },
+  {
+   "panel": "windshield",
+   "kind": "glass",
+   "text": "glass: check by eye; reflections make marks on glass unreliable",
+   "n": 3,
+   "mark_ids": [
+    "pickup_windshield_kf2_m1",
+    "return_windshield_kf1_m1",
+    "return_windshield_kf2_m1"
+   ]
+  },
+  {
+   "panel": "rear_window",
+   "kind": "glass",
+   "text": "glass: check by eye; reflections make marks on glass unreliable",
+   "n": 14,
+   "mark_ids": [
+    "pickup_rear_window_kf1_m1",
+    "pickup_rear_window_kf1_m2",
+    "pickup_rear_window_kf1_m3",
+    "pickup_rear_window_kf1_m4",
+    "pickup_rear_window_kf1_m5",
+    "pickup_rear_window_kf1_m6",
+    "return_rear_window_kf1_m1",
+    "return_rear_window_kf1_m3",
+    "return_rear_window_kf1_m4",
+    "return_rear_window_kf1_m5",
+    "return_rear_window_kf1_m6",
+    "return_rear_window_kf2_m2",
+    "return_rear_window_kf2_m3",
+    "return_rear_window_kf2_m4"
+   ]
+  }
+ ]
+}
