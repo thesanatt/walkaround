@@ -30,6 +30,7 @@ from .contracts import (
     GridBox,
     GridPoint,
     HalvesFind,
+    HalvesMerge,
     IntBox4,
     Keyframe,
     Mark,
@@ -232,6 +233,89 @@ def drop_after_refine(marks: list[Mark], kf: Keyframe, *, th: dict, mask: np.nda
     return out
 
 
+def _gap(a: list[float], b: list[float], gx: float, gy: float) -> tuple[float, bool]:
+    """(centre gap in patches, the boxes overlap)."""
+    (ax, ay), (bx, by) = _centre(a), _centre(b)
+    overlap = min(a[2], b[2]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[1], b[1])
+    return float(np.hypot((ax - bx) / gx, (ay - by) / gy)), overlap
+
+
+def _take_box(full: Mark, h: Mark, gap: float, overlap: bool, crop: Crop, th: dict) -> Mark:
+    """The full-crop mark with the halves mark's box (point, source box, size, K3 by px, and the zoom and SAM records that
+    placed that box); type, confidence, note, id and the other caps stay the full crop's."""
+    size_px = float(h.size_px_src or 0.0)
+    tiny = size_px < float(th["dedup"]["small_mark_px"])
+    caps = [c for c in full.caps if c != "K3"]
+    if tiny:
+        caps.append("K3")
+    rec = HalvesMerge(
+        halves_mark_id=h.mark_id, half=h.halves.half if h.halves is not None else 0, full_bbox_crop=list(full.bbox_crop or []),
+        gap_patches=round(gap, 3), overlap=overlap, spark_request_id=h.spark_request_id,
+    )
+    return full.model_copy(update={
+        "bbox_crop": h.bbox_crop, "point_crop": h.point_crop, "bbox_src": h.bbox_src, "point_src": h.point_src, "size_px_src": h.size_px_src,
+        "caps": caps, "zoom_refine": h.zoom_refine, "box_refine": h.box_refine, "halves_merge": rec,
+    })
+
+
+def merge_after_refine(marks: list[Mark], kf: Keyframe, *, th: dict, mask: np.ndarray | None = None) -> list[Mark]:
+    """Pure: with the leaf's merge_patches key, the crop's marks once the zoom move and the SAM step have run, with each
+    halves mark that sits close to a full-crop mark (boxes overlap, or centres within merge_patches vision patches of the
+    full crop) folded into it: one mark, the halves box, the full crop's type and confidence (closest pairs first, one
+    halves box to a full-crop mark; a second halves box close to a full-crop mark is dropped). A halves mark with no
+    full-crop mark close stays only if it is not the same mark (same_mark) as one kept and, with lone_uncapped, carries
+    no cap (K3, K4, K12). Two candidates a patch apart for one mark make the match's ratio test refuse both."""
+    from .marks import _metric, whiten_marks
+
+    s = settings(th)
+    if s is None or s.get("merge_patches") is None or kf.crop is None:
+        return drop_after_refine(marks, kf, th=th, mask=mask)
+    reach = float(s["merge_patches"])
+    gx, gy = zoom_refine._patch_px(kf.crop, {"patch_sent_px": float(s.get("patch_sent_px", 28))})
+    mine = [m for m in marks if m.kf_id == kf.kf_id and m.bbox_crop is not None]
+    full = [m for m in mine if m.halves is None and m.source == MarkSource.SPARK_BOX]
+    halves = [m for m in mine if m.halves is not None]
+    pairs = []
+    for i, h in enumerate(halves):
+        for j, f in enumerate(full):
+            gap, overlap = _gap([float(v) for v in h.bbox_crop or []], [float(v) for v in f.bbox_crop or []], gx, gy)
+            if overlap or gap <= reach:
+                pairs.append((gap, i, j, overlap))
+    pairs.sort()
+    near: set[int] = set()
+    took: dict[str, Mark] = {}
+    used: set[int] = set()
+    for gap, i, j, overlap in pairs:
+        near.add(i)
+        if j in used or any(t.halves_merge is not None and t.halves_merge.halves_mark_id == halves[i].mark_id for t in took.values()):
+            continue
+        used.add(j)
+        took[full[j].mark_id] = _take_box(full[j], halves[i], gap, overlap, kf.crop, th)
+    radius = float(th["dedup"]["cluster_radius_units"])
+    dist = _metric(kf.panel_id)
+    settled = [took.get(m.mark_id, m) for m in mine if m.halves is None]
+    placed = {m.mark_id: m for m in whiten_marks([*settled, *[h for i, h in enumerate(halves) if i not in near]], kf, th=th, mask=mask)[0]}
+    kept = [([float(v) for v in m.bbox_crop or []], placed[m.mark_id].w if m.mark_id in placed else None) for m in settled]
+    lone_ok: set[str] = set()
+    for i, h in enumerate(halves):
+        if i in near or h.mark_id not in placed or (s.get("lone_uncapped") and h.caps):
+            continue
+        box, w = [float(v) for v in h.bbox_crop or []], placed[h.mark_id].w
+        if same_mark(box, w, kept, dup_iou=float(s["dup_iou"]), radius=radius, dist=dist):
+            continue
+        kept.append((box, w))
+        lone_ok.add(h.mark_id)
+    out = []
+    for m in marks:
+        if m.kf_id != kf.kf_id or m.bbox_crop is None:
+            out.append(m)
+        elif m.halves is None:
+            out.append(took.get(m.mark_id, m))
+        elif m.mark_id in lone_ok:
+            out.append(m)
+    return out
+
+
 async def ask_missing(run_id: str, jobs: list[tuple[Keyframe, Path, list[tuple[int, list[int]]]]], s: dict[str, Any], *, th: dict, read_rgb: Any) -> list[HalvesAsk]:
     """LIVE: one call per (keyframe, half) under orchestrator.spark_semaphore; each crop is read once."""
     semaphore = asyncio.Semaphore(int(th["orchestrator"]["spark_semaphore"]))
@@ -247,4 +331,4 @@ async def ask_missing(run_id: str, jobs: list[tuple[Keyframe, Path, list[tuple[i
     return list(await asyncio.gather(*calls))
 
 
-__all__ = ["HalvesAsk", "Index", "ask", "ask_missing", "drop_after_refine", "halves_marks", "out_size", "plan", "read_asks", "same_mark", "settings", "windows", "write_asks"]
+__all__ = ["HalvesAsk", "Index", "ask", "ask_missing", "drop_after_refine", "halves_marks", "merge_after_refine", "out_size", "plan", "read_asks", "same_mark", "settings", "windows", "write_asks"]

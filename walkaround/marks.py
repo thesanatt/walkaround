@@ -725,7 +725,8 @@ def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict,
     the stored answers in zoom_index), then its SAM box when dedup.sam_box_refine is on (sam_index), whitening, the
     count union, then the within-walk dedup. With dedup.spark_halves_pass on, each crop's halves boxes (halves_index)
     join its full-crop boxes before the zoom move (and with its after_refine key, a halves mark that lands on a kept
-    mark once moved is dropped)."""
+    mark once moved is dropped; with its merge_patches key, a halves mark close to a full-crop mark once both are moved
+    gives that mark its box, halves_pass.merge_after_refine)."""
     from . import box_refine, halves_pass, zoom_refine
 
     refine = box_refine.settings(th) is not None and sam_index is not None
@@ -753,7 +754,7 @@ def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict,
         if refine:
             kf_marks = box_refine.refine_marks(kf_marks, kf_new, sam_index, th=th)
         if halves_index is not None:
-            kf_marks = halves_pass.drop_after_refine(kf_marks, kf_new, th=th, mask=mask)
+            kf_marks = halves_pass.merge_after_refine(kf_marks, kf_new, th=th, mask=mask)
         kf_marks, kf_whitened = whiten_marks(kf_marks, kf_new, th=th, mask=mask)
         if count is not None and not getattr(count, "truncated", False):
             extra = count_union(kf_marks, count, result, kf_new, kf.crop, kf_whitened, th=th)

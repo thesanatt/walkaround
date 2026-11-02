@@ -1303,6 +1303,19 @@ class HalvesFind(Contract):
     spark_request_id: str | None = None
 
 
+class HalvesMerge(Contract):
+    """A full-crop mark that took the box of a halves mark close to it once both were moved by the zoom refine and the SAM
+    step (11/2, thresholds dedup.spark_halves_pass merge_patches): one mark, the halves box, the full crop's type and
+    confidence."""
+
+    halves_mark_id: str
+    half: int
+    full_bbox_crop: Box4  # the full-crop mark's own box after its zoom move and SAM step, which the halves box replaced
+    gap_patches: float  # centre gap in vision patches of the full crop
+    overlap: bool  # the two boxes overlapped
+    spark_request_id: str | None = None  # the halves answer
+
+
 class Mark(Contract):
     """One derived/marks.json entry. Grid coords are what Spark said; crop, src and w are code's mappings."""
 
@@ -1335,12 +1348,13 @@ class Mark(Contract):
     off_panel: OffPanel | None = None  # the same rule (dedup.marks_on_panel)
     second_pass: SecondPass | None = None  # the same rule (matching.second_marks_pass)
     halves: HalvesFind | None = None  # the same rule (dedup.spark_halves_pass)
+    halves_merge: HalvesMerge | None = None  # the same rule (dedup.spark_halves_pass merge_patches)
 
     @model_serializer(mode="wrap")
     def _omit_box_refine(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("box_refine", "zoom_refine", "off_panel", "second_pass", "halves"):
+            for key in ("box_refine", "zoom_refine", "off_panel", "second_pass", "halves", "halves_merge"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

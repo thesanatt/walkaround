@@ -1894,3 +1894,12 @@ there"). `dedup.spark_halves_pass` is not in config/thresholds.json, so it is ab
   `derive_marks` before the zoom refine) asks what halves_marks.json lacks; `_zoom_boxes`, `_sam_boxes`, `_marks_of`
   and `rebuild_marks` take `halves_index`. With the leaf absent every path is the one before (eight runs verified
   rebuild identical).
+- Merge (2026-11-02, R19; not adopted, evidence walkaround/docs/evidence/halves_merge_1102/NOTES.md): leaf keys
+  `merge_patches` (float), `patch_sent_px` (default 28) and `lone_uncapped` (bool). `merge_after_refine(marks, kf, th,
+  mask)` replaces `drop_after_refine` in `_marks_of` (it is `drop_after_refine` when merge_patches is absent): after the
+  zoom move and SAM, a halves box whose box overlaps a full-crop box or whose centre is within merge_patches vision
+  patches of the full crop (patch_sent_px sent px in crop pixels) folds into that mark, closest pairs first, one halves
+  box per mark; the mark keeps its id, type, confidence and note and takes the halves box (point, source box, size, K3
+  by size, zoom_refine and box_refine). `Mark.halves_merge` (`HalvesMerge`: halves_mark_id, half, full_bbox_crop,
+  gap_patches, overlap, spark_request_id; left out of the JSON when None). A second halves box close to a merged mark
+  is dropped; a lone halves box is dropped by `same_mark` and, with lone_uncapped, when it carries any cap.

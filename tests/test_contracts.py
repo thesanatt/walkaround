@@ -73,6 +73,7 @@ def _instances() -> list[c.Contract]:
         c.OffPanel(from_panel=c.PanelId.HOOD, from_kf="pickup_hood_kf1", off_frac=0.04, moved_to_kf="pickup_left_front_fender_kf1"),
         c.SecondPass(other_mark="return_hood_kf1_m1", window_crop=[10, 20, 181, 116], expected_crop=[95.5, 68.0], boxes=2, spark_request_id="resp_1"),
         c.HalvesFind(half=1, window_crop=[576, 0, 1280, 486], boxes=3, spark_request_id="resp_1"),
+        c.HalvesMerge(halves_mark_id="pickup_hood_kf1_h1", half=0, full_bbox_crop=[600.0, 400.0, 640.0, 420.0], gap_patches=0.4, overlap=True, spark_request_id="resp_1"),
         c.OffPanelNote(mark_id="pickup_hood_kf1_m2", from_panel=c.PanelId.HOOD, off_frac=0.06),
         c.SideVotes(R1=2, R2=1),
         c.PanelRole(track_ids=["t1"], windows=[[8.0, 14.0]], seconds_visible=6.0, state=c.CoverageState.FILMED, keyframe_ids=["kf1"]),
