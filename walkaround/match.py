@@ -1747,11 +1747,15 @@ def derive_match(
 
 def second_pass_words(run_id: str, marks: list[Mark], th: dict) -> dict[PanelId, list[str]]:
     """The second marks pass per panel in words, from the stored asks (thresholds matching.second_marks_pass): the crop
-    looked at, the other walk's mark whose spot it was, and the mark found or nothing."""
+    looked at, the other walk's mark whose spot it was, and the mark found or why none was used. Runs whose leaf lacks
+    the on_panel key keep their words ("found <id>" or "no mark there", from the marks they hold)."""
     from . import second_pass
 
-    if second_pass.settings(th) is None:
+    s = second_pass.settings(th)
+    if s is None:
         return {}
+    if s.get("on_panel"):
+        return second_pass.outcome_words(run_id, th=th)
     found = {(m.kf_id, m.second_pass.other_mark): m.mark_id for m in marks if m.second_pass is not None}
     out: dict[PanelId, list[str]] = {}
     for a in second_pass.read_asks(run_id):

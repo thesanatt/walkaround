@@ -1,0 +1,19 @@
+V left_front_door not_comparable L6,G4,G9  
+V left_rear_door not_comparable L6,G4,G6 pickup_left_rear_door_kf1_m1 pickup_left_rear_door_kf1_m2 return_left_rear_door_kf1_m1 return_left_rear_door_kf1_m2 return_left_rear_door_kf1_m3 
+V right_front_door not_comparable L6,G4,G6  
+V right_rear_door not_comparable L6,G1 return_right_rear_door_kf1_m1 return_right_rear_door_kf1_m2 
+V left_rear_fender already_there L3 pickup_left_rear_fender_kf1_m1 return_left_rear_fender_kf2_m1 0.186
+V left_rear_fender needs_your_eye L4,L1,K12,K15,K4 pickup_left_rear_fender_kf2_m2 
+V hood not_comparable L6,G4,G6,G8 pickup_hood_kf1_m1 return_hood_kf2_m1 
+V roof not_comparable L6,G4,G6 return_roof_kf2_m1 
+V trunk_lid not_comparable L6,G1,G3,G4,G6 return_trunk_lid_kf1_m1 
+V front_bumper not_comparable L6,G4  
+V left_front_wheel not_comparable L6,G1,G6  
+V right_rear_wheel not_comparable L6,G1,G4,G6  
+V headlights needs_your_eye L4,L1,K12,K15,K4 pickup_headlights_kf2_m1 
+V tail_lights not_comparable L6,G1  
+V mirrors not_comparable L6,G1,G3,G4,G6  
+V windshield not_comparable L6,G1,G4 return_windshield_kf1_m1 return_windshield_kf1_m2 return_windshield_kf1_m3 return_windshield_kf2_m1 return_windshield_kf2_m2 
+V rear_window needs_your_eye L4,L2,K15,K4 return_rear_window_kf1_m1 
+OFF pickup_front_bumper_kf1_m1->left_out pickup_rear_window_kf2_m1->left_out pickup_right_front_fender_kf2_m1->left_out return_front_bumper_kf1_m1->left_out return_front_bumper_kf1_m2->left_out return_rear_bumper_kf1_m1->left_out return_rear_window_kf1_m2->left_out return_rear_window_kf2_m1->left_out return_rear_window_kf2_m2->left_out return_rear_window_kf2_m3->left_out return_right_front_fender_kf1_m1->left_out return_tail_lights_kf1_m1->left_out return_windshield_kf1_m4->left_out return_windshield_kf2_m3->left_out
+{"variant": "c2", "labels": {"not_comparable": 13, "already_there": 1, "needs_your_eye": 3}, "off_panel": 14, "moved": 0}

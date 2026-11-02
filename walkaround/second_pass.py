@@ -153,23 +153,31 @@ def _nearest(boxes: list[tuple[list[float], Any]], p: Point2) -> tuple[list[floa
     return min(boxes, key=lambda bs: ((bs[0][0] + bs[0][2]) / 2 - p[0]) ** 2 + ((bs[0][1] + bs[0][3]) / 2 - p[1]) ** 2)
 
 
-def marks_from_asks(asks: list[SecondPassAsk], keyframes: dict[str, Keyframe], *, th: dict) -> list[Mark]:
-    """Pure: one mark per stored ask whose answer holds a box (the box nearest the mapped spot, in crop pixels), ids
+def outcomes(asks: list[SecondPassAsk], keyframes: dict[str, Keyframe], *, th: dict, root: Path | None = None) -> list[tuple[SecondPassAsk, Mark | None, str]]:
+    """Pure but for reading keyframe masks under root: (ask, the mark it gave or None, what it found in words) per
+    stored ask. One mark per ask whose answer holds a box (the box nearest the mapped spot, in crop pixels), ids
     <kf_id>_s<n> in ask order per keyframe, caps K3 (px, then units), K4 and K12, whitened in its keyframe. A mark within
-    dedup.cluster_radius_units of an earlier second-pass mark of the same keyframe is the same mark and is not added."""
-    from .marks import whiten_marks
+    dedup.cluster_radius_units of an earlier second-pass mark of the same keyframe is the same mark and is not added.
+    With the leaf's on_panel key, dedup.marks_on_panel on and root given, a box whose centre lies off the keyframe's
+    panel mask (the on-panel rule of the marks stage) is not used: the pass looks for a mark of this panel."""
+    from .marks import _off, _read_mask, on_panel_frac, whiten_marks
 
     small_px = float(th["dedup"]["small_mark_px"])
     radius = float(th["dedup"]["cluster_radius_units"])
+    s = settings(th) or {}
+    frac = on_panel_frac(th) if s.get("on_panel") and root is not None else None
     count: dict[str, int] = {}
-    out: list[Mark] = []
+    out: list[tuple[SecondPassAsk, Mark | None, str]] = []
+    kept: list[Mark] = []
     for a in asks:
         count[a.kf_id] = count.get(a.kf_id, 0) + 1
         kf = keyframes.get(a.kf_id)
         if kf is None or kf.crop is None or kf.panel_id in WHEEL_PANELS:
+            out.append((a, None, "keyframe not found"))
             continue
         boxes = zoom_refine.zoom_boxes(a)  # type: ignore[arg-type]
         if not boxes:
+            out.append((a, None, "no mark there" if boxes is not None else "the answer was cut short or not valid"))
             continue
         box, sm = _nearest(boxes, a.expected_crop)
         box = [max(0.0, box[0]), max(0.0, box[1]), min(float(kf.crop.w), box[2]), min(float(kf.crop.h), box[3])]
@@ -184,12 +192,37 @@ def marks_from_asks(asks: list[SecondPassAsk], keyframes: dict[str, Keyframe], *
             point_src=geometry.crop_to_src(point, kf.crop), size_px_src=size_px, spark_request_id=a.record.request_id, caps=caps,
             second_pass=SecondPass(other_mark=a.other_mark, window_crop=list(a.window), expected_crop=list(a.expected_crop), boxes=len(boxes), spark_request_id=a.record.request_id),
         )
+        if frac is not None and kf.mask_png:
+            mask = _read_mask(root / kf.mask_png)  # type: ignore[operator]
+            if mask is not None:
+                on, off_frac = _off(mask, point, kf.crop, frac)
+                if not on:
+                    out.append((a, None, f"a box {off_frac * 100:.1f}% of the crop's long side off the panel, not used"))
+                    continue
         [mark], _w = whiten_marks([mark], kf, th=th)
-        if mark.w is not None and any(
-            o.kf_id == mark.kf_id and o.w is not None and float(np.hypot(o.w[0] - mark.w[0], o.w[1] - mark.w[1])) <= radius for o in out
-        ):
+        same = next((o for o in kept if o.kf_id == mark.kf_id and o.w is not None and mark.w is not None and float(np.hypot(o.w[0] - mark.w[0], o.w[1] - mark.w[1])) <= radius), None)
+        if same is not None:
+            out.append((a, None, f"the same mark as {same.mark_id}"))
             continue
-        out.append(mark)
+        kept.append(mark)
+        out.append((a, mark, f"found {mark.mark_id}"))
+    return out
+
+
+def marks_from_asks(asks: list[SecondPassAsk], keyframes: dict[str, Keyframe], *, th: dict, root: Path | None = None) -> list[Mark]:
+    """The marks of outcomes(), in ask order."""
+    return [m for _a, m, _w in outcomes(asks, keyframes, th=th, root=root) if m is not None]
+
+
+def outcome_words(run_id: str, *, th: dict) -> dict[PanelId, list[str]]:
+    """The second marks pass per panel in words, from the stored asks: the crop looked at, the other walk's mark whose
+    spot it was, and what was found."""
+    if settings(th) is None:
+        return {}
+    keyframes = {kf.kf_id: kf for kf in read_json_list(paths.keyframes_json(run_id), Keyframe)} if paths.keyframes_json(run_id).is_file() else {}
+    out: dict[PanelId, list[str]] = {}
+    for a, _m, words in outcomes(read_asks(run_id), keyframes, th=th, root=paths.run_dir(run_id)):
+        out.setdefault(a.panel_id, []).append(f"looked again at {a.kf_id} around {a.other_mark}: {words}")
     return out
 
 
@@ -206,7 +239,7 @@ def apply_second_pass(run_id: str, *, th: dict) -> int:
     marks = read_marks(path, Mark)
     base = [m for m in marks if m.second_pass is None]
     keyframes = {kf.kf_id: kf for kf in read_json_list(paths.keyframes_json(run_id), Keyframe)} if paths.keyframes_json(run_id).is_file() else {}
-    added = marks_from_asks(read_asks(run_id), keyframes, th=th)
+    added = marks_from_asks(read_asks(run_id), keyframes, th=th, root=paths.run_dir(run_id))
     rows = [*base, *added]
     if [m.model_dump(mode="json") for m in rows] != [m.model_dump(mode="json") for m in marks]:
         write_json(path, rows)
@@ -256,4 +289,4 @@ async def derive_second_pass(run_id: str, *, th: dict) -> list[tuple[str, SparkR
     return [(a.role, a.record) for a in new]
 
 
-__all__ = ["SecondPassAsk", "apply_second_pass", "ask", "derive_second_pass", "marks_from_asks", "plan", "read_asks", "settings", "write_asks"]
+__all__ = ["SecondPassAsk", "apply_second_pass", "ask", "derive_second_pass", "marks_from_asks", "outcome_words", "outcomes", "plan", "read_asks", "settings", "write_asks"]

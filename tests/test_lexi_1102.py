@@ -361,3 +361,23 @@ def test_without_the_leaf_the_pass_neither_asks_nor_touches_marks(pass_run: dict
     assert asyncio.run(second_pass.derive_second_pass(run_id, th=th)) == [] and pass_run["calls"] == []
     assert second_pass.apply_second_pass(run_id, th=th) == 0 and paths.marks_json(run_id).read_bytes() == before
     assert not paths.second_pass_json(run_id).exists() and match.second_pass_words(run_id, [], th) == {}
+
+
+def test_a_second_pass_box_off_the_panel_mask_is_not_used(tmp_path: Path) -> None:
+    s = second_pass.settings(TH)
+    assert s is not None and s["on_panel"]
+    kfs, ms, pm = _pass_world()
+    kf, other, expected, win = second_pass.plan([pm], ms, kfs, s)[0]  # type: ignore[arg-type]
+    mask = np.zeros((300, 400), bool)
+    mask[50:250, 50:200] = True  # the panel ends at x 200: the mapped spot (250, 125) is 50 px off it
+    _write_mask(tmp_path, "crops/pickup/m.png", mask)
+    kfs[kf.kf_id] = kf.model_copy(update={"mask_png": "crops/pickup/m.png"})
+    ww, wh = win[2] - win[0], win[3] - win[1]
+    box = [243.0, 121.0, 259.0, 129.0]
+    rec = _answer([[round((box[0] - win[0]) * 1000 / ww), round((box[1] - win[1]) * 1000 / wh), round((box[2] - win[0]) * 1000 / ww), round((box[3] - win[1]) * 1000 / wh)]])
+    ask = second_pass.SecondPassAsk(kf_id=kf.kf_id, role="pickup", panel_id=kf.panel_id, other_mark=other.mark_id, crop_path=kf.crop.path, crop_sha256=kf.crop.sha256, crop_w=400, crop_h=300, window=win, expected_crop=expected, out_w=1280, out_h=720, record=rec)  # type: ignore[union-attr]
+    [(_a, got, words)] = second_pass.outcomes([ask], kfs, th=TH, root=tmp_path)
+    assert got is None and words.startswith("a box 12.") and words.endswith("off the panel, not used")
+    old = json.loads(json.dumps(TH))
+    del old["matching"]["second_marks_pass"]["on_panel"]  # lexi_pair2's frozen leaf: the box is used, as it was
+    assert len(second_pass.marks_from_asks([ask], kfs, th=old, root=tmp_path)) == 1

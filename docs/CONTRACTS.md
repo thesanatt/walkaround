@@ -1803,3 +1803,70 @@ walkaround/docs/evidence/doors_1101/ (NOTES.md, rederive_doors.py, summarize.py,
   a tail light, is now filed right rear (aspect 0.56, over the floor).
 - Tests: tests/test_doors_1101.py (12). test_panels' twin-check fixture test runs without door_check (the door check's
   moves on the same fixture are in test_doors_1101); test_contracts has a DoorCheck round-trip case.
+
+## Lexi run 1 fixes (2026-11-02): uncertainty per track, marks on their panel, part check, second marks pass
+
+Why: on lexi_pair1 (Sanat's friend's own car, 7 paper marks) the run got 1 of 7 right. The diagnosis is
+docs/LEXI_RUN1.md in the workspace: one stray undecided track hid whole panels, marks off their panel made noise lines,
+the left front wheel (and so its fender and mark M3's view) was filed on the right in both walks, the windshield lane
+seen behind the car stayed the windshield, and Spark silently missed a mark the other walk had. Four thresholds leaves,
+each absent from runs frozen before them, so those vote, derive, rebuild and verify as they did. Evidence:
+walkaround/docs/evidence/lexi_1102/ (NOTES.md, replay_1102.py, the replay outputs).
+
+- `panels.uncertain_per_track` (bool). `panels._panels_from(..., per_track=)`: a panel is side_uncertain only when some
+  role holds nothing but undecided tracks in its slot (before: any undecided track). Its front_sign follows. The
+  keyframe plan already took no keyframe from a placeholder track where a decided one holds the slot, so the keyframes
+  are those of decided tracks. `coverage_for_role` appends "also <track> could be <slots> (not used here: the decided
+  tracks name this panel)" to the reason of each slot that has decided tracks and that an undecided track may be.
+  `panels.uncertain_per_track(th)`.
+- `panels.part_check` (dict: min_frames, dir_share_min, offset_min_d, door_gap_d, adjacent_sizes, presence_margin,
+  mirror_near_sizes, weights, margin_min). `vote_sides` runs `apply_part_check(role_tracks, th)` after the door check on
+  every role that is not frozen. `part_check(role_tracks, th) -> {track id: (slot, PartCheck)}`:
+  - wheel and fender-lane tracks (not built fenders), `part_side_cues`: lid_side and light_side, a lid or light the twin
+    check placed (or the lane noun's light slot), on shared frames, end x sign(its centre x minus the part's), voting
+    only on frames where that offset is at least offset_min_d part sizes (the hood over a front wheel sits 0.0 to 0.33
+    wheel sizes off its centre on lexi_pair1, which is depth, not direction); door_side, doors with a decided side
+    beside the part (the gap rule of fender_from_wheels). Each needs dir_share_min of min_frames or more signs.
+  - windshield and rear-window tracks, `glass_end_cues`: lights, bumper, lid, the placed parts of each end beside the
+    glass (box gap <= adjacent_sizes glass sizes), voting when one end is beside it on presence_margin more of the
+    glass frames than the other; mirror, a side mirror within mirror_near_sizes on presence_margin of the frames votes
+    front (never rear).
+  - `door_decision` decides with the vote's slot as the prior. An undecided wheel keeps its slot with side NONE (so
+    candidate_slots lists both sides); an undecided glass track keeps its slot and candidate_slots lists the
+    windshield and the rear window. Built fenders follow their wheel (fender_tracks reads the wheel's slot).
+  - Contracts: `PartCheck {kind "side" | "end", was, votes, numbers, score, decided}`; `PanelTrack.part_check`, left
+    out of the JSON when None. The coverage lead for an undecided glass track is "front or rear uncertain".
+- `dedup.marks_on_panel` ({"enabled": true}). `marks.on_panel_frac(th)` reads claim.on_panel_frac (0.025).
+  `marks.on_panel(marks, whitened, keyframes, root, th=, masks=)` runs in `_marks_of` after whitening and before the
+  dedup: a Spark mark whose point lies farther than max(3 px, on_panel_frac x the crop's long side) from its keyframe's
+  panel mask (the claim path's `_on_mask` rule) is moved to a keyframe of the same walk cut from the same frame
+  (f_proxy) whose mask holds the point (nearest first, then kf id): panel_id, kf_id, point_crop and bbox_crop mapped
+  through the source frame, whitened there, K3 again. With no such keyframe it is left out: it stays in marks.json
+  with its own panel and `off_panel.moved_to_kf` None, after the deduped marks, and is in no dedup cluster.
+  `contracts.OffPanel {from_panel, from_kf, off_frac, moved_to_kf}`; `Mark.off_panel`, left out of the JSON when None.
+  match: `marks_on_panel(th)`; derive_match leaves the left-out marks out of every panel (like fixtures) and puts
+  `OffPanelNote {mark_id, from_panel, to_panel, off_frac}` on `PanelMatch.off_panel` (a left-out mark on its panel, a
+  moved one on both); `how_checked` prints "left out: ...", "moved: ..." and "moved here: ..." (`off_panel_words`).
+- `matching.second_marks_pass` ({"enabled": true, "max_asks": 12}; needs dedup.spark_zoom_refine, whose window it
+  borrows). `walkaround/second_pass.py`: `settings(th)`; `SecondPassAsk {kf_id, role, panel_id, other_mark,
+  crop_path, crop_sha256, crop_w, crop_h, window, expected_crop, out_w, out_h, record}` in runs/<id>/second_pass.json
+  (`paths.second_pass_json`, a frozen fact); `plan(matches, marks, keyframes, s)` (pure: every comparable panel, not a
+  wheel, whose keyframe pair passed every gate, with no mark in one walk and marks in the other; each other-walk mark
+  is mapped into the silent walk's compared crop by `match.counter_spot` with radius 0 (whitened in its own keyframe,
+  the handle residual as the match applies it, unwhitened there) and gets `zoom_refine.window` around the mapped box;
+  surest marks first, one per (keyframe, window), at most max_asks); `ask` (LIVE, one `spark_client.find_marks` on
+  `zoom_refine.zoom_image` with the run's effort, fixtures and seams flags, no landmarks); `marks_from_asks` (pure: the
+  returned box nearest the mapped spot, ids <kf_id>_s<n>, source spark_box, Spark's type, confidence, size and note,
+  caps K3, K4, K12, whitened, no grid coordinates; a second mark within dedup.cluster_radius_units of an earlier one on
+  the same keyframe is dropped); `apply_second_pass(run_id, th=)` (no call: marks.json without earlier second-pass rows
+  plus the stored asks' marks, written only when it changes); `derive_second_pass(run_id, th=)` (LIVE: strip, a
+  provisional derive_match with no look, plan, ask what is not stored within max_asks, store, apply).
+  `contracts.SecondPass {other_mark, window_crop, expected_crop, boxes, spark_request_id}`; `Mark.second_pass` and
+  `PanelMatch.second_pass` (words per ask: "looked again at <kf> around <mark>: found <id>" or "no mark there"), both
+  left out of the JSON when empty. Orchestrator: the match stage calls derive_second_pass before the second look (only
+  apply past the ceiling or the deadline) and emits spark events for its calls; rebuild calls apply_second_pass before
+  derive_match and reports marks.json's hash after it. Ledger: one `spark` row per call (note marks) with the run id.
+- Web: nothing changed. The new fields are optional and not in web/src/contracts/types.ts; the sheet prints the new
+  how-checked words, the web's own lines do not yet.
+- Tests: tests/test_lexi_1102.py (14). test_contracts has round-trip cases for the five new records; test_panels' twin
+  check test runs without part_check (its glass check moves the same pair C windshield track first).
