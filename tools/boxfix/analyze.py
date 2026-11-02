@@ -1,9 +1,13 @@
-"""Report on hand corrections from the box fix page (eval/box_corrections/*.json).
+"""Report on hand corrections from the box fix page (eval/box_corrections/*.json) and on the verdict checks from its
+Verdicts tab (eval/verdict_checks/*.json).
 
-    .venv/bin/python tools/boxfix/analyze.py [--dir eval/box_corrections]
+    .venv/bin/python tools/boxfix/analyze.py [--dir eval/box_corrections] [--verdicts-dir eval/verdict_checks]
+                                              [--verdicts-only]
 
-Prints counts and offsets per run and overall, writes summary.json, and draws the 12 worst moved boxes into
-eval/box_corrections/worst/.
+Boxes: prints counts and offsets per run and overall, writes summary.json, and draws the 12 worst moved boxes into
+eval/box_corrections/worst/. Verdicts: per run and overall, checked, right, wrong and not sure by the product's label,
+wrong by the label the person picked, and every "new since pickup" or "already there" a person called wrong; writes
+eval/verdict_checks/summary.json. --verdicts-only skips the box part (which rewrites its summary and worst/).
 """
 
 from __future__ import annotations
@@ -27,6 +31,10 @@ SENT_LONG_EDGE = 1280  # spark_client.IMAGE_LONG_EDGE
 SIZE_BINS = [(0, 16, "under 16 px"), (16, 32, "16-32 px"), (32, 64, "32-64 px"), (64, 128, "64-128 px"),
              (128, 1e9, "128 px and up")]
 PROD, FIX = (255, 210, 63), (61, 220, 132)
+VOUT = REPO / "eval" / "verdict_checks"
+LABELS = ("already_there", "new_or_unseen", "needs_your_eye", "not_seen_at_return", "not_comparable")
+PLAIN = {"already_there": "already there", "new_or_unseen": "new since pickup", "needs_your_eye": "needs your eye",
+         "not_seen_at_return": "not seen at return", "not_comparable": "not comparable", None: "not picked yet"}
 
 
 def iou(a, b) -> float:
@@ -250,15 +258,125 @@ def worst(moved: list[dict]) -> list[Path]:
     return paths
 
 
+# ---- verdict checks ----
+
+def vrows_of(doc: dict, current: dict[str, dict]) -> list[dict]:
+    out = []
+    for vid, r in doc.get("checks", {}).items():
+        cur = current.get(vid)
+        # stale: the run was re-derived and this verdict changed since the person judged it
+        stale = cur is None or cur["label"] != r.get("product_label") or sorted(cur["mark_ids"]) != sorted(r.get("mark_ids") or [])
+        out.append(dict(r, verdict_id=vid, run_id=doc["run_id"], stale=stale))
+    return out
+
+
+def vsummarize(rows: list[dict], label_counts: dict[str, int] | None) -> dict:
+    by_product = {}
+    for lab in LABELS:
+        rs = [r for r in rows if r["product_label"] == lab]
+        by_product[lab] = {"verdicts": (label_counts or {}).get(lab), "checked": len(rs),
+                           **{st: sum(r["status"] == st for r in rs) for st in ("right", "wrong", "unsure")}}
+    wrong = [r for r in rows if r["status"] == "wrong"]
+    by_correct: dict[str, int] = {}
+    confusion: dict[str, dict[str, int]] = {}
+    for r in wrong:
+        c = r.get("correct_label") or "not_picked"
+        by_correct[c] = by_correct.get(c, 0) + 1
+        confusion.setdefault(r["product_label"], {})
+        confusion[r["product_label"]][c] = confusion[r["product_label"]].get(c, 0) + 1
+
+    def brief(r):
+        return {k: r.get(k) for k in ("run_id", "verdict_id", "panel_id", "product_label", "correct_label", "mark_ids", "stale")}
+
+    return {
+        "checked": len(rows), "of_verdicts": sum(label_counts.values()) if label_counts is not None else None,
+        **{st: sum(r["status"] == st for r in rows) for st in ("right", "wrong", "unsure")},
+        "wrong_not_picked": sum(1 for r in wrong if not r.get("correct_label")),
+        "stale": sum(1 for r in rows if r["stale"]),
+        "by_product_label": by_product,
+        "wrong_by_correct_label": by_correct,
+        "wrong_product_to_correct": confusion,
+        "new_called_wrong": [brief(r) for r in wrong if r["product_label"] == "new_or_unseen"],
+        "already_there_called_wrong": [brief(r) for r in wrong if r["product_label"] == "already_there"],
+    }
+
+
+def vreport(name: str, s: dict) -> None:
+    print(f"\n== verdicts: {name}")
+    of = f" of {s['of_verdicts']}" if s["of_verdicts"] is not None else ""
+    print(f"checked {s['checked']}{of} verdicts: right {s['right']}, wrong {s['wrong']}, not sure {s['unsure']}"
+          + (f" ({s['wrong_not_picked']} wrong with no right label picked yet)" if s["wrong_not_picked"] else ""))
+    if s["stale"]:
+        print(f"  {s['stale']} checks are on verdicts that changed since (run re-derived); they count against the label shown then")
+    print(f"  {'product says':<20}{'verdicts':>9}{'checked':>9}{'right':>7}{'wrong':>7}{'not sure':>10}")
+    for lab, v in s["by_product_label"].items():
+        n = "" if v["verdicts"] is None else v["verdicts"]
+        print(f"  {PLAIN[lab]:<20}{n:>9}{v['checked']:>9}{v['right']:>7}{v['wrong']:>7}{v['unsure']:>10}")
+    if s["wrong"]:
+        print("  wrong, by the right label: " + ", ".join(
+            f"{PLAIN.get(k if k != 'not_picked' else None)} {n}" for k, n in sorted(s["wrong_by_correct_label"].items())))
+        for p, row in s["wrong_product_to_correct"].items():
+            for c, n in sorted(row.items()):
+                print(f"    {PLAIN[p]} -> {PLAIN.get(c if c != 'not_picked' else None)}: {n}")
+    for key, title in (("new_called_wrong", 'product "new since pickup" called wrong (the costliest error)'),
+                       ("already_there_called_wrong", 'product "already there" called wrong')):
+        rows = s[key]
+        print(f"  {title}: {len(rows) or 'none'}")
+        for r in rows:
+            print(f"    {r['run_id']} {r['verdict_id']}: should be {PLAIN.get(r['correct_label'])}; "
+                  f"marks {', '.join(r['mark_ids'] or []) or 'none'}{' (stale)' if r['stale'] else ''}")
+
+
+def verdict_main(vdir: Path) -> bool:
+    files = sorted(p for p in vdir.glob("*.json") if p.name != "summary.json")
+    if not files:
+        print(f"\nno verdict checks in {vdir}")
+        return False
+    out, all_rows, totals, have_all = {}, [], {lab: 0 for lab in LABELS}, True
+    for f in files:
+        doc = json.loads(f.read_text())
+        run = doc.get("run_id") or f.stem
+        doc["run_id"] = run
+        vf = RUNS / run / "derived" / "verdicts.json"
+        current = {v["verdict_id"]: v for v in json.loads(vf.read_text())} if vf.exists() else {}
+        counts = {lab: sum(v["label"] == lab for v in current.values()) for lab in LABELS} if vf.exists() else None
+        rows = vrows_of(doc, current)
+        s = vsummarize(rows, counts)
+        out[run] = s
+        vreport(run, s)
+        all_rows += rows
+        if counts is None:
+            have_all = False
+        else:
+            for lab in LABELS:
+                totals[lab] += counts[lab]
+    s = vsummarize(all_rows, totals if have_all else None)
+    out["overall"] = s
+    if len(files) > 1:
+        vreport("overall", s)
+    (vdir / "summary.json").write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
+    print(f"\nverdict summary: {vdir / 'summary.json'}")
+    return True
+
+
 def main() -> None:
     global OUT, WORST
     ap = argparse.ArgumentParser(description="Report on box fix corrections.")
     ap.add_argument("--dir", type=Path, default=OUT, help="folder of <run_id>.json corrections")
+    ap.add_argument("--verdicts-dir", type=Path, default=VOUT, help="folder of <run_id>.json verdict checks")
+    ap.add_argument("--verdicts-only", action="store_true", help="skip the box report")
     a = ap.parse_args()
     OUT, WORST = a.dir, a.dir / "worst"
-    files = sorted(p for p in OUT.glob("*.json") if p.name != "summary.json")
-    if not files:
-        sys.exit(f"no corrections in {OUT}")
+    files = [] if a.verdicts_only else sorted(p for p in OUT.glob("*.json") if p.name != "summary.json")
+    if files:
+        box_main(files)
+    elif not a.verdicts_only:
+        print(f"no box corrections in {OUT}")
+    if not verdict_main(a.verdicts_dir) and not files:
+        sys.exit(1)
+
+
+def box_main(files: list[Path]) -> None:
     all_rows, all_missed, out, seen_total, marks_total = [], [], {}, 0, 0
     for f in files:
         doc = json.loads(f.read_text())

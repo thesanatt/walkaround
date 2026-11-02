@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Verdict check</title>
+<style>
+  :root {
+    --bg: #15171a; --panel: #1e2125; --line: #33373d; --text: #eceae4; --dim: #a3a6ab;
+    --prod: #ffd23f; --fix: #3ddc84; --bad: #ff5a5a; --unsure: #4fd1ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 18px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  nav { display: flex; gap: 4px; padding: 8px 22px 0; border-bottom: 1px solid var(--line); }
+  nav a { color: var(--dim); text-decoration: none; font-size: 18px; font-weight: 600; padding: 6px 18px 8px;
+    border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; }
+  nav a:hover { color: var(--text); }
+  nav a.on { color: var(--text); background: var(--panel); border-color: var(--line); margin-bottom: -1px; }
+  header { display: flex; align-items: baseline; gap: 28px; padding: 12px 22px 6px; flex-wrap: wrap; }
+  .count { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .count small { font-size: 18px; font-weight: 400; color: var(--dim); }
+  .where { font-size: 22px; }
+  .where b { font-weight: 650; }
+  .where small { font-size: 15px; color: var(--dim); }
+  .says { font-size: 26px; font-weight: 700; }
+  .says span { color: var(--prod); }
+  .pill { margin-left: auto; font-size: 18px; font-weight: 650; padding: 4px 14px; border-radius: 6px;
+    border: 2px solid var(--line); white-space: nowrap; }
+  .pill.right { border-color: var(--fix); color: var(--fix); }
+  .pill.wrong { border-color: var(--bad); color: var(--bad); }
+  .pill.unsure { border-color: var(--unsure); color: var(--unsure); }
+  .why { padding: 0 22px 8px; font-size: 16px; color: var(--dim); }
+  .why b { color: var(--text); font-weight: 600; }
+  main { flex: 1; min-height: 0; display: flex; gap: 10px; padding: 0 10px; }
+  .side { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .sidehead { display: flex; align-items: baseline; gap: 14px; padding: 4px 8px 6px; }
+  .sidehead h2 { margin: 0; font-size: 22px; font-weight: 700; }
+  .sidehead .frame { font-size: 15px; color: var(--dim); }
+  .sidehead button { margin-left: auto; }
+  .stagewrap { flex: 1; min-height: 0; position: relative; background: #0d0e10; border-radius: 6px; }
+  .stagewrap svg { width: 100%; height: 100%; display: block; }
+  .none { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+    padding: 20px; color: var(--dim); font-size: 19px; }
+  .marks { font-size: 15px; color: var(--dim); padding: 6px 8px 2px; min-height: 2.6em; max-height: 6.2em; overflow: auto; }
+  .marks b { color: var(--text); font-weight: 600; }
+  .marks .off { opacity: .6; }
+  footer { padding: 12px 22px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+  .buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; font-size: 19px; color: var(--text); background: #2a2e33; border: 2px solid var(--line);
+    border-radius: 8px; padding: 10px 18px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: #5a6068; }
+  button:disabled { opacity: .35; cursor: default; }
+  button kbd { font: inherit; font-size: 15px; color: var(--dim); margin-left: 8px; border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 6px; }
+  button.on { border-color: var(--fix); }
+  button.on.bad { border-color: var(--bad); }
+  button.on.unsure { border-color: var(--unsure); }
+  .spacer { flex: 1; }
+  .small { font-size: 15px; padding: 7px 12px; }
+  .small kbd { font-size: 13px; }
+  #pick { display: none; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 12px; }
+  #pick.show { display: flex; }
+  #pick .q { font-size: 19px; font-weight: 650; color: var(--bad); margin-right: 6px; }
+  #pick button.on { border-color: var(--bad); }
+  .meta { display: flex; gap: 22px; align-items: center; margin-top: 10px; font-size: 15px; color: var(--dim); flex-wrap: wrap; }
+  .legend span { margin-right: 16px; white-space: nowrap; }
+  .sw { display: inline-block; width: 22px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+  .sw.thin { border-top-width: 1px; }
+  select { font: inherit; font-size: 16px; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 8px; }
+  #save.err { color: var(--bad); font-weight: 650; }
+</style>
+</head>
+<body>
+<nav><a href="/">Boxes</a><a href="/verdicts" class="on">Verdicts</a></nav>
+<header>
+  <div class="count" id="count">Loading</div>
+  <div class="where" id="where"></div>
+  <div class="says" id="says"></div>
+  <div class="pill" id="pill"></div>
+</header>
+<div class="why" id="why"></div>
+<main>
+  <section class="side" id="side-pickup">
+    <div class="sidehead"><h2>Pickup</h2><span class="frame"></span><button class="small">Other frame<kbd>F</kbd></button></div>
+    <div class="stagewrap"><svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><image x="0" y="0"></image><g></g></svg><div class="none"></div></div>
+    <div class="marks"></div>
+  </section>
+  <section class="side" id="side-return">
+    <div class="sidehead"><h2>Return</h2><span class="frame"></span><button class="small">Other frame<kbd>F</kbd></button></div>
+    <div class="stagewrap"><svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"><image x="0" y="0"></image><g></g></svg><div class="none"></div></div>
+    <div class="marks"></div>
+  </section>
+</main>
+<footer>
+  <div class="buttons">
+    <button id="b-back">Back<kbd>&larr;</kbd></button>
+    <button id="b-right">Right<kbd>Y</kbd></button>
+    <button id="b-wrong">Wrong<kbd>W</kbd></button>
+    <button id="b-unsure">Not sure<kbd>S</kbd></button>
+    <button id="b-next">Next<kbd>&rarr;</kbd></button>
+    <span class="spacer"></span>
+    <button class="small" id="b-reset">Reset<kbd>R</kbd></button>
+    <button class="small" id="b-zoom">Zoom<kbd>Z</kbd></button>
+  </div>
+  <div id="pick"><span class="q">What should it say?</span></div>
+  <div class="meta">
+    <select id="runsel" title="Jump to a run"></select>
+    <span class="legend"><span><i class="sw" style="border-color:#ffd23f"></i>this verdict's marks</span><span><i class="sw thin" style="border-color:#fff"></i>other marks the product found here</span></span>
+    <span class="spacer"></span>
+    <span id="save"></span>
+  </div>
+</footer>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const LABELS = ["already_there", "new_or_unseen", "needs_your_eye", "not_seen_at_return", "not_comparable"];
+const PLAIN = { already_there: "Already there", new_or_unseen: "New since pickup", needs_your_eye: "Needs your eye",
+  not_seen_at_return: "Not seen at return", not_comparable: "Not comparable" };
+const ROLES = ["pickup", "return"];
+
+let runs = [], docs = {}, items = [], pos = 0, frameAt = { pickup: 0, return: 0 };
+let zoom = localStorage.getItem("verdicts.zoom") === "1";
+const saveChain = {};
+
+const plain = (l) => PLAIN[l] || l;
+const lower = (s) => s.charAt(0).toLowerCase() + s.slice(1);
+function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+
+function doc(run) { return docs[run.run_id]; }
+function row(it) { return doc(it.run).checks[it.v.verdict_id] || null; }
+
+function save(run) {
+  const d = doc(run), s = $("save");
+  s.className = ""; s.textContent = "Saving";
+  const body = JSON.stringify(d);
+  saveChain[run.run_id] = (saveChain[run.run_id] || Promise.resolve()).then(() =>
+    fetch("/api/verdict_checks/" + encodeURIComponent(run.run_id), {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body,
+    }).then(async (res) => {
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || res.status);
+      s.textContent = "Saved " + new Date().toLocaleTimeString();
+    }).catch((e) => { s.className = "err"; s.textContent = "Not saved: " + e.message; }));
+}
+
+function setRow(it, status, correct) {
+  const v = it.v;
+  doc(it.run).checks[v.verdict_id] = {
+    status, product_label: v.label, correct_label: status === "wrong" ? (correct || null) : null,
+    panel_id: v.panel_id, mark_ids: v.mark_ids, rule_ids: v.rule_ids, config_hash: v.config_hash,
+    updated_at: new Date().toISOString(),
+  };
+  save(it.run);
+}
+
+function go(delta) {
+  pos = Math.max(0, Math.min(items.length - 1, pos + delta));
+  frameAt = { pickup: 0, return: 0 };
+  render();
+}
+
+function act(kind) {
+  const it = items[pos];
+  if (!it) return;
+  const r = row(it);
+  if (kind === "right") { setRow(it, "right"); go(1); }
+  else if (kind === "unsure") { setRow(it, "unsure"); go(1); }
+  else if (kind === "wrong") { setRow(it, "wrong", r && r.status === "wrong" ? r.correct_label : null); render(); }
+  else if (kind === "reset") { delete doc(it.run).checks[it.v.verdict_id]; save(it.run); render(); }
+}
+
+function pick(i) {
+  const it = items[pos], r = it && row(it), label = LABELS[i];
+  if (!r || r.status !== "wrong" || !label || label === it.v.label) return;
+  setRow(it, "wrong", label);
+  go(1);
+}
+
+function nextFrame(role) {
+  const it = items[pos];
+  if (!it) return;
+  for (const ro of role ? [role] : ROLES) {
+    const n = it.v.sides[ro].frames.length;
+    if (n > 1) frameAt[ro] = (frameAt[ro] + 1) % n;
+  }
+  render();
+}
+
+function viewBox(f, svg) {
+  const mine = f.marks.filter((m) => m.n && m.box);
+  if (!zoom || !mine.length) return [0, 0, f.w, f.h];
+  const u = [Math.min(...mine.map((m) => m.box[0])), Math.min(...mine.map((m) => m.box[1])),
+             Math.max(...mine.map((m) => m.box[2])), Math.max(...mine.map((m) => m.box[3]))];
+  const cx = (u[0] + u[2]) / 2, cy = (u[1] + u[3]) / 2;
+  const r = svg.getBoundingClientRect(), aspect = r.width / Math.max(1, r.height);
+  let vw = Math.max(3 * (u[2] - u[0]), 320), vh = vw / aspect;
+  const needH = Math.max(3 * (u[3] - u[1]), 200);
+  if (vh < needH) { vh = needH; vw = vh * aspect; }
+  return [cx - vw / 2, cy - vh / 2, vw, vh];
+}
+
+function rect(b, attrs, parent) {
+  return el("rect", Object.assign({ x: b[0], y: b[1], width: Math.max(0.5, b[2] - b[0]), height: Math.max(0.5, b[3] - b[1]),
+    fill: "none", "vector-effect": "non-scaling-stroke" }, attrs), parent);
+}
+
+function drawSide(role, it) {
+  const side = it.v.sides[role], box = $("side-" + role);
+  const svg = box.querySelector("svg"), img = svg.querySelector("image"), g = svg.querySelector("g");
+  const none = box.querySelector(".none"), fr = box.querySelector(".frame"), btn = box.querySelector("button");
+  const marksEl = box.querySelector(".marks");
+  g.replaceChildren();
+  btn.disabled = side.frames.length < 2;
+  if (!side.frames.length) {
+    svg.style.visibility = "hidden";
+    none.textContent = `No frame of the ${it.v.panel_name} in the ${role} walk.`;
+    fr.textContent = "";
+    marksEl.innerHTML = side.n_marks ? "" : "No marks from this verdict on this side.";
+    return;
+  }
+  svg.style.visibility = ""; none.textContent = "";
+  const f = side.frames[Math.min(frameAt[role], side.frames.length - 1)];
+  const kfShort = f.kf_id.replace(role + "_" + it.v.panel_id + "_", "");
+  fr.textContent = `${kfShort}` + (side.frames.length > 1 ? ` (frame ${frameAt[role] + 1} of ${side.frames.length})` : "")
+    + (f.n_here ? "" : side.n_marks ? ", none of this verdict's marks on this frame" : "");
+  if (img.getAttribute("href") !== f.url) img.setAttribute("href", f.url);
+  img.setAttribute("width", f.w); img.setAttribute("height", f.h);
+  svg.setAttribute("viewBox", viewBox(f, svg).join(" "));
+  const m = svg.getScreenCTM(), k = m ? 1 / m.a : 1;
+  const numbered = side.n_marks > 1;
+  for (const mk of f.marks) if (!mk.n && mk.box) {
+    rect(mk.box, { stroke: "#000", "stroke-width": 3, opacity: 0.35 }, g);
+    rect(mk.box, { stroke: "#fff", "stroke-width": 1, opacity: 0.7 }, g);
+  }
+  for (const mk of f.marks) if (mk.n && mk.box) {
+    const dash = mk.point_only ? { "stroke-dasharray": "4 3" } : {};
+    rect(mk.box, Object.assign({ stroke: "#000", "stroke-width": 4.5, opacity: 0.75 }, dash), g);
+    rect(mk.box, Object.assign({ stroke: "#ffd23f", "stroke-width": 2 }, dash), g);
+    if (numbered) {
+      const t = el("text", { x: mk.box[0], y: mk.box[1] - 5 * k, fill: "#ffd23f", "font-size": 17 * k, "font-weight": 700,
+        "paint-order": "stroke", stroke: "#000", "stroke-width": 3.5 * k, "font-family": "-apple-system, Helvetica, sans-serif" }, g);
+      t.textContent = mk.n;
+    }
+  }
+  const list = side.marks, shown = list.slice(0, 6);
+  marksEl.innerHTML = !list.length ? "No marks from this verdict on this side."
+    : shown.map((mk) => `<span class="${mk.kf_id === f.kf_id ? "" : "off"}">${numbered ? "<b>" + mk.n + "</b> " : ""}`
+      + `<b>${escapeHtml(mk.type || "mark")}</b>${mk.confidence ? " (" + escapeHtml(mk.confidence) + ")" : ""}`
+      + (mk.description ? ": " + escapeHtml(mk.description) : "")
+      + (mk.kf_id === f.kf_id ? "" : " [" + escapeHtml(mk.kf_id.replace(role + "_" + it.v.panel_id + "_", "")) + "]")
+      + "</span>").join("<br>")
+      + (list.length > shown.length ? `<br>and ${list.length - shown.length} more` : "");
+}
+
+function render() {
+  const it = items[pos];
+  if (!it) { $("count").textContent = "No verdicts in these runs"; return; }
+  const { run, v } = it, r = row(it);
+  const nDone = items.filter((x) => row(x)).length;
+  $("count").innerHTML = `${pos + 1} of ${items.length} <small>${nDone} checked</small>`;
+  $("where").innerHTML = `<b>${escapeHtml(run.run_id)}</b> &middot; <b>${escapeHtml(v.panel_name)}</b> <small>${escapeHtml(v.verdict_id)}</small>`;
+  $("says").innerHTML = `Product says: <span>${plain(v.label)}</span>`;
+
+  const why = [];
+  if (v.lowered_from) why.push(`lowered from <b>${lower(plain(v.lowered_from))}</b>`);
+  const heads = v.reasons.map((s) => s.split(":")[0]);
+  if (heads.length) why.push(`<span title="${escapeHtml(v.reasons.join("\n"))}">${escapeHtml(heads.join(", "))}</span>`);
+  if (v.pair && v.pair.d_pos != null) why.push(`matched at distance ${v.pair.d_pos.toFixed(2)} (same mark under ${v.pair.tau_pre_r.toFixed(2)})`);
+  const np = v.sides.pickup.n_marks, nr = v.sides.return.n_marks;
+  why.push(`${np} pickup mark${np === 1 ? "" : "s"}, ${nr} return mark${nr === 1 ? "" : "s"}`);
+  if (v.size_line && !v.size_line.startsWith("size not stated")) why.push(escapeHtml(v.size_line));
+  $("why").innerHTML = why.join(" &middot; ");
+
+  const st = r ? r.status : null, pill = $("pill");
+  pill.className = "pill " + (st || "");
+  pill.textContent = st === "right" ? "You said right" : st === "unsure" ? "You said not sure"
+    : st === "wrong" ? (r.correct_label ? "Wrong, should be " + lower(plain(r.correct_label)) : "Wrong, pick what it should say") : "Not checked yet";
+  for (const [id, on, cls] of [["b-right", st === "right", ""], ["b-wrong", st === "wrong", "bad"], ["b-unsure", st === "unsure", "unsure"]]) {
+    $(id).className = on ? "on " + cls : "";
+  }
+  $("b-reset").disabled = !r;
+  $("b-zoom").className = "small" + (zoom ? " on" : "");
+  $("b-back").disabled = pos === 0; $("b-next").disabled = pos === items.length - 1;
+  $("runsel").value = run.run_id;
+
+  const pk = $("pick");
+  pk.classList.toggle("show", st === "wrong");
+  pk.querySelectorAll("button").forEach((b, i) => {
+    b.disabled = LABELS[i] === v.label;
+    b.className = r && r.correct_label === LABELS[i] ? "on" : "";
+  });
+  for (const role of ROLES) drawSide(role, it);
+  preload();
+}
+
+const preloaded = new Set();
+function preload() {
+  for (let j = pos + 1; j <= pos + 3 && j < items.length; j++) {
+    for (const role of ROLES) {
+      const f = items[j].v.sides[role].frames[0];
+      if (f && !preloaded.has(f.url)) { preloaded.add(f.url); new Image().src = f.url; }
+    }
+  }
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.tagName === "SELECT") return;
+  const key = e.key.toLowerCase();
+  const map = { arrowleft: () => go(-1), arrowright: () => go(1), y: () => act("right"), w: () => act("wrong"),
+    s: () => act("unsure"), r: () => act("reset"), z: toggleZoom, f: () => nextFrame(null),
+    1: () => pick(0), 2: () => pick(1), 3: () => pick(2), 4: () => pick(3), 5: () => pick(4) };
+  if (map[key]) { e.preventDefault(); map[key](); }
+});
+function toggleZoom() { zoom = !zoom; localStorage.setItem("verdicts.zoom", zoom ? "1" : "0"); render(); }
+$("b-back").onclick = () => go(-1);
+$("b-next").onclick = () => go(1);
+$("b-right").onclick = () => act("right");
+$("b-wrong").onclick = () => act("wrong");
+$("b-unsure").onclick = () => act("unsure");
+$("b-reset").onclick = () => act("reset");
+$("b-zoom").onclick = toggleZoom;
+for (const role of ROLES) $("side-" + role).querySelector("button").onclick = () => nextFrame(role);
+LABELS.forEach((l, i) => {
+  const b = document.createElement("button");
+  b.innerHTML = `${PLAIN[l]}<kbd>${i + 1}</kbd>`;
+  b.onclick = () => pick(i);
+  $("pick").appendChild(b);
+});
+for (const b of document.querySelectorAll("button")) b.addEventListener("mouseup", () => b.blur());
+$("runsel").onchange = (e) => {
+  const j = items.findIndex((it) => it.run.run_id === e.target.value);
+  if (j >= 0) { pos = j; frameAt = { pickup: 0, return: 0 }; render(); }
+  e.target.blur();
+};
+window.addEventListener("resize", () => render());
+
+async function start() {
+  const data = await (await fetch("/api/verdicts")).json();
+  runs = data.runs;
+  await Promise.all(runs.map(async (run) => {
+    const d = await (await fetch("/api/verdict_checks/" + encodeURIComponent(run.run_id))).json();
+    d.checks = d.checks || {};
+    docs[run.run_id] = d;
+  }));
+  $("runsel").innerHTML = runs.map((r) => `<option value="${escapeHtml(r.run_id)}">${escapeHtml(r.run_id)} (${r.items.length} verdicts)</option>`).join("");
+  items = [];
+  for (const run of runs) for (const v of run.items) items.push({ run, v });
+  const first = items.findIndex((it) => !row(it));
+  pos = first >= 0 ? first : 0;
+  render();
+}
+start().catch((e) => { $("count").textContent = "Could not load: " + e.message; });
+</script>
+</body>
+</html>

@@ -13,6 +13,11 @@
   html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
     font: 18px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
   body { display: flex; flex-direction: column; }
+  nav { display: flex; gap: 4px; padding: 8px 22px 0; border-bottom: 1px solid var(--line); }
+  nav a { color: var(--dim); text-decoration: none; font-size: 18px; font-weight: 600; padding: 6px 18px 8px;
+    border: 1px solid transparent; border-bottom: none; border-radius: 8px 8px 0 0; }
+  nav a:hover { color: var(--text); }
+  nav a.on { color: var(--text); background: var(--panel); border-color: var(--line); margin-bottom: -1px; }
   header { display: flex; align-items: baseline; gap: 28px; padding: 14px 22px 10px; flex-wrap: wrap; }
   .count { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .count small { font-size: 18px; font-weight: 400; color: var(--dim); }
@@ -49,6 +54,7 @@
   .spacer { flex: 1; }
   .small { font-size: 15px; padding: 7px 12px; }
   .small kbd { font-size: 13px; }
+  .rule { margin-top: 10px; font-size: 17px; }
   .meta { display: flex; gap: 22px; align-items: center; margin-top: 10px; font-size: 15px; color: var(--dim); flex-wrap: wrap; }
   .legend span { margin-right: 16px; white-space: nowrap; }
   .sw { display: inline-block; width: 22px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
@@ -58,6 +64,7 @@
 </style>
 </head>
 <body>
+<nav><a href="/" class="on">Boxes</a><a href="/verdicts">Verdicts</a></nav>
 <header>
   <div class="count" id="count">Loading</div>
   <div class="where" id="where"></div>
@@ -84,6 +91,7 @@
     <button class="small" id="b-zoom">Zoom<kbd>Z</kbd></button>
     <button class="small" id="b-gt">Ground truth<kbd>G</kbd></button>
   </div>
+  <div class="rule">One box per separate mark; a tight cluster of specks counts as one. Press D to draw a mark the product missed.</div>
   <div class="meta">
     <select id="runsel" title="Jump to a run"></select>
     <label><input type="checkbox" id="empties"> Also step through crops with no boxes</label>
