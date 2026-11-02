@@ -1,0 +1,1264 @@
+{
+ "crops_seen": [
+  "return_windshield_kf1",
+  "return_windshield_kf2",
+  "pickup_hood_kf1",
+  "pickup_left_front_door_kf1",
+  "pickup_left_front_fender_kf1",
+  "pickup_left_front_fender_kf2",
+  "pickup_left_rear_door_kf1",
+  "pickup_left_rear_door_kf2",
+  "pickup_left_rear_fender_kf1",
+  "pickup_left_rear_fender_kf3",
+  "pickup_rear_window_kf1",
+  "pickup_rear_window_kf2",
+  "pickup_right_front_door_kf1",
+  "pickup_right_front_door_kf2",
+  "pickup_right_front_fender_kf1",
+  "pickup_right_rear_door_kf3",
+  "pickup_right_rear_fender_kf1",
+  "pickup_roof_kf1",
+  "pickup_roof_kf2",
+  "pickup_tail_lights_kf1",
+  "pickup_windshield_kf1",
+  "pickup_windshield_kf2",
+  "return_hood_kf1",
+  "return_hood_kf2",
+  "return_hood_kf3",
+  "return_left_front_door_kf1",
+  "return_left_front_fender_kf1",
+  "return_left_rear_door_kf1",
+  "return_left_rear_door_kf2",
+  "return_left_rear_fender_kf1",
+  "return_rear_window_kf1",
+  "return_rear_window_kf2",
+  "return_right_front_fender_kf1",
+  "return_right_rear_door_kf1",
+  "return_roof_kf1",
+  "return_roof_kf2"
+ ],
+ "marks": {
+  "pickup_hood_kf1_m1": {
+   "box": [
+    378.7,
+    329.6,
+    438,
+    348.9
+   ],
+   "box_used": null,
+   "crop_h": 471,
+   "crop_w": 1280,
+   "kf_id": "pickup_hood_kf1",
+   "panel_id": "hood",
+   "point_only": false,
+   "product_box": [
+    376,
+    319,
+    416,
+    327
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T09:58:51.702Z"
+  },
+  "pickup_left_front_door_kf1_m1": {
+   "box": [
+    507.4,
+    426.1,
+    526.4,
+    435.1
+   ],
+   "box_used": null,
+   "crop_h": 795,
+   "crop_w": 1280,
+   "kf_id": "pickup_left_front_door_kf1",
+   "panel_id": "left_front_door",
+   "point_only": false,
+   "product_box": [
+    509,
+    459,
+    528,
+    468
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T09:58:57.081Z"
+  },
+  "pickup_left_front_door_kf1_m2": {
+   "box": [
+    986.7,
+    326.7,
+    1023.7,
+    355.7
+   ],
+   "box_used": null,
+   "crop_h": 795,
+   "crop_w": 1280,
+   "kf_id": "pickup_left_front_door_kf1",
+   "panel_id": "left_front_door",
+   "point_only": false,
+   "product_box": [
+    1015,
+    352,
+    1052,
+    381
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T09:59:10.231Z"
+  },
+  "pickup_left_front_fender_kf1_m1": {
+   "box": [
+    675.2,
+    289.1,
+    690.2,
+    297.1
+   ],
+   "box_used": null,
+   "crop_h": 685,
+   "crop_w": 1280,
+   "kf_id": "pickup_left_front_fender_kf1",
+   "panel_id": "left_front_fender",
+   "point_only": false,
+   "product_box": [
+    746,
+    286,
+    761,
+    294
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T09:59:17.073Z"
+  },
+  "pickup_left_front_fender_kf2_m1": {
+   "box": [
+    740.5,
+    280.3,
+    752.5,
+    287.3
+   ],
+   "box_used": null,
+   "crop_h": 674,
+   "crop_w": 1280,
+   "kf_id": "pickup_left_front_fender_kf2",
+   "panel_id": "left_front_fender",
+   "point_only": false,
+   "product_box": [
+    780,
+    219,
+    792,
+    226
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T09:59:24.031Z"
+  },
+  "pickup_left_rear_door_kf1_m1": {
+   "box": [
+    880,
+    605,
+    898,
+    627
+   ],
+   "box_used": null,
+   "crop_h": 1280,
+   "crop_w": 938,
+   "kf_id": "pickup_left_rear_door_kf1",
+   "panel_id": "left_rear_door",
+   "point_only": false,
+   "product_box": [
+    880,
+    605,
+    898,
+    627
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "correct",
+   "type": "chip",
+   "updated_at": "2026-11-02T09:59:44.852Z"
+  },
+  "pickup_left_rear_door_kf2_m1": {
+   "box": [
+    650.1,
+    646.2,
+    666.1,
+    667.2
+   ],
+   "box_used": null,
+   "crop_h": 1280,
+   "crop_w": 754,
+   "kf_id": "pickup_left_rear_door_kf2",
+   "panel_id": "left_rear_door",
+   "point_only": false,
+   "product_box": [
+    627,
+    561,
+    643,
+    582
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T09:59:53.762Z"
+  },
+  "pickup_left_rear_fender_kf1_m1": {
+   "box": [
+    495.4,
+    338,
+    512.4,
+    350
+   ],
+   "box_used": null,
+   "crop_h": 818,
+   "crop_w": 1280,
+   "kf_id": "pickup_left_rear_fender_kf1",
+   "panel_id": "left_rear_fender",
+   "point_only": false,
+   "product_box": [
+    458,
+    347,
+    475,
+    359
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T09:59:57.086Z"
+  },
+  "pickup_left_rear_fender_kf3_m1": {
+   "box": [
+    494.3,
+    349.6,
+    511.3,
+    361.6
+   ],
+   "box_used": null,
+   "crop_h": 843,
+   "crop_w": 1280,
+   "kf_id": "pickup_left_rear_fender_kf3",
+   "panel_id": "left_rear_fender",
+   "point_only": false,
+   "product_box": [
+    465,
+    312,
+    482,
+    324
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:00:00.860Z"
+  },
+  "pickup_rear_window_kf1_m1": {
+   "box": [
+    743.7,
+    343.5,
+    767.7,
+    352.5
+   ],
+   "box_used": null,
+   "crop_h": 354,
+   "crop_w": 1280,
+   "kf_id": "pickup_rear_window_kf1",
+   "panel_id": "rear_window",
+   "point_only": false,
+   "product_box": [
+    730,
+    343,
+    754,
+    352
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "unsure",
+   "updated_at": "2026-11-02T10:00:04.786Z"
+  },
+  "pickup_rear_window_kf2_m1": {
+   "box": [
+    747.2,
+    346.7,
+    770.2,
+    356.7
+   ],
+   "box_used": null,
+   "crop_h": 356,
+   "crop_w": 1280,
+   "kf_id": "pickup_rear_window_kf2",
+   "panel_id": "rear_window",
+   "point_only": false,
+   "product_box": [
+    637,
+    344,
+    660,
+    354
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "unsure",
+   "updated_at": "2026-11-02T10:00:08.586Z"
+  },
+  "pickup_right_front_door_kf1_m1": {
+   "box": [
+    507.4,
+    441.5,
+    675.4,
+    455.5
+   ],
+   "box_used": null,
+   "crop_h": 793,
+   "crop_w": 1280,
+   "kf_id": "pickup_right_front_door_kf1",
+   "panel_id": "right_front_door",
+   "point_only": false,
+   "product_box": [
+    550,
+    348,
+    692,
+    359
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "reflection",
+   "updated_at": "2026-11-02T10:00:18.441Z"
+  },
+  "pickup_right_front_door_kf2_m1": {
+   "box": [
+    492.7,
+    427.2,
+    669.3,
+    448
+   ],
+   "box_used": null,
+   "crop_h": 773,
+   "crop_w": 1280,
+   "kf_id": "pickup_right_front_door_kf2",
+   "panel_id": "right_front_door",
+   "point_only": false,
+   "product_box": [
+    627,
+    452,
+    769,
+    461
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "reflection",
+   "updated_at": "2026-11-02T10:00:25.964Z"
+  },
+  "pickup_right_front_fender_kf1_m1": {
+   "box": [
+    575.3,
+    297.6,
+    620.6,
+    307.8
+   ],
+   "box_used": null,
+   "crop_h": 684,
+   "crop_w": 1280,
+   "kf_id": "pickup_right_front_fender_kf1",
+   "panel_id": "right_front_fender",
+   "point_only": false,
+   "product_box": [
+    627,
+    264,
+    655,
+    271
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:00:34.452Z"
+  },
+  "pickup_right_rear_door_kf3_m1": {
+   "box": [
+    282.4,
+    784.7,
+    389.9,
+    848.7
+   ],
+   "box_used": null,
+   "crop_h": 1280,
+   "crop_w": 424,
+   "kf_id": "pickup_right_rear_door_kf3",
+   "panel_id": "right_rear_door",
+   "point_only": false,
+   "product_box": [
+    284,
+    794,
+    397,
+    841
+   ],
+   "role": "pickup",
+   "size_class": "M",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:00:40.823Z"
+  },
+  "pickup_right_rear_door_kf3_m2": {
+   "box": null,
+   "box_used": null,
+   "crop_h": 1280,
+   "crop_w": 424,
+   "kf_id": "pickup_right_rear_door_kf3",
+   "panel_id": "right_rear_door",
+   "point_only": false,
+   "product_box": [
+    227,
+    714,
+    274,
+    770
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "not_mark",
+   "type": "reflection",
+   "updated_at": "2026-11-02T10:00:49.161Z"
+  },
+  "pickup_right_rear_fender_kf1_m1": {
+   "box": [
+    829,
+    343.7,
+    945,
+    400.7
+   ],
+   "box_used": null,
+   "crop_h": 797,
+   "crop_w": 1280,
+   "kf_id": "pickup_right_rear_fender_kf1",
+   "panel_id": "right_rear_fender",
+   "point_only": false,
+   "product_box": [
+    826,
+    275,
+    942,
+    332
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "dent",
+   "updated_at": "2026-11-02T10:00:54.577Z"
+  },
+  "pickup_roof_kf1_m1": {
+   "box": [
+    394,
+    336.4,
+    449.6,
+    351.6
+   ],
+   "box_used": null,
+   "crop_h": 459,
+   "crop_w": 1280,
+   "kf_id": "pickup_roof_kf1",
+   "panel_id": "roof",
+   "point_only": false,
+   "product_box": [
+    390,
+    314,
+    430,
+    323
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:01:00.911Z"
+  },
+  "pickup_roof_kf2_m1": {
+   "box": [
+    179.2,
+    229.8,
+    212.8,
+    248.5
+   ],
+   "box_used": null,
+   "crop_h": 497,
+   "crop_w": 1280,
+   "kf_id": "pickup_roof_kf2",
+   "panel_id": "roof",
+   "point_only": false,
+   "product_box": [
+    157,
+    216,
+    184,
+    227
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:01:06.798Z"
+  },
+  "pickup_tail_lights_kf1_m1": {
+   "box": null,
+   "box_used": null,
+   "crop_h": 424,
+   "crop_w": 1100,
+   "kf_id": "pickup_tail_lights_kf1",
+   "panel_id": "tail_lights",
+   "point_only": false,
+   "product_box": [
+    310,
+    64,
+    364,
+    171
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "not_mark",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:01:12.573Z"
+  },
+  "pickup_windshield_kf1_m1": {
+   "box": [
+    703.6,
+    25.8,
+    861.7,
+    220.4
+   ],
+   "box_used": null,
+   "crop_h": 356,
+   "crop_w": 1280,
+   "kf_id": "pickup_windshield_kf1",
+   "panel_id": "windshield",
+   "point_only": false,
+   "product_box": [
+    809,
+    37,
+    920,
+    145
+   ],
+   "role": "pickup",
+   "size_class": "M",
+   "spark_box": null,
+   "status": "moved",
+   "type": "reflection",
+   "updated_at": "2026-11-02T10:01:18.468Z"
+  },
+  "pickup_windshield_kf1_m2": {
+   "box": [
+    746.6,
+    348,
+    769.6,
+    356
+   ],
+   "box_used": null,
+   "crop_h": 356,
+   "crop_w": 1280,
+   "kf_id": "pickup_windshield_kf1",
+   "panel_id": "windshield",
+   "point_only": false,
+   "product_box": [
+    677,
+    348,
+    700,
+    356
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "unsure",
+   "updated_at": "2026-11-02T10:01:23.260Z"
+  },
+  "pickup_windshield_kf2_m1": {
+   "box": [
+    749.9,
+    344.4,
+    775.9,
+    353.4
+   ],
+   "box_used": null,
+   "crop_h": 356,
+   "crop_w": 1280,
+   "kf_id": "pickup_windshield_kf2",
+   "panel_id": "windshield",
+   "point_only": false,
+   "product_box": [
+    620,
+    344,
+    638,
+    353
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:01:30.869Z"
+  },
+  "return_hood_kf1_m1": {
+   "box": [
+    699.8,
+    122.1,
+    725.2,
+    136.2
+   ],
+   "box_used": null,
+   "crop_h": 466,
+   "crop_w": 1280,
+   "kf_id": "return_hood_kf1",
+   "panel_id": "hood",
+   "point_only": false,
+   "product_box": [
+    736,
+    119,
+    754,
+    127
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "dirt",
+   "updated_at": "2026-11-02T10:01:37.587Z"
+  },
+  "return_hood_kf2_m1": {
+   "box": [
+    183.3,
+    236.5,
+    215.9,
+    256.3
+   ],
+   "box_used": null,
+   "crop_h": 505,
+   "crop_w": 1280,
+   "kf_id": "return_hood_kf2",
+   "panel_id": "hood",
+   "point_only": false,
+   "product_box": [
+    207,
+    243,
+    237,
+    251
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:01:51.269Z"
+  },
+  "return_hood_kf2_m2": {
+   "box": [
+    708.6,
+    130.1,
+    723.6,
+    137.1
+   ],
+   "box_used": null,
+   "crop_h": 505,
+   "crop_w": 1280,
+   "kf_id": "return_hood_kf2",
+   "panel_id": "hood",
+   "point_only": false,
+   "product_box": [
+    740,
+    137,
+    755,
+    144
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:01:57.477Z"
+  },
+  "return_hood_kf2_m3": {
+   "box": null,
+   "box_used": null,
+   "crop_h": 505,
+   "crop_w": 1280,
+   "kf_id": "return_hood_kf2",
+   "panel_id": "hood",
+   "point_only": false,
+   "product_box": [
+    755,
+    138,
+    769,
+    144
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "not_mark",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:02:05.599Z"
+  },
+  "return_hood_kf3_m1": {
+   "box": [
+    504.6,
+    109.2,
+    527.3,
+    116.9
+   ],
+   "box_used": null,
+   "crop_h": 490,
+   "crop_w": 1280,
+   "kf_id": "return_hood_kf3",
+   "panel_id": "hood",
+   "point_only": false,
+   "product_box": [
+    614,
+    102,
+    632,
+    109
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "dirt",
+   "updated_at": "2026-11-02T10:02:14.807Z"
+  },
+  "return_hood_kf3_m2": {
+   "box": [
+    1089.3,
+    213.4,
+    1101.3,
+    220.4
+   ],
+   "box_used": null,
+   "crop_h": 490,
+   "crop_w": 1280,
+   "kf_id": "return_hood_kf3",
+   "panel_id": "hood",
+   "point_only": false,
+   "product_box": [
+    1028,
+    210,
+    1040,
+    217
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "dirt",
+   "updated_at": "2026-11-02T10:02:22.681Z"
+  },
+  "return_left_front_door_kf1_m1": {
+   "box": [
+    994.3,
+    329.7,
+    1029.3,
+    357.7
+   ],
+   "box_used": null,
+   "crop_h": 800,
+   "crop_w": 1280,
+   "kf_id": "return_left_front_door_kf1",
+   "panel_id": "left_front_door",
+   "point_only": false,
+   "product_box": [
+    1000,
+    354,
+    1035,
+    382
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "unsure",
+   "updated_at": "2026-11-02T10:02:30.833Z"
+  },
+  "return_left_front_door_kf1_m2": {
+   "box": [
+    509.3,
+    430.4,
+    533.4,
+    440.7
+   ],
+   "box_used": null,
+   "crop_h": 800,
+   "crop_w": 1280,
+   "kf_id": "return_left_front_door_kf1",
+   "panel_id": "left_front_door",
+   "point_only": false,
+   "product_box": [
+    556,
+    466,
+    576,
+    473
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:02:37.269Z"
+  },
+  "return_left_front_door_kf1_m3": {
+   "box": [
+    869.8,
+    483.9,
+    940.8,
+    491.9
+   ],
+   "box_used": null,
+   "crop_h": 800,
+   "crop_w": 1280,
+   "kf_id": "return_left_front_door_kf1",
+   "panel_id": "left_front_door",
+   "point_only": false,
+   "product_box": [
+    854,
+    522,
+    925,
+    530
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:02:42.269Z"
+  },
+  "return_left_front_fender_kf1_m1": {
+   "box": [
+    677,
+    302.6,
+    690,
+    309.6
+   ],
+   "box_used": null,
+   "crop_h": 698,
+   "crop_w": 1280,
+   "kf_id": "return_left_front_fender_kf1",
+   "panel_id": "left_front_fender",
+   "point_only": false,
+   "product_box": [
+    701,
+    265,
+    714,
+    272
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "unsure",
+   "updated_at": "2026-11-02T10:02:53.469Z"
+  },
+  "return_left_rear_door_kf1_m1": {
+   "box": [
+    864,
+    596.4,
+    879,
+    617.4
+   ],
+   "box_used": null,
+   "crop_h": 1280,
+   "crop_w": 921,
+   "kf_id": "return_left_rear_door_kf1",
+   "panel_id": "left_rear_door",
+   "point_only": false,
+   "product_box": [
+    863,
+    525,
+    878,
+    546
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:03:02.036Z"
+  },
+  "return_left_rear_door_kf2_m1": {
+   "box": [
+    694.7,
+    690.9,
+    711.7,
+    715.9
+   ],
+   "box_used": null,
+   "crop_h": 1280,
+   "crop_w": 800,
+   "kf_id": "return_left_rear_door_kf2",
+   "panel_id": "left_rear_door",
+   "point_only": false,
+   "product_box": [
+    664,
+    732,
+    681,
+    757
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:03:06.436Z"
+  },
+  "return_left_rear_fender_kf1_m1": {
+   "box": [
+    480.2,
+    335.8,
+    500.2,
+    348.8
+   ],
+   "box_used": null,
+   "crop_h": 818,
+   "crop_w": 1280,
+   "kf_id": "return_left_rear_fender_kf1",
+   "panel_id": "left_rear_fender",
+   "point_only": false,
+   "product_box": [
+    461,
+    271,
+    481,
+    284
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:03:10.465Z"
+  },
+  "return_rear_window_kf1_m1": {
+   "box": [
+    742.4,
+    344.9,
+    768.3,
+    354.9
+   ],
+   "box_used": null,
+   "crop_h": 357,
+   "crop_w": 1280,
+   "kf_id": "return_rear_window_kf1",
+   "panel_id": "rear_window",
+   "point_only": false,
+   "product_box": [
+    658,
+    343,
+    679,
+    353
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:03:16.107Z"
+  },
+  "return_rear_window_kf2_m2": {
+   "box": [
+    775.3,
+    341.3,
+    800.9,
+    351.6
+   ],
+   "box_used": null,
+   "crop_h": 353,
+   "crop_w": 1280,
+   "kf_id": "return_rear_window_kf2",
+   "panel_id": "rear_window",
+   "point_only": false,
+   "product_box": [
+    708,
+    327,
+    728,
+    334
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "unsure",
+   "updated_at": "2026-11-02T10:03:21.615Z"
+  },
+  "return_right_front_fender_kf1_m1": {
+   "box": [
+    573,
+    336,
+    622,
+    344
+   ],
+   "box_used": null,
+   "crop_h": 720,
+   "crop_w": 1280,
+   "kf_id": "return_right_front_fender_kf1",
+   "panel_id": "right_front_fender",
+   "point_only": false,
+   "product_box": [
+    573,
+    336,
+    622,
+    344
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "correct",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:03:27.307Z"
+  },
+  "return_right_rear_door_kf1_m1": {
+   "box": null,
+   "box_used": null,
+   "crop_h": 1280,
+   "crop_w": 411,
+   "kf_id": "return_right_rear_door_kf1",
+   "panel_id": "right_rear_door",
+   "point_only": false,
+   "product_box": [
+    223,
+    719,
+    254,
+    784
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "not_mark",
+   "type": "reflection",
+   "updated_at": "2026-11-02T10:03:33.948Z"
+  },
+  "return_right_rear_door_kf1_m2": {
+   "box": [
+    304.5,
+    743.3,
+    395.8,
+    813.5
+   ],
+   "box_used": null,
+   "crop_h": 1280,
+   "crop_w": 411,
+   "kf_id": "return_right_rear_door_kf1",
+   "panel_id": "right_rear_door",
+   "point_only": false,
+   "product_box": [
+    316,
+    835,
+    370,
+    878
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:03:42.361Z"
+  },
+  "return_roof_kf1_m1": {
+   "box": [
+    698.6,
+    127.2,
+    719.1,
+    136.7
+   ],
+   "box_used": null,
+   "crop_h": 501,
+   "crop_w": 1280,
+   "kf_id": "return_roof_kf1",
+   "panel_id": "roof",
+   "point_only": false,
+   "product_box": [
+    727,
+    103,
+    745,
+    111
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:03:49.828Z"
+  },
+  "return_roof_kf1_m2": {
+   "box": [
+    178.4,
+    231.8,
+    218.4,
+    249.4
+   ],
+   "box_used": null,
+   "crop_h": 501,
+   "crop_w": 1280,
+   "kf_id": "return_roof_kf1",
+   "panel_id": "roof",
+   "point_only": false,
+   "product_box": [
+    283,
+    180,
+    320,
+    187
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "scratch",
+   "updated_at": "2026-11-02T10:03:56.649Z"
+  },
+  "return_roof_kf2_m1": {
+   "box": [
+    702.3,
+    124,
+    722.3,
+    132
+   ],
+   "box_used": null,
+   "crop_h": 467,
+   "crop_w": 1280,
+   "kf_id": "return_roof_kf2",
+   "panel_id": "roof",
+   "point_only": false,
+   "product_box": [
+    780,
+    125,
+    800,
+    133
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "dirt",
+   "updated_at": "2026-11-02T10:04:01.758Z"
+  },
+  "return_roof_kf2_m2": {
+   "box": [
+    393.7,
+    341.4,
+    453.7,
+    348.4
+   ],
+   "box_used": null,
+   "crop_h": 467,
+   "crop_w": 1280,
+   "kf_id": "return_roof_kf2",
+   "panel_id": "roof",
+   "point_only": false,
+   "product_box": [
+    394,
+    339,
+    454,
+    346
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "unsure",
+   "updated_at": "2026-11-02T10:04:04.719Z"
+  },
+  "return_windshield_kf1_m1": {
+   "box": [
+    743.5,
+    346.4,
+    767,
+    354.4
+   ],
+   "box_used": null,
+   "crop_h": 357,
+   "crop_w": 1280,
+   "kf_id": "return_windshield_kf1",
+   "panel_id": "windshield",
+   "point_only": false,
+   "product_box": [
+    659,
+    348,
+    679,
+    356
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "chip",
+   "updated_at": "2026-11-02T10:04:08.898Z"
+  },
+  "return_windshield_kf2_m1": {
+   "box": [
+    766.8,
+    343.9,
+    797.6,
+    355.9
+   ],
+   "box_used": null,
+   "crop_h": 357,
+   "crop_w": 1280,
+   "kf_id": "return_windshield_kf2",
+   "panel_id": "windshield",
+   "point_only": false,
+   "product_box": [
+    731,
+    343,
+    752,
+    355
+   ],
+   "role": "return",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "moved",
+   "type": "unsure",
+   "updated_at": "2026-11-02T10:04:14.257Z"
+  }
+ },
+ "missed": [
+  {
+   "box": [
+    394,
+    340.6,
+    453.6,
+    358
+   ],
+   "created_at": "2026-11-02T10:01:42.948Z",
+   "crop_h": 466,
+   "crop_w": 1280,
+   "id": "return_hood_kf1_xmvz3aejo",
+   "kf_id": "return_hood_kf1",
+   "panel_id": "hood",
+   "role": "return"
+  }
+ ],
+ "run_id": "synth_pair2_r9",
+ "saved_at": "2026-11-02T10:04:14Z",
+ "schema": 1
+}

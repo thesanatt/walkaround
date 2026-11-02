@@ -1,0 +1,3613 @@
+{
+ "run": "synth_pair2_r9",
+ "truth_sha256": "0da77d6c2fc953f41ccdccc215b4a4f35de899f6a70219c9a966c8e7c95c60d1",
+ "ledger_run_id": "zoom_refine_synth_1102",
+ "zoom_settings": {
+  "enabled": true,
+  "min_px": 96,
+  "window_patches": 3,
+  "patch_sent_px": 28,
+  "out_w": 1280,
+  "out_h": 720
+ },
+ "table_moved": {
+  "spark": {
+   "n": 41,
+   "median_iou": 0.0,
+   "mean_iou": 0.043,
+   "median_centre_px": 56.1,
+   "on_mark": 2,
+   "iou_ge_05": 1
+  },
+  "spark_sam": {
+   "n": 41,
+   "median_iou": 0.0,
+   "mean_iou": 0.054,
+   "median_centre_px": 56.1,
+   "on_mark": 5,
+   "iou_ge_05": 1,
+   "sam_used": 34
+  },
+  "zoom": {
+   "n": 41,
+   "median_iou": 0.242,
+   "mean_iou": 0.306,
+   "median_centre_px": 9.9,
+   "on_mark": 22,
+   "iou_ge_05": 12,
+   "zoom_used": 27
+  },
+  "zoom_sam": {
+   "n": 41,
+   "median_iou": 0.458,
+   "mean_iou": 0.348,
+   "median_centre_px": 4.2,
+   "on_mark": 23,
+   "iou_ge_05": 16,
+   "sam_used": 39
+  }
+ },
+ "table_moved_and_correct": {
+  "spark": {
+   "n": 43,
+   "median_iou": 0.0,
+   "mean_iou": 0.087,
+   "median_centre_px": 55.6,
+   "on_mark": 4,
+   "iou_ge_05": 3
+  },
+  "spark_sam": {
+   "n": 43,
+   "median_iou": 0.0,
+   "mean_iou": 0.085,
+   "median_centre_px": 55.6,
+   "on_mark": 7,
+   "iou_ge_05": 3
+  },
+  "zoom": {
+   "n": 43,
+   "median_iou": 0.242,
+   "mean_iou": 0.302,
+   "median_centre_px": 9.9,
+   "on_mark": 23,
+   "iou_ge_05": 12
+  },
+  "zoom_sam": {
+   "n": 43,
+   "median_iou": 0.458,
+   "mean_iou": 0.349,
+   "median_centre_px": 4.2,
+   "on_mark": 24,
+   "iou_ge_05": 17
+  }
+ },
+ "vs": {
+  "zoom_vs_spark": {
+   "w_l_t": [
+    23,
+    1,
+    17
+   ],
+   "sign_p": 2.98e-06
+  },
+  "zoom_sam_vs_spark": {
+   "w_l_t": [
+    24,
+    2,
+    15
+   ],
+   "sign_p": 1.049e-05
+  },
+  "spark_sam_vs_spark": {
+   "w_l_t": [
+    6,
+    2,
+    33
+   ],
+   "sign_p": 0.2890625
+  },
+  "zoom_sam_vs_zoom": {
+   "w_l_t": [
+    20,
+    6,
+    15
+   ],
+   "sign_p": 0.00935531
+  }
+ },
+ "hand_centre_in_window_moved": 27,
+ "zoom_found_nothing_moved": 14,
+ "not_mark": [
+  {
+   "mark_id": "pickup_right_rear_door_kf3_m2",
+   "spark_type": "reflection",
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "moved_px": 0.0,
+   "zoom_sam_used": "sam",
+   "spark_sam_used": "sam"
+  },
+  {
+   "mark_id": "pickup_tail_lights_kf1_m1",
+   "spark_type": "scratch",
+   "zoom_used": "zoom",
+   "zoom_boxes": 2,
+   "zoom_type": "reflection",
+   "moved_px": 28.3,
+   "zoom_sam_used": "sam",
+   "spark_sam_used": "sam"
+  },
+  {
+   "mark_id": "return_hood_kf2_m3",
+   "spark_type": "chip",
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "moved_px": 43.6,
+   "zoom_sam_used": "spark",
+   "spark_sam_used": "sam"
+  },
+  {
+   "mark_id": "return_right_rear_door_kf1_m1",
+   "spark_type": "reflection",
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "scratch",
+   "moved_px": 90.5,
+   "zoom_sam_used": "sam",
+   "spark_sam_used": "sam"
+  }
+ ],
+ "correct": [
+  {
+   "mark_id": "pickup_left_rear_door_kf1_m1",
+   "iou": {
+    "spark": 1.0,
+    "spark_sam": 0.687,
+    "zoom": 0.444,
+    "zoom_sam": 0.682
+   },
+   "zoom_used": "zoom",
+   "moved_px": 6.1
+  },
+  {
+   "mark_id": "return_right_front_fender_kf1_m1",
+   "iou": {
+    "spark": 1.0,
+    "spark_sam": 0.749,
+    "zoom": 0.0,
+    "zoom_sam": 0.072
+   },
+   "zoom_used": "zoom",
+   "moved_px": 12.2
+  }
+ ],
+ "rows": [
+  {
+   "mark_id": "pickup_hood_kf1_m1",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    378.7,
+    329.6,
+    438,
+    348.9
+   ],
+   "crop_wh": [
+    1280,
+    471
+   ],
+   "window": [
+    311,
+    275,
+    481,
+    371
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    384.047,
+    340.467,
+    441.156,
+    347.933
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     376.0,
+     319.0,
+     416.0,
+     327.0
+    ],
+    "spark_sam": [
+     376.0,
+     315.0,
+     417.0,
+     328.0
+    ],
+    "zoom": [
+     392.6,
+     340.2,
+     432.6,
+     348.2
+    ],
+    "zoom_sam": [
+     383.0,
+     337.0,
+     434.0,
+     348.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.28,
+    "zoom_sam": 0.49
+   },
+   "centre_px": {
+    "spark": 20.4,
+    "spark_sam": 21.3,
+    "zoom": 6.5,
+    "zoom_sam": 3.3
+   },
+   "moved_px": 26.9
+  },
+  {
+   "mark_id": "pickup_left_front_door_kf1_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    507.4,
+    426.1,
+    526.4,
+    435.1
+   ],
+   "crop_wh": [
+    1280,
+    795
+   ],
+   "window": [
+    433,
+    416,
+    604,
+    512
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    509.148,
+    428.533,
+    527.584,
+    432.8
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     509.0,
+     459.0,
+     528.0,
+     468.0
+    ],
+    "spark_sam": [
+     504.0,
+     456.0,
+     533.0,
+     471.0
+    ],
+    "zoom": [
+     508.87,
+     426.17,
+     527.87,
+     435.17
+    ],
+    "zoom_sam": [
+     508.0,
+     428.0,
+     528.0,
+     434.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.845,
+    "zoom_sam": 0.611
+   },
+   "centre_px": {
+    "spark": 32.9,
+    "spark_sam": 32.9,
+    "zoom": 1.5,
+    "zoom_sam": 1.2
+   },
+   "moved_px": 32.8
+  },
+  {
+   "mark_id": "pickup_left_front_door_kf1_m2",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    986.7,
+    326.7,
+    1023.7,
+    355.7
+   ],
+   "crop_wh": [
+    1280,
+    795
+   ],
+   "window": [
+    948,
+    318,
+    1119,
+    414
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    990.75,
+    328.533,
+    1020.274,
+    352.267
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     1015.0,
+     352.0,
+     1052.0,
+     381.0
+    ],
+    "spark_sam": [
+     1013.0,
+     349.0,
+     1062.0,
+     389.0
+    ],
+    "zoom": [
+     987.01,
+     325.9,
+     1024.01,
+     354.9
+    ],
+    "zoom_sam": [
+     988.0,
+     328.0,
+     1022.0,
+     353.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.015,
+    "spark_sam": 0.024,
+    "zoom": 0.931,
+    "zoom_sam": 0.792
+   },
+   "centre_px": {
+    "spark": 38.0,
+    "spark_sam": 42.6,
+    "zoom": 0.9,
+    "zoom_sam": 0.7
+   },
+   "moved_px": 38.3
+  },
+  {
+   "mark_id": "pickup_left_front_fender_kf1_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    675.2,
+    289.1,
+    690.2,
+    297.1
+   ],
+   "crop_wh": [
+    1280,
+    685
+   ],
+   "window": [
+    668,
+    242,
+    839,
+    338
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    680.023,
+    279.733,
+    686.436,
+    283.467
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "spark",
+   "zoom_sam_used": "spark",
+   "spark_sam_note": "SAM's box is 3.3 times Spark's box, so it holds more than the mark",
+   "zoom_sam_note": "SAM's box is 4.2 times Spark's box, so it holds more than the mark",
+   "boxes": {
+    "spark": [
+     746.0,
+     286.0,
+     761.0,
+     294.0
+    ],
+    "spark_sam": [
+     746.0,
+     286.0,
+     761.0,
+     294.0
+    ],
+    "zoom": [
+     675.73,
+     277.6,
+     690.73,
+     285.6
+    ],
+    "zoom_sam": [
+     675.73,
+     277.6,
+     690.73,
+     285.6
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 70.9,
+    "spark_sam": 70.9,
+    "zoom": 11.5,
+    "zoom_sam": 11.5
+   },
+   "moved_px": 70.8
+  },
+  {
+   "mark_id": "pickup_left_front_fender_kf2_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    740.5,
+    280.3,
+    752.5,
+    287.3
+   ],
+   "crop_wh": [
+    1280,
+    674
+   ],
+   "window": [
+    701,
+    174,
+    871,
+    270
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     780.0,
+     219.0,
+     792.0,
+     226.0
+    ],
+    "spark_sam": [
+     778.0,
+     217.0,
+     797.0,
+     227.0
+    ],
+    "zoom": [
+     780.0,
+     219.0,
+     792.0,
+     226.0
+    ],
+    "zoom_sam": [
+     778.0,
+     217.0,
+     797.0,
+     227.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 72.9,
+    "spark_sam": 74.2,
+    "zoom": 72.9,
+    "zoom_sam": 74.2
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "pickup_left_rear_door_kf1_m1",
+   "status": "correct",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    880,
+    605,
+    898,
+    627
+   ],
+   "crop_wh": [
+    938,
+    1280
+   ],
+   "window": [
+    767,
+    568,
+    938,
+    664
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    877.348,
+    613.467,
+    892.979,
+    628.133
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     880.0,
+     605.0,
+     898.0,
+     627.0
+    ],
+    "spark_sam": [
+     881.0,
+     609.0,
+     897.0,
+     626.0
+    ],
+    "zoom": [
+     876.16,
+     609.8,
+     894.16,
+     631.8
+    ],
+    "zoom_sam": [
+     881.0,
+     609.0,
+     896.0,
+     627.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 1.0,
+    "spark_sam": 0.687,
+    "zoom": 0.444,
+    "zoom_sam": 0.682
+   },
+   "centre_px": {
+    "spark": 0.0,
+    "spark_sam": 1.5,
+    "zoom": 6.1,
+    "zoom_sam": 2.1
+   },
+   "moved_px": 6.1
+  },
+  {
+   "mark_id": "pickup_left_rear_door_kf2_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    650.1,
+    646.2,
+    666.1,
+    667.2
+   ],
+   "crop_wh": [
+    754,
+    1280
+   ],
+   "window": [
+    550,
+    524,
+    720,
+    620
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     627.0,
+     561.0,
+     643.0,
+     582.0
+    ],
+    "spark_sam": [
+     625.0,
+     555.0,
+     646.0,
+     584.0
+    ],
+    "zoom": [
+     627.0,
+     561.0,
+     643.0,
+     582.0
+    ],
+    "zoom_sam": [
+     625.0,
+     555.0,
+     646.0,
+     584.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 88.3,
+    "spark_sam": 90.1,
+    "zoom": 88.3,
+    "zoom_sam": 90.1
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "pickup_left_rear_fender_kf1_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    495.4,
+    338,
+    512.4,
+    350
+   ],
+   "crop_wh": [
+    1280,
+    818
+   ],
+   "window": [
+    381,
+    305,
+    552,
+    401
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    499.498,
+    339.133,
+    511.12,
+    349.8
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     458.0,
+     347.0,
+     475.0,
+     359.0
+    ],
+    "spark_sam": [
+     451.0,
+     345.0,
+     479.0,
+     361.0
+    ],
+    "zoom": [
+     496.81,
+     338.47,
+     513.81,
+     350.47
+    ],
+    "zoom_sam": [
+     498.0,
+     338.0,
+     512.0,
+     350.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.788,
+    "zoom_sam": 0.824
+   },
+   "centre_px": {
+    "spark": 38.5,
+    "spark_sam": 39.9,
+    "zoom": 1.5,
+    "zoom_sam": 1.1
+   },
+   "moved_px": 39.7
+  },
+  {
+   "mark_id": "pickup_left_rear_fender_kf3_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    494.3,
+    349.6,
+    511.3,
+    361.6
+   ],
+   "crop_wh": [
+    1280,
+    843
+   ],
+   "window": [
+    388,
+    270,
+    559,
+    366
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    495.409,
+    349.733,
+    507.834,
+    358.8
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     465.0,
+     312.0,
+     482.0,
+     324.0
+    ],
+    "spark_sam": [
+     457.0,
+     311.0,
+     487.0,
+     327.0
+    ],
+    "zoom": [
+     493.12,
+     348.27,
+     510.12,
+     360.27
+    ],
+    "zoom_sam": [
+     495.0,
+     351.0,
+     509.0,
+     363.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.705,
+    "zoom_sam": 0.664
+   },
+   "centre_px": {
+    "spark": 47.7,
+    "spark_sam": 47.8,
+    "zoom": 1.8,
+    "zoom_sam": 1.6
+   },
+   "moved_px": 45.9
+  },
+  {
+   "mark_id": "pickup_rear_window_kf1_m1",
+   "status": "moved",
+   "type": "unsure",
+   "size_class": "S",
+   "hand": [
+    743.7,
+    343.5,
+    767.7,
+    352.5
+   ],
+   "crop_wh": [
+    1280,
+    354
+   ],
+   "window": [
+    657,
+    258,
+    827,
+    354
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    750.102,
+    344.533,
+    769.359,
+    354.0
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     730.0,
+     343.0,
+     754.0,
+     352.0
+    ],
+    "spark_sam": [
+     743.0,
+     344.0,
+     763.0,
+     354.0
+    ],
+    "zoom": [
+     747.73,
+     344.77,
+     771.73,
+     353.77
+    ],
+    "zoom_sam": [
+     744.0,
+     344.0,
+     766.0,
+     354.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.254,
+    "spark_sam": 0.651,
+    "zoom": 0.556,
+    "zoom_sam": 0.751
+   },
+   "centre_px": {
+    "spark": 13.7,
+    "spark_sam": 2.9,
+    "zoom": 4.2,
+    "zoom_sam": 1.2
+   },
+   "moved_px": 17.8
+  },
+  {
+   "mark_id": "pickup_rear_window_kf2_m1",
+   "status": "moved",
+   "type": "unsure",
+   "size_class": "S",
+   "hand": [
+    747.2,
+    346.7,
+    770.2,
+    356.7
+   ],
+   "crop_wh": [
+    1280,
+    356
+   ],
+   "window": [
+    563,
+    260,
+    734,
+    356
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     637.0,
+     344.0,
+     660.0,
+     354.0
+    ],
+    "spark_sam": [
+     630.0,
+     343.0,
+     660.0,
+     356.0
+    ],
+    "zoom": [
+     637.0,
+     344.0,
+     660.0,
+     354.0
+    ],
+    "zoom_sam": [
+     630.0,
+     343.0,
+     660.0,
+     356.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 110.2,
+    "spark_sam": 113.7,
+    "zoom": 110.2,
+    "zoom_sam": 113.7
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "pickup_right_front_door_kf1_m1",
+   "status": "moved",
+   "type": "reflection",
+   "size_class": "S",
+   "hand": [
+    507.4,
+    441.5,
+    675.4,
+    455.5
+   ],
+   "crop_wh": [
+    1280,
+    793
+   ],
+   "window": [
+    522,
+    298,
+    720,
+    409
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     550.0,
+     348.0,
+     692.0,
+     359.0
+    ],
+    "spark_sam": [
+     539.0,
+     345.0,
+     699.0,
+     360.0
+    ],
+    "zoom": [
+     550.0,
+     348.0,
+     692.0,
+     359.0
+    ],
+    "zoom_sam": [
+     539.0,
+     345.0,
+     699.0,
+     360.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 99.5,
+    "spark_sam": 99.9,
+    "zoom": 99.5,
+    "zoom_sam": 99.9
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "pickup_right_front_door_kf2_m1",
+   "status": "moved",
+   "type": "reflection",
+   "size_class": "S",
+   "hand": [
+    492.7,
+    427.2,
+    669.3,
+    448
+   ],
+   "crop_wh": [
+    1280,
+    773
+   ],
+   "window": [
+    599,
+    401,
+    797,
+    512
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    599.0,
+    437.229,
+    671.239,
+    441.083
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     627.0,
+     452.0,
+     769.0,
+     461.0
+    ],
+    "spark_sam": [
+     627.0,
+     446.0,
+     771.0,
+     465.0
+    ],
+    "zoom": [
+     564.12,
+     434.66,
+     706.12,
+     443.66
+    ],
+    "zoom_sam": [
+     555.0,
+     433.0,
+     702.0,
+     448.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.013,
+    "zoom": 0.236,
+    "zoom_sam": 0.412
+   },
+   "centre_px": {
+    "spark": 118.5,
+    "spark_sam": 119.3,
+    "zoom": 54.1,
+    "zoom_sam": 47.6
+   },
+   "moved_px": 65.2
+  },
+  {
+   "mark_id": "pickup_right_front_fender_kf1_m1",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    575.3,
+    297.6,
+    620.6,
+    307.8
+   ],
+   "crop_wh": [
+    1280,
+    684
+   ],
+   "window": [
+    556,
+    220,
+    726,
+    316
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "unsure",
+   "zoom_box": [
+    574.328,
+    299.733,
+    622.938,
+    304.933
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "spark",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "SAM's mask fills Spark's box, so it found no edge of a mark inside it",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     627.0,
+     264.0,
+     655.0,
+     271.0
+    ],
+    "spark_sam": [
+     627.0,
+     264.0,
+     655.0,
+     271.0
+    ],
+    "zoom": [
+     584.63,
+     298.83,
+     612.63,
+     305.83
+    ],
+    "zoom_sam": [
+     576.0,
+     300.0,
+     618.0,
+     306.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.424,
+    "zoom_sam": 0.545
+   },
+   "centre_px": {
+    "spark": 55.6,
+    "spark_sam": 55.6,
+    "zoom": 0.8,
+    "zoom_sam": 1.0
+   },
+   "moved_px": 54.8
+  },
+  {
+   "mark_id": "pickup_right_rear_door_kf3_m1",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "M",
+   "hand": [
+    282.4,
+    784.7,
+    389.9,
+    848.7
+   ],
+   "crop_wh": [
+    424,
+    1280
+   ],
+   "window": [
+    241,
+    766,
+    424,
+    869
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "scratch",
+   "zoom_box": [
+    312.484,
+    793.753,
+    385.827,
+    841.39
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     284.0,
+     794.0,
+     397.0,
+     841.0
+    ],
+    "spark_sam": [
+     309.0,
+     794.0,
+     381.0,
+     840.0
+    ],
+    "zoom": [
+     292.66,
+     794.07,
+     405.66,
+     841.07
+    ],
+    "zoom_sam": [
+     310.0,
+     794.0,
+     380.0,
+     839.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.69,
+    "spark_sam": 0.481,
+    "zoom": 0.6,
+    "zoom_sam": 0.458
+   },
+   "centre_px": {
+    "spark": 4.4,
+    "spark_sam": 8.9,
+    "zoom": 13.0,
+    "zoom_sam": 8.9
+   },
+   "moved_px": 8.7
+  },
+  {
+   "mark_id": "pickup_right_rear_door_kf3_m2",
+   "status": "not_mark",
+   "type": "reflection",
+   "size_class": "S",
+   "hand": null,
+   "crop_wh": [
+    424,
+    1280
+   ],
+   "window": [
+    151,
+    686,
+    350,
+    798
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     227.0,
+     714.0,
+     274.0,
+     770.0
+    ],
+    "spark_sam": [
+     224.0,
+     734.0,
+     272.0,
+     775.0
+    ],
+    "zoom": [
+     227.0,
+     714.0,
+     274.0,
+     770.0
+    ],
+    "zoom_sam": [
+     224.0,
+     734.0,
+     272.0,
+     775.0
+    ]
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "pickup_right_rear_fender_kf1_m1",
+   "status": "moved",
+   "type": "dent",
+   "size_class": "S",
+   "hand": [
+    829,
+    343.7,
+    945,
+    400.7
+   ],
+   "crop_wh": [
+    1280,
+    797
+   ],
+   "window": [
+    784,
+    247,
+    984,
+    360
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     826.0,
+     275.0,
+     942.0,
+     332.0
+    ],
+    "spark_sam": [
+     836.0,
+     286.0,
+     938.0,
+     339.0
+    ],
+    "zoom": [
+     826.0,
+     275.0,
+     942.0,
+     332.0
+    ],
+    "zoom_sam": [
+     836.0,
+     286.0,
+     938.0,
+     339.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 68.8,
+    "spark_sam": 59.7,
+    "zoom": 68.8,
+    "zoom_sam": 59.7
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "pickup_roof_kf1_m1",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    394,
+    336.4,
+    449.6,
+    351.6
+   ],
+   "crop_wh": [
+    1280,
+    459
+   ],
+   "window": [
+    325,
+    270,
+    495,
+    366
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    398.977,
+    341.067,
+    446.656,
+    347.467
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "spark",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "SAM's mask fills Spark's box, so it found no edge of a mark inside it",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     390.0,
+     314.0,
+     430.0,
+     323.0
+    ],
+    "spark_sam": [
+     390.0,
+     314.0,
+     430.0,
+     323.0
+    ],
+    "zoom": [
+     402.82,
+     339.77,
+     442.82,
+     348.77
+    ],
+    "zoom_sam": [
+     397.0,
+     341.0,
+     447.0,
+     349.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.426,
+    "zoom_sam": 0.473
+   },
+   "centre_px": {
+    "spark": 28.1,
+    "spark_sam": 28.1,
+    "zoom": 1.1,
+    "zoom_sam": 1.0
+   },
+   "moved_px": 28.8
+  },
+  {
+   "mark_id": "pickup_roof_kf2_m1",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    179.2,
+    229.8,
+    212.8,
+    248.5
+   ],
+   "crop_wh": [
+    1280,
+    497
+   ],
+   "window": [
+    85,
+    174,
+    256,
+    270
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "scratch",
+   "zoom_box": [
+    189.47,
+    217.467,
+    215.922,
+    226.133
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     157.0,
+     216.0,
+     184.0,
+     227.0
+    ],
+    "spark_sam": [
+     155.0,
+     212.0,
+     189.0,
+     228.0
+    ],
+    "zoom": [
+     189.2,
+     216.3,
+     216.2,
+     227.3
+    ],
+    "zoom_sam": [
+     184.0,
+     213.0,
+     220.0,
+     229.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 31.0,
+    "spark_sam": 30.7,
+    "zoom": 18.6,
+    "zoom_sam": 19.1
+   },
+   "moved_px": 32.2
+  },
+  {
+   "mark_id": "pickup_tail_lights_kf1_m1",
+   "status": "not_mark",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": null,
+   "crop_wh": [
+    1100,
+    424
+   ],
+   "window": [
+    192,
+    36,
+    482,
+    199
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 2,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    345.609,
+    116.594,
+    365.547,
+    161.193
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     310.0,
+     64.0,
+     364.0,
+     171.0
+    ],
+    "spark_sam": [
+     311.0,
+     73.0,
+     350.0,
+     163.0
+    ],
+    "zoom": [
+     328.58,
+     85.39,
+     382.58,
+     192.39
+    ],
+    "zoom_sam": [
+     327.0,
+     101.0,
+     376.0,
+     201.0
+    ]
+   },
+   "moved_px": 28.3
+  },
+  {
+   "mark_id": "pickup_windshield_kf1_m1",
+   "status": "moved",
+   "type": "reflection",
+   "size_class": "M",
+   "hand": [
+    703.6,
+    25.8,
+    861.7,
+    220.4
+   ],
+   "crop_wh": [
+    1280,
+    356
+   ],
+   "window": [
+    719,
+    9,
+    1010,
+    173
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     809.0,
+     37.0,
+     920.0,
+     145.0
+    ],
+    "spark_sam": [
+     805.0,
+     41.0,
+     913.0,
+     149.0
+    ],
+    "zoom": [
+     809.0,
+     37.0,
+     920.0,
+     145.0
+    ],
+    "zoom_sam": [
+     805.0,
+     41.0,
+     913.0,
+     149.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.154,
+    "spark_sam": 0.169,
+    "zoom": 0.154,
+    "zoom_sam": 0.169
+   },
+   "centre_px": {
+    "spark": 87.9,
+    "spark_sam": 81.4,
+    "zoom": 87.9,
+    "zoom_sam": 81.4
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "pickup_windshield_kf1_m2",
+   "status": "moved",
+   "type": "unsure",
+   "size_class": "S",
+   "hand": [
+    746.6,
+    348,
+    769.6,
+    356
+   ],
+   "crop_wh": [
+    1280,
+    356
+   ],
+   "window": [
+    603,
+    260,
+    774,
+    356
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    740.602,
+    345.867,
+    764.782,
+    356.0
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     677.0,
+     348.0,
+     700.0,
+     356.0
+    ],
+    "spark_sam": [
+     669.0,
+     348.0,
+     703.0,
+     356.0
+    ],
+    "zoom": [
+     741.19,
+     346.93,
+     764.19,
+     354.93
+    ],
+    "zoom_sam": [
+     748.0,
+     346.0,
+     768.0,
+     356.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.496,
+    "zoom_sam": 0.714
+   },
+   "centre_px": {
+    "spark": 69.6,
+    "spark_sam": 72.1,
+    "zoom": 5.5,
+    "zoom_sam": 1.0
+   },
+   "moved_px": 64.2
+  },
+  {
+   "mark_id": "pickup_windshield_kf2_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    749.9,
+    344.4,
+    775.9,
+    353.4
+   ],
+   "crop_wh": [
+    1280,
+    356
+   ],
+   "window": [
+    544,
+    260,
+    714,
+    356
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     620.0,
+     344.0,
+     638.0,
+     353.0
+    ],
+    "spark_sam": [
+     614.0,
+     342.0,
+     643.0,
+     356.0
+    ],
+    "zoom": [
+     620.0,
+     344.0,
+     638.0,
+     353.0
+    ],
+    "zoom_sam": [
+     614.0,
+     342.0,
+     643.0,
+     356.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 133.9,
+    "spark_sam": 134.4,
+    "zoom": 133.9,
+    "zoom_sam": 134.4
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "return_hood_kf1_m1",
+   "status": "moved",
+   "type": "dirt",
+   "size_class": "S",
+   "hand": [
+    699.8,
+    122.1,
+    725.2,
+    136.2
+   ],
+   "crop_wh": [
+    1280,
+    466
+   ],
+   "window": [
+    660,
+    75,
+    830,
+    171
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "spark",
+   "zoom_sam_used": "spark",
+   "spark_sam_note": "SAM's box is 4.3 times Spark's box, so it holds more than the mark",
+   "zoom_sam_note": "SAM's box is 4.3 times Spark's box, so it holds more than the mark",
+   "boxes": {
+    "spark": [
+     736.0,
+     119.0,
+     754.0,
+     127.0
+    ],
+    "spark_sam": [
+     736.0,
+     119.0,
+     754.0,
+     127.0
+    ],
+    "zoom": [
+     736.0,
+     119.0,
+     754.0,
+     127.0
+    ],
+    "zoom_sam": [
+     736.0,
+     119.0,
+     754.0,
+     127.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 33.1,
+    "spark_sam": 33.1,
+    "zoom": 33.1,
+    "zoom_sam": 33.1
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "return_hood_kf2_m1",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    183.3,
+    236.5,
+    215.9,
+    256.3
+   ],
+   "crop_wh": [
+    1280,
+    505
+   ],
+   "window": [
+    137,
+    199,
+    307,
+    295
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "unsure",
+   "zoom_box": [
+    193.977,
+    244.067,
+    224.656,
+    252.467
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     207.0,
+     243.0,
+     237.0,
+     251.0
+    ],
+    "spark_sam": [
+     191.0,
+     239.0,
+     234.0,
+     253.0
+    ],
+    "zoom": [
+     194.32,
+     244.27,
+     224.32,
+     252.27
+    ],
+    "zoom_sam": [
+     190.0,
+     241.0,
+     217.0,
+     253.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.087,
+    "spark_sam": 0.388,
+    "zoom": 0.242,
+    "zoom_sam": 0.472
+   },
+   "centre_px": {
+    "spark": 22.4,
+    "spark_sam": 12.9,
+    "zoom": 9.9,
+    "zoom_sam": 3.9
+   },
+   "moved_px": 12.7
+  },
+  {
+   "mark_id": "return_hood_kf2_m2",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    708.6,
+    130.1,
+    723.6,
+    137.1
+   ],
+   "crop_wh": [
+    1280,
+    505
+   ],
+   "window": [
+    662,
+    92,
+    833,
+    188
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    714.102,
+    131.2,
+    725.056,
+    137.067
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     740.0,
+     137.0,
+     755.0,
+     144.0
+    ],
+    "spark_sam": [
+     737.0,
+     134.0,
+     762.0,
+     146.0
+    ],
+    "zoom": [
+     712.08,
+     130.63,
+     727.08,
+     137.63
+    ],
+    "zoom_sam": [
+     709.0,
+     130.0,
+     729.0,
+     139.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.55,
+    "zoom_sam": 0.559
+   },
+   "centre_px": {
+    "spark": 32.1,
+    "spark_sam": 34.0,
+    "zoom": 3.5,
+    "zoom_sam": 3.0
+   },
+   "moved_px": 28.6
+  },
+  {
+   "mark_id": "return_hood_kf2_m3",
+   "status": "not_mark",
+   "type": "chip",
+   "size_class": "S",
+   "hand": null,
+   "crop_wh": [
+    1280,
+    505
+   ],
+   "window": [
+    677,
+    93,
+    847,
+    189
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    712.727,
+    130.467,
+    725.477,
+    136.467
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "spark",
+   "spark_sam_note": "",
+   "zoom_sam_note": "SAM found nothing in the box",
+   "boxes": {
+    "spark": [
+     755.0,
+     138.0,
+     769.0,
+     144.0
+    ],
+    "spark_sam": [
+     759.0,
+     136.0,
+     775.0,
+     146.0
+    ],
+    "zoom": [
+     712.1,
+     130.47,
+     726.1,
+     136.47
+    ],
+    "zoom_sam": [
+     712.1,
+     130.47,
+     726.1,
+     136.47
+    ]
+   },
+   "moved_px": 43.6
+  },
+  {
+   "mark_id": "return_hood_kf3_m1",
+   "status": "moved",
+   "type": "dirt",
+   "size_class": "S",
+   "hand": [
+    504.6,
+    109.2,
+    527.3,
+    116.9
+   ],
+   "crop_wh": [
+    1280,
+    490
+   ],
+   "window": [
+    538,
+    58,
+    708,
+    154
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     614.0,
+     102.0,
+     632.0,
+     109.0
+    ],
+    "spark_sam": [
+     611.0,
+     100.0,
+     637.0,
+     111.0
+    ],
+    "zoom": [
+     614.0,
+     102.0,
+     632.0,
+     109.0
+    ],
+    "zoom_sam": [
+     611.0,
+     100.0,
+     637.0,
+     111.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 107.3,
+    "spark_sam": 108.3,
+    "zoom": 107.3,
+    "zoom_sam": 108.3
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "return_hood_kf3_m2",
+   "status": "moved",
+   "type": "dirt",
+   "size_class": "S",
+   "hand": [
+    1089.3,
+    213.4,
+    1101.3,
+    220.4
+   ],
+   "crop_wh": [
+    1280,
+    490
+   ],
+   "window": [
+    949,
+    166,
+    1119,
+    262
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    1086.992,
+    214.8,
+    1094.031,
+    219.6
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "spark",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "SAM's box is 6.4 times Spark's box, so it holds more than the mark",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     1028.0,
+     210.0,
+     1040.0,
+     217.0
+    ],
+    "spark_sam": [
+     1028.0,
+     210.0,
+     1040.0,
+     217.0
+    ],
+    "zoom": [
+     1084.51,
+     213.7,
+     1096.51,
+     220.7
+    ],
+    "zoom_sam": [
+     1090.0,
+     214.0,
+     1099.0,
+     221.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.404,
+    "zoom_sam": 0.644
+   },
+   "centre_px": {
+    "spark": 61.4,
+    "spark_sam": 61.4,
+    "zoom": 4.8,
+    "zoom_sam": 1.0
+   },
+   "moved_px": 56.6
+  },
+  {
+   "mark_id": "return_left_front_door_kf1_m1",
+   "status": "moved",
+   "type": "unsure",
+   "size_class": "S",
+   "hand": [
+    994.3,
+    329.7,
+    1029.3,
+    357.7
+   ],
+   "crop_wh": [
+    1280,
+    800
+   ],
+   "window": [
+    932,
+    320,
+    1103,
+    416
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    994.789,
+    330.133,
+    1037.806,
+    350.133
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     1000.0,
+     354.0,
+     1035.0,
+     382.0
+    ],
+    "spark_sam": [
+     993.0,
+     353.0,
+     1037.0,
+     391.0
+    ],
+    "zoom": [
+     998.8,
+     326.13,
+     1033.8,
+     354.13
+    ],
+    "zoom_sam": [
+     993.0,
+     329.0,
+     1028.0,
+     354.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.059,
+    "spark_sam": 0.066,
+    "zoom": 0.614,
+    "zoom_sam": 0.79
+   },
+   "centre_px": {
+    "spark": 25.0,
+    "spark_sam": 28.5,
+    "zoom": 5.7,
+    "zoom_sam": 2.6
+   },
+   "moved_px": 27.9
+  },
+  {
+   "mark_id": "return_left_front_door_kf1_m2",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    509.3,
+    430.4,
+    533.4,
+    440.7
+   ],
+   "crop_wh": [
+    1280,
+    800
+   ],
+   "window": [
+    481,
+    422,
+    651,
+    518
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    516.594,
+    432.8,
+    534.656,
+    437.067
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "spark",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "SAM's mask fills Spark's box, so it found no edge of a mark inside it",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     556.0,
+     466.0,
+     576.0,
+     473.0
+    ],
+    "spark_sam": [
+     556.0,
+     466.0,
+     576.0,
+     473.0
+    ],
+    "zoom": [
+     515.62,
+     431.43,
+     535.62,
+     438.43
+    ],
+    "zoom_sam": [
+     512.0,
+     432.0,
+     533.0,
+     439.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.472,
+    "zoom_sam": 0.592
+   },
+   "centre_px": {
+    "spark": 56.1,
+    "spark_sam": 56.1,
+    "zoom": 4.3,
+    "zoom_sam": 1.2
+   },
+   "moved_px": 53.2
+  },
+  {
+   "mark_id": "return_left_front_door_kf1_m3",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    869.8,
+    483.9,
+    940.8,
+    491.9
+   ],
+   "crop_wh": [
+    1280,
+    800
+   ],
+   "window": [
+    804,
+    478,
+    975,
+    574
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    878.412,
+    484.667,
+    960.572,
+    491.067
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     854.0,
+     522.0,
+     925.0,
+     530.0
+    ],
+    "spark_sam": [
+     846.0,
+     516.0,
+     923.0,
+     532.0
+    ],
+    "zoom": [
+     883.99,
+     483.87,
+     954.99,
+     491.87
+    ],
+    "zoom_sam": [
+     872.0,
+     485.0,
+     945.0,
+     492.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.662,
+    "zoom_sam": 0.786
+   },
+   "centre_px": {
+    "spark": 41.2,
+    "spark_sam": 41.7,
+    "zoom": 14.2,
+    "zoom_sam": 3.3
+   },
+   "moved_px": 48.5
+  },
+  {
+   "mark_id": "return_left_front_fender_kf1_m1",
+   "status": "moved",
+   "type": "unsure",
+   "size_class": "S",
+   "hand": [
+    677,
+    302.6,
+    690,
+    309.6
+   ],
+   "crop_wh": [
+    1280,
+    698
+   ],
+   "window": [
+    622,
+    220,
+    793,
+    316
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    676.373,
+    307.333,
+    683.186,
+    312.533
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "spark",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "SAM's mask fills Spark's box, so it found no edge of a mark inside it",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     701.0,
+     265.0,
+     714.0,
+     272.0
+    ],
+    "spark_sam": [
+     701.0,
+     265.0,
+     714.0,
+     272.0
+    ],
+    "zoom": [
+     673.28,
+     306.43,
+     686.28,
+     313.43
+    ],
+    "zoom_sam": [
+     673.0,
+     303.0,
+     689.0,
+     313.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.193,
+    "zoom_sam": 0.461
+   },
+   "centre_px": {
+    "spark": 44.6,
+    "spark_sam": 44.6,
+    "zoom": 5.3,
+    "zoom_sam": 3.1
+   },
+   "moved_px": 49.9
+  },
+  {
+   "mark_id": "return_left_rear_door_kf1_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    864,
+    596.4,
+    879,
+    617.4
+   ],
+   "crop_wh": [
+    921,
+    1280
+   ],
+   "window": [
+    750,
+    488,
+    921,
+    584
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     863.0,
+     525.0,
+     878.0,
+     546.0
+    ],
+    "spark_sam": [
+     860.0,
+     524.0,
+     886.0,
+     548.0
+    ],
+    "zoom": [
+     863.0,
+     525.0,
+     878.0,
+     546.0
+    ],
+    "zoom_sam": [
+     860.0,
+     524.0,
+     886.0,
+     548.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 71.4,
+    "spark_sam": 70.9,
+    "zoom": 71.4,
+    "zoom_sam": 70.9
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "return_left_rear_door_kf2_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    694.7,
+    690.9,
+    711.7,
+    715.9
+   ],
+   "crop_wh": [
+    800,
+    1280
+   ],
+   "window": [
+    587,
+    696,
+    758,
+    792
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "unsure",
+   "zoom_box": [
+    696.146,
+    696.0,
+    712.311,
+    710.4
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     664.0,
+     732.0,
+     681.0,
+     757.0
+    ],
+    "spark_sam": [
+     661.0,
+     731.0,
+     686.0,
+     762.0
+    ],
+    "zoom": [
+     695.73,
+     690.7,
+     712.73,
+     715.7
+    ],
+    "zoom_sam": [
+     695.0,
+     694.0,
+     709.0,
+     713.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.873,
+    "zoom_sam": 0.626
+   },
+   "centre_px": {
+    "spark": 51.3,
+    "spark_sam": 52.3,
+    "zoom": 1.0,
+    "zoom_sam": 1.2
+   },
+   "moved_px": 52.1
+  },
+  {
+   "mark_id": "return_left_rear_fender_kf1_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    480.2,
+    335.8,
+    500.2,
+    348.8
+   ],
+   "crop_wh": [
+    1280,
+    818
+   ],
+   "window": [
+    386,
+    230,
+    556,
+    326
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     461.0,
+     271.0,
+     481.0,
+     284.0
+    ],
+    "spark_sam": [
+     456.0,
+     267.0,
+     486.0,
+     287.0
+    ],
+    "zoom": [
+     461.0,
+     271.0,
+     481.0,
+     284.0
+    ],
+    "zoom_sam": [
+     456.0,
+     267.0,
+     486.0,
+     287.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 67.6,
+    "spark_sam": 68.1,
+    "zoom": 67.6,
+    "zoom_sam": 68.1
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "return_rear_window_kf1_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    742.4,
+    344.9,
+    768.3,
+    354.9
+   ],
+   "crop_wh": [
+    1280,
+    357
+   ],
+   "window": [
+    583,
+    261,
+    754,
+    357
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     658.0,
+     343.0,
+     679.0,
+     353.0
+    ],
+    "spark_sam": [
+     652.0,
+     344.0,
+     685.0,
+     357.0
+    ],
+    "zoom": [
+     658.0,
+     343.0,
+     679.0,
+     353.0
+    ],
+    "zoom_sam": [
+     652.0,
+     344.0,
+     685.0,
+     357.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 86.9,
+    "spark_sam": 86.9,
+    "zoom": 86.9,
+    "zoom_sam": 86.9
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "return_rear_window_kf2_m2",
+   "status": "moved",
+   "type": "unsure",
+   "size_class": "S",
+   "hand": [
+    775.3,
+    341.3,
+    800.9,
+    351.6
+   ],
+   "crop_wh": [
+    1280,
+    353
+   ],
+   "window": [
+    633,
+    257,
+    803,
+    353
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    770.594,
+    341.267,
+    791.047,
+    353.0
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     708.0,
+     327.0,
+     728.0,
+     334.0
+    ],
+    "spark_sam": [
+     703.0,
+     325.0,
+     736.0,
+     337.0
+    ],
+    "zoom": [
+     770.82,
+     343.63,
+     790.82,
+     350.63
+    ],
+    "zoom_sam": [
+     777.0,
+     342.0,
+     798.0,
+     353.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.368,
+    "zoom_sam": 0.688
+   },
+   "centre_px": {
+    "spark": 71.9,
+    "spark_sam": 70.3,
+    "zoom": 7.3,
+    "zoom_sam": 1.2
+   },
+   "moved_px": 65.0
+  },
+  {
+   "mark_id": "return_right_front_fender_kf1_m1",
+   "status": "correct",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    573,
+    336,
+    622,
+    344
+   ],
+   "crop_wh": [
+    1280,
+    720
+   ],
+   "window": [
+    512,
+    292,
+    683,
+    388
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    575.323,
+    325.6,
+    619.009,
+    330.0
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     573.0,
+     336.0,
+     622.0,
+     344.0
+    ],
+    "spark_sam": [
+     573.0,
+     337.0,
+     620.0,
+     345.0
+    ],
+    "zoom": [
+     572.67,
+     323.8,
+     621.67,
+     331.8
+    ],
+    "zoom_sam": [
+     572.0,
+     318.0,
+     625.0,
+     338.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 1.0,
+    "spark_sam": 0.749,
+    "zoom": 0.0,
+    "zoom_sam": 0.072
+   },
+   "centre_px": {
+    "spark": 0.0,
+    "spark_sam": 1.4,
+    "zoom": 12.2,
+    "zoom_sam": 12.0
+   },
+   "moved_px": 12.2
+  },
+  {
+   "mark_id": "return_right_rear_door_kf1_m1",
+   "status": "not_mark",
+   "type": "reflection",
+   "size_class": "S",
+   "hand": null,
+   "crop_wh": [
+    411,
+    1280
+   ],
+   "window": [
+    131,
+    691,
+    346,
+    812
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "scratch",
+   "zoom_box": [
+    312.07,
+    744.778,
+    346.0,
+    759.231
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     223.0,
+     719.0,
+     254.0,
+     784.0
+    ],
+    "spark_sam": [
+     224.0,
+     708.0,
+     260.0,
+     785.0
+    ],
+    "zoom": [
+     313.54,
+     719.5,
+     344.54,
+     784.5
+    ],
+    "zoom_sam": [
+     313.0,
+     721.0,
+     345.0,
+     782.0
+    ]
+   },
+   "moved_px": 90.5
+  },
+  {
+   "mark_id": "return_right_rear_door_kf1_m2",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    304.5,
+    743.3,
+    395.8,
+    813.5
+   ],
+   "crop_wh": [
+    411,
+    1280
+   ],
+   "window": [
+    235,
+    807,
+    411,
+    906
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    235.0,
+    812.913,
+    333.725,
+    858.562
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     316.0,
+     835.0,
+     370.0,
+     878.0
+    ],
+    "spark_sam": [
+     312.0,
+     836.0,
+     369.0,
+     877.0
+    ],
+    "zoom": [
+     257.36,
+     814.24,
+     311.36,
+     857.24
+    ],
+    "zoom_sam": [
+     258.0,
+     806.0,
+     315.0,
+     865.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.008
+   },
+   "centre_px": {
+    "spark": 78.4,
+    "spark_sam": 78.7,
+    "zoom": 87.3,
+    "zoom_sam": 85.5
+   },
+   "moved_px": 62.2
+  },
+  {
+   "mark_id": "return_roof_kf1_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    698.6,
+    127.2,
+    719.1,
+    136.7
+   ],
+   "crop_wh": [
+    1280,
+    501
+   ],
+   "window": [
+    651,
+    59,
+    821,
+    155
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "chip",
+   "zoom_box": [
+    702.664,
+    133.0,
+    713.023,
+    139.0
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     727.0,
+     103.0,
+     745.0,
+     111.0
+    ],
+    "spark_sam": [
+     723.0,
+     102.0,
+     750.0,
+     113.0
+    ],
+    "zoom": [
+     698.84,
+     132.0,
+     716.84,
+     140.0
+    ],
+    "zoom_sam": [
+     701.0,
+     129.0,
+     718.0,
+     139.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.333,
+    "zoom_sam": 0.56
+   },
+   "centre_px": {
+    "spark": 36.9,
+    "spark_sam": 36.9,
+    "zoom": 4.2,
+    "zoom_sam": 2.2
+   },
+   "moved_px": 40.4
+  },
+  {
+   "mark_id": "return_roof_kf1_m2",
+   "status": "moved",
+   "type": "scratch",
+   "size_class": "S",
+   "hand": [
+    178.4,
+    231.8,
+    218.4,
+    249.4
+   ],
+   "crop_wh": [
+    1280,
+    501
+   ],
+   "window": [
+    216,
+    136,
+    387,
+    232
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     283.0,
+     180.0,
+     320.0,
+     187.0
+    ],
+    "spark_sam": [
+     281.0,
+     178.0,
+     327.0,
+     190.0
+    ],
+    "zoom": [
+     283.0,
+     180.0,
+     320.0,
+     187.0
+    ],
+    "zoom_sam": [
+     281.0,
+     178.0,
+     327.0,
+     190.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 117.9,
+    "spark_sam": 119.8,
+    "zoom": 117.9,
+    "zoom_sam": 119.8
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "return_roof_kf2_m1",
+   "status": "moved",
+   "type": "dirt",
+   "size_class": "S",
+   "hand": [
+    702.3,
+    124,
+    722.3,
+    132
+   ],
+   "crop_wh": [
+    1280,
+    467
+   ],
+   "window": [
+    705,
+    81,
+    875,
+    177
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "dirt",
+   "zoom_box": [
+    707.523,
+    130.467,
+    724.125,
+    135.533
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     780.0,
+     125.0,
+     800.0,
+     133.0
+    ],
+    "spark_sam": [
+     778.0,
+     122.0,
+     806.0,
+     135.0
+    ],
+    "zoom": [
+     705.82,
+     129.0,
+     725.82,
+     137.0
+    ],
+    "zoom_sam": [
+     706.0,
+     127.0,
+     731.0,
+     138.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.183,
+    "zoom_sam": 0.231
+   },
+   "centre_px": {
+    "spark": 77.7,
+    "spark_sam": 79.7,
+    "zoom": 6.1,
+    "zoom_sam": 7.7
+   },
+   "moved_px": 74.3
+  },
+  {
+   "mark_id": "return_roof_kf2_m2",
+   "status": "moved",
+   "type": "unsure",
+   "size_class": "S",
+   "hand": [
+    393.7,
+    341.4,
+    453.7,
+    348.4
+   ],
+   "crop_wh": [
+    1280,
+    467
+   ],
+   "window": [
+    339,
+    294,
+    509,
+    390
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "reflection",
+   "zoom_box": [
+    401.422,
+    343.333,
+    450.164,
+    349.6
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     394.0,
+     339.0,
+     454.0,
+     346.0
+    ],
+    "spark_sam": [
+     397.0,
+     337.0,
+     456.0,
+     352.0
+    ],
+    "zoom": [
+     395.79,
+     342.97,
+     455.79,
+     349.97
+    ],
+    "zoom_sam": [
+     399.0,
+     345.0,
+     450.0,
+     353.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.486,
+    "spark_sam": 0.437,
+    "zoom": 0.599,
+    "zoom_sam": 0.265
+   },
+   "centre_px": {
+    "spark": 2.4,
+    "spark_sam": 2.8,
+    "zoom": 2.6,
+    "zoom_sam": 4.2
+   },
+   "moved_px": 4.4
+  },
+  {
+   "mark_id": "return_windshield_kf1_m1",
+   "status": "moved",
+   "type": "chip",
+   "size_class": "S",
+   "hand": [
+    743.5,
+    346.4,
+    767,
+    354.4
+   ],
+   "crop_wh": [
+    1280,
+    357
+   ],
+   "window": [
+    584,
+    261,
+    754,
+    357
+   ],
+   "zoom_used": "spark",
+   "zoom_boxes": 0,
+   "zoom_type": null,
+   "zoom_box": null,
+   "zoom_note": "the zoomed look found no mark near the box",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     659.0,
+     348.0,
+     679.0,
+     356.0
+    ],
+    "spark_sam": [
+     650.0,
+     347.0,
+     685.0,
+     357.0
+    ],
+    "zoom": [
+     659.0,
+     348.0,
+     679.0,
+     356.0
+    ],
+    "zoom_sam": [
+     650.0,
+     347.0,
+     685.0,
+     357.0
+    ]
+   },
+   "hand_centre_in_window": false,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.0,
+    "zoom_sam": 0.0
+   },
+   "centre_px": {
+    "spark": 86.3,
+    "spark_sam": 87.8,
+    "zoom": 86.3,
+    "zoom_sam": 87.8
+   },
+   "moved_px": 0.0
+  },
+  {
+   "mark_id": "return_windshield_kf2_m1",
+   "status": "moved",
+   "type": "unsure",
+   "size_class": "S",
+   "hand": [
+    766.8,
+    343.9,
+    797.6,
+    355.9
+   ],
+   "crop_wh": [
+    1280,
+    357
+   ],
+   "window": [
+    656,
+    261,
+    827,
+    357
+   ],
+   "zoom_used": "zoom",
+   "zoom_boxes": 1,
+   "zoom_type": "unsure",
+   "zoom_box": [
+    777.437,
+    344.067,
+    797.209,
+    357.0
+   ],
+   "zoom_note": "",
+   "spark_sam_used": "sam",
+   "zoom_sam_used": "sam",
+   "spark_sam_note": "",
+   "zoom_sam_note": "",
+   "boxes": {
+    "spark": [
+     731.0,
+     343.0,
+     752.0,
+     355.0
+    ],
+    "spark_sam": [
+     726.0,
+     345.0,
+     754.0,
+     357.0
+    ],
+    "zoom": [
+     776.82,
+     344.53,
+     797.82,
+     356.53
+    ],
+    "zoom_sam": [
+     770.0,
+     343.0,
+     793.0,
+     357.0
+    ]
+   },
+   "hand_centre_in_window": true,
+   "iou": {
+    "spark": 0.0,
+    "spark_sam": 0.0,
+    "zoom": 0.613,
+    "zoom_sam": 0.664
+   },
+   "centre_px": {
+    "spark": 40.7,
+    "spark_sam": 42.2,
+    "zoom": 5.2,
+    "zoom_sam": 0.7
+   },
+   "moved_px": 45.8
+  }
+ ]
+}
