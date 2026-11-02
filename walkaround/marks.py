@@ -36,6 +36,7 @@ from .contracts import (
     MarkKind,
     MarkSource,
     MarksStatus,
+    OffPanel,
     PanelId,
     SizeClass,
     SparkMark,
@@ -743,8 +744,107 @@ def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict,
                 kf_whitened.update(extra_whitened)
         marks.extend(kf_marks)
         whitened.update(kf_whitened)
+    marks, whitened, left_out = on_panel(marks, whitened, updated, root, th=th, masks=masks)
     marks, sq_sum, dof = _dedup(marks, whitened, updated, th=th, masks=masks)
-    return marks, updated, sq_sum, dof
+    return [*marks, *left_out], updated, sq_sum, dof
+
+
+# On the panel (lexi run 1, 11/2, thresholds dedup.marks_on_panel) -------------------------------------------------------
+
+
+def on_panel_frac(th: dict | None) -> float | None:
+    """The claim path's on_panel_frac when thresholds dedup.marks_on_panel is on, else None (off when absent, so runs
+    frozen before it rebuild unchanged)."""
+    cfg = (th or {}).get("dedup", {}).get("marks_on_panel")
+    if not (isinstance(cfg, dict) and cfg.get("enabled", True)):
+        return None
+    from .claim import ON_PANEL_FRAC
+
+    return float((th or {}).get("claim", {}).get("on_panel_frac", ON_PANEL_FRAC))
+
+
+def _mask_distance(mask: np.ndarray, point: Point2) -> float:
+    """Distance in pixels from a point to the nearest mask pixel (0 on the mask); inf for an empty mask."""
+    if not mask.any():
+        return math.inf
+    h, w = mask.shape[:2]
+    x, y = min(w - 1, max(0, int(math.floor(float(point[0]))))), min(h - 1, max(0, int(math.floor(float(point[1])))))
+    if mask[y, x]:
+        return 0.0
+    ys, xs = np.nonzero(mask)
+    return float(np.min(np.hypot(xs + 0.5 - float(point[0]), ys + 0.5 - float(point[1]))))
+
+
+def _off(mask: np.ndarray, point: Point2, crop: Crop, frac: float) -> tuple[bool, float]:
+    """(the point sits on the panel: within max(3 px, frac of the crop's long side) of the mask, the claim path's rule;
+    its distance over the crop's long side)."""
+    long_side = float(max(crop.w, crop.h))
+    d = _mask_distance(mask, point)
+    return d <= max(3.0, frac * long_side), (d / long_side if math.isfinite(d) else 1.0)
+
+
+def on_panel(
+    marks: list[Mark], whitened: dict[str, WhitenedMark], keyframes: list[Keyframe], root: Path, *, th: dict, masks: dict[str, np.ndarray]
+) -> tuple[list[Mark], dict[str, WhitenedMark], list[Mark]]:
+    """Every Spark mark whose point sits off its keyframe's panel mask: moved to a keyframe of the same walk cut from the
+    same frame whose panel mask holds the point (the nearest, then the lower kf id), its box and point mapped through
+    the source frame and whitened there; else left out (returned apart, off_panel set, moved_to_kf None). A mark whose
+    keyframe has no mask stays. Returns (the marks for the dedup, their whitened rows, the marks left out)."""
+    frac = on_panel_frac(th)
+    if frac is None:
+        return marks, whitened, []
+    cache: dict[str, np.ndarray | None] = {}
+
+    def mask_of(kf: Keyframe) -> np.ndarray | None:
+        if kf.kf_id not in cache:
+            cache[kf.kf_id] = _read_mask(root / kf.mask_png) if kf.mask_png else None
+        return cache[kf.kf_id]
+
+    kf_by_id = {kf.kf_id: kf for kf in keyframes}
+    kept: list[Mark] = []
+    left: list[Mark] = []
+    out_whitened = dict(whitened)
+    for m in marks:
+        kf = kf_by_id.get(m.kf_id)
+        own = mask_of(kf) if kf is not None and kf.crop is not None else None
+        if m.source == MarkSource.NARRATION_SEED or m.point_crop is None or own is None or kf is None or kf.crop is None:
+            kept.append(m)
+            continue
+        on, off_frac = _off(own, m.point_crop, kf.crop, frac)
+        if on:
+            kept.append(m)
+            continue
+        best: tuple[float, str, Keyframe, Point2] | None = None
+        for other in keyframes:
+            if other.role != m.role or other.f_proxy != kf.f_proxy or other.panel_id == m.panel_id or other.crop is None or m.point_src is None:
+                continue
+            p = geometry.src_to_crop(m.point_src, other.crop)
+            if not (0.0 <= p[0] < other.crop.w and 0.0 <= p[1] < other.crop.h):
+                continue
+            om = mask_of(other)
+            if om is None:
+                continue
+            ok, f = _off(om, p, other.crop, frac)
+            if ok and (best is None or (f, other.kf_id) < best[:2]):
+                best = (f, other.kf_id, other, p)
+        out_whitened.pop(m.mark_id, None)
+        if best is None:
+            left.append(m.model_copy(update={"off_panel": OffPanel(from_panel=m.panel_id, from_kf=m.kf_id, off_frac=round(off_frac, 6))}))
+            continue
+        _f, _id, target, p = best
+        box = None
+        if m.bbox_src is not None:
+            b = geometry.box_src_to_crop(m.bbox_src, target.crop)  # type: ignore[arg-type]
+            box = [max(0.0, b[0]), max(0.0, b[1]), min(float(target.crop.w), b[2]), min(float(target.crop.h), b[3])]  # type: ignore[union-attr]
+        record = OffPanel(from_panel=m.panel_id, from_kf=m.kf_id, off_frac=round(off_frac, 6), moved_to_kf=target.kf_id)
+        moved = m.model_copy(update={"panel_id": target.panel_id, "kf_id": target.kf_id, "point_crop": [float(p[0]), float(p[1])], "bbox_crop": box, "w": None, "r": None, "size_units": None, "off_panel": record})
+        wheel_mask = mask_of(target) if target.panel_id in WHEEL_PANELS else None
+        if wheel_mask is not None:
+            masks[target.kf_id] = wheel_mask
+        [moved], got = whiten_marks([moved], target, th=th, mask=wheel_mask)
+        out_whitened.update(got)
+        kept.append(moved)
+    return kept, out_whitened, left
 
 
 def _write_role_marks(run_id: str, role: str, marks: list[Mark]) -> None:

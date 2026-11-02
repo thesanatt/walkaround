@@ -1027,6 +1027,21 @@ class TwinCheck(Contract):
     decided: bool = True
 
 
+class PartCheck(Contract):
+    """The side check of a wheel or fender-lane track and the end check of a glass track (lexi run 1, 11/2, thresholds
+    panels.part_check), in the style of DoorCheck. kind is "side" (votes +1 right, -1 left: lid_side, light_side,
+    door_side) or "end" (votes +1 front, -1 rear: lights, bumper, lid, mirror). was is the slot before the check;
+    decided false means the cues disagreed with the slot the vote gave and did not reach the margin, so the track keeps a
+    placeholder slot and its panel is side_uncertain (G6)."""
+
+    kind: Literal["side", "end"]
+    was: PanelId | None = None
+    votes: dict[str, int] = Field(default_factory=dict)
+    numbers: dict[str, float] = Field(default_factory=dict)
+    score: float = 0.0
+    decided: bool = True
+
+
 class PanelTrack(Contract):
     """One derived/tracks.json entry: a merged track with its canonical panel id and side once voted."""
 
@@ -1045,6 +1060,7 @@ class PanelTrack(Contract):
     twin_check: TwinCheck | None = None  # lid, light and glass tracks the twin check placed (thresholds panels.twin_check)
     door_check: DoorCheck | None = None  # door tracks the door check judged (thresholds panels.door_check)
     edge_on_frames: list[int] = Field(default_factory=list)  # keyframe candidates under panels.edge_on_floor
+    part_check: PartCheck | None = None  # wheel, fender-lane and glass tracks the part check judged (panels.part_check)
 
     @model_serializer(mode="wrap")
     def _omit_absent_twin_check(self, handler: Any) -> Any:
@@ -1052,7 +1068,7 @@ class PanelTrack(Contract):
         fields existed (11/1)."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("twin_check", "door_check"):
+            for key in ("twin_check", "door_check", "part_check"):
                 if data.get(key) is None:
                     data.pop(key, None)
             if not data.get("edge_on_frames"):
@@ -1253,6 +1269,30 @@ class ZoomRefine(Contract):
     note: str = ""  # why Spark's box was kept, in words; empty when the moved box is used
 
 
+class OffPanel(Contract):
+    """A Spark mark whose point sat off its keyframe's panel mask by more than the claim path's on_panel_frac of the
+    crop's long side (lexi run 1, 11/2, thresholds dedup.marks_on_panel). When the same walk has a keyframe of another
+    panel cut from the same frame whose mask holds the point, the mark was moved there (moved_to_kf; the row then
+    carries that panel, keyframe and crop coordinates); otherwise it is left out of matching and named in how_checked."""
+
+    from_panel: PanelId
+    from_kf: str
+    off_frac: float  # distance from the point to the panel mask over the crop's long side
+    moved_to_kf: str | None = None
+
+
+class SecondPass(Contract):
+    """A mark found by the second marks pass (lexi run 1, 11/2, thresholds matching.second_marks_pass): on a panel that
+    passed every gate where this walk had no mark and the other walk had, Muse Spark was asked again on a zoomed window
+    of this walk's compared crop around the other walk's mark mapped through the panel frame."""
+
+    other_mark: str  # the other walk's mark whose spot was looked at
+    window_crop: IntBox4
+    expected_crop: Point2  # where the other walk's mark maps in this crop
+    boxes: int  # how many boxes the zoomed look returned
+    spark_request_id: str | None = None
+
+
 class Mark(Contract):
     """One derived/marks.json entry. Grid coords are what Spark said; crop, src and w are code's mappings."""
 
@@ -1282,12 +1322,14 @@ class Mark(Contract):
     caps: list[str] = Field(default_factory=list)  # K ids set upstream
     box_refine: BoxRefine | None = None  # left out of the JSON when absent, so marks of runs without the leaf keep their bytes
     zoom_refine: ZoomRefine | None = None  # the same rule
+    off_panel: OffPanel | None = None  # the same rule (dedup.marks_on_panel)
+    second_pass: SecondPass | None = None  # the same rule (matching.second_marks_pass)
 
     @model_serializer(mode="wrap")
     def _omit_box_refine(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("box_refine", "zoom_refine"):
+            for key in ("box_refine", "zoom_refine", "off_panel", "second_pass"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
@@ -1464,6 +1506,15 @@ class FixtureDrop(Contract):
     overlap: float
 
 
+class OffPanelNote(Contract):
+    """A mark moved onto or left off this panel by the on-panel rule (thresholds dedup.marks_on_panel), for how_checked."""
+
+    mark_id: str
+    from_panel: PanelId
+    to_panel: PanelId | None = None  # None: left out of matching
+    off_frac: float
+
+
 class PanelMatch(Contract):
     panel_id: PanelId
     state: MatchState
@@ -1483,6 +1534,10 @@ class PanelMatch(Contract):
     reshape: ReshapeCheck | None = None
     # marks left out of matching as factory fixtures (thresholds matching.fixtures_not_damage, lead decision 4 of 11/1)
     fixtures: list[FixtureDrop] = Field(default_factory=list)
+    # marks moved onto or left off this panel because they sat off their own panel mask (dedup.marks_on_panel, 11/2)
+    off_panel: list[OffPanelNote] = Field(default_factory=list)
+    # the second marks pass on this panel: the other walk's marks whose spot was looked at again (11/2)
+    second_pass: list[str] = Field(default_factory=list)
 
     @model_serializer(mode="wrap")
     def _omit_no_tries(self, handler: Any) -> Any:
@@ -1495,6 +1550,9 @@ class PanelMatch(Contract):
             data.pop("reshape", None)
         if isinstance(data, dict) and not data.get("fixtures"):
             data.pop("fixtures", None)
+        for key in ("off_panel", "second_pass"):
+            if isinstance(data, dict) and not data.get(key):
+                data.pop(key, None)
         return data
 
 

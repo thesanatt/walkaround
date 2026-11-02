@@ -95,6 +95,11 @@ def sam_marks_json(run_id: str) -> Path:
     return _file(run_dir(run_id) / "sam_marks.json")
 
 
+def second_pass_json(run_id: str) -> Path:
+    """Muse Spark answers of the second marks pass (thresholds matching.second_marks_pass), a frozen fact."""
+    return _file(run_dir(run_id) / "second_pass.json")
+
+
 def zoom_marks_json(run_id: str) -> Path:
     """Muse Spark answers on zoomed windows around mark boxes (thresholds dedup.spark_zoom_refine), a frozen fact."""
     return _file(run_dir(run_id) / "zoom_marks.json")

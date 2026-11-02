@@ -977,6 +977,8 @@ def candidate_slots(track: c.PanelTrack) -> list[PanelId]:
         return [PanelId.FRONT_BUMPER, PanelId.REAR_BUMPER]
     if track.twin_check is not None and not track.twin_check.decided:
         return [PanelId.HOOD, PanelId.TRUNK_LID]
+    if track.part_check is not None and track.part_check.kind == "end" and not track.part_check.decided:
+        return [PanelId.WINDSHIELD, PanelId.REAR_WINDOW]
     return [track.panel_id]
 
 
@@ -1183,14 +1185,21 @@ def _panels_from(
     fps: float | None,
     merge_gap_s: float,
     fallback_dt: float,
+    per_track: bool = False,
 ) -> list[c.Panel]:
-    """Every canonical PanelId with its tracks per role, summed votes, side_uncertain and front_sign."""
+    """Every canonical PanelId with its tracks per role, summed votes, side_uncertain and front_sign. With per_track
+    (thresholds panels.uncertain_per_track) the panel is side_uncertain only when some walk holds nothing but undecided
+    tracks in the slot: a stray undecided track beside decided ones is listed in coverage and takes no keyframe there
+    (_keyframe_plan), so it no longer hides the panel."""
     panels: list[c.Panel] = []
     for pid in PanelId:
         mine = [t for t in tracks if t.panel_id == pid]
         noun = PANEL_NOUN[pid]
         side, position = _panel_side_position(pid)
-        unc = any(undecided(t) for t in mine)
+        if per_track:
+            unc = any(all(undecided(t) for t in mine if t.role == role) for role in {t.role for t in mine})
+        else:
+            unc = any(undecided(t) for t in mine)
         if not mine or unc:
             front_sign = None
         elif noun in LATERAL_NOUNS:
@@ -1266,14 +1275,22 @@ def vote_sides(
         else:
             apply_twin_check(role_tracks, th, result=twin)
             apply_door_check(ctx, role_tracks, th)
+            apply_part_check(role_tracks, th)
     panels = _panels_from(
         out_tracks,
         votes_by_track,
         fps=fps,
         merge_gap_s=float(p["merge_gap_max_s"]),
         fallback_dt=1.0 / float(th["media"]["proxy_fps"]),
+        per_track=uncertain_per_track(th),
     )
     return panels, out_tracks
+
+
+def uncertain_per_track(th: dict[str, Any] | None) -> bool:
+    """thresholds panels.uncertain_per_track (lexi run 1, 11/2): side or position uncertainty is judged per track, not
+    per slot. Off when absent, so runs frozen before it keep their panels."""
+    return bool((th or {}).get("panels", {}).get("uncertain_per_track", False))
 
 
 def _role_order(role: str) -> tuple[int, int, str]:
@@ -1771,6 +1788,198 @@ def apply_door_check(ctx: _RoleContext, role_tracks: list[c.PanelTrack], th: dic
 
 
 # ----------------------------------------------------------------------------------------------------------------
+# 5.2 the part check: which side a wheel is on, which end a glass panel is at (lexi run 1, 11/2, panels.part_check)
+# ----------------------------------------------------------------------------------------------------------------
+#
+# On lexi_pair1 both walks start and end at the front-left corner and the side vote filed the left front wheel (and so
+# its built fender, and the fender view that held mark M3) as the right front in both walks, and the windshield lane
+# tracks seen behind the car stayed the windshield (the return's windshield keyframes showed the rear window). After the
+# door check, in its style, each wheel track (and fender-lane track) is judged for its side and each windshield or
+# rear-window track for its end, from what the walk already tracked:
+#   side  lid_side: a lid the twin check placed, on shared frames (the hood is toward the front, the trunk lid toward
+#         the rear, the front shows image-right on the right side); light_side: a headlight or tail light the same way;
+#         door_side: decided doors beside the wheel (the gap rule of fender_from_wheels).
+#   end   lights, bumper, lid: a placed headlight or tail light, front or rear bumper, hood or trunk lid beside the glass
+#         on clearly more of its frames than the other end's; mirror: a side mirror beside the glass marks the front
+#         (never the rear: a rear window may have a mirror far off in the frame).
+# door_decision decides: a weighted sum reaching margin_min; under it the slot the vote gave stands unless a cue points
+# the other way, then the side or end is left undecided (a placeholder slot, side_uncertain).
+
+PART_SIDE_CUES: tuple[str, ...] = ("lid_side", "light_side", "door_side")
+PART_END_CUES: tuple[str, ...] = ("lights", "bumper", "lid", "mirror")
+GLASS_NOUNS: tuple[Noun, ...] = (Noun.WINDSHIELD, Noun.REAR_WINDOW)
+GLASS_END: dict[PanelId, int] = {PanelId.WINDSHIELD: 1, PanelId.REAR_WINDOW: -1}
+LIGHT_END: dict[PanelId, int] = {PanelId.HEADLIGHTS: 1, PanelId.TAIL_LIGHTS: -1}
+
+
+def part_settings(th: dict[str, Any] | None) -> dict[str, Any] | None:
+    """thresholds panels.part_check, or None when the run's thresholds predate it (the check is then off)."""
+    cfg = (th or {}).get("panels", {}).get("part_check")
+    return cfg if isinstance(cfg, dict) else None
+
+
+def _ends_by_frame(role_tracks: list[c.PanelTrack], ends: dict[PanelId, int]) -> dict[int, list[tuple[Box, int]]]:
+    """(box, end) per frame for every track filed under one of ends' slots and not split by the twin check."""
+    out: dict[int, list[tuple[Box, int]]] = {}
+    for t in role_tracks:
+        if t.panel_id in ends and (t.twin_check is None or t.twin_check.decided) and not is_wheel_fender(t):
+            for r in t.per_frame:
+                out.setdefault(r.frame, []).append((r.box, ends[t.panel_id]))
+    return out
+
+
+def _bumper_ends(role_tracks: list[c.PanelTrack]) -> dict[int, list[tuple[Box, int]]]:
+    out: dict[int, list[tuple[Box, int]]] = {}
+    for t in role_tracks:
+        end = 1 if t.position is Position.FRONT else -1 if t.position is Position.REAR else 0
+        if t.noun is Noun.BUMPER and end:
+            for r in t.per_frame:
+                out.setdefault(r.frame, []).append((r.box, end))
+    return out
+
+
+def part_side_cues(
+    part: dict[int, Box],
+    lids: dict[int, list[tuple[Box, int]]],
+    lights: dict[int, list[tuple[Box, int]]],
+    doors: list[tuple[dict[int, Box], int]],
+    cfg: dict[str, Any],
+    *,
+    min_frames: int,
+) -> tuple[dict[str, int], dict[str, float]]:
+    """The three side votes (+1 right, -1 left, 0 silent) on one wheel or fender given its box per frame, the placed lids
+    and lights per frame as (box, +1 front or -1 rear), and the decided doors as (box per frame, +1 right or -1 left). A
+    lid or light votes on a frame only when its centre lies offset_min_d part sizes or more to one side."""
+    share_min = float(cfg["dir_share_min"])
+    offset_min = float(cfg["offset_min_d"])
+    votes: dict[str, int] = {}
+    numbers: dict[str, float] = {}
+    for cue, ends in (("lid_side", lids), ("light_side", lights)):
+        # a lid or light within offset_min_d part sizes of the part's centre sits over it (the hood over a front wheel):
+        # that offset is depth, not direction, so only frames where it lies clearly to one side vote
+        signs = []
+        for f in sorted(part):
+            d = max(_width(part[f]), _height(part[f]), 1.0)
+            for box, end in ends.get(f, []):
+                dx = _centroid(box)[0] - _centroid(part[f])[0]
+                if abs(dx) >= offset_min * d:
+                    signs.append(end * _sign(dx))
+        votes[cue], share = _majority(signs, share_min, min_frames)
+        numbers.update({f"{cue}_frames": float(len(signs)), f"{cue}_share": share})
+    gap_d = float(cfg["door_gap_d"])
+    door_signs: list[int] = []
+    for f in sorted(part):
+        x1, y1, x2, _y2, d, _cx, cy = _wheel_geom(part[f])
+        for boxes, side in doors:
+            b = boxes.get(f)
+            if b is None:
+                continue
+            gap = max(float(b[0]) - x2, x1 - float(b[2]), 0.0)
+            if gap <= gap_d * d and float(b[3]) >= y1 - 0.5 * d and float(b[1]) <= cy:
+                door_signs.append(side)
+    votes["door_side"], share = _majority(door_signs, share_min, min_frames)
+    numbers.update(door_side_frames=float(len(door_signs)), door_side_share=share)
+    return votes, numbers
+
+
+def glass_end_cues(
+    glass: dict[int, Box],
+    near: dict[str, dict[int, list[tuple[Box, int]]]],
+    mirrors: dict[int, list[Box]],
+    cfg: dict[str, Any],
+    *,
+    min_frames: int,
+) -> tuple[dict[str, int], dict[str, float]]:
+    """The four end votes (+1 front, -1 rear, 0 silent) on one glass track given its box per frame, the placed lights,
+    bumpers and lids per frame as (box, end), and the mirror boxes per frame. A part is beside the glass when the box gap
+    is at most adjacent_sizes glass sizes; a cue votes when one end is beside it on presence_margin more of the glass
+    frames than the other end."""
+    frames = sorted(glass)
+    adj = float(cfg["adjacent_sizes"])
+    margin = float(cfg["presence_margin"])
+    votes: dict[str, int] = {}
+    numbers: dict[str, float] = {"glass_frames": float(len(frames))}
+    for cue in ("lights", "bumper", "lid"):
+        hits = {1: 0, -1: 0}
+        for f in frames:
+            size = _lid_size(glass[f])
+            seen = {end for box, end in near[cue].get(f, []) if _box_gap(box, glass[f]) <= adj * size}
+            for end in seen:
+                hits[end] += 1
+        front, rear = (hits[1] / len(frames), hits[-1] / len(frames)) if frames else (0.0, 0.0)
+        numbers.update({f"{cue}_front_share": front, f"{cue}_rear_share": rear})
+        enough = hits[1] + hits[-1] >= min_frames
+        votes[cue] = 0 if not enough else 1 if front - rear >= margin else -1 if rear - front >= margin else 0
+    beside = sum(1 for f in frames if any(_box_gap(m, glass[f]) <= float(cfg["mirror_near_sizes"]) * _lid_size(glass[f]) for m in mirrors.get(f, [])))
+    share = beside / len(frames) if frames else 0.0
+    numbers.update(mirror_frames=float(beside), mirror_share=share)
+    votes["mirror"] = 1 if beside >= min_frames and share >= margin else 0
+    return votes, numbers
+
+
+def part_check(role_tracks: list[c.PanelTrack], th: dict[str, Any]) -> dict[str, tuple[PanelId, c.PartCheck]]:
+    """{track id: (its slot, its PartCheck)} for every wheel, fender-lane and glass track of one voted walk; a slot whose
+    side or end stayed undecided is the placeholder (the one the vote gave). Empty when thresholds panels.part_check is
+    absent. Run it after the twin check and the door check are applied: it reads the placed lids, lights and doors."""
+    cfg = part_settings(th)
+    if cfg is None:
+        return {}
+    min_frames = int(cfg["min_frames"])
+    weights, margin = cfg["weights"], float(cfg["margin_min"])
+    lids = _ends_by_frame(role_tracks, {PanelId.HOOD: 1, PanelId.TRUNK_LID: -1})
+    lights = _ends_by_frame(role_tracks, LIGHT_END)
+    doors = [({r.frame: r.box for r in t.per_frame}, 1 if t.side is Side.RIGHT else -1) for t in role_tracks if t.noun is Noun.CAR_DOOR and t.side is not Side.NONE]
+    near = {"lights": lights, "bumper": _bumper_ends(role_tracks), "lid": lids}
+    mirrors = _seen_by_frame(role_tracks, Noun.SIDE_MIRROR)
+    out: dict[str, tuple[PanelId, c.PartCheck]] = {}
+    for t in role_tracks:
+        if not t.per_frame or t.panel_id is None:
+            continue
+        box = {r.frame: r.box for r in t.per_frame}
+        if t.noun in (Noun.WHEEL, Noun.FENDER) and not is_wheel_fender(t):
+            votes, numbers = part_side_cues(box, lids, lights, doors, cfg, min_frames=min_frames)
+            prior = 1 if t.side is Side.RIGHT else -1 if t.side is Side.LEFT else 0
+            side, score, decided = door_decision(votes, PART_SIDE_CUES, prior, weights, margin)
+            got = Side.RIGHT if side > 0 else Side.LEFT if side < 0 else Side.NONE
+            if got is Side.NONE:
+                slot = t.panel_id
+            elif t.position is Position.NONE:
+                lean = _panel_side_position(t.panel_id)[1]
+                slot = _lateral_panel_id(t.noun, got, lean if lean is not Position.NONE else Position.FRONT)
+            else:
+                slot = _lateral_panel_id(t.noun, got, t.position)
+            out[t.track_id] = (slot, c.PartCheck(kind="side", was=t.panel_id, votes=votes, numbers=numbers, score=score, decided=decided and side != 0))
+        elif t.noun in GLASS_NOUNS and t.panel_id in GLASS_END:
+            votes, numbers = glass_end_cues(box, near, mirrors, cfg, min_frames=min_frames)
+            end, score, decided = door_decision(votes, PART_END_CUES, GLASS_END[t.panel_id], weights, margin)
+            slot = {1: PanelId.WINDSHIELD, -1: PanelId.REAR_WINDOW}.get(end, t.panel_id)
+            out[t.track_id] = (slot, c.PartCheck(kind="end", was=t.panel_id, votes=votes, numbers=numbers, score=score, decided=decided and end != 0))
+    return out
+
+
+def apply_part_check(role_tracks: list[c.PanelTrack], th: dict[str, Any]) -> None:
+    """File every wheel, fender-lane and glass track of one voted walk under the slot the part check found, in place. A
+    wheel or fender whose side stayed undecided keeps its slot as a placeholder with side NONE (candidate_slots lists
+    both sides); an undecided glass track keeps its slot and carries part_check.decided false (candidate_slots lists
+    the windshield and the rear window)."""
+    result = part_check(role_tracks, th)
+    for t in role_tracks:
+        if not (t.noun in (Noun.WHEEL, Noun.FENDER, *GLASS_NOUNS)) or is_wheel_fender(t):
+            continue
+        got = result.get(t.track_id)
+        t.part_check = got[1] if got is not None else None
+        if got is None:
+            continue
+        slot, record = got
+        if t.noun in LATERAL_NOUNS:
+            side, position = _panel_side_position(slot)
+            t.side = side if record.decided else Side.NONE
+        t.panel_id = slot
+        if slot != record.was:
+            log.info("%s: %s filed as %s by the part check (was %s)", t.role, t.track_id, slot.value, record.was.value if record.was else None)
+
+
+# ----------------------------------------------------------------------------------------------------------------
 # Fenders and rear quarters from the wheels (lead 11/1, thresholds panels.fender_from_wheels)
 # ----------------------------------------------------------------------------------------------------------------
 #
@@ -1910,7 +2119,7 @@ def apply_wheel_fenders(
     out = _sorted_tracks(kept + fender_tracks(role, kept, car_boxes, media_size, cfg))
     rebuilt = _panels_from(
         [t for t in out if t.noun is Noun.FENDER], {}, fps=fps, merge_gap_s=float(th["panels"]["merge_gap_max_s"]),
-        fallback_dt=1.0 / float(th["media"]["proxy_fps"]),
+        fallback_dt=1.0 / float(th["media"]["proxy_fps"]), per_track=uncertain_per_track(th),
     )
     by_pid = {p.panel_id: p for p in rebuilt if p.noun is Noun.FENDER}
     return [by_pid.get(p.panel_id, p) if p.noun is Noun.FENDER else p for p in panels], out
@@ -2188,6 +2397,7 @@ def coverage_for_role(
     car_ok = car_status in (LaneStatus.COMPLETED, LaneStatus.ZERO_MATCHES)
     unsure = {t.track_id for t in role_tracks if undecided(t)}
     sure_elsewhere = {t.panel_id for t in tracks if t.role != role and t.panel_id is not None and not undecided(t)}
+    per_track = uncertain_per_track(th)
     out: dict[PanelId, c.PanelCoverage] = {}
     for panel in panels:
         pid, noun = panel.panel_id, panel.noun
@@ -2197,6 +2407,8 @@ def coverage_for_role(
         if mine:
             kfs = [k for k in keyframes if k.role == role and k.panel_id == pid and k.track_id not in unsure]
             out[pid] = _tracked_coverage(mine, kfs, noun=noun, pct=pct, fps=fps, cov=cov)
+            if maybe and per_track:
+                out[pid].reason += "; " + _stray_words(maybe)
             continue
         if maybe:
             maybe_ids = {t.track_id for t in maybe}
@@ -2279,13 +2491,22 @@ def _uncertain_coverage(maybe: list[c.PanelTrack], kfs: list[c.Keyframe], *, fps
         slots.extend(s for s in candidate_slots(t) if s not in slots)
     filed = sorted({t.panel_id for t in maybe if t.panel_id is not None}, key=lambda pid: pid.value)
     # a door the door check placed on a side but not front or rear says so (runs before it keep their words)
-    ends_only = all(t.noun in LID_NOUNS or (t.door_check is not None and t.side is not Side.NONE) for t in maybe)
+    ends_only = all(t.noun in LID_NOUNS or t.noun in GLASS_NOUNS or (t.door_check is not None and t.side is not Side.NONE) for t in maybe)
     lead = "front or rear uncertain" if ends_only else "side uncertain"
     reason = (
         f"{lead}: {', '.join(t.track_id for t in maybe)} could be {' or '.join(display_name(s) for s in slots)}; "
         f"{seconds:.1f} s visible, frames filed under {', '.join(display_name(pid) for pid in filed)}"
     )
     return c.PanelCoverage(state=CoverageState.GLIMPSED, seconds=seconds, best_kf=best_kf.kf_id if best_kf else None, reason=reason)
+
+
+def _stray_words(maybe: list[c.PanelTrack]) -> str:
+    """The undecided tracks that could also be a slot decided tracks already hold (thresholds panels.uncertain_per_track):
+    named, never used for this panel's keyframes."""
+    words = []
+    for t in sorted(maybe, key=lambda t: t.track_id):
+        words.append(f"{t.track_id} could be {' or '.join(display_name(s) for s in candidate_slots(t))}")
+    return f"also {'; '.join(words)} (not used here: the decided tracks name this panel)"
 
 
 def display_name(pid: PanelId) -> str:

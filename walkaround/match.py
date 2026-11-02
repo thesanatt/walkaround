@@ -54,6 +54,7 @@ from .contracts import (
     MatchCandidate,
     MatchState,
     Noun,
+    OffPanelNote,
     Panel,
     PanelId,
     PanelMatch,
@@ -582,6 +583,8 @@ def how_checked(pm: PanelMatch) -> str | None:
         _how_checked_tries(pm),
         reshape_words(pm.reshape) if pm.reshape is not None else None,
         fixture_words(pm.fixtures) if pm.fixtures else None,
+        off_panel_words(pm) if pm.off_panel else None,
+        "; ".join(f"second marks pass: {w}" for w in pm.second_pass) if pm.second_pass else None,
     ]
     line = "; ".join(p for p in parts if p)
     return line or None
@@ -737,6 +740,47 @@ def fixture_words(drops: list[FixtureDrop]) -> str:
         f"({FIXTURE_SOURCE_WORDS.get(d.source, d.source)}, {math.floor(d.overlap * 100 + 0.5)}% of its box), so it was not matched"
         for d in drops
     )
+
+
+def marks_on_panel(th: dict | None) -> bool:
+    """thresholds dedup.marks_on_panel (lexi run 1, 11/2): a mark off its own panel mask was moved or left out by the
+    marks stage, and match leaves the left-out ones out; off when absent."""
+    from .marks import on_panel_frac
+
+    return on_panel_frac(th) is not None
+
+
+def _panel_words(pid: PanelId) -> str:
+    return pid.value.replace("_", " ")
+
+
+def off_panel_words(pm: PanelMatch) -> str:
+    """how_checked's words for the marks the on-panel rule moved onto, moved off or left off this panel."""
+    out = []
+    for n in pm.off_panel:
+        pct = f"{n.off_frac * 100:.1f}% of the crop's long side off the {_panel_words(n.from_panel)}"
+        if n.to_panel is None:
+            out.append(f"left out: {n.mark_id} sits {pct} and on no other panel tracked in that frame, so it was not matched")
+        elif n.to_panel == pm.panel_id:
+            out.append(f"moved here: {n.mark_id} was found on the {_panel_words(n.from_panel)} keyframe but sits on this panel ({pct})")
+        else:
+            out.append(f"moved: {n.mark_id} sits {pct} and on the {_panel_words(n.to_panel)}, so it was matched there")
+    return "; ".join(out)
+
+
+def off_panel_notes(marks: list[Mark]) -> dict[PanelId, list[OffPanelNote]]:
+    """The on-panel rule's notes per panel: a left-out mark on its own panel, a moved one on both panels."""
+    notes: dict[PanelId, list[OffPanelNote]] = {}
+    for m in marks:
+        op = m.off_panel
+        if op is None:
+            continue
+        to = m.panel_id if op.moved_to_kf is not None else None
+        note = OffPanelNote(mark_id=m.mark_id, from_panel=op.from_panel, to_panel=to, off_frac=op.off_frac)
+        notes.setdefault(op.from_panel, []).append(note)
+        if to is not None:
+            notes.setdefault(to, []).append(note)
+    return notes
 
 
 # Panel gates (section 6, G1 and G3 to G10; G2 retired 10/31) ----------------------------------------------------------
@@ -1618,6 +1662,10 @@ def derive_match(
     marks_by_id = {m.mark_id: m for m in marks}
     kf_by_id = {kf.kf_id: kf for kf in keyframes}
     fixtures = fixture_drops(marks, keyframes, _read_list(paths.spark_json(run_id), SparkRequestRecord), th) if fixtures_not_damage(th) else {}
+    on_panel = marks_on_panel(th)
+    left_out = {m.mark_id for m in marks if on_panel and m.off_panel is not None and m.off_panel.moved_to_kf is None}
+    off_notes = off_panel_notes(marks) if on_panel else {}
+    passes = second_pass_words(run_id, marks, th)
     lane_status = _lane_status(run_id)
     trace_base = Trace(config_hash=config_hash(th))
     looks_budget = int(th["spark"]["second_looks_per_pair_max"])
@@ -1633,7 +1681,7 @@ def derive_match(
         kfs = {role: [kf for kf in keyframes if kf.panel_id == panel.panel_id and kf.role == role] for role in ROLES}
         if not kfs["pickup"] and not kfs["return"]:
             continue
-        panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role and m.mark_id not in fixtures] for role in ROLES}
+        panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role and m.mark_id not in fixtures and m.mark_id not in left_out] for role in ROLES}
         truncated_all = {role: bool(kfs[role]) and all(kf.marks_status == MarksStatus.TRUNCATED for kf in kfs[role]) for role in ROLES}
         if kfs["pickup"] and kfs["return"]:
             order = keyframe_pair_order(kfs["pickup"], kfs["return"], th=th)
@@ -1664,6 +1712,10 @@ def derive_match(
         dropped = [fixtures[m.mark_id] for m in marks if m.panel_id == panel.panel_id and m.mark_id in fixtures]
         if dropped:
             pm = pm.model_copy(update={"fixtures": dropped})
+        if off_notes.get(panel.panel_id):
+            pm = pm.model_copy(update={"off_panel": off_notes[panel.panel_id]})
+        if passes.get(panel.panel_id):
+            pm = pm.model_copy(update={"second_pass": passes[panel.panel_id]})
         looks: dict[tuple[str, str], LookVerdict | None] = {}  # None: asked, no usable answer
         if second_look is not None and pm.state == MatchState.COMPARABLE:
             kf_status = {kf.kf_id: kf.marks_status for kf in keyframes if kf.panel_id == pm.panel_id}
@@ -1691,6 +1743,21 @@ def derive_match(
     write_json(paths.matches_json(run_id), matches)
     write_json(paths.verdicts_json(run_id), verdicts)
     return matches, verdicts, calibration
+
+
+def second_pass_words(run_id: str, marks: list[Mark], th: dict) -> dict[PanelId, list[str]]:
+    """The second marks pass per panel in words, from the stored asks (thresholds matching.second_marks_pass): the crop
+    looked at, the other walk's mark whose spot it was, and the mark found or nothing."""
+    from . import second_pass
+
+    if second_pass.settings(th) is None:
+        return {}
+    found = {(m.kf_id, m.second_pass.other_mark): m.mark_id for m in marks if m.second_pass is not None}
+    out: dict[PanelId, list[str]] = {}
+    for a in second_pass.read_asks(run_id):
+        got = found.get((a.kf_id, a.other_mark))
+        out.setdefault(a.panel_id, []).append(f"looked again at {a.kf_id} around {a.other_mark}: " + (f"found {got}" if got else "no mark there"))
+    return out
 
 
 # Older runs: why verify differs --------------------------------------------------------------------------------------

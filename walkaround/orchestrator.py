@@ -1662,6 +1662,17 @@ class Orchestrator:
         stays model=False so the free match always runs; the look alone is skipped past the ceiling or the deadline."""
         run_id = run.run_id
         th = self.run_th(run)
+        if self.has_dep("second_pass.derive_second_pass"):
+            # the second marks pass (matching.second_marks_pass, 11/2): its marks join marks.json before the match; past
+            # the ceiling or the deadline only the stored answers are replayed
+            if not self.over_ceiling(run) and not self.past_deadline(run_id):
+                asked = await self.dep("second_pass.derive_second_pass")(run_id, th=th)
+                for role, record in asked:
+                    self._emit_spark(run_id, role, record)
+                if asked:
+                    self._note_spend(run_id)
+            else:
+                await asyncio.to_thread(self.dep("second_pass.apply_second_pass"), run_id, th=th)
         look = None
         if self.has_dep("second_look.make_second_look") and not self.over_ceiling(run) and not self.past_deadline(run_id):
             look = self.dep("second_look.make_second_look")(run_id, th=th)  # None while spark.second_look_engine is off
@@ -2249,6 +2260,8 @@ class Orchestrator:
         result.update(self._rebuild_staysput(run, th))
         if run.kind == c.RunKind.PAIR and self.has_dep("match.derive_match"):
             try:
+                if self.has_dep("second_pass.apply_second_pass") and self.dep("second_pass.apply_second_pass")(run_id, th=th) and paths.marks_json(run_id).is_file():
+                    result["marks.json"] = sha256_path(paths.marks_json(run_id))
                 replay = self.dep("second_look.replay_second_look")(run_id, th=th) if self.has_dep("second_look.replay_second_look") else None
                 self.dep("match.derive_match")(run_id, th=th, second_look=replay)
                 if self.has_dep("ruler.size_verdicts"):
