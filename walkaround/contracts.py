@@ -1293,6 +1293,16 @@ class SecondPass(Contract):
     spark_request_id: str | None = None
 
 
+class HalvesFind(Contract):
+    """A mark found by the halves pass (11/2, thresholds dedup.spark_halves_pass): Muse Spark's box on an enlarged half
+    of the crop, not the same mark as any box already kept on that crop."""
+
+    half: int  # 0 the left or top half, 1 the right or bottom
+    window_crop: IntBox4
+    boxes: int  # how many boxes that half's answer returned
+    spark_request_id: str | None = None
+
+
 class Mark(Contract):
     """One derived/marks.json entry. Grid coords are what Spark said; crop, src and w are code's mappings."""
 
@@ -1324,12 +1334,13 @@ class Mark(Contract):
     zoom_refine: ZoomRefine | None = None  # the same rule
     off_panel: OffPanel | None = None  # the same rule (dedup.marks_on_panel)
     second_pass: SecondPass | None = None  # the same rule (matching.second_marks_pass)
+    halves: HalvesFind | None = None  # the same rule (dedup.spark_halves_pass)
 
     @model_serializer(mode="wrap")
     def _omit_box_refine(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("box_refine", "zoom_refine", "off_panel", "second_pass"):
+            for key in ("box_refine", "zoom_refine", "off_panel", "second_pass", "halves"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

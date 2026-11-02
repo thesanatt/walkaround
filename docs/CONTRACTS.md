@@ -1870,3 +1870,27 @@ walkaround/docs/evidence/lexi_1102/ (NOTES.md, replay_1102.py, the replay output
   how-checked words, the web's own lines do not yet.
 - Tests: tests/test_lexi_1102.py (14). test_contracts has round-trip cases for the five new records; test_panels' twin
   check test runs without part_check (its glass check moves the same pair C windshield track first).
+
+## Halves pass (2026-11-02): a recall pass on two zoomed halves of each crop, not adopted
+
+Why: on lexi_pair1 Muse Spark boxed 22 of the 32 real marks Sanat labeled in the crops he checked, and never boxed
+M4 in either walk. Measured on stored crops and not adopted (evidence walkaround/docs/evidence/halves_1102/NOTES.md:
+3 more real marks of 32 on lexi, all low confidence, false boxes 13 to 41; the replay loses M2's right "already
+there"). `dedup.spark_halves_pass` is not in config/thresholds.json, so it is absent from every run, new or frozen.
+
+- `dedup.spark_halves_pass` (dict: enabled, span_frac, scale, dup_iou, optional after_refine). Off when absent.
+  Values used in the study: span_frac 0.55, scale 2.0, dup_iou 0.3.
+- `walkaround/halves_pass.py`: `windows(crop, s)` (two halves along the long side, half-open crop pixels), `ask` (LIVE,
+  marks_v1 with the run's sentences and effort and no landmarks on the half enlarged scale times), `HalvesAsk` rows
+  in `runs/<id>/halves_marks.json` (`paths.halves_marks_json`), `Index` by (crop sha256, window), `halves_marks(base,
+  kf, index, th, mask)`: each answer box mapped back through `zoom_refine.zoom_boxes`, dropped by `same_mark` when its
+  centre is inside a kept box, a kept centre is inside it, IoU > dup_iou, or it is within dedup.cluster_radius_units of
+  a kept mark in the panel frame (full-crop boxes first, then halves boxes in order). Kept boxes are Spark box marks
+  `<kf_id>_h<n>` with caps K3, K4, K12, grid_point and grid_bbox in the full crop's grid (so the fixture drop reads
+  them), and `Mark.halves` (`HalvesFind`: half, window_crop, boxes, spark_request_id; left out of the JSON when None).
+  `drop_after_refine` (after_refine key): once the zoom move and SAM have run, a halves mark that is now the same mark
+  as a full-crop mark or an earlier halves mark is dropped.
+- `marks._box_marks` gives a crop's full-crop marks plus, with the leaf on, its halves marks; `_halves_boxes` (LIVE, in
+  `derive_marks` before the zoom refine) asks what halves_marks.json lacks; `_zoom_boxes`, `_sam_boxes`, `_marks_of`
+  and `rebuild_marks` take `halves_index`. With the leaf absent every path is the one before (eight runs verified
+  rebuild identical).

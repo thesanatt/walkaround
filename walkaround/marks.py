@@ -704,12 +704,29 @@ def _reusable_records(records: list[SparkRequestRecord], keyframes: list[Keyfram
     return out
 
 
-def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict, sam_index: Any = None, zoom_index: Any = None) -> tuple[list[Mark], list[Keyframe], float, int]:
+def _wheel_mask(root: Path, kf: Keyframe) -> np.ndarray | None:
+    return _read_mask(root / kf.mask_png) if kf.panel_id in WHEEL_PANELS and kf.mask_png else None
+
+
+def _box_marks(root: Path, kf: Keyframe, result: Any, *, th: dict, halves_index: Any = None, mask: np.ndarray | None = None) -> list[Mark]:
+    """The crop's Spark box marks: the full-crop answer, then with dedup.spark_halves_pass on the stored halves boxes that
+    are not the same mark as one already kept (halves_pass.halves_marks)."""
+    from . import halves_pass
+
+    kf_marks = marks_from_answer(result.answer, result, kf, kf.crop, th=th)
+    if halves_index is not None and halves_pass.settings(th) is not None:
+        kf_marks.extend(halves_pass.halves_marks(kf_marks, kf, halves_index, th=th, mask=mask if mask is not None else _wheel_mask(root, kf)))
+    return kf_marks
+
+
+def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict, sam_index: Any = None, zoom_index: Any = None, halves_index: Any = None) -> tuple[list[Mark], list[Keyframe], float, int]:
     """One role's marks from its keyframes' Spark results (None when Spark never saw the keyframe): marks_status and
     conditions on each keyframe, mapping, caps, the zoom move of each box mark when dedup.spark_zoom_refine is on (from
     the stored answers in zoom_index), then its SAM box when dedup.sam_box_refine is on (sam_index), whitening, the
-    count union, then the within-walk dedup."""
-    from . import box_refine, zoom_refine
+    count union, then the within-walk dedup. With dedup.spark_halves_pass on, each crop's halves boxes (halves_index)
+    join its full-crop boxes before the zoom move (and with its after_refine key, a halves mark that lands on a kept
+    mark once moved is dropped)."""
+    from . import box_refine, halves_pass, zoom_refine
 
     refine = box_refine.settings(th) is not None and sam_index is not None
     zoom = zoom_refine.settings(th) is not None and zoom_index is not None
@@ -727,14 +744,16 @@ def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict,
         updated.append(kf_new)
         if answer is None:
             continue
-        mask = _read_mask(root / kf.mask_png) if kf.panel_id in WHEEL_PANELS and kf.mask_png else None
+        mask = _wheel_mask(root, kf)
         if mask is not None:
             masks[kf.kf_id] = mask
-        kf_marks = marks_from_answer(answer, result, kf_new, kf.crop, th=th)
+        kf_marks = _box_marks(root, kf_new, result, th=th, halves_index=halves_index, mask=mask)
         if zoom:
             kf_marks = zoom_refine.refine_marks(kf_marks, kf_new, zoom_index, th=th)
         if refine:
             kf_marks = box_refine.refine_marks(kf_marks, kf_new, sam_index, th=th)
+        if halves_index is not None:
+            kf_marks = halves_pass.drop_after_refine(kf_marks, kf_new, th=th, mask=mask)
         kf_marks, kf_whitened = whiten_marks(kf_marks, kf_new, th=th, mask=mask)
         if count is not None and not getattr(count, "truncated", False):
             extra = count_union(kf_marks, count, result, kf_new, kf.crop, kf_whitened, th=th)
@@ -920,9 +939,10 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
             if count is not None:
                 records.append(count.record)
     answered = [(kf, result) for kf, result, _count, _reused in results]
-    zoom_index = await _zoom_boxes(run_id, answered, th=th)
-    sam_index = await _sam_boxes(run_id, answered, th=th, zoom_index=zoom_index)
-    marks, updated, sq_sum, dof = _marks_of(root, [(kf, result, count) for kf, result, count, _ in results], th=th, sam_index=sam_index, zoom_index=zoom_index)
+    halves_index = await _halves_boxes(run_id, answered, th=th)
+    zoom_index = await _zoom_boxes(run_id, answered, th=th, halves_index=halves_index)
+    sam_index = await _sam_boxes(run_id, answered, th=th, zoom_index=zoom_index, halves_index=halves_index)
+    marks, updated, sq_sum, dof = _marks_of(root, [(kf, result, count) for kf, result, count, _ in results], th=th, sam_index=sam_index, zoom_index=zoom_index, halves_index=halves_index)
 
     _write_role_marks(run_id, role, marks)
     write_json(spark_path, [*_read_list(spark_path, SparkRequestRecord), *records])
@@ -935,7 +955,33 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
     return marks, updated, records
 
 
-async def _zoom_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: dict) -> Any:
+async def _halves_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: dict) -> Any:
+    """With dedup.spark_halves_pass on: two Muse Spark marks_v1 calls per answered crop, one on each enlarged half (LIVE),
+    appended to halves_marks.json; a (crop, half) with a stored answer is not asked again. Returns the halves_pass.Index
+    of every stored answer, or None when the leaf is off."""
+    from . import halves_pass
+
+    s = halves_pass.settings(th)
+    if s is None:
+        return None
+    root = paths.run_dir(run_id)
+    stored = halves_pass.read_asks(run_id)
+    known = halves_pass.Index(stored)
+    jobs = []
+    for kf, result in results:
+        if kf.crop is None or getattr(result, "answer", None) is None:
+            continue
+        todo = [(half, win) for half, win in halves_pass.plan(kf, s) if not known.has(kf.crop, win)]
+        if todo:
+            jobs.append((kf, root / kf.crop.path, todo))
+    if jobs:
+        asked = await halves_pass.ask_missing(run_id, jobs, s, th=th, read_rgb=_read_rgb)
+        stored = [*halves_pass.read_asks(run_id), *asked]
+        halves_pass.write_asks(run_id, stored)
+    return halves_pass.Index(stored)
+
+
+async def _zoom_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: dict, halves_index: Any = None) -> Any:
     """With dedup.spark_zoom_refine on: one Muse Spark marks_v1 call per box mark of each answered crop, on a window
     around its box enlarged to the zoom size (LIVE), appended to zoom_marks.json; a (crop, window) with a stored answer
     is not asked again. Returns the zoom_refine.Index of every stored answer, or None when the leaf is off."""
@@ -954,7 +1000,7 @@ async def _zoom_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: d
             continue
         seen: set[tuple[int, ...]] = set()
         todo = []
-        for m, win in zoom_refine.plan(marks_from_answer(answer, result, kf, kf.crop, th=th), kf, s):
+        for m, win in zoom_refine.plan(_box_marks(root, kf, result, th=th, halves_index=halves_index), kf, s):
             if not known.has(kf.crop, win) and tuple(win) not in seen:
                 seen.add(tuple(win))
                 todo.append((m, win))
@@ -967,7 +1013,7 @@ async def _zoom_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: d
     return zoom_refine.Index(stored)
 
 
-async def _sam_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: dict, zoom_index: Any = None) -> Any:
+async def _sam_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: dict, zoom_index: Any = None, halves_index: Any = None) -> Any:
     """With dedup.sam_box_refine on: SAM 3.1 image requests for the box marks of each answered crop, all of a crop's
     boxes in one request (LIVE), appended to sam_marks.json; a box whose (crop, prompt) already has a stored answer is
     not asked again. With zoom_index, each box is first moved by its stored zoom answer, so SAM is prompted with the
@@ -985,7 +1031,7 @@ async def _sam_boxes(run_id: str, results: list[tuple[Keyframe, Any]], *, th: di
         answer = getattr(result, "answer", None)
         if kf.crop is None or answer is None:
             continue
-        provisional = marks_from_answer(answer, result, kf, kf.crop, th=th)
+        provisional = _box_marks(root, kf, result, th=th, halves_index=halves_index)
         if zoom_index is not None:
             provisional = zoom_refine.refine_marks(provisional, kf, zoom_index, th=th)
         for chunk in box_refine.plan(provisional, kf, s):
@@ -1010,7 +1056,8 @@ def rebuild_marks(run_id: str, role: str, *, th: dict) -> list[Mark]:
     with no model call (section 7 item 3). Each keyframe Spark answered for reads back the answer derive_marks used: the
     valid answer for its (crop sha256, panel), else the last record asked for its crop. With dedup.spark_zoom_refine on,
     each box mark's zoom answer is read back from zoom_marks.json, and with dedup.sam_box_refine on its SAM answer from
-    sam_marks.json (a box with no stored answer keeps the box it had and says so). keyframes.json, spark.json,
+    sam_marks.json (a box with no stored answer keeps the box it had and says so). With dedup.spark_halves_pass on, each
+    crop's halves boxes are read back from halves_marks.json. keyframes.json, spark.json, halves_marks.json,
     zoom_marks.json and sam_marks.json are frozen facts and are not written. Box mode only: count-mode
     points are not replayed."""
     from . import spark_client
@@ -1033,9 +1080,12 @@ def rebuild_marks(run_id: str, role: str, *, th: dict) -> list[Mark]:
         results.append((kf, spark_client.marks_result_from_record(record, orig_width=w, orig_height=h, landmarks=landmarks_for(kf.panel_id, th)), None))
     from . import box_refine, zoom_refine
 
+    from . import halves_pass
+
+    halves_index = halves_pass.Index(halves_pass.read_asks(run_id)) if halves_pass.settings(th) is not None else None
     zoom_index = zoom_refine.Index(zoom_refine.read_asks(run_id)) if zoom_refine.settings(th) is not None else None
     sam_index = box_refine.Index(box_refine.read_asks(run_id)) if box_refine.settings(th) is not None else None
-    marks, _updated, sq_sum, dof = _marks_of(root, results, th=th, sam_index=sam_index, zoom_index=zoom_index)
+    marks, _updated, sq_sum, dof = _marks_of(root, results, th=th, sam_index=sam_index, zoom_index=zoom_index, halves_index=halves_index)
     _write_role_marks(run_id, role, marks)
     _record_sigma_view(run_id, role, sq_sum, dof, th=th)
     return marks

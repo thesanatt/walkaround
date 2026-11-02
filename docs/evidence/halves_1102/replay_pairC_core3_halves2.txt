@@ -1,0 +1,37 @@
+V - left_front_door not_comparable L6 L6,G1,G4,G6 notes: return_left_front_door_kf1_m1 return_left_front_door_kf1_m2 return_left_front_door_kf1_m3 reflection/medium,dirt/medium,unsure/low 
+V - left_rear_door not_comparable L6 L6,G1 notes: return_left_rear_door_kf1_m1 return_left_rear_door_kf1_m2 return_left_rear_door_kf1_m3 scratch/low,reflection/medium,dirt/low 
+V - right_front_door not_comparable L6 L6,G4,G9 notes: pickup_right_front_door_kf1_m1 pickup_right_front_door_kf1_m2 return_right_front_door_kf1_m1 return_right_front_door_kf2_m1 return_right_front_door_kf3_m1 unsure/low,dirt/medium,unsure/low,unsure/low,unsure/low 
+V - right_rear_door not_comparable L6 L6,G1,G4,G9 notes:   
+V - left_rear_fender not_comparable L6 L6,G1 notes: return_left_rear_fender_kf3_m1 dirt/low 
+V - right_front_fender not_comparable L6 L6,G1 notes:   
+V - right_rear_fender not_comparable L6 L6,G1,G3,G4 notes: pickup_right_rear_fender_kf2_m1 pickup_right_rear_fender_kf3_m1 dirt/low,dirt/low 
+V H hood not_comparable L6 L6,G4,G8 notes: pickup_hood_kf1_h1 pickup_hood_kf1_h10 pickup_hood_kf1_h11 pickup_hood_kf1_h2 pickup_hood_kf1_h4 pickup_hood_kf1_h5 pickup_hood_kf1_h6 pickup_hood_kf1_h7 pickup_hood_kf1_h8 pickup_hood_kf1_m1 pickup_hood_kf1_m3 pickup_hood_kf1_m4 pickup_hood_kf1_m5 pickup_hood_kf1_m6 pickup_hood_kf1_m7 pickup_hood_kf2_h1 pickup_hood_kf2_h2 pickup_hood_kf2_h3 pickup_hood_kf2_h4 pickup_hood_kf2_h5 pickup_hood_kf2_h7 pickup_hood_kf2_h9 pickup_hood_kf2_m3 pickup_hood_kf2_m4 pickup_hood_kf2_m5 pickup_hood_kf2_m6 pickup_hood_kf3_h1 pickup_hood_kf3_h2 pickup_hood_kf3_h3 pickup_hood_kf3_h5 pickup_hood_kf3_h6 pickup_hood_kf3_h7 pickup_hood_kf3_h8 pickup_hood_kf3_m2 pickup_hood_kf3_m3 pickup_hood_kf3_m4 pickup_hood_kf3_m5 return_hood_kf1_h1 return_hood_kf1_h10 return_hood_kf1_h2 return_hood_kf1_h3 return_hood_kf1_h4 return_hood_kf1_h5 return_hood_kf1_h6 return_hood_kf1_h7 return_hood_kf1_h8 return_hood_kf1_h9 return_hood_kf1_m1 return_hood_kf1_m2 return_hood_kf1_m3 return_hood_kf1_m4 return_hood_kf1_m5 return_hood_kf1_m6 return_hood_kf1_m7 return_hood_kf1_m8 return_hood_kf2_h1 return_hood_kf2_h10 return_hood_kf2_h11 return_hood_kf2_h13 return_hood_kf2_h14 return_hood_kf2_h15 return_hood_kf2_h4 return_hood_kf2_h5 return_hood_kf2_h7 return_hood_kf2_h8 return_hood_kf2_h9 return_hood_kf2_m1 return_hood_kf2_m3 return_hood_kf2_m4 return_hood_kf2_m5 return_hood_kf2_m6 return_hood_kf2_m7 dirt/medium,dirt/medium,dirt/medium,dirt/medium,dirt/low,unsure/low,dirt/high,dirt/high,dirt/high,dirt/medium,dirt/medium,dirt/medium,dirt/medium,dirt/medium,dirt/low,unsure/low,dirt/low,unsure/low,dirt/low,dirt/medium,unsure/low,dirt/low,dirt/high,dirt/medium,dirt/medium,dirt/medium,dirt/high,dirt/medium,dirt/medium,dirt/medium,dirt/medium,dirt/low,scratch/medium,dirt/medium,dirt/high,unsure/low,dirt/medium,dirt/medium,unsure/low,dirt/low,dirt/low,dirt/low,dirt/medium,dirt/medium,dirt/low,dirt/low,dirt/medium,dirt/high,dirt/high,dirt/medium,dirt/medium,dirt/low,dirt/medium,dirt/high,dirt/medium,dirt/low,dirt/low,dirt/low,dirt/medium,dirt/medium,dirt/medium,unsure/low,unsure/low,chip/low,dirt/low,chip/medium,dirt/medium,dirt/medium,dirt/medium,unsure/low,dirt/medium,dirt/medium 
+V - roof not_comparable L6 L6,G1,G6 notes: return_roof_kf1_m1 return_roof_kf1_m2 return_roof_kf1_m3 return_roof_kf1_m4 return_roof_kf1_m5 return_roof_kf2_m1 return_roof_kf2_m2 return_roof_kf2_m3 return_roof_kf2_m4 return_roof_kf2_m5 return_roof_kf3_m1 return_roof_kf3_m2 dirt/medium,dirt/low,unsure/low,dirt/low,unsure/low,unsure/medium,dirt/low,dirt/low,dirt/low,unsure/low,dirt/low,unsure/low 
+V - trunk_lid already_there L3 L3 notes:K4,K12 pickup_trunk_lid_kf1_m1 return_trunk_lid_kf1_m2 dirt/medium,dirt/low 0.094
+V - trunk_lid needs_your_eye L4 L4,L1,K15 notes: pickup_trunk_lid_kf1_m2 scratch/medium 
+V - trunk_lid needs_your_eye L4 L4,L1,K15,K4 notes: pickup_trunk_lid_kf1_m3 dirt/medium 
+V H trunk_lid needs_your_eye L4 L4,L1,K12,K15,K4 notes: pickup_trunk_lid_kf1_h1 dirt/low 
+V H trunk_lid needs_your_eye L4 L4,L1,K12,K15,K4 notes: pickup_trunk_lid_kf1_h2 unsure/low 
+V H trunk_lid needs_your_eye L4 L4,L1,K12,K15,K4 notes: pickup_trunk_lid_kf1_h4 dirt/low 
+V H trunk_lid needs_your_eye L4 L4,L1,K12,K15,K4 notes: pickup_trunk_lid_kf1_h5 dirt/low 
+V - trunk_lid needs_your_eye L4 L4,L1,K12,K4 notes: pickup_trunk_lid_kf2_m2 unsure/low 
+V H trunk_lid needs_your_eye L4 L4,L1,K12,K4 notes: pickup_trunk_lid_kf2_h2 dirt/low 
+V - trunk_lid needs_your_eye L4 L4,L2,K12,K4 notes: return_trunk_lid_kf1_m1 dirt/low 
+V - trunk_lid needs_your_eye L4 L4,L2,K12,K4 notes: return_trunk_lid_kf1_m3 dirt/low 
+V - trunk_lid needs_your_eye L4 L4,L2,K12,K15,K4 notes: return_trunk_lid_kf2_m3 unsure/low 
+V - front_bumper not_comparable L6 L6,G4 notes: pickup_front_bumper_kf1_m1 dirt/medium 
+V - rear_bumper needs_your_eye L4 L4,L1,K15,K4 notes: pickup_rear_bumper_kf1_m1 dirt/medium 
+V H rear_bumper needs_your_eye L4 L4,L1,K12,K15,K2 notes: pickup_rear_bumper_kf1_h1 scuff/low 
+V - rear_bumper needs_your_eye L4 L4,L1,K12,K15,K2,K4 notes: pickup_rear_bumper_kf3_m1 dirt/low 
+V - rear_bumper needs_your_eye L4 L4,L1,K12,K15,K2 notes: pickup_rear_bumper_kf3_m2 scuff/low 
+V - rear_bumper needs_your_eye L4 L4,L2,K15,K4 notes: return_rear_bumper_kf1_m1 dirt/medium 
+V - rear_bumper needs_your_eye L4 L4,L2,K15,K4 notes: return_rear_bumper_kf2_m1 dirt/medium 
+V - left_front_wheel not_comparable L6 L6,G1 notes: pickup_left_front_wheel_kf1_m1 return_left_front_wheel_kf1_m1 unsure/low,unsure/low 
+V - left_rear_wheel not_comparable L6 L6,G1 notes:   
+V - right_front_wheel not_comparable L6 L6,G1 notes:   
+V H headlights not_comparable L6 L6,G1 notes: return_headlights_kf1_h1 return_headlights_kf1_m1 return_headlights_kf1_m2 return_headlights_kf2_m1 dirt/low,reflection/medium,reflection/low,reflection/medium 
+V - tail_lights not_comparable L6 L6,G1 notes:   
+V - mirrors not_comparable L6 L6,G1,G3,G4,G6 notes: pickup_mirrors_kf1_m1 return_mirrors_kf2_m1 reflection/medium,reflection/low 
+V - windshield not_comparable L6 L6,G1 notes: return_windshield_kf1_m1 return_windshield_kf1_m2 reflection/low,unsure/low 
+V H rear_window not_comparable L6 L6,G1,G3 notes: pickup_rear_window_kf1_m1 pickup_rear_window_kf1_m2 pickup_rear_window_kf1_m3 pickup_rear_window_kf1_m4 pickup_rear_window_kf2_h1 pickup_rear_window_kf2_h2 pickup_rear_window_kf2_m2 pickup_rear_window_kf2_m4 return_rear_window_kf1_m1 return_rear_window_kf1_m2 return_rear_window_kf1_m3 return_rear_window_kf1_m4 return_rear_window_kf2_m1 return_rear_window_kf2_m3 return_rear_window_kf2_m4 crack/medium,chip/low,reflection/medium,scuff/low,dirt/low,reflection/low,reflection/medium,dirt/high,dirt/low,scratch/low,scratch/low,reflection/low,reflection/medium,scratch/low,scratch/low 
+{"run": "pairC_core3", "variant": "halves2", "labels": {"not_comparable": 18, "already_there": 1, "needs_your_eye": 17}, "halves_marks": 53, "marks": 143}
