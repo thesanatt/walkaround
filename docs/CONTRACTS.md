@@ -1977,3 +1977,28 @@ those rebuild identical (verified on ten runs); config/thresholds.json turns all
   page shows neither the check-by-eye lines nor K19's text yet.
 - Tests: tests/test_hero_1102.py (18). tests/test_match.py's shared `th` fixture drops the six matching leaves, as it
   drops registration, because its fixtures predate them; the zoom study pin runs without prefer_kind.
+
+## K20: a one-walk mark must stand out in its own crop (2026-11-02, round 23)
+
+- `matching.stands_out` ({"enabled", "min_contrast" 3.0, "max_panel_share" 0.10}; `match.STANDS_OUT_DEFAULTS`), new
+  cap K20 "the box does not stand out" (rules table, `VerdictFlags.K20`). Off when absent, so frozen runs rebuild
+  unchanged; config/thresholds.json turns it on for new runs.
+- `register.own_contrast(img, box, cfg) -> float | None`: the presence test's contrast_a on the mark's own crop alone
+  (saliency of the box on the high-passed Lab residual, the same blur via `register.box_sigma` and ring), the ring
+  clipped at the crop edge. Equal to contrast_a wherever presence measures one; None for a box under 2 px a side or a
+  clipped ring under ring_px squared pixels. No fit, so it works where registration is refused.
+- `match.stands_out_step(pm, placed, cache, cfg) -> PanelMatch`, pixels only, on a compared panel after the match and
+  registration: every mark seen in one walk only (`match.one_walk_ids`: unmatched, or in a pair beyond tau_eye_r) is
+  tested on its own keyframe crop and box as Muse Spark placed it (before the same-walk step re-placed any). Records
+  `PanelMatch.own_contrast: list[OwnContrast]` (mark_id, kf_id, result stands_out / faint / area / not_measured,
+  contrast, panel_share, why), left out of matches.json when empty. faint (under min_contrast, or too small to
+  measure) sets K20 in verdicts_for; area (box over max_panel_share of its keyframe's panel mask, such as the NHTSA
+  crush at 0.68) and not_measured (no crop or mask) set nothing. It lowers only.
+- A K20 mark is capped before the counter-look stage, so it is not sent to a counter-look.
+- verdicts_for adds own_contrast, own_contrast_result and min_contrast to the trace thresholds of every tested
+  one-walk line; how_checked prints each faint mark with its number (`match.stands_out_words`).
+- Sheet glossary: `sheet.GLOSSARY_STANDS_OUT`, printed only with the leaf on.
+- Web: nothing changed; web/src/lib/rules.ts and web/src/contracts/types.ts lack K20 (as K18 and K19).
+- Tests: tests/test_stands_out_1102.py (10). tests/test_match.py's shared `th` fixture drops the leaf (its crops are
+  one flat grey, so every box would be faint); tests/test_contracts.py counts K1 to K20.
+- Evidence: walkaround/docs/evidence/stands_out_1102/ (replay.py, replay.json, NOTES.md).

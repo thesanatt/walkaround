@@ -77,6 +77,9 @@ def th() -> dict[str, Any]:
     # change what these fixtures were written to show; they have their own tests (tests/test_hero_1102.py)
     for leaf in ("glass_by_eye", "debris_by_eye", "colour_on_paint", "conditions_on_panel", "inside_other_box", "same_walk_register"):
         values["matching"].pop(leaf, None)
+    # K20 (matching.stands_out, 11/2) reads the crops' pixels; these fixtures' crops are one flat grey, so every box is
+    # faint. It has its own tests (tests/test_stands_out_1102.py)
+    values["matching"].pop("stands_out", None)
     return values
 
 

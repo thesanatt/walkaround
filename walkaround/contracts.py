@@ -1517,6 +1517,20 @@ class RegistrationFit(Contract):
     H: list[list[float]] | None = None  # 3x3, pickup crop pixels to return crop pixels
 
 
+class OwnContrast(Contract):
+    """Does a mark seen in one walk only stand out from its own surroundings in plain pixels (thresholds
+    matching.stands_out, 11/2, K20)? register.own_contrast on the mark's own crop and box, as Muse Spark placed it.
+    stands_out keeps the label; faint caps it (K20); area is a box over max_panel_share of its panel, not tested;
+    not_measured is a mark whose crop or mask could not be read, not capped."""
+
+    mark_id: str
+    kf_id: str
+    result: Literal["stands_out", "faint", "area", "not_measured"]
+    contrast: float | None = None
+    panel_share: float | None = None
+    why: str | None = None
+
+
 class RegistrationMark(Contract):
     """The presence test of one mark at its mapped spot in the other walk's crop (11/2), and what the match did with it:
     capped (K18, the same patch is there and no mark of the other walk is), paired (with an unmatched mark of the other
@@ -1645,6 +1659,8 @@ class PanelMatch(Contract):
     by_eye: list[ByEyeLine] = Field(default_factory=list)
     # marks of the walk's other keyframes carried onto the compared keyframe (matching.same_walk_register, Nov 2)
     same_walk: list[SameWalkNote] = Field(default_factory=list)
+    # one-walk marks tested for standing out from their own surroundings (matching.stands_out, 11/2, K20)
+    own_contrast: list[OwnContrast] = Field(default_factory=list)
 
     @model_serializer(mode="wrap")
     def _omit_no_tries(self, handler: Any) -> Any:
@@ -1657,7 +1673,7 @@ class PanelMatch(Contract):
             data.pop("reshape", None)
         if isinstance(data, dict) and not data.get("fixtures"):
             data.pop("fixtures", None)
-        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk"):
+        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk", "own_contrast"):
             if isinstance(data, dict) and not data.get(key):
                 data.pop(key, None)
         return data
@@ -1686,6 +1702,7 @@ class VerdictFlags(Contract):
     K17: bool = False  # the two-question counter-look did not say yes, a damage mark is in the box (lead decision 5 of 11/1)
     K18: bool = False  # registration: the other walk's crop shows the same patch at this mark's mapped spot (11/2)
     K19: bool = False  # the mark's spot lies inside a box the other walk drew in its compared view (11/2)
+    K20: bool = False  # the mark's box does not stand out from its own surroundings in its own crop (11/2)
 
     def set_caps(self) -> list[str]:
         return [name for name in sorted(type(self).model_fields) if name.startswith("K") and getattr(self, name)]

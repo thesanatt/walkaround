@@ -536,6 +536,11 @@ GLOSSARY_INSIDE_OTHER = (  # match.inside_other_box, 11/2
     "is not called new or gone, since the other walk did not show clean paint there: needs your eye (K19).\n"
 )
 
+GLOSSARY_STANDS_OUT = (  # match.stands_out_config, 11/2
+    "stands out: a mark seen in one walk only must stand out from the paint around it in its own crop, in plain pixels, to be called new or not seen at return. "
+    "A box that does not (Muse Spark may have boxed clean paint) is needs your eye (K20). A box covering much of its panel, such as a crush, is not tested.\n"
+)
+
 GLOSSARY_FIXTURES = (  # match.fixtures_not_damage, lead decision 4 of 11/1
     "factory fixture: parking sensors, badges, door handles and locks, washer nozzles, the tire valve, the wheel hub and the plate corners are part of the car, not damage. "
     "Muse Spark is asked not to box them, and a mark whose box still sits mostly on one the run found in the same view (a point Muse Spark named, or the door handle SAM found) "
@@ -565,6 +570,7 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + (GLOSSARY_DEBRIS if match.debris_by_eye(th) else "")
         + (GLOSSARY_COLOUR if match.colour_on_paint(th) else "")
         + (GLOSSARY_INSIDE_OTHER if match.inside_other_box(th) else "")
+        + (GLOSSARY_STANDS_OUT if match.stands_out_config(th) is not None else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"

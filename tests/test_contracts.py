@@ -76,6 +76,7 @@ def _instances() -> list[c.Contract]:
         c.HalvesMerge(halves_mark_id="pickup_hood_kf1_h1", half=0, full_bbox_crop=[600.0, 400.0, 640.0, 420.0], gap_patches=0.4, overlap=True, spark_request_id="resp_1"),
         c.RegistrationFit(kf_pair=["pickup_hood_kf1", "return_hood_kf1"], model="outline", ok=True, n_matches=9, n_inliers=4, spread=0.1, mask_iou=0.95, reproj_px=2.1, H=[[1.0, 0.0, 3.0], [0.0, 1.0, -2.0], [0.0, 0.0, 1.0]]),
         c.ByEyeLine(kind="debris", text="debris on this panel; check by eye", mark_ids=["pickup_front_bumper_kf1_m1"]),
+        c.OwnContrast(mark_id="pickup_rear_bumper_kf2_m2", kf_id="pickup_rear_bumper_kf2", result="faint", contrast=0.95, panel_share=0.003),
         c.SameWalkNote(mark_id="pickup_rear_bumper_kf3_m1", from_kf="pickup_rear_bumper_kf3", to_kf="pickup_rear_bumper_kf2", merged_into="pickup_rear_bumper_kf2_m1", model="features", reproj_px=0.87),
         c.RegistrationMark(mark_id="return_hood_kf1_m1", other_kf="pickup_hood_kf1", result="present", mapped_box=[10.0, 10.0, 30.0, 20.0], found_box=[12.0, 10.0, 32.0, 20.0], ncc=0.8, contrast_own=12.0, contrast_other=10.0, uncertainty_px=4.0, used="capped"),
         c.OffPanelNote(mark_id="pickup_hood_kf1_m2", from_panel=c.PanelId.HOOD, off_frac=0.06),
@@ -239,7 +240,7 @@ def test_thresholds_load_and_hash() -> None:
 
 def test_rules_table() -> None:
     assert rules.gate_ids() == [f"G{i}" for i in range(1, 11)]
-    assert rules.cap_ids() == [f"K{i}" for i in range(1, 20)]
+    assert rules.cap_ids() == [f"K{i}" for i in range(1, 21)]
     assert rules.rule("K7").label == "second look"
     assert rules.describe(["G1"])[0].startswith("G1 not filmed: ")
     with pytest.raises(KeyError):

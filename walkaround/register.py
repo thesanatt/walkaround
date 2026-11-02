@@ -495,6 +495,46 @@ def saliency(res: np.ndarray, box: Box, ring_px: float) -> float | None:
     return float((np.percentile(inner, 90) - med) / spread)
 
 
+def box_sigma(box: Box, cfg: dict[str, Any]) -> float:
+    """The high-pass blur presence uses for a box: residual_sigma_px or residual_sigma_box of its long side, larger
+    wins, at most residual_sigma_max."""
+    long_side = max(box[2] - box[0], box[3] - box[1], 4.0)
+    return min(float(cfg["residual_sigma_max"]), max(float(cfg["residual_sigma_px"]), float(cfg["residual_sigma_box"]) * long_side))
+
+
+def own_contrast(img: np.ndarray, box: Box, cfg: dict[str, Any]) -> float | None:
+    """How much the box stands out from its own surroundings in its own crop, no fit needed (11/2, K20): presence's
+    contrast_a (saliency on the high-passed residual, the same blur and ring), with the ring clipped at the crop edge
+    where the box sits near it. Equal to contrast_a wherever presence measures one. None when the box keeps under 2 px
+    a side inside the crop or the clipped ring keeps under ring_px squared pixels."""
+    ring = float(cfg["ring_px"])
+    sigma = box_sigma(box, cfg)
+    wa = _window(img.shape, box, ring + 1.0)
+    if wa is not None:
+        return saliency(_residual_at(img, wa, sigma), _shift(box, wa[0], wa[1]), ring)
+    h, w = img.shape[:2]
+    win = (max(0, int(math.floor(box[0] - ring - 1.0))), max(0, int(math.floor(box[1] - ring - 1.0))), min(w, int(math.ceil(box[2] + ring + 1.0))), min(h, int(math.ceil(box[3] + ring + 1.0))))
+    if win[2] - win[0] < 3 or win[3] - win[1] < 3:
+        return None
+    res = _residual_at(img, win, sigma)
+    rh, rw = res.shape[:2]
+    x1, y1, x2, y2 = (int(round(v)) for v in _shift(box, win[0], win[1]))
+    x1, y1, x2, y2 = max(0, x1), max(0, y1), min(rw, x2), min(rh, y2)
+    r = int(round(ring))
+    if x2 - x1 < 2 or y2 - y1 < 2:
+        return None
+    ox1, oy1, ox2, oy2 = max(0, x1 - r), max(0, y1 - r), min(rw, x2 + r), min(rh, y2 + r)
+    sel = np.ones((oy2 - oy1, ox2 - ox1), dtype=bool)
+    sel[y1 - oy1 : y2 - oy1, x1 - ox1 : x2 - ox1] = False
+    ring_px = res[oy1:oy2, ox1:ox2][sel]
+    if ring_px.size < r * r:
+        return None
+    inner = res[y1:y2, x1:x2].ravel()
+    med = float(np.median(ring_px))
+    spread = max(1.0, 1.4826 * float(np.median(np.abs(ring_px - med))))
+    return float((np.percentile(inner, 90) - med) / spread)
+
+
 def _box_corr(res_a: np.ndarray, res_b: np.ndarray, box_a: Box, box_b: Box, pad: float) -> float | None:
     """Correlation of the two residual images over the mark's own box (padded a little), box_a in res_a against the
     same-size box_b in res_b: does the mark itself line up, not just its surroundings."""
@@ -574,8 +614,7 @@ def presence(al: Aligned, img_a: np.ndarray, img_b: np.ndarray, mask_b: np.ndarr
         out.why = "the mapped spot is off the other walk's panel mask"
         return out
     ring = float(cfg["ring_px"])
-    long_side = max(x2 - x1, y2 - y1, 4.0)
-    sigma = min(float(cfg["residual_sigma_max"]), max(float(cfg["residual_sigma_px"]), float(cfg["residual_sigma_box"]) * long_side))
+    sigma = box_sigma(box_a, cfg)
     wa = _window(img_a.shape, box_a, ring + 1.0)
     if wa is None:
         out.why = "the box is at the edge of its own crop"

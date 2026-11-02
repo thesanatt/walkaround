@@ -56,6 +56,7 @@ from .contracts import (
     MatchState,
     Noun,
     OffPanelNote,
+    OwnContrast,
     Panel,
     PanelId,
     PanelMatch,
@@ -224,6 +225,79 @@ def covered_by_other_walk(pm: PanelMatch, marks: dict[str, Mark], keyframes: dic
         if hit is not None:
             out[i] = hit
     return out
+
+
+STANDS_OUT_DEFAULTS: dict[str, Any] = {
+    "min_contrast": 3.0,  # register.DEFAULTS saliency_min: under this the presence test calls a box too faint to test
+    "max_panel_share": 0.10,  # a box over this share of its panel's mask is an area (a crush, a dirt film), not tested
+}
+
+
+def stands_out_config(th: dict | None) -> dict[str, Any] | None:
+    """Nov 2 (thresholds matching.stands_out, K20): the leaf over STANDS_OUT_DEFAULTS, with the presence test's blur
+    and ring (matching.registration when on, else register.DEFAULTS); None when absent or off."""
+    from . import register
+
+    leaf = (th or {}).get("matching", {}).get("stands_out")
+    if not isinstance(leaf, dict) or not leaf.get("enabled", False):
+        return None
+    return {**(register.config(th) or register.DEFAULTS), **STANDS_OUT_DEFAULTS, **leaf}
+
+
+def one_walk_ids(pm: PanelMatch) -> list[str]:
+    """The panel's marks seen in one walk only: unmatched, or in a pair beyond tau_eye_r (L5)."""
+    return [*pm.unmatched_pickup, *pm.unmatched_return, *(i for p in pm.pairs if p.d >= p.tau_eye_r for i in (p.pickup_mark, p.return_mark))]
+
+
+def stands_out_step(pm: PanelMatch, placed: dict[str, Mark], cache: "RegistrationCache", cfg: dict[str, Any]) -> PanelMatch:
+    """Nov 2 (matching.stands_out, K20), on a compared panel after the match and registration: each mark seen in one
+    walk only is tested on its own crop and box as Muse Spark placed them (placed: the run's marks before the same-walk
+    step re-placed any), by register.own_contrast. Under min_contrast, or a box too small to measure, is faint (K20);
+    a box over max_panel_share of its keyframe's panel mask is an area, not tested; a crop or mask that cannot be read
+    is not_measured. On hero_focus2 a stray pickup box on clean rear bumper paint stood out by 0.95 and came out not
+    seen at return; the tape strips it sat near stand out by 15 to 28. Pixels only, never a model; it lowers only."""
+    from . import register
+
+    if pm.state != MatchState.COMPARABLE:
+        return pm
+    out: list[OwnContrast] = []
+    for i in dict.fromkeys(one_walk_ids(pm)):
+        m = placed.get(i)
+        if m is None:
+            continue
+        px = cache.pixels(m.kf_id) if m.bbox_crop is not None else None
+        if px is None:
+            out.append(OwnContrast(mark_id=i, kf_id=m.kf_id, result="not_measured", why="no box, crop or mask to read"))
+            continue
+        img, mask = px
+        box = tuple(float(v) for v in m.bbox_crop)  # type: ignore[union-attr]
+        h, w = img.shape[:2]
+        bw, bh = max(0.0, min(float(w), box[2]) - max(0.0, box[0])), max(0.0, min(float(h), box[3]) - max(0.0, box[1]))
+        area = float(np.count_nonzero(mask))
+        share = round(bw * bh / area, 4) if area > 0 else None
+        if share is not None and share > float(cfg["max_panel_share"]):
+            out.append(OwnContrast(mark_id=i, kf_id=m.kf_id, result="area", panel_share=share))
+            continue
+        c = register.own_contrast(img, box, cfg)  # type: ignore[arg-type]
+        if c is None:
+            out.append(OwnContrast(mark_id=i, kf_id=m.kf_id, result="faint", panel_share=share, why="the box is too small to measure"))
+            continue
+        c = round(c, 2)
+        out.append(OwnContrast(mark_id=i, kf_id=m.kf_id, result="stands_out" if c >= float(cfg["min_contrast"]) else "faint", contrast=c, panel_share=share))
+    return pm.model_copy(update={"own_contrast": out}) if out else pm
+
+
+def stands_out_words(pm: PanelMatch) -> str | None:
+    """how_checked's part for K20: each faint mark with its number."""
+    faint = [r for r in pm.own_contrast if r.result == "faint"]
+    if not faint:
+        return None
+    return "; ".join(
+        f"{r.mark_id}: its box does not stand out from the paint around it in its own crop"
+        + (f" (contrast {r.contrast:.1f})" if r.contrast is not None else "")
+        + ", so needs your eye (K20)"
+        for r in faint
+    )
 
 
 def same_walk_config(th: dict | None) -> dict[str, Any] | None:
@@ -846,6 +920,7 @@ def how_checked(pm: PanelMatch) -> str | None:
         "; ".join(f"second marks pass: {w}" for w in pm.second_pass) if pm.second_pass else None,
         registration_words(pm),
         same_walk_words(pm),
+        stands_out_words(pm),
     ]
     line = "; ".join(p for p in parts if p)
     return line or None
@@ -1599,6 +1674,15 @@ def verdicts_for(
     confirm = counter_confirms_mark(th)
     reg_capped = registration_capped(pm)
     covered = covered_by_other_walk(pm, marks, keyframes) if inside_other_box(th) else {}
+    so_cfg = stands_out_config(th)
+    contrast = {r.mark_id: r for r in pm.own_contrast} if so_cfg is not None else {}
+    faint = {i for i, r in contrast.items() if r.result == "faint"}
+
+    def contrast_used(mark_id: str) -> dict[str, Any] | None:
+        r = contrast.get(mark_id)
+        if r is None or so_cfg is None:
+            return None
+        return {"own_contrast": r.contrast, "own_contrast_result": r.result, "min_contrast": so_cfg["min_contrast"]}
     cm_per_unit = float(th["matching"]["cm_per_unit_for_print"])
     panel_marks = [marks[i] for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in marks]
     kf_status = {kf.kf_id: kf.marks_status for kf in keyframes.values() if kf.panel_id == pm.panel_id}
@@ -1670,9 +1754,12 @@ def verdicts_for(
         type_note: str | None = None,
         note_ids: list[str] | None = None,
         counter_note: str | None = None,
+        extra: dict[str, Any] | None = None,
     ) -> None:
         involved = [marks[i] for i in mark_ids if i in marks]
         thresholds = _thresholds_used(calibration, th, tau_pre_r=pair.tau_pre_r if pair else None, tau_eye_r=pair.tau_eye_r if pair else None)
+        if extra:
+            thresholds.update(extra)
         if pair is not None:
             thresholds.update({"d": pair.d, "d_pos": pair.d_pos, "type_cost": pair.type_cost, "size_cost": pair.size_cost, "r_mean": pair.r_mean})
             if not pair.mutual:
@@ -1721,9 +1808,11 @@ def verdicts_for(
                     flags = flags.model_copy(update={"K18": True})
                 if mark.mark_id in covered:
                     flags = flags.model_copy(update={"K19": True})
+                if mark.mark_id in faint:
+                    flags = flags.model_copy(update={"K20": True})
                 flags, counter_note = counter_flags(mark, flags, counters, counter_skipped, confirm=confirm)
                 label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
-                emit(label, ids, [mark.mark_id], None, pair, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
+                emit(label, ids, [mark.mark_id], None, pair, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note, extra=contrast_used(mark.mark_id))
     unmatched = set(pm.unmatched_pickup) | set(pm.unmatched_return)
     for mark_id, is_return in (*((i, False) for i in pm.unmatched_pickup), *((i, True) for i in pm.unmatched_return)):
         mark = marks.get(mark_id)
@@ -1739,9 +1828,11 @@ def verdicts_for(
             flags = flags.model_copy(update={"K18": True})
         if mark.mark_id in covered:
             flags = flags.model_copy(update={"K19": True})
+        if mark.mark_id in faint:
+            flags = flags.model_copy(update={"K20": True})
         flags, counter_note = counter_flags(mark, flags, counters, counter_skipped, confirm=confirm)
         label, ids = verdict(None, tau_pre_r, tau_eye_r, flags)
-        emit(label, ids, [mark.mark_id], None, None, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
+        emit(label, ids, [mark.mark_id], None, None, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note, extra=contrast_used(mark.mark_id))
     return out
 
 
@@ -2227,6 +2318,9 @@ def derive_match(
     glass = glass_by_eye(th)
     sw_cfg = same_walk_config(th)
     sw_cache = (reg_cache if reg_cache is not None and reg_cache.cfg == sw_cfg else RegistrationCache(run_id, kf_by_id, marks, sw_cfg)) if sw_cfg is not None else None
+    so_cfg = stands_out_config(th)
+    so_cache = (reg_cache or sw_cache or RegistrationCache(run_id, kf_by_id, marks, so_cfg)) if so_cfg is not None else None  # pixels only
+    as_placed = {m.mark_id: m for m in marks}  # before the same-walk step re-places any
     masks: dict[str, np.ndarray | None] = {}
     matches: list[PanelMatch] = []
     verdicts: list[Verdict] = []
@@ -2272,6 +2366,8 @@ def derive_match(
                 except Exception as exc:  # pixels only and never a verdict: a failure here must not stop the match
                     failed = RegistrationFit(kf_pair=list(pm.kf_pair or [kf_p.kf_id, kf_r.kf_id]), model="none", ok=False, why=f"registration failed: {type(exc).__name__}")
                     pm = pm.model_copy(update={"registration": [failed]})
+            if so_cache is not None and so_cfg is not None and panel.panel_id not in glass:
+                pm = stands_out_step(pm, as_placed, so_cache, so_cfg)
         else:
             gates = panel_gates(panel, kfs["pickup"][0] if kfs["pickup"] else None, kfs["return"][0] if kfs["return"] else None, mask_iou=None, residual=None, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
             pm = PanelMatch(

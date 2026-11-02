@@ -20,7 +20,7 @@ PY="$REPO/.venv/bin/python"
 WA="$REPO/.venv/bin/walkaround"
 VIDEO_DIR="${VIDEO_DIR:-$(cd "$REPO/.." && pwd)/video}"
 RAILWAY_DIR="${RAILWAY_DIR:-/private/tmp/claude-501/-Users-sanat-meta2026/086cb85f-3e5e-4a16-a188-2d31e59c8048/scratchpad/deploy}"
-CREDIT="Footage: filmed by us with the car owner's permission; the marks are paper stand-ins"
+CREDIT="Footage: filmed by us with the car owner's permission; the marks are blue tape stand-ins"
 TITLE="A friend's own car, filmed at pickup and at return"
 SLOT=friend_car
 NOKEYS=(MODEL_API_KEY= BASETEN_API_KEY= BASETEN_HACKATHON_API_KEY= HF_TOKEN=)
