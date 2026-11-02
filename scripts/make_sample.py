@@ -4,7 +4,7 @@ orchestrator.seed_samples; orchestrator.sample_run_ids reads the index, and the 
 /api/sample returns).
 
     make_sample.py RUN_ID [--title TEXT] [--slot NAME] [--first] [--footage-credit TEXT] [--clip REL ...]
-                   [--cover ROLE:F1-F2:X1,Y1,X2,Y2 ...] [--plate-block PX] [--max-mb 60] [--dry-run] [--samples-dir DIR]
+                   [--cover ROLE:F1-F2:X1,Y1,X2,Y2 ...] [--plate-block PX] [--video-crf N] [--max-mb 60] [--dry-run] [--samples-dir DIR]
     make_sample.py --check [SAMPLE_DIR ...]
 
 --samples-dir DIR writes the sample and the index into DIR instead of samples/ (a scratch try; scripts/hero.sh seeds
@@ -29,6 +29,10 @@ each blurred display video with PX-pixel blocks, and --cover ROLE:F1-F2:X1,Y1,X2
 on frames F1 to F2 of that walk, for a plate the run's lanes missed. On a 960 px proxy the run's own block is 5 px,
 which leaves a large plate readable where nothing else covers it. A video touched this way is re-encoded, so its
 bytes no longer match the hash in videos/<role>.json and bundle/manifest_run.json; the README says so.
+
+--video-crf N re-encodes both display videos at x264 CRF N (every frame and the timing kept), for a run whose videos
+alone break the size budget: hero_focus3's two took 40.7 MB at the run's CRF 20 and about 12 MB at 28. The same
+hash note applies, and the size is measured on the copy.
 
 The first sample in the repo was made with (Nov 1, from run pairC_core3, no --plate-block and no --cover: the run's own display
 videos carry blocks that grow with the box and plate tracks carried 3 s past their sightings with the path cover, so
@@ -108,15 +112,17 @@ def plate_boxes(root: Path, role: str, frames: int, fps: float, th: dict[str, An
     return out
 
 
-def repixelate(path: Path, boxes: dict[int, list[list[float]]], th: dict[str, Any], *, block_px: int | None) -> None:
+def repixelate(path: Path, boxes: dict[int, list[list[float]]], th: dict[str, Any], *, block_px: int | None, crf: int | None = None) -> None:
     """Pixelate the boxes on one blurred display video in place: block_px pixels, or the run's own block when None,
-    with the run's dilation scaled to the video."""
+    with the run's dilation scaled to the video; re-encoded at crf (the run's media.proxy_crf when None)."""
     info = video.probe(path)
     scale = max(info.width, info.height) / privacy.SRC_REFERENCE_EDGE
     p = th["privacy"]
     block = block_px or max(2, int(round(p["pixel_block_px_at_4k"] * scale)))
     out = path.with_name(path.name + ".repixelated.mp4")
-    video.render_blurred_proxy(path, out, boxes, block_px=block, dilate_frac=p["track_box_dilation_frac"], dilate_px=int(round(p["track_box_dilation_px"] * scale)))
+    video.render_blurred_proxy(
+        path, out, boxes, block_px=block, dilate_frac=p["track_box_dilation_frac"], dilate_px=int(round(p["track_box_dilation_px"] * scale)), crf=int(crf if crf is not None else th["media"]["proxy_crf"])
+    )
     out.replace(path)
 
 
@@ -255,7 +261,7 @@ def index_problems(samples: Path) -> list[str]:
     return found
 
 
-def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: list[Cover], plate_block: int | None, max_mb: float, dry_run: bool, title: str | None = None, slot: str | None = None, first: bool = False, samples: Path = SAMPLES) -> int:
+def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: list[Cover], plate_block: int | None, max_mb: float, dry_run: bool, title: str | None = None, slot: str | None = None, first: bool = False, samples: Path = SAMPLES, video_crf: int | None = None) -> int:
     run, files, left_out = plan(run_id, clips)
     root = paths.runs_root() / run_id
     missing = sorted(clips - set(files))
@@ -263,7 +269,7 @@ def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: l
         sys.stderr.write(f"not servable or not in the run: {', '.join(missing)}\n")
         return 2
     proxies = {rel.split("/")[1].removesuffix(".proxy_blurred.mp4") for rel in files if rel.startswith("media/") and rel.endswith(".proxy_blurred.mp4")}
-    walks = {role for role, *_ in covers} | (proxies if plate_block else set())
+    walks = {role for role, *_ in covers} | (proxies if plate_block or video_crf is not None else set())
     no_video = sorted(walks - proxies)
     if no_video:
         sys.stderr.write(f"no blurred display video to cover for: {', '.join(no_video)}\n")
@@ -278,9 +284,11 @@ def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: l
     for why, size in sorted(left_out.items()):
         print(f"left out ({why}): {size / 1e6:.1f} MB")
     print(f"{len(files) + 2} files, {total / 1e6:.1f} MB")
-    if total > max_mb * 1_000_000:
+    if total > max_mb * 1_000_000 and video_crf is None:
         sys.stderr.write(f"over {max_mb} MB; name fewer clips\n")
         return 1
+    if video_crf is not None:
+        print(f"display videos re-encoded at CRF {video_crf}: the size is measured on the copy")
     index = load_index(samples / INDEX_NAME)
     position = place(index, run_id, title=title, slot=slot, first=first)
     print(f"{INDEX_NAME}: {run_id} at position {position + 1} of {len(index['samples'])}" + (" (not written, dry run)" if dry_run else ""))
@@ -303,8 +311,8 @@ def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: l
         for _role, f1, f2, box in (cv for cv in covers if cv[0] == role):
             for f in range(f1, f2 + 1):
                 boxes.setdefault(f, []).append(box)
-        repixelate(staging / "media" / f"{role}.proxy_blurred.mp4", boxes, run.thresholds, block_px=plate_block)
-        print(f"pixelated plate boxes again on {len(boxes)} frames of the {role} display video")
+        repixelate(staging / "media" / f"{role}.proxy_blurred.mp4", boxes, run.thresholds, block_px=plate_block, crf=video_crf)
+        print(f"pixelated plate boxes again on {len(boxes)} frames of the {role} display video" + (f", CRF {video_crf}" if video_crf is not None else ""))
     found = problems(staging, max_mb=max_mb)
     if found:
         shutil.rmtree(staging.parent, ignore_errors=True)
@@ -329,6 +337,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--slot", metavar="NAME", help="fill this named entry of samples/index.json (it keeps its place)")
     parser.add_argument("--first", action="store_true", help="move the sample to the top of samples/index.json")
     parser.add_argument("--max-mb", type=float, default=MAX_MB)
+    parser.add_argument("--video-crf", type=int, metavar="N", help="re-encode both display videos at this x264 CRF (frames and timing kept) to fit the size budget")
     parser.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
     parser.add_argument("--check", nargs="*", metavar="SAMPLE_DIR", help="check sample folders (default every samples/<id>/)")
     parser.add_argument("--samples-dir", type=Path, metavar="DIR", help="write into DIR instead of samples/ (a scratch try)")
@@ -346,7 +355,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if found else 0
     if not args.run_id:
         parser.error("name a run, or pass --check")
-    return write(args.run_id, footage_credit=args.footage_credit, clips=set(args.clip), covers=args.cover, plate_block=args.plate_block, max_mb=args.max_mb, dry_run=args.dry_run, title=args.title, slot=args.slot, first=args.first, samples=samples)
+    return write(args.run_id, footage_credit=args.footage_credit, clips=set(args.clip), covers=args.cover, plate_block=args.plate_block, max_mb=args.max_mb, dry_run=args.dry_run, title=args.title, slot=args.slot, first=args.first, samples=samples, video_crf=args.video_crf)
 
 
 if __name__ == "__main__":

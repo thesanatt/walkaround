@@ -11,6 +11,7 @@ import importlib.util
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -181,3 +182,24 @@ def test_write_copies_a_run_as_a_kept_replay_and_fills_its_slot(tmp_path: Path, 
     entries = json.loads((samples / "index.json").read_text())["samples"]
     assert [e["run_id"] for e in entries] == ["RUNNEW", "RUNCLAIMCOPY", "RUNOLD"] and entries[0]["title"] is None
     assert module.index_problems(samples) == []
+
+
+def test_repixelate_re_encodes_at_the_crf_asked_and_the_runs_own_by_default(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from types import SimpleNamespace
+
+    module = make_sample()
+    seen: dict[str, Any] = {}
+
+    def fake(src: Path, dst: Path, boxes: dict, **kw: Any) -> None:
+        seen.update(kw)
+        Path(dst).write_bytes(b"v")
+
+    monkeypatch.setattr(module.video, "probe", lambda p: SimpleNamespace(width=960, height=540))
+    monkeypatch.setattr(module.video, "render_blurred_proxy", fake)
+    th = c.load_thresholds()
+    f = tmp_path / "pickup.proxy_blurred.mp4"
+    f.write_bytes(b"x")
+    module.repixelate(f, {}, th, block_px=None, crf=28)
+    assert seen["crf"] == 28 and f.read_bytes() == b"v"
+    module.repixelate(f, {}, th, block_px=None)
+    assert seen["crf"] == th["media"]["proxy_crf"]
