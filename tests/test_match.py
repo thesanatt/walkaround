@@ -70,6 +70,9 @@ def th() -> dict[str, Any]:
     values = load_thresholds()
     for leaf in ("sigma_frame", "sigma_spark"):
         values["matching"].pop(leaf, None)
+    # registration (11/2) reads the crops' pixels; these fixtures use one picture for both walks, so it would see
+    # every one-walk mark at its spot. It has its own tests (tests/test_registration_1102.py).
+    values["matching"].pop("registration", None)
     return values
 
 

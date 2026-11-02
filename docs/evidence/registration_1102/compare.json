@@ -1,0 +1,237 @@
+[
+ {
+  "run": "synth_pair2_r9",
+  "base": {
+   "already_there": 2,
+   "new_or_unseen": 1,
+   "not_comparable": 10,
+   "needs_your_eye": 14
+  },
+  "reg": {
+   "already_there": 2,
+   "new_or_unseen": 1,
+   "not_comparable": 10,
+   "needs_your_eye": 14
+  },
+  "false_new_base": 1,
+  "false_new_reg": 1,
+  "false_already_base": 1,
+  "false_already_reg": 1,
+  "k18": 0,
+  "registered_pairs": 0,
+  "changes": []
+ },
+ {
+  "run": "synth_pair2_r8",
+  "base": {
+   "needs_your_eye": 16,
+   "not_seen_at_return": 1,
+   "new_or_unseen": 2,
+   "not_comparable": 9,
+   "already_there": 3
+  },
+  "reg": {
+   "needs_your_eye": 17,
+   "new_or_unseen": 2,
+   "not_comparable": 9,
+   "already_there": 3
+  },
+  "false_new_base": 3,
+  "false_new_reg": 2,
+  "false_already_base": 2,
+  "false_already_reg": 2,
+  "k18": 1,
+  "registered_pairs": 0,
+  "changes": [
+   {
+    "marks": [
+     "pickup_left_front_door_kf2_m2"
+    ],
+    "panel": "left_front_door",
+    "base": "not_seen_at_return",
+    "reg": "needs_your_eye",
+    "base_rules": [
+     "L1"
+    ],
+    "reg_rules": [
+     "L4",
+     "L1",
+     "K18"
+    ],
+    "truth": "no_mark"
+   }
+  ]
+ },
+ {
+  "run": "lexi_pair1",
+  "base": {
+   "not_comparable": 13,
+   "already_there": 1,
+   "needs_your_eye": 10
+  },
+  "reg": {
+   "not_comparable": 13,
+   "already_there": 1,
+   "needs_your_eye": 10
+  },
+  "false_new_base": 0,
+  "false_new_reg": 0,
+  "false_already_base": 0,
+  "false_already_reg": 0,
+  "k18": 0,
+  "registered_pairs": 0,
+  "changes": []
+ },
+ {
+  "run": "lexi_pair2",
+  "base": {
+   "not_comparable": 9,
+   "needs_your_eye": 11,
+   "already_there": 2
+  },
+  "reg": {
+   "not_comparable": 9,
+   "needs_your_eye": 11,
+   "already_there": 2
+  },
+  "false_new_base": 0,
+  "false_new_reg": 0,
+  "false_already_base": 0,
+  "false_already_reg": 0,
+  "k18": 0,
+  "registered_pairs": 0,
+  "changes": []
+ },
+ {
+  "run": "pairC_core3",
+  "base": {
+   "not_comparable": 18,
+   "already_there": 1,
+   "needs_your_eye": 11
+  },
+  "reg": {
+   "not_comparable": 18,
+   "already_there": 1,
+   "needs_your_eye": 11
+  },
+  "false_new_base": 0,
+  "false_new_reg": 0,
+  "false_already_base": 0,
+  "false_already_reg": 0,
+  "k18": 1,
+  "registered_pairs": 0,
+  "changes": [
+   {
+    "marks": [
+     "return_trunk_lid_kf2_m3"
+    ],
+    "panel": "trunk_lid",
+    "base": "needs_your_eye",
+    "reg": "needs_your_eye",
+    "base_rules": [
+     "L4",
+     "L2",
+     "K12",
+     "K15",
+     "K4"
+    ],
+    "reg_rules": [
+     "L4",
+     "L2",
+     "K12",
+     "K15",
+     "K18",
+     "K4"
+    ],
+    "truth": null
+   }
+  ]
+ },
+ {
+  "run": "pairC_r16",
+  "base": {
+   "not_seen_at_return": 1,
+   "needs_your_eye": 17,
+   "not_comparable": 12,
+   "already_there": 2
+  },
+  "reg": {
+   "not_seen_at_return": 1,
+   "needs_your_eye": 17,
+   "not_comparable": 12,
+   "already_there": 2
+  },
+  "false_new_base": 0,
+  "false_new_reg": 0,
+  "false_already_base": 0,
+  "false_already_reg": 0,
+  "k18": 2,
+  "registered_pairs": 0,
+  "changes": [
+   {
+    "marks": [
+     "return_right_front_door_kf1_m1"
+    ],
+    "panel": "right_front_door",
+    "base": "needs_your_eye",
+    "reg": "needs_your_eye",
+    "base_rules": [
+     "L4",
+     "L2",
+     "K12",
+     "K4"
+    ],
+    "reg_rules": [
+     "L4",
+     "L2",
+     "K12",
+     "K18",
+     "K4"
+    ],
+    "truth": null
+   },
+   {
+    "marks": [
+     "return_right_front_door_kf2_m1"
+    ],
+    "panel": "right_front_door",
+    "base": "needs_your_eye",
+    "reg": "needs_your_eye",
+    "base_rules": [
+     "L4",
+     "L2",
+     "K12",
+     "K4"
+    ],
+    "reg_rules": [
+     "L4",
+     "L2",
+     "K12",
+     "K18",
+     "K4"
+    ],
+    "truth": null
+   }
+  ]
+ },
+ {
+  "run": "eval_nhtsa15759_r16",
+  "base": {
+   "new_or_unseen": 1,
+   "needs_your_eye": 1,
+   "not_comparable": 14
+  },
+  "reg": {
+   "new_or_unseen": 1,
+   "needs_your_eye": 1,
+   "not_comparable": 14
+  },
+  "false_new_base": 0,
+  "false_new_reg": 0,
+  "false_already_base": 0,
+  "false_already_reg": 0,
+  "k18": 0,
+  "registered_pairs": 0,
+  "changes": []
+ }
+]

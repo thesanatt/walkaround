@@ -58,6 +58,8 @@ from .contracts import (
     Panel,
     PanelId,
     PanelMatch,
+    RegistrationFit,
+    RegistrationMark,
     SparkPurpose,
     SparkRequestRecord,
     StaysPutVerdict,
@@ -128,6 +130,13 @@ def seams_not_marks(th: dict | None) -> bool:
     """Lead 11/1 (thresholds matching.seams_not_marks): the marks prompt adds spark_client.SEAMS_SENTENCE (seams, shading
     and reflections are not marks); off when absent, as in every run frozen before it."""
     return bool((th or {}).get("matching", {}).get("seams_not_marks", False))
+
+
+def registration_config(th: dict | None) -> dict[str, Any] | None:
+    """Thresholds matching.registration (11/2) with its defaults filled, or None when absent or not enabled."""
+    from . import register
+
+    return register.config(th)
 
 
 def next_keyframe_pair(th: dict | None) -> bool:
@@ -585,6 +594,7 @@ def how_checked(pm: PanelMatch) -> str | None:
         fixture_words(pm.fixtures) if pm.fixtures else None,
         off_panel_words(pm) if pm.off_panel else None,
         "; ".join(f"second marks pass: {w}" for w in pm.second_pass) if pm.second_pass else None,
+        registration_words(pm),
     ]
     line = "; ".join(p for p in parts if p)
     return line or None
@@ -1336,6 +1346,7 @@ def verdicts_for(
     K16 unless part 2 is different."""
     counters, counter_skipped = counters or {}, counter_skipped or {}
     confirm = counter_confirms_mark(th)
+    reg_capped = registration_capped(pm)
     cm_per_unit = float(th["matching"]["cm_per_unit_for_print"])
     panel_marks = [marks[i] for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in marks]
     kf_status = {kf.kf_id: kf.marks_status for kf in keyframes.values() if kf.panel_id == pm.panel_id}
@@ -1414,6 +1425,10 @@ def verdicts_for(
             thresholds.update({"d": pair.d, "d_pos": pair.d_pos, "type_cost": pair.type_cost, "size_cost": pair.size_cost, "r_mean": pair.r_mean})
             if not pair.mutual:
                 thresholds["group_pairing"] = True  # paired inside a group with the ratio test waived
+            if pair.registered:
+                thresholds["registered"] = True  # measured at the registered spot (matching.registration, 11/2)
+                if pair.d_moment is not None:
+                    thresholds["d_moment"] = pair.d_moment
         out.append(
             Verdict(
                 verdict_id=vid(),
@@ -1450,6 +1465,8 @@ def verdicts_for(
             for mark, is_return in ((a, False), (b, True)):
                 view = flags_by_role([mark])
                 flags = flags_for(pair, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
+                if mark.mark_id in reg_capped:
+                    flags = flags.model_copy(update={"K18": True})
                 flags, counter_note = counter_flags(mark, flags, counters, counter_skipped, confirm=confirm)
                 label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
                 emit(label, ids, [mark.mark_id], None, pair, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
@@ -1464,10 +1481,286 @@ def verdicts_for(
         tau_eye_r = tau_r(calibration.tau_eye, r, th)
         view = flags_by_role([mark])
         flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
+        if mark.mark_id in reg_capped:
+            flags = flags.model_copy(update={"K18": True})
         flags, counter_note = counter_flags(mark, flags, counters, counter_skipped, confirm=confirm)
         label, ids = verdict(None, tau_pre_r, tau_eye_r, flags)
         emit(label, ids, [mark.mark_id], None, None, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
     return out
+
+
+# Registration (11/2, thresholds matching.registration) -------------------------------------------------------------
+
+
+class RegistrationCache:
+    """Crops, masks and fits of one run, so a keyframe pair is aligned once per derive_match."""
+
+    def __init__(self, run_id: str, kf_by_id: dict[str, Keyframe], marks: list[Mark], cfg: dict[str, Any]) -> None:
+        self.run_id, self.kf_by_id, self.cfg = run_id, kf_by_id, cfg
+        self.boxes: dict[str, list[tuple[float, float, float, float]]] = {}
+        for m in marks:
+            if m.bbox_crop is not None:
+                self.boxes.setdefault(m.kf_id, []).append(tuple(float(v) for v in m.bbox_crop))  # type: ignore[arg-type]
+        self._px: dict[str, Any] = {}
+        self._feats: dict[str, Any] = {}
+        self._fits: dict[tuple[str, str], Any] = {}
+
+    def features(self, kf_id: str) -> Any:
+        from . import register
+
+        if kf_id not in self._feats:
+            px = self.pixels(kf_id)
+            self._feats[kf_id] = None if px is None else register.features(px[0], px[1], self.boxes.get(kf_id, []), self.cfg)
+        return self._feats[kf_id]
+
+    def pixels(self, kf_id: str) -> tuple[np.ndarray, np.ndarray] | None:
+        if kf_id not in self._px:
+            import cv2
+
+            kf = self.kf_by_id.get(kf_id)
+            img = mask = None
+            if kf is not None and kf.crop is not None and kf.mask_png:
+                img = cv2.imread(str(paths.run_dir(self.run_id) / kf.crop.path), cv2.IMREAD_COLOR)
+                raw = cv2.imread(str(paths.run_dir(self.run_id) / kf.mask_png), cv2.IMREAD_GRAYSCALE)
+                mask = None if raw is None else raw > 0
+            self._px[kf_id] = None if img is None or mask is None or img.shape[:2] != mask.shape else (img, mask)
+        return self._px[kf_id]
+
+    def fit(self, kf_pickup: str, kf_return: str) -> Any:
+        """register.Aligned from the pickup keyframe's crop onto the return keyframe's, or None without pixels."""
+        from . import register
+
+        key = (kf_pickup, kf_return)
+        if key not in self._fits:
+            pa, pb = self.pixels(kf_pickup), self.pixels(kf_return)
+            ka, kb = self.kf_by_id.get(kf_pickup), self.kf_by_id.get(kf_return)
+            if pa is None or pb is None or ka is None or kb is None:
+                self._fits[key] = None
+            else:
+                prior = register.prior_map(ka.moments, ka.front_sign, kb.moments, kb.front_sign)
+                self._fits[key] = register.align(
+                    kf_pickup, pa[0], pa[1], kf_return, pb[0], pb[1], self.cfg, prior=prior, feats_a=self.features(kf_pickup), feats_b=self.features(kf_return)
+                )
+        return self._fits[key]
+
+
+def _fit_record(al: Any) -> RegistrationFit:
+    s = al.summary()
+    return RegistrationFit(
+        kf_pair=[al.kf_a, al.kf_b],
+        model=s["model"],
+        ok=s["ok"],
+        why=s["why"],
+        n_matches=s["n_matches"],
+        n_inliers=s["n_inliers"],
+        spread=s["spread"],
+        mask_iou=s["mask_iou"],
+        reproj_px=s["reproj_px"],
+        H=None if al.H is None else [[round(float(v), 9) for v in row] for row in al.H],
+    )
+
+
+def _centre(box: Any) -> tuple[float, float]:
+    return (float(box[0]) + float(box[2])) / 2.0, (float(box[1]) + float(box[3])) / 2.0
+
+
+def _reg_record(mark_id: str, other_kf: str, pr: Any, used: str = "none", paired_with: str | None = None) -> RegistrationMark:
+    return RegistrationMark(
+        mark_id=mark_id,
+        other_kf=other_kf,
+        result=pr.result,
+        why=pr.why,
+        mapped_box=None if pr.mapped_box is None else list(pr.mapped_box),
+        found_box=None if pr.found_box is None else list(pr.found_box),
+        ncc=pr.ncc,
+        contrast_own=pr.contrast_a,
+        contrast_other=pr.contrast_b,
+        uncertainty_px=pr.uncertainty_px,
+        used=used,  # type: ignore[arg-type]
+        paired_with=paired_with,
+    )
+
+
+def registration_step(pm: PanelMatch, panel_marks: dict[str, list[Mark]], cache: RegistrationCache, calibration: Calibration, th: dict) -> PanelMatch:
+    """The registration rules on one compared panel (thresholds matching.registration, 11/2). Pixels only, no model.
+
+    The chosen keyframe pair, and each other keyframe that holds a mark with the other walk's keyframe it is tested in,
+    are aligned (register.align). Then, for a mark at its mapped spot in the other walk's crop, register.presence says
+    present, absent or cannot tell. Code decides and no label moves up:
+    - a moment pair outside tau_pre_r whose spots coincide (one mark's patch is found in the other crop within
+      coincide_px of the other mark) is measured there: d and d_pos from the registered spot, d_moment kept (pair_kept);
+    - a mark seen in one walk only whose patch is present at its spot pairs with an unmatched mark of the other walk
+      found there (paired), nearest first and one to one; with none there it is capped at needs your eye (K18, capped);
+      both marks of a pair beyond tau_eye_r count as seen in one walk only;
+    - absent and cannot tell change nothing; a refused alignment gives cannot tell everywhere.
+    Every test is recorded on PanelMatch.registration_marks and every fit on PanelMatch.registration."""
+    from . import register
+
+    cfg = cache.cfg
+    if pm.state != MatchState.COMPARABLE or pm.panel_id in WHEEL_PANELS or not pm.kf_pair:
+        return pm
+    kp, kr = pm.kf_pair
+    by_id = {m.mark_id: m for role in ROLES for m in panel_marks[role]}
+    used_fits: dict[tuple[str, str], Any] = {}
+
+    def fit(kf_p: str, kf_r: str) -> Any:
+        al = cache.fit(kf_p, kf_r)
+        if al is not None:
+            used_fits.setdefault((kf_p, kf_r), al)
+        return al
+
+    fit(kp, kr)
+
+    def test(mark: Mark, other_kf: str) -> Any:
+        if mark.bbox_crop is None:
+            return None
+        own, other = cache.pixels(mark.kf_id), cache.pixels(other_kf)
+        if own is None or other is None:
+            return None
+        al = fit(mark.kf_id, other_kf) if mark.role == "pickup" else fit(other_kf, mark.kf_id)
+        if al is None:
+            return None
+        if mark.role != "pickup":
+            al = register.inverse(al)
+        ys, xs = np.nonzero(own[1])
+        diag = math.hypot(float(xs.max() - xs.min()), float(ys.max() - ys.min())) if xs.size else 1.0
+        return register.presence(al, own[0], other[0], other[1], tuple(float(v) for v in mark.bbox_crop), cfg, diag_a=diag)  # type: ignore[arg-type]
+
+    def coincide(pr: Any, other: Mark) -> float | None:
+        if pr is None or pr.result != register.PRESENT or pr.found_box is None or other.bbox_crop is None:
+            return None
+        dist = math.dist(_centre(pr.found_box), _centre(other.bbox_crop))
+        return dist if dist <= register.coincide_px(tuple(float(v) for v in other.bbox_crop), cfg) else None  # type: ignore[arg-type]
+
+    def registered_pair(a: Mark, b: Mark, tested: Mark, pr: Any, d_moment: float | None) -> MatchCandidate | None:
+        """The pair measured at the registered spot: the tested mark's found centre whitened in the other mark's
+        keyframe frame against the other mark's own whitened position."""
+        other = b if tested is a else a
+        kf_o = cache.kf_by_id.get(other.kf_id)
+        if kf_o is None or kf_o.moments is None or kf_o.front_sign is None or other.w is None or other.r is None:
+            return None
+        try:
+            u, v = geometry.whiten(_centre(pr.found_box), kf_o.moments, kf_o.front_sign)
+        except (ValueError, np.linalg.LinAlgError):
+            return None
+        w_other = WhitenedMark(mark_id=other.mark_id, role=other.role, panel_id=other.panel_id, kf_id=other.kf_id, u=other.w[0], v=other.w[1], r=other.r)
+        w_tested = WhitenedMark(mark_id=tested.mark_id, role=tested.role, panel_id=tested.panel_id, kf_id=other.kf_id, u=u, v=v, r=geometry.radius((u, v)))
+        wa, wb = (w_tested, w_other) if tested is a else (w_other, w_tested)
+        cand = cost(a, b, wa, wb, calibration, th)
+        return cand.model_copy(update={"registered": True, "d_moment": d_moment, "mutual": True})
+
+    records: dict[str, RegistrationMark] = {}
+    pairs = list(pm.pairs)
+    one_walk: list[Mark] = []
+    for i, pair in enumerate(pairs):
+        a, b = by_id.get(pair.pickup_mark), by_id.get(pair.return_mark)
+        if a is None or b is None or pair.d < pair.tau_pre_r:
+            continue
+        done = False
+        for tested, other in ((a, b), (b, a)):
+            pr = test(tested, other.kf_id)
+            if pr is None:
+                continue
+            if coincide(pr, other) is not None:
+                cand = registered_pair(a, b, tested, pr, pair.d)
+                if cand is not None:
+                    pairs[i] = cand
+                    records[tested.mark_id] = _reg_record(tested.mark_id, other.kf_id, pr, "pair_kept", other.mark_id)
+                    done = True
+                    break
+            records.setdefault(tested.mark_id, _reg_record(tested.mark_id, other.kf_id, pr))
+        if not done and pair.d >= pair.tau_eye_r:
+            one_walk.extend([a, b])
+    unmatched = {role: [by_id[i] for i in (pm.unmatched_pickup if role == "pickup" else pm.unmatched_return) if i in by_id] for role in ROLES}
+    proposals: list[tuple[float, str, str, str, Any]] = []
+    present_at: dict[str, tuple[str, Any]] = {}
+    for m in [*unmatched["pickup"], *unmatched["return"], *one_walk]:
+        other_role = "return" if m.role == "pickup" else "pickup"
+        chosen = kr if m.role == "pickup" else kp
+        others = unmatched[other_role]
+        kfs = [chosen, *sorted({o.kf_id for o in others} - {chosen})]
+        for kf_o in kfs:
+            pr = test(m, kf_o)
+            if pr is None:
+                continue
+            if kf_o == chosen and m.mark_id not in records:
+                records[m.mark_id] = _reg_record(m.mark_id, kf_o, pr)
+            if pr.result != register.PRESENT:
+                continue
+            present_at.setdefault(m.mark_id, (kf_o, pr))
+            if m in one_walk:
+                continue  # a pair beyond tau_eye_r keeps its two marks; only the cap applies
+            for o in others:
+                if o.kf_id != kf_o:
+                    continue
+                dist = coincide(pr, o)
+                if dist is not None:
+                    proposals.append((round(dist, 6), m.mark_id, o.mark_id, kf_o, pr))
+    taken: set[str] = set()
+    new_pairs: list[MatchCandidate] = []
+    for dist, mid, oid, kf_o, pr in sorted(proposals, key=lambda t: (t[0], t[1], t[2])):
+        if mid in taken or oid in taken:
+            continue
+        m, o = by_id[mid], by_id[oid]
+        a, b = (m, o) if m.role == "pickup" else (o, m)
+        cand = registered_pair(a, b, m, pr, None)
+        if cand is None:
+            continue
+        taken.update({mid, oid})
+        new_pairs.append(cand)
+        records[mid] = _reg_record(mid, kf_o, pr, "paired", oid)
+        if oid in records and records[oid].used == "none":
+            records[oid] = records[oid].model_copy(update={"paired_with": mid})
+    for m in [*unmatched["pickup"], *unmatched["return"], *one_walk]:
+        if m.mark_id in taken or m.mark_id not in present_at:
+            continue
+        kf_o, pr = present_at[m.mark_id]
+        records[m.mark_id] = _reg_record(m.mark_id, kf_o, pr, "capped")
+    order = [i for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in records]
+    return pm.model_copy(
+        update={
+            "pairs": [*pairs, *new_pairs],
+            "unmatched_pickup": [i for i in pm.unmatched_pickup if i not in taken],
+            "unmatched_return": [i for i in pm.unmatched_return if i not in taken],
+            "registration": [_fit_record(al) for al in used_fits.values()],
+            "registration_marks": [records[i] for i in dict.fromkeys(order)],
+        }
+    )
+
+
+def registration_capped(pm: PanelMatch) -> set[str]:
+    return {r.mark_id for r in pm.registration_marks if r.used == "capped"}
+
+
+def registration_words(pm: PanelMatch) -> str | None:
+    """The registration step in words for how_checked: each fit and what each tested mark showed. A panel with no
+    mark tested prints nothing (its fit is still in matches.json)."""
+    if not pm.registration or not pm.registration_marks:
+        return None
+    parts = []
+    for f in pm.registration:
+        how = "the panel outline" if f.model == "outline" else "matched edges and the outline"
+        scores = f"mask IoU {f.mask_iou:.2f}, {f.n_inliers} of {f.n_matches} matched points agree"
+        parts.append(f"registration {f.kf_pair[0]} onto {f.kf_pair[1]} by {how} ({scores})" + ("" if f.ok else f", refused: {f.why}"))
+    unsure = 0
+    for r in pm.registration_marks:
+        other = "return" if r.other_kf.startswith("return") else "pickup"
+        ncc = f"NCC {r.ncc:.2f}" if r.ncc is not None else "no NCC"
+        if r.used == "capped":
+            parts.append(f"{r.mark_id}: the {other} crop shows the same patch at its spot ({ncc}) and no mark there, so needs your eye (K18)")
+        elif r.used == "paired":
+            parts.append(f"{r.mark_id}: paired with {r.paired_with}, the same patch at the same spot in the {other} crop ({ncc})")
+        elif r.used == "pair_kept":
+            parts.append(f"{r.mark_id}: its pair with {r.paired_with} sits at the same spot once the crops are aligned ({ncc}), so measured there")
+        elif r.result == "present":
+            parts.append(f"{r.mark_id}: the same patch is at its spot in the {other} crop ({ncc})")
+        elif r.result == "absent":
+            parts.append(f"{r.mark_id}: not at its spot in the {other} crop ({ncc}); recorded only")
+        else:
+            unsure += 1
+    if unsure:
+        parts.append(f"{unsure} mark{'s' if unsure != 1 else ''} could not be checked at {'their' if unsure != 1 else 'its'} spot")
+    return "; ".join(parts)
 
 
 # The derive entry --------------------------------------------------------------------------------------------------------
@@ -1673,6 +1966,8 @@ def derive_match(
     retry = next_keyframe_pair(th)
     reshaped = reshaped_panel(th)
     deferred = tight_pair_deferrable(th)
+    reg_cfg = registration_config(th)
+    reg_cache = RegistrationCache(run_id, kf_by_id, marks, reg_cfg) if reg_cfg is not None else None
     masks: dict[str, np.ndarray | None] = {}
     matches: list[PanelMatch] = []
     verdicts: list[Verdict] = []
@@ -1700,6 +1995,12 @@ def derive_match(
             pm = pm.model_copy(update={"mask_iou": used.mask_iou, "kf_pairs_tried": tries if retry else []})
             if reshaped and pm.state == MatchState.NOT_COMPARABLE:
                 pm = pm.model_copy(update={"reshape": reshape_check(run_id, tries, kf_by_id, th, masks)})
+            if reg_cache is not None:
+                try:
+                    pm = registration_step(pm, panel_marks, reg_cache, calibration, th)
+                except Exception as exc:  # pixels only and never a verdict: a failure here must not stop the match
+                    failed = RegistrationFit(kf_pair=list(pm.kf_pair or [kf_p.kf_id, kf_r.kf_id]), model="none", ok=False, why=f"registration failed: {type(exc).__name__}")
+                    pm = pm.model_copy(update={"registration": [failed]})
         else:
             gates = panel_gates(panel, kfs["pickup"][0] if kfs["pickup"] else None, kfs["return"][0] if kfs["return"] else None, mask_iou=None, residual=None, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
             pm = PanelMatch(

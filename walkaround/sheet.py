@@ -509,6 +509,13 @@ GLOSSARY_COUNTER_CONFIRM = (  # match.counter_confirms_mark, lead decision 5 of 
     "K16 (the other walk may show it) when the second is yes or unsure. If it gives no answer, the label stands. A model can only lower a label.\n"
 )
 
+GLOSSARY_REGISTRATION = (  # match.registration_config, 11/2
+    "registration: on a compared panel the pickup crop is mapped onto the return crop from the panel's outline (the two SAM masks) and, where there are enough, matched edges of its rigid parts; "
+    "the fit is refused when the outlines disagree. Each mark's box is then carried to the other crop and the two patches are compared pixel by pixel. "
+    "If the other walk shows the same patch there and has no mark there, the mark is not new or gone: needs your eye (K18). "
+    "If it has an unmatched mark there, the two are paired and measured at that spot. Nothing here is a model's answer, and a refused fit changes nothing.\n"
+)
+
 GLOSSARY_FIXTURES = (  # match.fixtures_not_damage, lead decision 4 of 11/1
     "factory fixture: parking sensors, badges, door handles and locks, washer nozzles, the tire valve, the wheel hub and the plate corners are part of the car, not damage. "
     "Muse Spark is asked not to box them, and a mark whose box still sits mostly on one the run found in the same view (a point Muse Spark named, or the door handle SAM found) "
@@ -533,6 +540,7 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + (GLOSSARY_RESHAPED if match.reshaped_panel(th) else "")
         + (GLOSSARY_COUNTER_CONFIRM if match.counter_confirms_mark(th) else GLOSSARY_COUNTER_LOOK if match.one_walk_counter_look(th) else "")
         + (GLOSSARY_FIXTURES if match.fixtures_not_damage(th) else "")
+        + (GLOSSARY_REGISTRATION if match.registration_config(th) is not None else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"

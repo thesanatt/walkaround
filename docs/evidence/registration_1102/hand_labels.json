@@ -1,0 +1,10 @@
+{
+ "_note": "Boxes I drew by eye on 2x zooms of the lexi_pair2 left rear door crops (11/2), crop pixels. M2 (upper strip) is on the car in both walks; M6 (lower trim triangle) only at return (docs/LEXI_RUN1.md). expected is what the other walk's crop should show at the spot.",
+ "lexi_pair2": [
+  {"id": "M2_pickup_kf1", "kf_id": "pickup_left_rear_door_kf1", "box": [437, 745, 487, 766], "expected": "present"},
+  {"id": "M2_return_kf1", "kf_id": "return_left_rear_door_kf1", "box": [405, 724, 462, 748], "expected": "present"},
+  {"id": "M6_return_kf1", "kf_id": "return_left_rear_door_kf1", "box": [298, 1049, 347, 1068], "expected": "absent"},
+  {"id": "M2_return_kf2", "kf_id": "return_left_rear_door_kf2", "box": [415, 725, 470, 750], "expected": "present"},
+  {"id": "M6_return_kf2", "kf_id": "return_left_rear_door_kf2", "box": [291, 1058, 334, 1075], "expected": "absent"}
+ ]
+}

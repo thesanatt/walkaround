@@ -1,0 +1,1164 @@
+{
+ "run": "pairC_core3",
+ "variant": "reg",
+ "summary": {
+  "not_comparable": 18,
+  "already_there": 1,
+  "needs_your_eye": 11
+ },
+ "verdicts": [
+  {
+   "verdict_id": "left_front_door_v1",
+   "panel": "left_front_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   "mark_ids": [
+    "return_left_front_door_kf1_m1",
+    "return_left_front_door_kf1_m2",
+    "return_left_front_door_kf1_m3"
+   ],
+   "types": [
+    "reflection/medium",
+    "dirt/medium",
+    "unsure/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "left_rear_door_v1",
+   "panel": "left_rear_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "return_left_rear_door_kf1_m1",
+    "return_left_rear_door_kf1_m2",
+    "return_left_rear_door_kf1_m3"
+   ],
+   "types": [
+    "scratch/low",
+    "reflection/medium",
+    "dirt/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "right_front_door_v1",
+   "panel": "right_front_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4",
+    "G9"
+   ],
+   "mark_ids": [
+    "pickup_right_front_door_kf1_m1",
+    "pickup_right_front_door_kf1_m2",
+    "return_right_front_door_kf1_m1",
+    "return_right_front_door_kf2_m1",
+    "return_right_front_door_kf3_m1"
+   ],
+   "types": [
+    "unsure/low",
+    "dirt/medium",
+    "unsure/low",
+    "unsure/low",
+    "unsure/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "right_rear_door_v1",
+   "panel": "right_rear_door",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G9"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "left_rear_fender_v1",
+   "panel": "left_rear_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "return_left_rear_fender_kf3_m1"
+   ],
+   "types": [
+    "dirt/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "right_front_fender_v1",
+   "panel": "right_front_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "right_rear_fender_v1",
+   "panel": "right_rear_fender",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G3",
+    "G4"
+   ],
+   "mark_ids": [
+    "pickup_right_rear_fender_kf2_m1",
+    "pickup_right_rear_fender_kf3_m1"
+   ],
+   "types": [
+    "dirt/low",
+    "dirt/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "hood_v1",
+   "panel": "hood",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4",
+    "G8"
+   ],
+   "mark_ids": [
+    "pickup_hood_kf1_m1",
+    "pickup_hood_kf1_m2",
+    "pickup_hood_kf1_m3",
+    "pickup_hood_kf1_m4",
+    "pickup_hood_kf1_m5",
+    "pickup_hood_kf1_m6",
+    "pickup_hood_kf1_m7",
+    "pickup_hood_kf2_m3",
+    "pickup_hood_kf2_m4",
+    "pickup_hood_kf2_m5",
+    "pickup_hood_kf2_m6",
+    "pickup_hood_kf3_m1",
+    "pickup_hood_kf3_m2",
+    "pickup_hood_kf3_m3",
+    "pickup_hood_kf3_m4",
+    "pickup_hood_kf3_m5",
+    "pickup_hood_kf3_m6",
+    "return_hood_kf1_m1",
+    "return_hood_kf1_m2",
+    "return_hood_kf1_m3",
+    "return_hood_kf1_m4",
+    "return_hood_kf1_m5",
+    "return_hood_kf1_m6",
+    "return_hood_kf1_m7",
+    "return_hood_kf1_m8",
+    "return_hood_kf2_m1",
+    "return_hood_kf2_m2",
+    "return_hood_kf2_m3",
+    "return_hood_kf2_m4",
+    "return_hood_kf2_m5",
+    "return_hood_kf2_m6",
+    "return_hood_kf2_m7"
+   ],
+   "types": [
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/low",
+    "dirt/high",
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/medium",
+    "scratch/medium",
+    "dirt/medium",
+    "dirt/high",
+    "unsure/low",
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/high",
+    "dirt/high",
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/low",
+    "dirt/medium",
+    "dirt/high",
+    "dirt/medium",
+    "dirt/medium",
+    "dirt/high",
+    "dirt/medium",
+    "dirt/medium",
+    "unsure/low",
+    "dirt/medium",
+    "dirt/medium"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "roof_v1",
+   "panel": "roof",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G6"
+   ],
+   "mark_ids": [
+    "return_roof_kf1_m1",
+    "return_roof_kf1_m2",
+    "return_roof_kf1_m3",
+    "return_roof_kf1_m4",
+    "return_roof_kf1_m5",
+    "return_roof_kf2_m1",
+    "return_roof_kf2_m2",
+    "return_roof_kf2_m3",
+    "return_roof_kf2_m4",
+    "return_roof_kf2_m5",
+    "return_roof_kf3_m1",
+    "return_roof_kf3_m2"
+   ],
+   "types": [
+    "dirt/medium",
+    "dirt/low",
+    "unsure/low",
+    "dirt/low",
+    "unsure/low",
+    "unsure/medium",
+    "dirt/low",
+    "dirt/low",
+    "dirt/low",
+    "unsure/low",
+    "dirt/low",
+    "unsure/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "trunk_lid_v1",
+   "panel": "trunk_lid",
+   "label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "mark_ids": [
+    "pickup_trunk_lid_kf1_m1",
+    "return_trunk_lid_kf1_m2"
+   ],
+   "types": [
+    "dirt/medium",
+    "dirt/low"
+   ],
+   "d": 0.093857,
+   "registered": false
+  },
+  {
+   "verdict_id": "trunk_lid_v2",
+   "panel": "trunk_lid",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K15"
+   ],
+   "mark_ids": [
+    "pickup_trunk_lid_kf1_m2"
+   ],
+   "types": [
+    "scratch/medium"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "trunk_lid_v3",
+   "panel": "trunk_lid",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K15",
+    "K4"
+   ],
+   "mark_ids": [
+    "pickup_trunk_lid_kf1_m3"
+   ],
+   "types": [
+    "dirt/medium"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "trunk_lid_v4",
+   "panel": "trunk_lid",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K12",
+    "K4"
+   ],
+   "mark_ids": [
+    "pickup_trunk_lid_kf2_m2"
+   ],
+   "types": [
+    "unsure/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "trunk_lid_v5",
+   "panel": "trunk_lid",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K12",
+    "K4"
+   ],
+   "mark_ids": [
+    "return_trunk_lid_kf1_m1"
+   ],
+   "types": [
+    "dirt/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "trunk_lid_v6",
+   "panel": "trunk_lid",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K12",
+    "K4"
+   ],
+   "mark_ids": [
+    "return_trunk_lid_kf1_m3"
+   ],
+   "types": [
+    "dirt/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "trunk_lid_v7",
+   "panel": "trunk_lid",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K12",
+    "K15",
+    "K18",
+    "K4"
+   ],
+   "mark_ids": [
+    "return_trunk_lid_kf2_m3"
+   ],
+   "types": [
+    "unsure/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "front_bumper_v1",
+   "panel": "front_bumper",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4"
+   ],
+   "mark_ids": [
+    "pickup_front_bumper_kf1_m1"
+   ],
+   "types": [
+    "dirt/medium"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "rear_bumper_v1",
+   "panel": "rear_bumper",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K15",
+    "K2",
+    "K4"
+   ],
+   "mark_ids": [
+    "pickup_rear_bumper_kf1_m1"
+   ],
+   "types": [
+    "dirt/medium"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "rear_bumper_v2",
+   "panel": "rear_bumper",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K12",
+    "K15",
+    "K2",
+    "K4"
+   ],
+   "mark_ids": [
+    "pickup_rear_bumper_kf3_m1"
+   ],
+   "types": [
+    "dirt/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "rear_bumper_v3",
+   "panel": "rear_bumper",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K12",
+    "K15",
+    "K2"
+   ],
+   "mark_ids": [
+    "pickup_rear_bumper_kf3_m2"
+   ],
+   "types": [
+    "scuff/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "rear_bumper_v4",
+   "panel": "rear_bumper",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15",
+    "K4"
+   ],
+   "mark_ids": [
+    "return_rear_bumper_kf1_m1"
+   ],
+   "types": [
+    "dirt/medium"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "rear_bumper_v5",
+   "panel": "rear_bumper",
+   "label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15",
+    "K4"
+   ],
+   "mark_ids": [
+    "return_rear_bumper_kf2_m1"
+   ],
+   "types": [
+    "dirt/medium"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "left_front_wheel_v1",
+   "panel": "left_front_wheel",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "pickup_left_front_wheel_kf1_m1",
+    "return_left_front_wheel_kf1_m1"
+   ],
+   "types": [
+    "unsure/low",
+    "unsure/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "left_rear_wheel_v1",
+   "panel": "left_rear_wheel",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "right_front_wheel_v1",
+   "panel": "right_front_wheel",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "headlights_v1",
+   "panel": "headlights",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "return_headlights_kf1_m1",
+    "return_headlights_kf1_m2",
+    "return_headlights_kf2_m1"
+   ],
+   "types": [
+    "reflection/medium",
+    "reflection/low",
+    "reflection/medium"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "tail_lights_v1",
+   "panel": "tail_lights",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [],
+   "types": [],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "mirrors_v1",
+   "panel": "mirrors",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G3",
+    "G4",
+    "G6"
+   ],
+   "mark_ids": [
+    "pickup_mirrors_kf1_m1",
+    "return_mirrors_kf2_m1"
+   ],
+   "types": [
+    "reflection/medium",
+    "reflection/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "windshield_v1",
+   "panel": "windshield",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "mark_ids": [
+    "return_windshield_kf1_m1",
+    "return_windshield_kf1_m2"
+   ],
+   "types": [
+    "reflection/low",
+    "unsure/low"
+   ],
+   "d": null,
+   "registered": false
+  },
+  {
+   "verdict_id": "rear_window_v1",
+   "panel": "rear_window",
+   "label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G3"
+   ],
+   "mark_ids": [
+    "pickup_rear_window_kf1_m1",
+    "pickup_rear_window_kf1_m2",
+    "pickup_rear_window_kf1_m3",
+    "pickup_rear_window_kf1_m4",
+    "pickup_rear_window_kf2_m2",
+    "pickup_rear_window_kf2_m4",
+    "return_rear_window_kf1_m1",
+    "return_rear_window_kf1_m2",
+    "return_rear_window_kf1_m3",
+    "return_rear_window_kf1_m4",
+    "return_rear_window_kf2_m1",
+    "return_rear_window_kf2_m3",
+    "return_rear_window_kf2_m4"
+   ],
+   "types": [
+    "crack/medium",
+    "chip/low",
+    "reflection/medium",
+    "scuff/low",
+    "reflection/medium",
+    "dirt/high",
+    "dirt/low",
+    "scratch/low",
+    "scratch/low",
+    "reflection/low",
+    "reflection/medium",
+    "scratch/low",
+    "scratch/low"
+   ],
+   "d": null,
+   "registered": false
+  }
+ ],
+ "panels": [
+  {
+   "panel": "left_front_door",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_left_front_door_kf1",
+    "return_left_front_door_kf1"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "left_rear_door",
+   "state": "not_comparable",
+   "kf_pair": null,
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "right_front_door",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_right_front_door_kf1",
+    "return_right_front_door_kf3"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "right_rear_door",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_right_rear_door_kf1",
+    "return_right_rear_door_kf1"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "left_rear_fender",
+   "state": "not_comparable",
+   "kf_pair": null,
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "right_front_fender",
+   "state": "not_comparable",
+   "kf_pair": null,
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "right_rear_fender",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_right_rear_fender_kf1",
+    "return_right_rear_fender_kf2"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "hood",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_hood_kf1",
+    "return_hood_kf2"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "roof",
+   "state": "not_comparable",
+   "kf_pair": null,
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "trunk_lid",
+   "state": "comparable",
+   "kf_pair": [
+    "pickup_trunk_lid_kf2",
+    "return_trunk_lid_kf1"
+   ],
+   "fits": [
+    {
+     "kf_pair": [
+      "pickup_trunk_lid_kf2",
+      "return_trunk_lid_kf1"
+     ],
+     "model": "outline",
+     "ok": false,
+     "why": "mask IoU after the warp 0.87",
+     "n_matches": 12,
+     "n_inliers": 0,
+     "spread": 0.0,
+     "mask_iou": 0.874,
+     "reproj_px": null
+    },
+    {
+     "kf_pair": [
+      "pickup_trunk_lid_kf1",
+      "return_trunk_lid_kf1"
+     ],
+     "model": "outline",
+     "ok": true,
+     "why": null,
+     "n_matches": 14,
+     "n_inliers": 0,
+     "spread": 0.0,
+     "mask_iou": 0.931,
+     "reproj_px": null
+    },
+    {
+     "kf_pair": [
+      "pickup_trunk_lid_kf1",
+      "return_trunk_lid_kf2"
+     ],
+     "model": "outline",
+     "ok": false,
+     "why": "mask IoU after the warp 0.87",
+     "n_matches": 8,
+     "n_inliers": 1,
+     "spread": 0.0,
+     "mask_iou": 0.873,
+     "reproj_px": 2.98
+    },
+    {
+     "kf_pair": [
+      "pickup_trunk_lid_kf2",
+      "return_trunk_lid_kf2"
+     ],
+     "model": "outline",
+     "ok": true,
+     "why": null,
+     "n_matches": 16,
+     "n_inliers": 0,
+     "spread": 0.0,
+     "mask_iou": 0.94,
+     "reproj_px": null
+    }
+   ],
+   "marks": [
+    {
+     "mark_id": "pickup_trunk_lid_kf1_m2",
+     "other_kf": "return_trunk_lid_kf1",
+     "result": "cannot_tell",
+     "why": "the mark stands out by only -0.0 in its own crop",
+     "mapped_box": [
+      655.38,
+      131.38,
+      695.0,
+      184.74
+     ],
+     "found_box": [
+      665.38,
+      118.38,
+      705.0,
+      171.74
+     ],
+     "ncc": 0.252,
+     "contrast_own": 0.0,
+     "contrast_other": 0.09,
+     "uncertainty_px": 6.47,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "pickup_trunk_lid_kf1_m3",
+     "other_kf": "return_trunk_lid_kf1",
+     "result": "cannot_tell",
+     "why": "the mapped spot is off the other walk's panel mask",
+     "mapped_box": [
+      788.47,
+      79.8,
+      836.12,
+      103.49
+     ],
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": 9.13,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "pickup_trunk_lid_kf2_m2",
+     "other_kf": "return_trunk_lid_kf1",
+     "result": "cannot_tell",
+     "why": "alignment refused (mask IoU after the warp 0.87)",
+     "mapped_box": null,
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": null,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "return_trunk_lid_kf1_m1",
+     "other_kf": "pickup_trunk_lid_kf2",
+     "result": "cannot_tell",
+     "why": "alignment refused (mask IoU after the warp 0.87)",
+     "mapped_box": null,
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": null,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "return_trunk_lid_kf1_m3",
+     "other_kf": "pickup_trunk_lid_kf2",
+     "result": "cannot_tell",
+     "why": "alignment refused (mask IoU after the warp 0.87)",
+     "mapped_box": null,
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": null,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "return_trunk_lid_kf2_m3",
+     "other_kf": "pickup_trunk_lid_kf2",
+     "result": "present",
+     "why": null,
+     "mapped_box": [
+      874.22,
+      69.56,
+      962.23,
+      113.81
+     ],
+     "found_box": [
+      864.22,
+      59.56,
+      952.23,
+      103.81
+     ],
+     "ncc": 0.713,
+     "contrast_own": 12.71,
+     "contrast_other": 9.17,
+     "uncertainty_px": 9.25,
+     "used": "capped",
+     "paired_with": null
+    }
+   ]
+  },
+  {
+   "panel": "front_bumper",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_front_bumper_kf1",
+    "return_front_bumper_kf2"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "rear_bumper",
+   "state": "comparable",
+   "kf_pair": [
+    "pickup_rear_bumper_kf1",
+    "return_rear_bumper_kf1"
+   ],
+   "fits": [
+    {
+     "kf_pair": [
+      "pickup_rear_bumper_kf1",
+      "return_rear_bumper_kf1"
+     ],
+     "model": "outline",
+     "ok": false,
+     "why": "mask IoU after the warp 0.78",
+     "n_matches": 4,
+     "n_inliers": 0,
+     "spread": 0.0,
+     "mask_iou": 0.783,
+     "reproj_px": null
+    },
+    {
+     "kf_pair": [
+      "pickup_rear_bumper_kf1",
+      "return_rear_bumper_kf2"
+     ],
+     "model": "outline",
+     "ok": false,
+     "why": "mask IoU after the warp 0.76",
+     "n_matches": 13,
+     "n_inliers": 1,
+     "spread": 0.0,
+     "mask_iou": 0.761,
+     "reproj_px": 1.42
+    },
+    {
+     "kf_pair": [
+      "pickup_rear_bumper_kf3",
+      "return_rear_bumper_kf1"
+     ],
+     "model": "outline",
+     "ok": false,
+     "why": "mask IoU after the warp 0.65",
+     "n_matches": 0,
+     "n_inliers": 0,
+     "spread": 0.0,
+     "mask_iou": 0.648,
+     "reproj_px": null
+    },
+    {
+     "kf_pair": [
+      "pickup_rear_bumper_kf3",
+      "return_rear_bumper_kf2"
+     ],
+     "model": "outline",
+     "ok": false,
+     "why": "mask IoU after the warp 0.63",
+     "n_matches": 2,
+     "n_inliers": 0,
+     "spread": 0.0,
+     "mask_iou": 0.628,
+     "reproj_px": null
+    }
+   ],
+   "marks": [
+    {
+     "mark_id": "pickup_rear_bumper_kf1_m1",
+     "other_kf": "return_rear_bumper_kf1",
+     "result": "cannot_tell",
+     "why": "alignment refused (mask IoU after the warp 0.78)",
+     "mapped_box": null,
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": null,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "pickup_rear_bumper_kf3_m1",
+     "other_kf": "return_rear_bumper_kf1",
+     "result": "cannot_tell",
+     "why": "alignment refused (mask IoU after the warp 0.65)",
+     "mapped_box": null,
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": null,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "pickup_rear_bumper_kf3_m2",
+     "other_kf": "return_rear_bumper_kf1",
+     "result": "cannot_tell",
+     "why": "alignment refused (mask IoU after the warp 0.65)",
+     "mapped_box": null,
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": null,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "return_rear_bumper_kf1_m1",
+     "other_kf": "pickup_rear_bumper_kf1",
+     "result": "cannot_tell",
+     "why": "alignment refused (mask IoU after the warp 0.78)",
+     "mapped_box": null,
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": null,
+     "used": "none",
+     "paired_with": null
+    },
+    {
+     "mark_id": "return_rear_bumper_kf2_m1",
+     "other_kf": "pickup_rear_bumper_kf1",
+     "result": "cannot_tell",
+     "why": "alignment refused (mask IoU after the warp 0.76)",
+     "mapped_box": null,
+     "found_box": null,
+     "ncc": null,
+     "contrast_own": null,
+     "contrast_other": null,
+     "uncertainty_px": null,
+     "used": "none",
+     "paired_with": null
+    }
+   ]
+  },
+  {
+   "panel": "left_front_wheel",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_left_front_wheel_kf1",
+    "return_left_front_wheel_kf1"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "left_rear_wheel",
+   "state": "not_comparable",
+   "kf_pair": null,
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "right_front_wheel",
+   "state": "not_comparable",
+   "kf_pair": null,
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "right_rear_wheel",
+   "state": "comparable",
+   "kf_pair": [
+    "pickup_right_rear_wheel_kf1",
+    "return_right_rear_wheel_kf2"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "headlights",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_headlights_kf2",
+    "return_headlights_kf1"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "tail_lights",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_tail_lights_kf1",
+    "return_tail_lights_kf2"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "mirrors",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_mirrors_kf2",
+    "return_mirrors_kf3"
+   ],
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "windshield",
+   "state": "not_comparable",
+   "kf_pair": null,
+   "fits": [],
+   "marks": []
+  },
+  {
+   "panel": "rear_window",
+   "state": "not_comparable",
+   "kf_pair": [
+    "pickup_rear_window_kf1",
+    "return_rear_window_kf2"
+   ],
+   "fits": [],
+   "marks": []
+  }
+ ]
+}

@@ -1903,3 +1903,30 @@ there"). `dedup.spark_halves_pass` is not in config/thresholds.json, so it is ab
   by size, zoom_refine and box_refine). `Mark.halves_merge` (`HalvesMerge`: halves_mark_id, half, full_bbox_crop,
   gap_patches, overlap, spark_request_id; left out of the JSON when None). A second halves box close to a merged mark
   is dropped; a lone halves box is dropped by `same_mark` and, with lone_uncapped, when it carries any cap.
+
+## Registration (2026-11-02): the two walks' crops aligned, marks tested at their mapped spot (K18)
+
+Thresholds matching.registration (`{"enabled": true}` in config/thresholds.json; absent from every run frozen before it,
+so they rebuild unchanged; numbers not in the leaf come from `register.DEFAULTS`). Evidence and numbers:
+walkaround/docs/evidence/registration_1102/NOTES.md. Pixels only, no model call, so rebuild needs nothing stored.
+
+| Function | Behaviour |
+|---|---|
+| `register.config(th) -> dict or None` | the leaf with DEFAULTS filled, None when absent or `enabled` false (`match.registration_config` calls it) |
+| `register.align(kf_a, img_a, mask_a, kf_b, img_b, mask_b, cfg, *, prior, boxes_a=None, boxes_b=None, feats_a=None, feats_b=None) -> Aligned` | crop a onto crop b: ECC on the masks (affine, then homography) from `prior_map` (the moment frames), SIFT on the outline band and compact rigid structure with mark boxes cut out, gated around the outline fits, RANSAC. Feature fit used with 12 inliers over 15% of the panel and mask IoU 0.85; else the outline homography with the affine kept as `H_alt`. ok False with `why` under mask IoU 0.90 (outline) or when ungated edges agree on a motion more than the gate from the outline fit. Never raises on bad pixels |
+| `register.inverse(al)`, `register.uncertainty_px(al, point)` | the fit read b onto a; at a point, 2 x reprojection (features) or the distance between the homography and affine outline fits |
+| `register.presence(al, img_a, img_b, mask_b, box_a, cfg, *, diag_a) -> Presence` | present, absent or cannot_tell for the box at its mapped spot (high-passed Lab residual, patch search over the window between the two outline fits plus 10 px, saliency kept or lost, box correlation); the numbers and why |
+| `match.RegistrationCache(run_id, kf_by_id, marks, cfg)` | crops, masks, SIFT features and fits of one derive_match, each computed once |
+| `match.registration_step(pm, panel_marks, cache, calibration, th) -> PanelMatch` | compared non-wheel panels only: aligns the chosen pair and each mark keyframe with the other walk's keyframe it is tested in; a moment pair outside tau_pre_r whose spots coincide (the found patch within `coincide_px` 12 or half the other box) is measured at the registered spot (`MatchCandidate.registered`, `d_moment`); a one-walk mark (unmatched, or in a pair beyond tau_eye_r) that is present pairs with an unmatched mark of the other walk there (nearest first, one to one) or is capped (K18); absent and cannot tell change nothing |
+| `match.registration_words(pm)` | how_checked's part: each fit with its scores or refusal, each tested mark's result and use; nothing for a panel with no mark tested |
+
+Records: `PanelMatch.registration: list[RegistrationFit]` (kf_pair, model features/outline/none, ok, why, n_matches,
+n_inliers, spread, mask_iou, reproj_px, H pickup to return) and `PanelMatch.registration_marks: list[RegistrationMark]`
+(mark_id, other_kf, result, why, mapped_box, found_box, ncc, contrast_own, contrast_other, uncertainty_px, used
+capped/paired/pair_kept/none, paired_with); both left out of the JSON when empty. `MatchCandidate.registered` and
+`d_moment` are left out when False. `VerdictFlags.K18` and rules K18 "the other walk shows the same patch" (lowers only);
+verdicts_for sets it from `used == "capped"`; a registered pair's trace thresholds carry `registered` and `d_moment`.
+derive_match runs the step right after match_panel (before the second look, so a live run asks the look on a new
+tight pair) and, if it raises, keeps the moment match and records `registration failed: <error>` as the fit. The
+sheet's glossary prints a registration line only when the leaf is on. The web's rules table (web/src/lib/rules.ts) and
+contract types do not have K18 or the new fields yet.

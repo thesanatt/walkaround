@@ -65,6 +65,7 @@ BINDING_ROW = {"pickup_mark", "return_mark", "panel_id", "verdict", "reason", "e
 def th() -> dict[str, Any]:
     values = load_thresholds()
     values["spark"]["second_look_engine"] = "spark_open"
+    values["matching"].pop("registration", None)  # one picture for both walks here; see tests/test_registration_1102.py
     return values
 
 

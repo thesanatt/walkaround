@@ -1484,6 +1484,56 @@ class MatchCandidate(Contract):
     ratio: float | None = None
     margin: float | None = None
     mutual: bool = False
+    # registration (thresholds matching.registration, 11/2): the pair's spots coincide once the pickup crop is mapped
+    # onto the return crop, so d and d_pos are measured there; d_moment keeps the whitened-moment d it replaced (None
+    # when the moment match had not paired the two)
+    registered: bool = False
+    d_moment: float | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unregistered(self, handler: Any) -> Any:
+        """A pair the registration did not touch serializes as it did before the fields existed (11/2)."""
+        data = handler(self)
+        if isinstance(data, dict) and not data.get("registered"):
+            data.pop("registered", None)
+            data.pop("d_moment", None)
+        return data
+
+
+class RegistrationFit(Contract):
+    """One keyframe pair the registration step aligned (thresholds matching.registration, 11/2): crop pickup mapped onto
+    crop return by the panel outline (ECC on the two SAM masks) or by SIFT matches on the panel's rigid structure, and
+    the scores that accepted or refused it."""
+
+    kf_pair: Annotated[list[str], Field(min_length=2, max_length=2)]  # [kf_pickup, kf_return]
+    model: Literal["features", "outline", "none"]
+    ok: bool
+    why: str | None = None  # why it was refused
+    n_matches: int = 0  # SIFT matches near where the outline fit puts them
+    n_inliers: int = 0  # of those, within ransac_px of the fit
+    spread: float = 0.0
+    mask_iou: float = 0.0  # mask IoU after the warp, where the two crops overlap
+    reproj_px: float | None = None
+    H: list[list[float]] | None = None  # 3x3, pickup crop pixels to return crop pixels
+
+
+class RegistrationMark(Contract):
+    """The presence test of one mark at its mapped spot in the other walk's crop (11/2), and what the match did with it:
+    capped (K18, the same patch is there and no mark of the other walk is), paired (with an unmatched mark of the other
+    walk at that spot), pair_kept (a moment pair whose spots coincide, now measured by registration) or none."""
+
+    mark_id: str
+    other_kf: str
+    result: Literal["present", "absent", "cannot_tell"]
+    why: str | None = None
+    mapped_box: Box4 | None = None  # in the other crop
+    found_box: Box4 | None = None  # where the patch search put it
+    ncc: float | None = None
+    contrast_own: float | None = None  # Delta E the box stands out by in its own crop
+    contrast_other: float | None = None  # and at the found spot in the other crop
+    uncertainty_px: float | None = None
+    used: Literal["capped", "paired", "pair_kept", "none"] = "none"
+    paired_with: str | None = None
 
 
 class MarkGroup(Contract):
@@ -1563,6 +1613,9 @@ class PanelMatch(Contract):
     off_panel: list[OffPanelNote] = Field(default_factory=list)
     # the second marks pass on this panel: the other walk's marks whose spot was looked at again (11/2)
     second_pass: list[str] = Field(default_factory=list)
+    # registration (thresholds matching.registration, 11/2): the keyframe pairs aligned and each mark's presence test
+    registration: list[RegistrationFit] = Field(default_factory=list)
+    registration_marks: list[RegistrationMark] = Field(default_factory=list)
 
     @model_serializer(mode="wrap")
     def _omit_no_tries(self, handler: Any) -> Any:
@@ -1575,7 +1628,7 @@ class PanelMatch(Contract):
             data.pop("reshape", None)
         if isinstance(data, dict) and not data.get("fixtures"):
             data.pop("fixtures", None)
-        for key in ("off_panel", "second_pass"):
+        for key in ("off_panel", "second_pass", "registration", "registration_marks"):
             if isinstance(data, dict) and not data.get(key):
                 data.pop(key, None)
         return data
@@ -1602,6 +1655,7 @@ class VerdictFlags(Contract):
     K15: bool = False  # a flagged view caps a mark seen in one walk only (replaces gate G2, lead 10/31)
     K16: bool = False  # the counter-look at the other walk's same spot said same or unsure (lead 11/1, third)
     K17: bool = False  # the two-question counter-look did not say yes, a damage mark is in the box (lead decision 5 of 11/1)
+    K18: bool = False  # registration: the other walk's crop shows the same patch at this mark's mapped spot (11/2)
 
     def set_caps(self) -> list[str]:
         return [name for name in sorted(type(self).model_fields) if name.startswith("K") and getattr(self, name)]

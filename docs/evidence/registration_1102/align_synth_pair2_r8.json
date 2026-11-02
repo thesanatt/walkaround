@@ -1,0 +1,435 @@
+[
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_front_door",
+  "kind": "chosen",
+  "kf_a": "pickup_left_front_door_kf1",
+  "kf_b": "return_left_front_door_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 5,
+  "n_inliers": 1,
+  "inlier_frac": 0.2,
+  "spread": 0.0,
+  "mask_iou": 0.951,
+  "reproj_px": 3.73,
+  "landmarks": [
+   [
+    "control_sticker_01",
+    14.2,
+    14.5
+   ],
+   [
+    "old_scratch_02cm",
+    31.1,
+    31.8
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_front_door",
+  "kind": "mark",
+  "kf_a": "pickup_left_front_door_kf3",
+  "kf_b": "return_left_front_door_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 7,
+  "n_inliers": 1,
+  "inlier_frac": 0.143,
+  "spread": 0.0,
+  "mask_iou": 0.95,
+  "reproj_px": 2.91,
+  "landmarks": [
+   [
+    "control_sticker_01",
+    15.7,
+    14.6
+   ],
+   [
+    "old_scratch_02cm",
+    35.1,
+    32.7
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_front_door",
+  "kind": "mark",
+  "kf_a": "pickup_left_front_door_kf2",
+  "kf_b": "return_left_front_door_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 7,
+  "n_inliers": 0,
+  "inlier_frac": 0.0,
+  "spread": 0.0,
+  "mask_iou": 0.947,
+  "reproj_px": null,
+  "landmarks": [
+   [
+    "control_sticker_01",
+    15.2,
+    12.4
+   ],
+   [
+    "old_scratch_02cm",
+    33.4,
+    28.8
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_front_door",
+  "kind": "mark",
+  "kf_a": "pickup_left_front_door_kf1",
+  "kf_b": "return_left_front_door_kf1",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 6,
+  "n_inliers": 1,
+  "inlier_frac": 0.167,
+  "spread": 0.0,
+  "mask_iou": 0.968,
+  "reproj_px": 3.19,
+  "landmarks": [
+   [
+    "control_sticker_01",
+    12.1,
+    13.4
+   ],
+   [
+    "old_scratch_02cm",
+    28.6,
+    28.6
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "right_front_door",
+  "kind": "chosen",
+  "kf_a": "pickup_right_front_door_kf1",
+  "kf_b": "return_right_front_door_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 8,
+  "n_inliers": 2,
+  "inlier_frac": 0.25,
+  "spread": 0.0,
+  "mask_iou": 0.986,
+  "reproj_px": 2.12,
+  "landmarks": [
+   [
+    "old_scratch_20cm",
+    4.7,
+    6.8
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "right_front_door",
+  "kind": "mark",
+  "kf_a": "pickup_right_front_door_kf2",
+  "kf_b": "return_right_front_door_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 11,
+  "n_inliers": 7,
+  "inlier_frac": 0.636,
+  "spread": 0.388,
+  "mask_iou": 0.988,
+  "reproj_px": 2.21,
+  "landmarks": [
+   [
+    "old_scratch_20cm",
+    2.9,
+    2.4
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_front_fender",
+  "kind": "chosen",
+  "kf_a": "pickup_left_front_fender_kf2",
+  "kf_b": "return_left_front_fender_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 12,
+  "n_inliers": 0,
+  "inlier_frac": 0.0,
+  "spread": 0.0,
+  "mask_iou": 0.933,
+  "reproj_px": null,
+  "landmarks": [
+   [
+    "old_chip_05mm",
+    3.8,
+    42.9
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_front_fender",
+  "kind": "mark",
+  "kf_a": "pickup_left_front_fender_kf1",
+  "kf_b": "return_left_front_fender_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 30,
+  "n_inliers": 20,
+  "inlier_frac": 0.667,
+  "spread": 0.006,
+  "mask_iou": 0.972,
+  "reproj_px": 2.63,
+  "landmarks": [
+   [
+    "old_chip_05mm",
+    0.7,
+    2.6
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_front_fender",
+  "kind": "mark",
+  "kf_a": "pickup_left_front_fender_kf2",
+  "kf_b": "return_left_front_fender_kf1",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 14,
+  "n_inliers": 1,
+  "inlier_frac": 0.071,
+  "spread": 0.0,
+  "mask_iou": 0.924,
+  "reproj_px": 3.01,
+  "landmarks": [
+   [
+    "old_chip_05mm",
+    1.7,
+    46.0
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_rear_fender",
+  "kind": "chosen",
+  "kf_a": "pickup_left_rear_fender_kf1",
+  "kf_b": "return_left_rear_fender_kf1",
+  "model": "outline",
+  "ok": false,
+  "why": "mask IoU after the warp 0.85",
+  "n_matches": 27,
+  "n_inliers": 1,
+  "inlier_frac": 0.037,
+  "spread": 0.0,
+  "mask_iou": 0.853,
+  "reproj_px": 1.44,
+  "landmarks": [
+   [
+    "old_chip_10mm",
+    3.1,
+    1.6
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "left_rear_fender",
+  "kind": "mark",
+  "kf_a": "pickup_left_rear_fender_kf2",
+  "kf_b": "return_left_rear_fender_kf1",
+  "model": "features",
+  "ok": true,
+  "why": null,
+  "n_matches": 34,
+  "n_inliers": 25,
+  "inlier_frac": 0.735,
+  "spread": 0.238,
+  "mask_iou": 0.899,
+  "reproj_px": 0.73,
+  "landmarks": [
+   [
+    "old_chip_10mm",
+    6.5,
+    1.5
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "right_front_fender",
+  "kind": "chosen",
+  "kf_a": "pickup_right_front_fender_kf2",
+  "kf_b": "return_right_front_fender_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 39,
+  "n_inliers": 0,
+  "inlier_frac": 0.0,
+  "spread": 0.0,
+  "mask_iou": 0.921,
+  "reproj_px": null,
+  "landmarks": [
+   [
+    "old_scratch_05cm",
+    13.2,
+    15.8
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "right_front_fender",
+  "kind": "mark",
+  "kf_a": "pickup_right_front_fender_kf1",
+  "kf_b": "return_right_front_fender_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 44,
+  "n_inliers": 17,
+  "inlier_frac": 0.386,
+  "spread": 0.035,
+  "mask_iou": 0.914,
+  "reproj_px": 2.73,
+  "landmarks": [
+   [
+    "old_scratch_05cm",
+    8.1,
+    1.8
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "right_front_fender",
+  "kind": "mark",
+  "kf_a": "pickup_right_front_fender_kf2",
+  "kf_b": "return_right_front_fender_kf1",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 32,
+  "n_inliers": 2,
+  "inlier_frac": 0.062,
+  "spread": 0.0,
+  "mask_iou": 0.924,
+  "reproj_px": 3.63,
+  "landmarks": [
+   [
+    "old_scratch_05cm",
+    8.2,
+    12.9
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "right_rear_fender",
+  "kind": "chosen",
+  "kf_a": "pickup_right_rear_fender_kf1",
+  "kf_b": "return_right_rear_fender_kf1",
+  "model": "outline",
+  "ok": false,
+  "why": "mask IoU after the warp 0.88",
+  "n_matches": 16,
+  "n_inliers": 1,
+  "inlier_frac": 0.062,
+  "spread": 0.0,
+  "mask_iou": 0.878,
+  "reproj_px": 3.04,
+  "landmarks": [
+   [
+    "old_dent_12cm",
+    38.0,
+    2.1
+   ]
+  ]
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "headlights",
+  "kind": "chosen",
+  "kf_a": "pickup_headlights_kf2",
+  "kf_b": "return_headlights_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 0,
+  "n_inliers": 0,
+  "inlier_frac": 0.0,
+  "spread": 0.0,
+  "mask_iou": 0.903,
+  "reproj_px": null,
+  "landmarks": []
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "windshield",
+  "kind": "chosen",
+  "kf_a": "pickup_windshield_kf1",
+  "kf_b": "return_windshield_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 9,
+  "n_inliers": 1,
+  "inlier_frac": 0.111,
+  "spread": 0.0,
+  "mask_iou": 0.991,
+  "reproj_px": 3.01,
+  "landmarks": []
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "rear_window",
+  "kind": "chosen",
+  "kf_a": "pickup_rear_window_kf1",
+  "kf_b": "return_rear_window_kf2",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 3,
+  "n_inliers": 0,
+  "inlier_frac": 0.0,
+  "spread": 0.0,
+  "mask_iou": 0.99,
+  "reproj_px": null,
+  "landmarks": []
+ },
+ {
+  "run": "synth_pair2_r8",
+  "panel": "rear_window",
+  "kind": "mark",
+  "kf_a": "pickup_rear_window_kf1",
+  "kf_b": "return_rear_window_kf1",
+  "model": "outline",
+  "ok": true,
+  "why": null,
+  "n_matches": 2,
+  "n_inliers": 1,
+  "inlier_frac": 0.5,
+  "spread": 0.0,
+  "mask_iou": 0.992,
+  "reproj_px": 1.3,
+  "landmarks": []
+ }
+]
