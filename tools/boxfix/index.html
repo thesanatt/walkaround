@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Box fix</title>
+<style>
+  :root {
+    --bg: #15171a; --panel: #1e2125; --line: #33373d; --text: #eceae4; --dim: #a3a6ab;
+    --prod: #ffd23f; --fix: #3ddc84; --bad: #ff5a5a; --miss: #ff5fd2; --gt: #4fd1ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 18px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  body { display: flex; flex-direction: column; }
+  header { display: flex; align-items: baseline; gap: 28px; padding: 14px 22px 10px; flex-wrap: wrap; }
+  .count { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .count small { font-size: 18px; font-weight: 400; color: var(--dim); }
+  .where { font-size: 22px; }
+  .where b { font-weight: 650; }
+  .what { font-size: 20px; color: var(--dim); max-width: 46ch; }
+  .what b { color: var(--text); font-weight: 650; text-transform: capitalize; }
+  .pill { margin-left: auto; font-size: 18px; font-weight: 650; padding: 4px 14px; border-radius: 6px;
+    border: 2px solid var(--line); white-space: nowrap; }
+  .pill.correct { border-color: var(--fix); color: var(--fix); }
+  .pill.moved { border-color: var(--fix); color: var(--fix); }
+  .pill.not_mark { border-color: var(--bad); color: var(--bad); }
+  select { font: inherit; font-size: 16px; background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 8px; }
+  #stagewrap { flex: 1; min-height: 0; position: relative; background: #0d0e10; }
+  svg#stage { width: 100%; height: 100%; display: block; touch-action: none; user-select: none; -webkit-user-select: none; }
+  svg#stage.draw { cursor: crosshair; }
+  .body { cursor: move; }
+  .h0, .h2 { cursor: nwse-resize; } .h1, .h3 { cursor: nesw-resize; }
+  #hint { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); background: rgba(20,22,25,.92);
+    border: 1px solid var(--line); border-radius: 8px; padding: 8px 16px; font-size: 18px; pointer-events: none; }
+  #hint:empty { display: none; }
+  footer { padding: 12px 22px 14px; border-top: 1px solid var(--line); background: var(--panel); }
+  .buttons { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { font: inherit; font-size: 19px; color: var(--text); background: #2a2e33; border: 2px solid var(--line);
+    border-radius: 8px; padding: 10px 18px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: #5a6068; }
+  button:disabled { opacity: .35; cursor: default; }
+  button kbd { font: inherit; font-size: 15px; color: var(--dim); margin-left: 8px; border: 1px solid var(--line);
+    border-radius: 4px; padding: 0 6px; }
+  button.on { border-color: var(--fix); }
+  button.on.bad { border-color: var(--bad); }
+  button.on.miss { border-color: var(--miss); }
+  .spacer { flex: 1; }
+  .small { font-size: 15px; padding: 7px 12px; }
+  .small kbd { font-size: 13px; }
+  .meta { display: flex; gap: 22px; align-items: center; margin-top: 10px; font-size: 15px; color: var(--dim); flex-wrap: wrap; }
+  .legend span { margin-right: 16px; white-space: nowrap; }
+  .sw { display: inline-block; width: 22px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px; }
+  .sw.dash { border-top-style: dashed; } .sw.dot { border-top-style: dotted; }
+  #save.err { color: var(--bad); font-weight: 650; }
+  label { cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <div class="count" id="count">Loading</div>
+  <div class="where" id="where"></div>
+  <div class="what" id="what"></div>
+  <div class="pill" id="pill"></div>
+</header>
+<div id="stagewrap">
+  <svg id="stage" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+    <image id="img" x="0" y="0"></image>
+    <g id="overlay"></g>
+  </svg>
+  <div id="hint"></div>
+</div>
+<footer>
+  <div class="buttons">
+    <button id="b-back">Back<kbd>&larr;</kbd></button>
+    <button id="b-correct">Correct<kbd>C</kbd></button>
+    <button id="b-moved">Moved<kbd>M</kbd></button>
+    <button id="b-not">Not a mark<kbd>N</kbd></button>
+    <button id="b-missed">Missed one<kbd>D</kbd></button>
+    <button id="b-next">Next<kbd>&rarr;</kbd></button>
+    <span class="spacer"></span>
+    <button class="small" id="b-reset">Reset<kbd>R</kbd></button>
+    <button class="small" id="b-zoom">Zoom<kbd>Z</kbd></button>
+    <button class="small" id="b-gt">Ground truth<kbd>G</kbd></button>
+  </div>
+  <div class="meta">
+    <select id="runsel" title="Jump to a run"></select>
+    <label><input type="checkbox" id="empties"> Also step through crops with no boxes</label>
+    <span class="legend" id="legend"></span>
+    <span class="spacer"></span>
+    <span id="save"></span>
+  </div>
+</footer>
+<script>
+"use strict";
+const NS = "http://www.w3.org/2000/svg";
+const $ = (id) => document.getElementById(id);
+const svg = $("stage"), img = $("img"), overlay = $("overlay");
+const C = { prod: "#ffd23f", fix: "#3ddc84", bad: "#ff5a5a", miss: "#ff5fd2", gt: "#4fd1ff" };
+
+let runs = [], docs = {}, items = [], pos = 0;
+let zoom = localStorage.getItem("boxfix.zoom") === "1";
+let showEmpty = localStorage.getItem("boxfix.empties") === "1";
+let showGT = false, drawMode = false, selMissed = null, drag = null;
+const saveChain = {};
+
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const r1 = (v) => Math.round(v * 10) / 10;
+const norm = (b) => [Math.min(b[0], b[2]), Math.min(b[1], b[3]), Math.max(b[0], b[2]), Math.max(b[1], b[3])];
+const same = (a, b) => a && b && a.every((v, i) => Math.abs(v - b[i]) < 0.05);
+
+function buildItems() {
+  const keep = items[pos];
+  items = [];
+  for (const run of runs) for (const crop of run.crops) {
+    if (crop.marks.length) crop.marks.forEach((mark, i) => items.push({ run, crop, mark, i }));
+    else if (showEmpty) items.push({ run, crop, mark: null, i: 0 });
+  }
+  if (keep) {
+    const j = items.findIndex((it) => it.crop === keep.crop && it.mark === keep.mark);
+    pos = j >= 0 ? j : Math.min(pos, items.length - 1);
+  }
+}
+
+function doc(run) { return docs[run.run_id]; }
+function row(it) { return it.mark ? doc(it.run).marks[it.mark.mark_id] : null; }
+function curBox(it) {
+  const r = row(it);
+  return r && r.box ? r.box : it.mark.box;
+}
+function done(it) {
+  return it.mark ? !!row(it) : doc(it.run).crops_seen.includes(it.crop.kf_id);
+}
+
+function save(run) {
+  const d = doc(run), s = $("save");
+  s.className = ""; s.textContent = "Saving";
+  const body = JSON.stringify(d);
+  saveChain[run.run_id] = (saveChain[run.run_id] || Promise.resolve()).then(() =>
+    fetch("/api/corrections/" + encodeURIComponent(run.run_id), {
+      method: "PUT", headers: { "Content-Type": "application/json" }, body,
+    }).then(async (res) => {
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j.error || res.status);
+      s.textContent = "Saved " + new Date().toLocaleTimeString();
+    }).catch((e) => { s.className = "err"; s.textContent = "Not saved: " + e.message; }));
+}
+
+function setRow(it, status, box) {
+  const d = doc(it.run), m = it.mark;
+  d.marks[m.mark_id] = {
+    status, box: status === "not_mark" ? null : box.map(r1), product_box: m.box, spark_box: m.spark_box,
+    box_used: m.box_used, kf_id: it.crop.kf_id, role: it.crop.role, panel_id: it.crop.panel_id, type: m.type,
+    size_class: m.size_class, point_only: m.point_only, crop_w: it.crop.w, crop_h: it.crop.h,
+    updated_at: new Date().toISOString(),
+  };
+  seen(it, false);
+  save(it.run);
+}
+
+function seen(it, andSave) {
+  const d = doc(it.run);
+  if (!d.crops_seen.includes(it.crop.kf_id)) { d.crops_seen.push(it.crop.kf_id); if (andSave) save(it.run); }
+}
+
+function go(delta) {
+  const it = items[pos];
+  if (it && delta > 0) seen(it, true);
+  pos = Math.max(0, Math.min(items.length - 1, pos + delta));
+  drawMode = false; selMissed = null;
+  render();
+}
+
+function act(kind) {
+  const it = items[pos];
+  if (!it || !it.mark) { if (kind === "correct") go(1); return; }
+  if (kind === "correct") { setRow(it, "correct", it.mark.box); go(1); }
+  else if (kind === "not") { setRow(it, "not_mark", null); go(1); }
+  else if (kind === "moved") { setRow(it, "moved", curBox(it)); render(); }
+  else if (kind === "reset") { delete doc(it.run).marks[it.mark.mark_id]; save(it.run); render(); }
+}
+
+function toggleDraw() { drawMode = !drawMode; selMissed = null; render(); }
+
+function removeMissed() {
+  const it = items[pos];
+  if (!it || !selMissed) return;
+  const d = doc(it.run);
+  d.missed = d.missed.filter((m) => m.id !== selMissed);
+  selMissed = null; save(it.run); render();
+}
+
+// ---- drawing ----
+function unitsPerPx() { const m = svg.getScreenCTM(); return m ? 1 / m.a : 1; }
+function toCrop(e) {
+  const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+  return p.matrixTransform(svg.getScreenCTM().inverse());
+}
+
+function viewBox(it) {
+  const W = it.crop.w, H = it.crop.h;
+  if (!zoom || !it.mark) return [0, 0, W, H];
+  if (drag && drag.vb) return drag.vb;  // the view holds still while a box is dragged
+  // centred on the product box, wide enough to also show where the box was moved to
+  const p = it.mark.box, c = curBox(it), cx = (p[0] + p[2]) / 2, cy = (p[1] + p[3]) / 2;
+  const r = svg.getBoundingClientRect(), aspect = r.width / Math.max(1, r.height);
+  const needW = Math.max(6 * (p[2] - p[0]), 260, 2 * Math.max(cx - c[0], c[2] - cx) + 80);
+  const needH = Math.max(6 * (p[3] - p[1]), 2 * Math.max(cy - c[1], c[3] - cy) + 80);
+  let vw = needW, vh = vw / aspect;
+  if (vh < needH) { vh = needH; vw = vh * aspect; }
+  return [cx - vw / 2, cy - vh / 2, vw, vh];
+}
+
+function rect(b, attrs, parent) {
+  return el("rect", Object.assign({ x: b[0], y: b[1], width: Math.max(0.5, b[2] - b[0]), height: Math.max(0.5, b[3] - b[1]),
+    fill: "none", "vector-effect": "non-scaling-stroke" }, attrs), parent);
+}
+
+function editable(b, color, owner, k, parent, width) {
+  rect(b, { stroke: "#000", "stroke-width": width + 2.5, opacity: 0.75 }, parent);
+  rect(b, { stroke: color, "stroke-width": width }, parent);
+  // the grab area is at least 22 screen px so thin boxes still drag
+  const minU = 22 * k, w = b[2] - b[0], h = b[3] - b[1];
+  const gx = Math.max(0, (minU - w) / 2), gy = Math.max(0, (minU - h) / 2);
+  rect([b[0] - gx, b[1] - gy, b[2] + gx, b[3] + gy], { fill: "transparent", stroke: "none", class: "body", "data-owner": owner }, parent);
+  // handles sit just outside the corners so they never hide a small mark
+  const hs = 11 * k, pts = [[b[0] - hs, b[1] - hs], [b[2], b[1] - hs], [b[2], b[3]], [b[0] - hs, b[3]]];
+  pts.forEach(([x, y], i) => el("rect", { x, y, width: hs, height: hs, fill: color, stroke: "#000",
+    "stroke-width": 1.5, "vector-effect": "non-scaling-stroke", class: "h" + i, "data-owner": owner, "data-corner": i }, parent));
+}
+
+function label(text, x, y, color, k, parent) {
+  const t = el("text", { x, y, fill: color, "font-size": 15 * k, "font-weight": 600, "paint-order": "stroke",
+    stroke: "#000", "stroke-width": 3 * k, "font-family": "-apple-system, Helvetica, sans-serif" }, parent);
+  t.textContent = text;
+}
+
+function render() {
+  const it = items[pos];
+  if (!it) { $("count").textContent = "No boxes in these runs"; return; }
+  const { run, crop, mark } = it;
+  const d = doc(run), r = row(it), k0 = svg.getBoundingClientRect();
+  const nDone = items.filter(done).length;
+  $("count").innerHTML = `${pos + 1} of ${items.length} <small>${nDone} checked</small>`;
+  const others = crop.marks.length;
+  $("where").innerHTML = `<b>${run.run_id}</b> &middot; ${crop.role} walk &middot; <b>${crop.panel_id.replace(/_/g, " ")}</b>`
+    + (others > 1 ? ` &middot; box ${it.i + 1} of ${others} here` : "");
+  if (mark) {
+    const b = curBox(it);
+    $("what").innerHTML = `<b>${mark.type || "mark"}</b> ${mark.confidence ? "(" + mark.confidence + ")" : ""}`
+      + ` &middot; ${Math.round(b[2] - b[0])} x ${Math.round(b[3] - b[1])} px`
+      + (mark.description ? `<br>${escapeHtml(mark.description)}` : "")
+      + (mark.point_only ? "<br>Point only, no box from the product" : "")
+      + (mark.box_used === "spark" && mark.box_note ? `<br>Spark's box kept: ${escapeHtml(mark.box_note)}` : "");
+  } else {
+    $("what").innerHTML = "No boxes on this crop. Press D if you see a mark the product missed.";
+  }
+  const pill = $("pill");
+  const st = r ? r.status : null;
+  pill.className = "pill " + (st || "");
+  pill.textContent = !mark ? (done(it) ? "Looked at" : "Not looked at") :
+    st === "correct" ? "Correct" : st === "moved" ? "Moved" : st === "not_mark" ? "Not a mark" : "Not checked yet";
+
+  for (const [id, on, cls] of [["b-correct", st === "correct", ""], ["b-moved", st === "moved", ""],
+                              ["b-not", st === "not_mark", "bad"], ["b-missed", drawMode, "miss"]]) {
+    $(id).className = on ? "on " + cls : "";
+  }
+  $("b-correct").disabled = $("b-moved").disabled = $("b-not").disabled = $("b-reset").disabled = !mark;
+  $("b-gt").style.display = run.synthetic ? "" : "none";
+  $("b-gt").className = "small" + (showGT ? " on" : "");
+  $("b-zoom").className = "small" + (zoom ? " on" : "");
+  $("b-back").disabled = pos === 0; $("b-next").disabled = pos === items.length - 1;
+  $("runsel").value = run.run_id;
+  svg.classList.toggle("draw", drawMode);
+
+  if (img.getAttribute("href") !== crop.url) img.setAttribute("href", crop.url);
+  img.setAttribute("width", crop.w); img.setAttribute("height", crop.h);
+  svg.setAttribute("viewBox", viewBox(it).join(" "));
+  const k = unitsPerPx();
+  overlay.replaceChildren();
+  const legend = [];
+
+  for (const m of crop.marks) if (m !== mark && m.box) {
+    const rr = d.marks[m.mark_id];
+    if (rr && rr.status === "not_mark") continue;
+    const ob = rr && rr.box ? rr.box : m.box;
+    rect(ob, { stroke: "#000", "stroke-width": 3, opacity: 0.35 }, overlay);
+    rect(ob, { stroke: "#fff", "stroke-width": 1, opacity: 0.75 }, overlay);
+  }
+  if (crop.marks.length > 1) legend.push(["#ffffff", "", "other boxes here"]);
+  if (showGT && crop.gt) {
+    for (const g of crop.gt) {
+      rect(g.box, { stroke: C.gt, "stroke-width": 1.5, "stroke-dasharray": "5 3" }, overlay);
+      label(g.kind || g.id, g.box[0], g.box[3] + 24 * k, C.gt, k, overlay);
+    }
+    legend.push([C.gt, "dash", "ground truth"]);
+  }
+  if (mark) {
+    if (mark.spark_box) {
+      rect(mark.spark_box, { stroke: "#fff", "stroke-width": 1.5, "stroke-dasharray": "2 3", opacity: 0.6 }, overlay);
+      legend.push(["#ffffff", "dot", "Spark's own box"]);
+    }
+    if (st === "not_mark") {
+      rect(mark.box, { stroke: C.bad, "stroke-width": 2, "stroke-dasharray": "6 4" }, overlay);
+      legend.push([C.bad, "dash", "not a mark"]);
+      editableGrab(mark.box, k);
+    } else {
+      const b = curBox(it), movedOff = !same(b, mark.box);
+      if (movedOff) {
+        rect(mark.box, { stroke: C.prod, "stroke-width": 1.5, "stroke-dasharray": "6 4", opacity: 0.8 }, overlay);
+        legend.push([C.prod, "dash", "product box"], [C.fix, "", "your box"]);
+      } else legend.push([C.prod, "", "product box"]);
+      editable(b, movedOff ? C.fix : C.prod, "mark", k, overlay, 2);
+    }
+  }
+  const missed = d.missed.filter((m) => m.kf_id === crop.kf_id);
+  for (const m of missed) {
+    if (m.id === selMissed) editable(m.box, C.miss, m.id, k, overlay, 2);
+    else {
+      rect(m.box, { stroke: "#000", "stroke-width": 4, opacity: 0.7 }, overlay);
+      rect(m.box, { stroke: C.miss, "stroke-width": 2 }, overlay);
+      rect(m.box, { fill: "transparent", stroke: "none", class: "body", "data-owner": m.id }, overlay);
+    }
+  }
+  if (missed.length || drawMode) legend.push([C.miss, "", "missed"]);
+  if (drag && drag.kind === "draw" && drag.box) rect(norm(drag.box), { stroke: C.miss, "stroke-width": 2 }, overlay);
+
+  $("legend").innerHTML = legend.map(([c, s, t]) => `<span><i class="sw ${s}" style="border-color:${c}"></i>${t}</span>`).join("");
+  $("hint").textContent = drawMode ? "Drag on the image to draw the missed mark. Esc cancels." :
+    selMissed ? "Missed box selected. Drag to adjust, Delete removes it." : "";
+  preload();
+}
+
+function editableGrab(b, k) {
+  // a "not a mark" box can still be dragged; that turns it into a moved box
+  const minU = 22 * k, w = b[2] - b[0], h = b[3] - b[1];
+  const gx = Math.max(0, (minU - w) / 2), gy = Math.max(0, (minU - h) / 2);
+  rect([b[0] - gx, b[1] - gy, b[2] + gx, b[3] + gy], { fill: "transparent", stroke: "none", class: "body", "data-owner": "mark" }, overlay);
+}
+
+function escapeHtml(s) { return s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+const preloaded = new Set();
+function preload() {
+  for (let j = pos + 1; j <= pos + 3 && j < items.length; j++) {
+    const u = items[j].crop.url;
+    if (!preloaded.has(u)) { preloaded.add(u); new Image().src = u; }
+  }
+}
+
+// ---- pointer ----
+function clampPt(p, crop) { return [Math.max(0, Math.min(crop.w, p.x)), Math.max(0, Math.min(crop.h, p.y))]; }
+
+svg.addEventListener("pointerdown", (e) => {
+  const it = items[pos];
+  if (!it || e.button > 0) return;
+  e.preventDefault();
+  const p = clampPt(toCrop(e), it.crop);
+  if (drawMode) {
+    drag = { kind: "draw", start: p, box: [p[0], p[1], p[0], p[1]] };
+  } else {
+    const owner = e.target.getAttribute("data-owner");
+    if (!owner) { if (selMissed) { selMissed = null; render(); } return; }
+    const corner = e.target.getAttribute("data-corner");
+    let box;
+    if (owner === "mark") box = curBox(it);
+    else { selMissed = owner; box = doc(it.run).missed.find((m) => m.id === owner).box; }
+    drag = { kind: corner === null ? "move" : "resize", owner, corner: corner === null ? -1 : +corner,
+             start: p, box0: box.slice(), box: box.slice(), moved: false };
+  }
+  drag.vb = svg.getAttribute("viewBox").split(" ").map(Number);
+  svg.setPointerCapture(e.pointerId);
+  render();
+});
+
+svg.addEventListener("pointermove", (e) => {
+  if (!drag) return;
+  const it = items[pos], p = clampPt(toCrop(e), it.crop);
+  const dx = p[0] - drag.start[0], dy = p[1] - drag.start[1];
+  if (drag.kind === "draw") drag.box = [drag.start[0], drag.start[1], p[0], p[1]];
+  else {
+    const b = drag.box0.slice();
+    if (Math.abs(dx) + Math.abs(dy) > 0.5) drag.moved = true;
+    if (drag.kind === "move") { b[0] += dx; b[2] += dx; b[1] += dy; b[3] += dy; }
+    else {
+      const c = drag.corner;
+      if (c === 0 || c === 3) b[0] += dx; else b[2] += dx;
+      if (c === 0 || c === 1) b[1] += dy; else b[3] += dy;
+    }
+    drag.box = b;
+    liveSet(it, drag, b);
+  }
+  render();
+});
+
+function liveSet(it, dr, b) {
+  // show the box while dragging without saving
+  if (dr.owner === "mark") {
+    const d = doc(it.run), m = it.mark, r = d.marks[m.mark_id];
+    dr.prev = dr.prev === undefined ? (r ? JSON.parse(JSON.stringify(r)) : null) : dr.prev;
+    d.marks[m.mark_id] = Object.assign({}, r || {}, { status: "moved", box: norm(b) });
+  } else {
+    const mm = doc(it.run).missed.find((x) => x.id === dr.owner);
+    mm.box = norm(b);
+  }
+}
+
+function endDrag(e) {
+  if (!drag) return;
+  const it = items[pos], dr = drag;
+  drag = null;
+  try { svg.releasePointerCapture(e.pointerId); } catch (_) {}
+  if (dr.kind === "draw") {
+    const b = norm(dr.box);
+    if (b[2] - b[0] >= 2 && b[3] - b[1] >= 2) {
+      const d = doc(it.run);
+      const id = it.crop.kf_id + "_x" + Date.now().toString(36);
+      d.missed.push({ id, kf_id: it.crop.kf_id, role: it.crop.role, panel_id: it.crop.panel_id, box: b.map(r1),
+                      crop_w: it.crop.w, crop_h: it.crop.h, created_at: new Date().toISOString() });
+      seen(it, false);
+      selMissed = id; drawMode = false;
+      save(it.run);
+    }
+  } else if (dr.moved) {
+    const b = norm(dr.box);
+    if (dr.owner === "mark") setRow(it, "moved", b);
+    else { const mm = doc(it.run).missed.find((x) => x.id === dr.owner); mm.box = b.map(r1); save(it.run); }
+  } else if (dr.owner === "mark" && dr.prev !== undefined) {
+    if (dr.prev) doc(it.run).marks[it.mark.mark_id] = dr.prev; else delete doc(it.run).marks[it.mark.mark_id];
+  }
+  render();
+}
+svg.addEventListener("pointerup", endDrag);
+svg.addEventListener("pointercancel", endDrag);
+
+// ---- keys and buttons ----
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.tagName === "SELECT") return;
+  const key = e.key.toLowerCase();
+  const map = { arrowleft: () => go(-1), arrowright: () => go(1), c: () => act("correct"), m: () => act("moved"),
+    n: () => act("not"), d: toggleDraw, r: () => act("reset"), z: toggleZoom, g: toggleGT,
+    delete: removeMissed, backspace: removeMissed,
+    escape: () => { drawMode = false; selMissed = null; render(); } };
+  if (map[key]) { e.preventDefault(); if (!drag) map[key](); }
+});
+function toggleZoom() { zoom = !zoom; localStorage.setItem("boxfix.zoom", zoom ? "1" : "0"); render(); }
+function toggleGT() { if (items[pos] && items[pos].run.synthetic) { showGT = !showGT; render(); } }
+$("b-back").onclick = () => go(-1);
+$("b-next").onclick = () => go(1);
+$("b-correct").onclick = () => act("correct");
+$("b-moved").onclick = () => act("moved");
+$("b-not").onclick = () => act("not");
+$("b-missed").onclick = toggleDraw;
+$("b-reset").onclick = () => act("reset");
+$("b-zoom").onclick = toggleZoom;
+$("b-gt").onclick = toggleGT;
+for (const b of document.querySelectorAll("button")) b.addEventListener("mouseup", () => b.blur());
+$("empties").onchange = (e) => {
+  showEmpty = e.target.checked; localStorage.setItem("boxfix.empties", showEmpty ? "1" : "0");
+  buildItems(); render(); e.target.blur();
+};
+$("runsel").onchange = (e) => {
+  const j = items.findIndex((it) => it.run.run_id === e.target.value);
+  if (j >= 0) { pos = j; drawMode = false; selMissed = null; render(); }
+  e.target.blur();
+};
+window.addEventListener("resize", () => render());
+
+async function start() {
+  const data = await (await fetch("/api/items")).json();
+  runs = data.runs;
+  await Promise.all(runs.map(async (run) => {
+    const d = await (await fetch("/api/corrections/" + encodeURIComponent(run.run_id))).json();
+    d.marks = d.marks || {}; d.missed = d.missed || []; d.crops_seen = d.crops_seen || [];
+    docs[run.run_id] = d;
+  }));
+  $("runsel").innerHTML = runs.map((r) => `<option value="${r.run_id}">${r.run_id} (${r.n_marks} boxes)</option>`).join("");
+  $("empties").checked = showEmpty;
+  buildItems();
+  const first = items.findIndex((it) => !done(it));
+  pos = first >= 0 ? first : 0;
+  render();
+}
+start().catch((e) => { $("count").textContent = "Could not load: " + e.message; });
+</script>
+</body>
+</html>
