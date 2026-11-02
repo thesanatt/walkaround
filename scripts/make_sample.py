@@ -4,8 +4,11 @@ orchestrator.seed_samples; orchestrator.sample_run_ids reads the index, and the 
 /api/sample returns).
 
     make_sample.py RUN_ID [--title TEXT] [--slot NAME] [--first] [--footage-credit TEXT] [--clip REL ...]
-                   [--cover ROLE:F1-F2:X1,Y1,X2,Y2 ...] [--plate-block PX] [--max-mb 60] [--dry-run]
+                   [--cover ROLE:F1-F2:X1,Y1,X2,Y2 ...] [--plate-block PX] [--max-mb 60] [--dry-run] [--samples-dir DIR]
     make_sample.py --check [SAMPLE_DIR ...]
+
+--samples-dir DIR writes the sample and the index into DIR instead of samples/ (a scratch try; scripts/hero.sh seeds
+DIR/index.json from samples/index.json first, so the position printed is the one the real index would get).
 
 samples/index.json is {"_about": ..., "samples": [{"slot"?: NAME, "run_id": ID or null, "title": TEXT}, ...]}. --slot
 fills that named entry (an empty slot keeps its place in the list; a slot not in the index is appended); with no slot
@@ -252,7 +255,7 @@ def index_problems(samples: Path) -> list[str]:
     return found
 
 
-def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: list[Cover], plate_block: int | None, max_mb: float, dry_run: bool, title: str | None = None, slot: str | None = None, first: bool = False) -> int:
+def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: list[Cover], plate_block: int | None, max_mb: float, dry_run: bool, title: str | None = None, slot: str | None = None, first: bool = False, samples: Path = SAMPLES) -> int:
     run, files, left_out = plan(run_id, clips)
     root = paths.runs_root() / run_id
     missing = sorted(clips - set(files))
@@ -278,13 +281,13 @@ def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: l
     if total > max_mb * 1_000_000:
         sys.stderr.write(f"over {max_mb} MB; name fewer clips\n")
         return 1
-    index = load_index(SAMPLES / INDEX_NAME)
+    index = load_index(samples / INDEX_NAME)
     position = place(index, run_id, title=title, slot=slot, first=first)
     print(f"{INDEX_NAME}: {run_id} at position {position + 1} of {len(index['samples'])}" + (" (not written, dry run)" if dry_run else ""))
     if dry_run:
         return 0
-    target = SAMPLES / run_id
-    staging = SAMPLES / ".staging" / run_id  # named like the run, so problems() reads it as that sample
+    target = samples / run_id
+    staging = samples / ".staging" / run_id  # named like the run, so problems() reads it as that sample
     shutil.rmtree(staging.parent, ignore_errors=True)
     staging.mkdir(parents=True)
     for rel in files:
@@ -310,7 +313,7 @@ def write(run_id: str, *, footage_credit: str | None, clips: set[str], covers: l
     shutil.rmtree(target, ignore_errors=True)
     staging.rename(target)
     staging.parent.rmdir()
-    write_index(SAMPLES / INDEX_NAME, index)
+    write_index(samples / INDEX_NAME, index)
     print(f"wrote {target} and {INDEX_NAME}")
     return 0
 
@@ -328,20 +331,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-mb", type=float, default=MAX_MB)
     parser.add_argument("--dry-run", action="store_true", help="print the plan, write nothing")
     parser.add_argument("--check", nargs="*", metavar="SAMPLE_DIR", help="check sample folders (default every samples/<id>/)")
+    parser.add_argument("--samples-dir", type=Path, metavar="DIR", help="write into DIR instead of samples/ (a scratch try)")
     args = parser.parse_args(argv)
+    samples = args.samples_dir or SAMPLES
     if args.check is not None:
         if args.check:
             folders = [Path(p) for p in args.check]
         else:
-            folders = sorted(p for p in SAMPLES.iterdir() if p.is_dir() and not p.name.startswith(".")) if SAMPLES.is_dir() else []
+            folders = sorted(p for p in samples.iterdir() if p.is_dir() and not p.name.startswith(".")) if samples.is_dir() else []
         found = [line for folder in folders for line in problems(folder, max_mb=args.max_mb)]
         if not args.check:
-            found += index_problems(SAMPLES)
+            found += index_problems(samples)
         print("\n".join(found) if found else f"{len(folders)} sample folder(s): every file is served to the public, under {args.max_mb:g} MB")
         return 1 if found else 0
     if not args.run_id:
         parser.error("name a run, or pass --check")
-    return write(args.run_id, footage_credit=args.footage_credit, clips=set(args.clip), covers=args.cover, plate_block=args.plate_block, max_mb=args.max_mb, dry_run=args.dry_run, title=args.title, slot=args.slot, first=args.first)
+    return write(args.run_id, footage_credit=args.footage_credit, clips=set(args.clip), covers=args.cover, plate_block=args.plate_block, max_mb=args.max_mb, dry_run=args.dry_run, title=args.title, slot=args.slot, first=args.first, samples=samples)
 
 
 if __name__ == "__main__":

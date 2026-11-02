@@ -787,6 +787,7 @@ async def test_resume_starts_a_created_run_whose_uploads_are_complete(runs_dir: 
 
 
 async def test_spend_ceiling_marks_remaining_lanes_not_run_and_still_writes_the_sheet(runs_dir: Path, th: dict) -> None:
+    th["orchestrator"]["run_spend_ceiling_cents"] = 800  # the mechanism at $8, whatever the config's ceiling
     fakes = Fakes(ledger_frames=3000)  # 16 pickup lanes x $0.60 = $9.60, over the $8 ceiling
     orch = make_orch(th, fakes)
     run = await new_run(orch)
@@ -808,6 +809,7 @@ async def test_spend_ceiling_marks_remaining_lanes_not_run_and_still_writes_the_
 
 
 async def test_lane_budget_cuts_the_lanes_that_would_pass_the_ceiling_before_any_is_sent(runs_dir: Path, th: dict) -> None:
+    th["orchestrator"]["run_spend_ceiling_cents"] = 800  # the mechanism at $8, whatever the config's ceiling
     fakes = Fakes()
     fakes.proxy_frames = 4000  # $0.80 a lane; 800 cents less 66 kept for the image checks fits 9 lanes
     orch = make_orch(th, fakes)
@@ -822,6 +824,7 @@ async def test_lane_budget_cuts_the_lanes_that_would_pass_the_ceiling_before_any
 
 
 async def test_deadline_stops_model_stages_after_it_passes(runs_dir: Path, th: dict) -> None:
+    th["orchestrator"]["run_deadline_s"] = 720  # the mechanism at 12 min, whatever the config's deadline
     clock = [0.0]
     fakes = Fakes(clock=clock, clock_step=800.0)  # the pickup lanes alone take longer than the 720 s deadline
     orch = make_orch(th, fakes, clock=lambda: clock[0])

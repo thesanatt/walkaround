@@ -56,6 +56,22 @@ http://127.0.0.1:8000/api/samples` lists them; `/api/sample` returns the first):
 
 A sample is public, so it takes no new claim or top-up.
 
+### The hero pair in one command
+
+```
+scripts/hero.sh --dry-run PICKUP.MOV RETURN.MOV hero_1103   # every step before the first model call
+scripts/hero.sh PICKUP.MOV RETURN.MOV hero_1103
+```
+
+It checks both clips (`tools/data_hunt/intake_check.py`: H.264 or HEVC, landscape, 1080p or more, HDR off; fps,
+length and audio are warnings), copies them into `data/own/<date>/` with their hashes checked, and estimates cost and
+time from the ledger rows of two earlier runs (`scripts/hero_check.py estimate`) against the per-run spend ceiling,
+the run deadline, the day's card ceiling and the credit left. Then it runs the pair live with `--keep` and our footage
+credit, runs `walkaround verify`, prints a short verdict summary and makes the run the first sample (the steps below,
+with the Stays Put clips the run page opens with). It stops on a failed hard check, an estimate over a cap or a verify
+that does not print "rebuild identical", unless given `--force`. `--after RUN_ID` does the steps after the run on a
+finished run; `--samples-dir DIR` makes the sample in a scratch folder. It never commits, deploys or prints a key.
+
 ### Making tonight's run the first sample
 
 The first entry of `samples/index.json` is an empty slot, `friend_car`. Filling it makes that run the first sample:
