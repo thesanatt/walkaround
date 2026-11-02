@@ -1557,6 +1557,16 @@ class MarkGroup(Contract):
     text: str
 
 
+class RegistrationVouch(Contract):
+    """The registration's word on a keyframe pair whose only failing gate was G4 (lead decision 1 of 11/2, thresholds
+    matching.registration_vouches): the fit of the pickup crop onto the return crop and whether it was strong enough to
+    stand in for the mask IoU check. vouched True drops G4 from the pair's gates; why says which score fell short."""
+
+    fit: RegistrationFit
+    vouched: bool
+    why: str | None = None
+
+
 class KeyframePairTry(Contract):
     """One keyframe pair match.derive_match tried on a panel (lead 11/1, rule 2): the gates it failed (empty when it
     passed every gate) and its whitened mask IoU (None when there was none to take)."""
@@ -1567,6 +1577,16 @@ class KeyframePairTry(Contract):
     # False: a keyframe whose marks are compared turned its panel axis too far from this pair's pickup keyframe, so the
     # IoU was not taken and G4 fires (match._frames_agree)
     frames_agree: bool = True
+    # the registration asked to vouch for the views where G4 was the only failing gate (matching.registration_vouches,
+    # 11/2); left out of the JSON when it was not asked, so a run frozen before it keeps its bytes
+    vouch: RegistrationVouch | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_no_vouch(self, handler: Any) -> Any:
+        data = handler(self)
+        if isinstance(data, dict) and data.get("vouch") is None:
+            data.pop("vouch", None)
+        return data
 
 
 class ReshapeCheck(Contract):

@@ -262,7 +262,7 @@ def test_the_second_looks_own_counter_method_is_used_and_a_replay_asks_nothing(r
     row = second_look.LookRecord(pickup_mark="pickup_kf1", return_mark="r0", panel_id=DOOR, verdict=LookVerdict.UNSURE, kind="counter", mark_id="r0", valid=True)
     c.write_json(paths.looks_json(RUN), [row])
     replay = second_look.replay_second_look(RUN, th=th)
-    assert replay is not None and replay.counters == {"r0": LookVerdict.UNSURE} and replay.pairs == {}
+    assert replay is not None and replay.counters == {"r0": [LookVerdict.UNSURE]} and replay.pairs == {}
     (v,) = match.derive_match(RUN, th=th, second_look=replay)[1]
     assert v.label == VerdictLabel.NEEDS_YOUR_EYE and v.trace.rule_ids == ["L4", "L2", "K16"]
     assert "was unsure: the pickup walk may show it (K16)" in v.counter_note

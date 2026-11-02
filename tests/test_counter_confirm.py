@@ -153,7 +153,7 @@ def test_replay_reads_each_row_by_its_own_kind(runs_dir: Path, th: dict) -> None
     ]
     c.write_json(paths.looks_json(RUN), rows)
     replay = second_look.replay_second_look(RUN, th=th)
-    assert replay.counters == {"r0": A("no", D), "r1": D}
+    assert replay.counters == {"r0": [A("no", D)], "r1": [D]}
     by = {v.mark_ids[0]: v for v in match.derive_match(RUN, th=th, second_look=replay)[1]}
     assert by["r0"].trace.rule_ids == ["L4", "L2", "K17"]
     assert by["r1"].label == VerdictLabel.NEW_OR_UNSEEN and by["r1"].counter_note.endswith("said different, so the label stands")

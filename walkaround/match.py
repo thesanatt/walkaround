@@ -61,6 +61,7 @@ from .contracts import (
     PanelId,
     PanelMatch,
     RegistrationFit,
+    RegistrationVouch,
     RegistrationMark,
     SameWalkNote,
     SparkPurpose,
@@ -463,6 +464,64 @@ def registration_config(th: dict | None) -> dict[str, Any] | None:
     return register.config(th)
 
 
+VOUCH_DEFAULTS: dict[str, Any] = {
+    "enabled": False,
+    "models": ["features"],  # an outline fit rests on the two masks agreeing, which is what G4 doubts
+    "min_inliers": 40,
+    "min_spread": 0.3,
+    "max_reproj_px": 2.0,
+    "min_fit_iou": 0.85,
+}
+
+
+def registration_vouches(th: dict | None) -> dict[str, Any] | None:
+    """Thresholds matching.registration_vouches (lead decision 1 of 11/2) with its defaults filled, or None when absent
+    or not enabled, as in every run frozen before it."""
+    raw = (th or {}).get("matching", {}).get("registration_vouches")
+    if not isinstance(raw, dict) or not raw.get("enabled", False):
+        return None
+    return {**VOUCH_DEFAULTS, **raw}
+
+
+def vouch_fit_config(th: dict | None) -> dict[str, Any]:
+    """The register numbers the vouch fits with: matching.registration's when that leaf is on (so the fit is shared
+    with the registration step), register.DEFAULTS otherwise."""
+    from . import register
+
+    return registration_config(th) or {**register.DEFAULTS, "enabled": True}
+
+
+def vouch_check(al: Any, cfg: dict[str, Any]) -> RegistrationVouch:
+    """Whether a registration fit is strong enough to stand in for G4's mask IoU check: accepted by register.align,
+    fitted on matched edges (cfg models), with at least min_inliers agreeing points spread over min_spread of the
+    panel's box, a median reprojection of at most max_reproj_px and a mask IoU after the warp of at least min_fit_iou.
+    G4 asks whether both views show the same region of the panel; a fit like that shows it directly."""
+    short: list[str] = []
+    if not al.ok:
+        short.append(f"the fit was refused ({al.why})")
+    else:
+        if al.model not in cfg["models"]:
+            short.append("fitted on the outline only")
+        if al.n_inliers < int(cfg["min_inliers"]):
+            short.append(f"{al.n_inliers} matched points agree, under {int(cfg['min_inliers'])}")
+        if al.spread < float(cfg["min_spread"]):
+            short.append(f"they span {al.spread:.2f} of the panel, under {float(cfg['min_spread']):.2f}")
+        if not al.reproj_px <= float(cfg["max_reproj_px"]):
+            short.append(f"reprojection {al.reproj_px:.1f} px, over {float(cfg['max_reproj_px']):.1f}")
+        if al.mask_iou < float(cfg["min_fit_iou"]):
+            short.append(f"mask IoU after the warp {al.mask_iou:.2f}, under {float(cfg['min_fit_iou']):.2f}")
+    return RegistrationVouch(fit=_fit_record(al), vouched=not short, why="; ".join(short) or None)
+
+
+def vouch_words(v: RegistrationVouch) -> str:
+    """The vouch in words for the how-checked line."""
+    f = v.fit
+    if v.vouched:
+        reproj = f", reprojection {f.reproj_px:.1f} px" if f.reproj_px is not None else ""
+        return f"G4 passed on the registration instead: {f.n_inliers} of {f.n_matches} matched points agree over {f.spread:.2f} of the panel{reproj}"
+    return f"the registration did not vouch: {v.why}"
+
+
 def next_keyframe_pair(th: dict | None) -> bool:
     """Rule 2 of 11/1 is on (thresholds matching.next_keyframe_pair); off when absent, as in runs frozen before."""
     return bool((th or {}).get("matching", {}).get("next_keyframe_pair", False))
@@ -687,6 +746,7 @@ def tight_pair_flags(
     asked: bool,
     roles: tuple[str, str] = ROLES,
     deferrable: tuple[str, ...] = TYPE_CAPS,
+    tally: tuple[int, int] | None = None,
 ) -> tuple[VerdictFlags, list[str], str | None]:
     """Rule 1 on a pair inside tau_pre_r (the caller checks d < tau_pre_r): once the second look answered (same,
     different or unsure), K4 and K12 are notes and lower nothing, so only the look (K7) or another cap can lower the
@@ -695,18 +755,20 @@ def tight_pair_flags(
     budget, the look turned off). Returns the flags for verdict(), the note ids and the type note; ([], None) when
     neither K4 nor K12 is set. roles names the two marks in the note: a claim passes ("pickup", "claim") (integration
     11/1: claims follow rule 1 under the same leaf). deferrable is tight_pair_deferrable(th): K5 joins K4 and K12
-    under matching.tight_pair_k5 (lead 11/1, second)."""
+    under matching.tight_pair_k5 (lead 11/1, second). tally (votes, answers) is the majority look's count
+    (matching.look_majority, lead decision 2 of 11/2), named when more than one answer stands behind the look."""
     deferred = [k for k in deferrable if getattr(flags, k)]
     if not deferred:
         return flags, [], None
     what = _spark_words(a, b, deferred, roles)
+    of = f" ({tally[0]} of {tally[1]} answers)" if tally is not None and tally[1] > 1 else ""
     if look is not None:
         if look == LookVerdict.SAME:
             place = "the mark sits in the same place in both walks" if tuple(roles) == ROLES else f"the {roles[1]} mark sits where the {roles[0]} mark is"
-            tail = f"a note here, since {place} and the second look compared the two crops and said same"
+            tail = f"a note here, since {place} and the second look compared the two crops and said same{of}"
         else:
             said = "said different" if look == LookVerdict.DIFFERENT else "was unsure"
-            tail = f"a note here; the second look compared the two crops and {said} (K7)"
+            tail = f"a note here; the second look compared the two crops and {said}{of} (K7)"
         return flags.model_copy(update={k: False for k in deferred}), deferred, f"{what}: {tail}"
     ids, verb = _joined(deferred, "and"), ("caps" if len(deferred) == 1 else "cap")
     others = flags.model_copy(update={**{k: False for k in deferred}, "K7": False})
@@ -766,10 +828,113 @@ class CounterAnswer:
 
     mark: str
     spot: LookVerdict
+    # the majority look (matching.look_majority, lead decision 2 of 11/2): how many usable answers it stands on and how
+    # many of them took each part's winning side; 1, 1, 1 for a single answer
+    answers: int = 1
+    mark_votes: int = 1
+    spot_votes: int = 1
 
     def __post_init__(self) -> None:
         if self.mark not in YES_NO_UNSURE:
             raise ValueError(f"mark must be one of {', '.join(YES_NO_UNSURE)}, not {self.mark!r}")
+
+
+LOOK_MAJORITY_DEFAULTS: dict[str, Any] = {"enabled": False, "asks_max": 3, "agree": 2}
+
+
+def look_majority(th: dict | None) -> dict[str, Any] | None:
+    """Thresholds matching.look_majority (lead decision 2 of 11/2) with its defaults filled, or None when absent or off,
+    as in every run frozen before it: then each look is asked once."""
+    raw = (th or {}).get("matching", {}).get("look_majority")
+    if not isinstance(raw, dict) or not raw.get("enabled", False):
+        return None
+    return {**LOOK_MAJORITY_DEFAULTS, **raw}
+
+
+def _side(keep: int, lower: int, lowered: str, other: str, lowered_n: int, other_n: int, kept: Any) -> Any:
+    """The winning side of one yes-or-no part: kept when its answers outnumber the rest; otherwise the lowering answer
+    given most (other on a tie between the two lowering answers, and on a tie between keep and lower: split is unsure)."""
+    if keep > lower:
+        return kept
+    if lower > keep and lowered_n > other_n:
+        return lowered
+    return other
+
+
+def majority_pair_look(answers: list[LookVerdict | None]) -> tuple[LookVerdict | None, int, int]:
+    """The pair look's majority (K7, lead decision 2 of 11/2) over the answers in the order asked: same keeps the pair
+    only when same outnumbers different and unsure together; otherwise different when it outnumbers unsure, else
+    unsure (a split look did not confirm the pair, and a model only lowers). Returns the verdict, the answers on its
+    side and the usable answers; (None, 0, 0) when none was usable."""
+    usable = [a for a in answers if a is not None]
+    if not usable:
+        return None, 0, 0
+    same = sum(a == LookVerdict.SAME for a in usable)
+    diff = sum(a == LookVerdict.DIFFERENT for a in usable)
+    unsure = len(usable) - same - diff
+    out = _side(same, diff + unsure, LookVerdict.DIFFERENT, LookVerdict.UNSURE, diff, unsure, LookVerdict.SAME)
+    votes = same if out == LookVerdict.SAME else (diff + unsure)
+    return out, votes, len(usable)
+
+
+def majority_counter(answers: list[LookVerdict | CounterAnswer | None]) -> CounterAnswer | None:
+    """The two-question counter-look's majority (K17 and K16, lead decision 2 of 11/2), each part on its own over the
+    same answers: part 1 is yes only when yes outnumbers no and unsure together, else no when it outnumbers unsure,
+    else unsure; part 2 is different only when different outnumbers same and unsure, else same when it outnumbers
+    unsure, else unsure. None when no answer was a usable CounterAnswer."""
+    usable = [a for a in answers if isinstance(a, CounterAnswer)]
+    if not usable:
+        return None
+    yes = sum(a.mark == "yes" for a in usable)
+    no = sum(a.mark == "no" for a in usable)
+    m_unsure = len(usable) - yes - no
+    diff = sum(a.spot == LookVerdict.DIFFERENT for a in usable)
+    same = sum(a.spot == LookVerdict.SAME for a in usable)
+    s_unsure = len(usable) - diff - same
+    mark = _side(yes, no + m_unsure, "no", "unsure", no, m_unsure, "yes")
+    spot = _side(diff, same + s_unsure, LookVerdict.SAME, LookVerdict.UNSURE, same, s_unsure, LookVerdict.DIFFERENT)
+    return CounterAnswer(
+        mark=mark,
+        spot=spot,
+        answers=len(usable),
+        mark_votes=yes if mark == "yes" else no + m_unsure,
+        spot_votes=diff if spot == LookVerdict.DIFFERENT else same + s_unsure,
+    )
+
+
+def _settled(answers: list[Any], agree: int) -> bool:
+    """Every yes-or-no part has agree answers on one side (stop asking), or the last ask gave no usable answer (every
+    engine failed or the look could not be built; asking again would not help)."""
+    if answers and answers[-1] is None:
+        return True
+    usable = [a for a in answers if a is not None]
+    if isinstance(usable[-1] if usable else None, CounterAnswer):
+        yes = sum(a.mark == "yes" for a in usable)
+        diff = sum(a.spot == LookVerdict.DIFFERENT for a in usable)
+        return max(yes, len(usable) - yes) >= agree and max(diff, len(usable) - diff) >= agree
+    same = sum(a == LookVerdict.SAME for a in usable)
+    return max(same, len(usable) - same) >= agree
+
+
+def ask_majority(ask: Callable[[], Any], cfg: dict[str, Any] | None) -> list[Any]:
+    """Every answer of one look in order: asked once without cfg; with it up to asks_max times, stopping as soon as
+    agree answers take the same side of each part (_settled). A one-question counter answer (a LookVerdict on a run
+    whose counter-look asks one question) is asked once: the lead's decision covers K17 and K7."""
+    first = ask()
+    answers = [first]
+    if cfg is None:
+        return answers
+    while len(answers) < int(cfg["asks_max"]) and not _settled(answers, int(cfg["agree"])):
+        answers.append(ask())
+    return answers
+
+
+def counter_result(answers: list[LookVerdict | CounterAnswer | None]) -> LookVerdict | CounterAnswer | None:
+    """What a counter-look's answers come to: the majority of the two-question answers (majority_counter); a stored
+    one-question answer (a LookVerdict) stands alone, as it was asked once."""
+    if any(isinstance(a, LookVerdict) for a in answers):
+        return answers[0]
+    return majority_counter(answers) if len(answers) > 1 else answers[0]
 
 
 def counter_spot(
@@ -879,17 +1044,20 @@ def two_question_flags(flags: VerdictFlags, answer: CounterAnswer, other: str) -
     K16; the note names every part that failed, or says the label stands on (yes, different)."""
     failed: list[str] = []
     update: dict[str, bool] = {}
+    n = answer.answers
+    m_of = f" ({answer.mark_votes} of {n} answers)" if n > 1 else ""
+    s_of = f" ({answer.spot_votes} of {n} answers)" if n > 1 else ""
     if answer.mark != "yes":
         update["K17"] = True
-        failed.append("saw no damage in the box (K17)" if answer.mark == "no" else "was unsure there is damage in the box (K17)")
+        failed.append(f"saw no damage in the box{m_of} (K17)" if answer.mark == "no" else f"was unsure there is damage in the box{m_of} (K17)")
     if answer.spot == LookVerdict.SAME:
         update["K16"] = True
-        failed.append(f"said the same mark shows at the same spot in the {other} walk: the {other} walk may show it (K16)")
+        failed.append(f"said the same mark shows at the same spot in the {other} walk{s_of}: the {other} walk may show it (K16)")
     elif answer.spot != LookVerdict.DIFFERENT:
         update["K16"] = True
-        failed.append(f"was unsure about the same spot in the {other} walk: the {other} walk may show it (K16)")
+        failed.append(f"was unsure about the same spot in the {other} walk{s_of}: the {other} walk may show it (K16)")
     if not failed:
-        return flags, f"the second look saw damage in the box and not at the same spot in the {other} walk, so the label stands"
+        return flags, f"the second look saw damage in the box{m_of} and not at the same spot in the {other} walk{s_of}, so the label stands"
     return flags.model_copy(update=update), "the second look " + " and ".join(failed)
 
 
@@ -935,14 +1103,18 @@ def _how_checked_tries(pm: PanelMatch) -> str | None:
         return f"{t.kf_pair[0]} with {t.kf_pair[1]}"
 
     def tried(t: KeyframePairTry) -> str:
-        return f"{pair_words(t)} ({', '.join(_gate_words(g, t) for g in t.gates)})"
+        vouch = f", {vouch_words(t.vouch)}" if t.vouch is not None else ""
+        return f"{pair_words(t)} ({', '.join(_gate_words(g, t) for g in t.gates)}{vouch})"
 
     used = next((t for t in tries if not t.gates), None)
     if used is not None:
-        before = [t for t in tries if t is not used]
+        at = tries.index(used)
+        before, after = tries[:at], tries[at + 1 :]  # after: pairs tried before the registration vouched for this one
+        how = f" ({_gate_words('G4', used)}; {vouch_words(used.vouch)})" if used.vouch is not None and used.vouch.vouched else ""
+        also = ("; also tried: " + "; ".join(tried(t) for t in after)) if after else ""
         if not before:
-            return f"compared on keyframes {pair_words(used)}, the first pair tried"
-        return f"compared on keyframes {pair_words(used)}; tried first: " + "; ".join(tried(t) for t in before)
+            return f"compared on keyframes {pair_words(used)}{how}, the first pair tried{also}"
+        return f"compared on keyframes {pair_words(used)}{how}; tried first: " + "; ".join(tried(t) for t in before) + also
     panel_level = [g for g in tries[0].gates if g in PANEL_GATES]
     if panel_level:
         which = f"{panel_level[0]} is a panel gate" if len(panel_level) == 1 else f"{_joined(panel_level, 'and')} are panel gates"
@@ -1650,6 +1822,7 @@ def verdicts_for(
     th: dict,
     counters: dict[str, LookVerdict | CounterAnswer | None] | None = None,
     counter_skipped: dict[str, int] | None = None,
+    look_tallies: dict[tuple[str, str], tuple[int, int]] | None = None,
 ) -> list[Verdict]:
     """One Verdict per pair (two when the pair lies beyond tau_eye_r, L5) and per unmatched mark, every label
     through verdict(); a not_comparable panel gives one L6 verdict naming its gates. distance_cm_est = d_pos x
@@ -1797,7 +1970,7 @@ def verdicts_for(
             notes: list[str] = []
             type_note = None
             if tight and pair.d < pair.tau_pre_r:
-                flags, notes, type_note = tight_pair_flags(pair, a, b, flags, look, asked=key in looks, deferrable=deferrable)
+                flags, notes, type_note = tight_pair_flags(pair, a, b, flags, look, asked=key in looks, deferrable=deferrable, tally=(look_tallies or {}).get(key))
             label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
             emit(label, ids, [a.mark_id, b.mark_id], pair.d_pos, pair, both_walks_note(flags_by_role([a, b]), same_place=pair.d < pair.tau_pre_r), type_note=type_note, note_ids=notes)
         else:
@@ -2284,7 +2457,13 @@ def derive_match(
 
     With matching.fixtures_not_damage (lead decision 4 of 11/1) a mark whose box sits on a factory fixture of its own
     crop (fixture_drops) is left out of every panel's marks before the gates and the match, so it gets no verdict, and is
-    recorded on PanelMatch.fixtures, which how_checked prints."""
+    recorded on PanelMatch.fixtures, which how_checked prints.
+
+    With matching.registration_vouches (lead decision 1 of 11/2), when no keyframe pair of a panel passes every gate, the
+    first tried pair whose only failing gate is G4 (on a measured IoU, frames agreeing) and whose registration fit passes
+    vouch_check is compared instead; every pair asked records the vouch on its KeyframePairTry. With
+    matching.look_majority (lead decision 2 of 11/2) each pair look and each two-question counter-look is asked up to
+    asks_max times (ask_majority) and the label follows majority_pair_look or majority_counter."""
     from .marks import whitened_from_marks
 
     panels = _read_list(paths.panels_json(run_id), Panel)
@@ -2315,6 +2494,10 @@ def derive_match(
     deferred = tight_pair_deferrable(th)
     reg_cfg = registration_config(th)
     reg_cache = RegistrationCache(run_id, kf_by_id, marks, reg_cfg) if reg_cfg is not None else None
+    vouch_cfg = registration_vouches(th)
+    majority = look_majority(th)
+    tallies: dict[tuple[str, str], tuple[int, int]] = {}
+    vouch_cache = (reg_cache if reg_cache is not None else RegistrationCache(run_id, kf_by_id, marks, vouch_fit_config(th))) if vouch_cfg is not None else None
     glass = glass_by_eye(th)
     sw_cfg = same_walk_config(th)
     sw_cache = (reg_cache if reg_cache is not None and reg_cache.cfg == sw_cfg else RegistrationCache(run_id, kf_by_id, marks, sw_cfg)) if sw_cfg is not None else None
@@ -2348,6 +2531,20 @@ def derive_match(
                     if not cand.gates:
                         kf_p, kf_r, used = cand_p, cand_r, cand
                         break
+            if vouch_cache is not None and vouch_cfg is not None and used.gates and panel.panel_id not in WHEEL_PANELS and panel.panel_id not in glass:
+                # lead decision 1 of 11/2: no pair passed every gate; where G4 alone failed on a measured IoU, a strong
+                # registration fit may pass it (a native pass is preferred, so this runs only after the loop above)
+                for i, t in enumerate(tries):
+                    if t.gates != ["G4"] or t.mask_iou is None or not t.frames_agree:
+                        continue
+                    al = vouch_cache.fit(t.kf_pair[0], t.kf_pair[1])
+                    if al is None:
+                        continue
+                    check = vouch_check(al, vouch_cfg)
+                    tries[i] = t.model_copy(update={"vouch": check, "gates": [] if check.vouched else list(t.gates)})
+                    if check.vouched:
+                        kf_p, kf_r, used = kf_by_id[t.kf_pair[0]], kf_by_id[t.kf_pair[1]], tries[i]
+                        break
             sw_notes: list[SameWalkNote] = []
             if sw_cache is not None and not used.gates and panel.panel_id not in WHEEL_PANELS:
                 panel_marks, placed, sw_notes = same_walk_step(panel_marks, {"pickup": kf_p, "return": kf_r}, sw_cache, th)
@@ -2357,7 +2554,7 @@ def derive_match(
             pm = match_panel(panel, panel_marks["pickup"], panel_marks["return"], whitened, (kf_p, kf_r), list(used.gates), calibration, th)
             if sw_notes:
                 pm = pm.model_copy(update={"same_walk": sw_notes})
-            pm = pm.model_copy(update={"mask_iou": used.mask_iou, "kf_pairs_tried": tries if retry else []})
+            pm = pm.model_copy(update={"mask_iou": used.mask_iou, "kf_pairs_tried": tries if retry or any(t.vouch is not None for t in tries) else []})
             if reshaped and pm.state == MatchState.NOT_COMPARABLE:
                 pm = pm.model_copy(update={"reshape": reshape_check(run_id, tries, kf_by_id, th, masks)})
             if reg_cache is not None and panel.panel_id not in glass:
@@ -2394,7 +2591,12 @@ def derive_match(
                 if a is None or b is None or looks_used >= looks_budget:
                     continue
                 if _provisional_already_there(pair, a, b, staysput_caps(mark_tracks, th), kf_status, deferred=deferred):
-                    looks[(pair.pickup_mark, pair.return_mark)] = second_look(pair)
+                    key = (pair.pickup_mark, pair.return_mark)
+                    if majority is None:
+                        looks[key] = second_look(pair)
+                    else:  # lead decision 2 of 11/2: up to asks_max answers, the label follows their majority
+                        looks[key], votes, usable = majority_pair_look(ask_majority(lambda: second_look(pair), majority))  # noqa: B023
+                        tallies[key] = (votes, usable)
                     looks_used += 1
         staged.append((pm, looks))
     counter = counter_look if counter_look is not None else getattr(second_look, "counter", None)
@@ -2405,13 +2607,16 @@ def derive_match(
         cap = counter_looks_max(th)
         ranked = rank_counter_asks(asks, marks_by_id)
         for ask in ranked[:cap]:
-            counters[ask.mark_id] = counter(ask)
+            if majority is not None and ask.confirm_mark:  # lead decision 2 of 11/2: K17 (and K16 with it) by majority
+                counters[ask.mark_id] = counter_result(ask_majority(lambda: counter(ask), majority))  # noqa: B023
+            else:
+                counters[ask.mark_id] = counter(ask)
         skipped = {ask.mark_id: cap for ask in ranked[cap:]}
     for pm, looks in staged:
         if pm.panel_id in glass:
             matches.append(pm)  # the glass line stands for the panel: no verdict, not even not comparable
             continue
-        panel_verdicts = verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th, counters, skipped)
+        panel_verdicts = verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th, counters, skipped, tallies)
         pm, panel_verdicts = debris_split(pm, panel_verdicts, marks_by_id, kf_by_id, th)
         matches.append(pm)
         verdicts.extend(panel_verdicts)

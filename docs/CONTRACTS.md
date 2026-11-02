@@ -2002,3 +2002,34 @@ those rebuild identical (verified on ten runs); config/thresholds.json turns all
 - Tests: tests/test_stands_out_1102.py (10). tests/test_match.py's shared `th` fixture drops the leaf (its crops are
   one flat grey, so every box would be faint); tests/test_contracts.py counts K1 to K20.
 - Evidence: walkaround/docs/evidence/stands_out_1102/ (replay.py, replay.json, NOTES.md).
+
+## R24: the registration vouches for G4; the second look by majority (2026-11-02, round 24)
+
+- `matching.registration_vouches` ({"enabled", "models" ["features"], "min_inliers" 40, "min_spread" 0.3,
+  "max_reproj_px" 2.0, "min_fit_iou" 0.85}; `match.VOUCH_DEFAULTS`, `match.registration_vouches(th)`). Off when absent.
+  In derive_match, after the keyframe-pair loop finds no pair passing every gate (not on wheels or glass), each tried
+  pair whose gates are exactly ["G4"], with a measured mask_iou and frames_agree, is fitted
+  (`RegistrationCache.fit`, shared with the registration step when matching.registration is on, else
+  `match.vouch_fit_config(th)`) and judged by `match.vouch_check(al, cfg) -> RegistrationVouch`; the first that vouches
+  has its gates emptied and is the compared pair. No new gate or rule id: a vouched pair simply passes G4.
+- Contracts: `RegistrationVouch` (fit: RegistrationFit, vouched, why) and `KeyframePairTry.vouch`, left out of the JSON
+  when None. kf_pairs_tried is written when the next-pair rule is on or any try carries a vouch.
+- how_checked: `match.vouch_words`; the compared pair names the vouch after its G4 IoU, a refused vouch follows the G4
+  IoU of its try, and pairs tried after the vouched one are listed as "also tried".
+- `matching.look_majority` ({"enabled", "asks_max" 3, "agree" 2}; `match.look_majority(th)`). Off when absent. In
+  derive_match each pair look and each two-question counter-look (ask.confirm_mark) goes through
+  `match.ask_majority(ask, cfg) -> list` (up to asks_max answers, stopping when `match._settled`: agree answers on one
+  side of every yes-or-no part, or the last ask gave None), then `match.majority_pair_look(answers) -> (verdict, votes,
+  usable)` or `match.counter_result(answers)` (`match.majority_counter`; a one-question LookVerdict answer stands
+  alone). A tie lowers (unsure). `CounterAnswer` gains answers, mark_votes and spot_votes (default 1).
+- Notes: `tight_pair_flags(..., tally=(votes, usable))` and `two_question_flags` add "(k of n answers)" when n > 1;
+  verdicts_for takes `look_tallies`.
+- looks.json: `LookRecord.ask` (1, 2 on the repeats; left out of the JSON on the first). `SecondLook` numbers each
+  call per row key and stores (key, ask); a resumed run reuses a stored row by (pickup field, return field, ask) and
+  question hash. `replay_second_look` keeps every row per key in ask order and `_Replay` returns them one per call,
+  then None. web/src/lib/looks.ts still shows the first row of a look.
+- Sheet glossary: `sheet.GLOSSARY_VOUCH`, `sheet.GLOSSARY_MAJORITY`, each printed only with its leaf on.
+- Claims (claim.py) still ask their look once.
+- Tests: tests/test_vouch_majority_1102.py (32). tests/test_match.py's shared `th` fixture and tests/test_second_look.py's
+  drop both leaves; tests/test_contracts.py round-trips RegistrationVouch and a KeyframePairTry with a vouch.
+- Evidence: walkaround/docs/evidence/vouch_majority_1102/ (NOTES.md, replay.py, live.py, truth.py, the JSON outputs).

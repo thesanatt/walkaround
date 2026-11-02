@@ -80,6 +80,10 @@ def th() -> dict[str, Any]:
     # K20 (matching.stands_out, 11/2) reads the crops' pixels; these fixtures' crops are one flat grey, so every box is
     # faint. It has its own tests (tests/test_stands_out_1102.py)
     values["matching"].pop("stands_out", None)
+    # the R24 leaves: the registration vouch reads pixels too, and the majority look asks a fake look more than once;
+    # both have their own tests (tests/test_vouch_majority_1102.py)
+    for leaf in ("registration_vouches", "look_majority"):
+        values["matching"].pop(leaf, None)
     return values
 
 

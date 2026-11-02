@@ -66,6 +66,8 @@ def th() -> dict[str, Any]:
     values = load_thresholds()
     values["spark"]["second_look_engine"] = "spark_open"
     values["matching"].pop("registration", None)  # one picture for both walks here; see tests/test_registration_1102.py
+    for leaf in ("registration_vouches", "look_majority"):  # see tests/test_vouch_majority_1102.py
+        values["matching"].pop(leaf, None)
     return values
 
 

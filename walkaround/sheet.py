@@ -541,6 +541,17 @@ GLOSSARY_STANDS_OUT = (  # match.stands_out_config, 11/2
     "A box that does not (Muse Spark may have boxed clean paint) is needs your eye (K20). A box covering much of its panel, such as a crush, is not tested.\n"
 )
 
+GLOSSARY_VOUCH = (  # match.registration_vouches, lead decision 1 of 11/2
+    "registration vouches: gate G4 asks whether the two walks' views show the same part of the panel by comparing SAM's two outlines. "
+    "When no keyframe pair passes every gate and G4 is the only gate one fails, a strong registration of the two crops on matched edges "
+    "(many matched points spread over the panel, small error) shows it directly, and the panel is compared on that pair. A weak or refused fit leaves G4 as it is.\n"
+)
+
+GLOSSARY_MAJORITY = (  # match.look_majority, lead decision 2 of 11/2
+    "majority look: the second look's answers vary from one ask to the next, so the pair look (K7) and the counter-look (K17 and K16) are asked up to three times, "
+    "stopping once two answers agree, and the label follows the majority. A split is unsure, so a model can still only lower a label. Every answer is kept.\n"
+)
+
 GLOSSARY_FIXTURES = (  # match.fixtures_not_damage, lead decision 4 of 11/1
     "factory fixture: parking sensors, badges, door handles and locks, washer nozzles, the tire valve, the wheel hub and the plate corners are part of the car, not damage. "
     "Muse Spark is asked not to box them, and a mark whose box still sits mostly on one the run found in the same view (a point Muse Spark named, or the door handle SAM found) "
@@ -571,6 +582,8 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + (GLOSSARY_COLOUR if match.colour_on_paint(th) else "")
         + (GLOSSARY_INSIDE_OTHER if match.inside_other_box(th) else "")
         + (GLOSSARY_STANDS_OUT if match.stands_out_config(th) is not None else "")
+        + (GLOSSARY_VOUCH if match.registration_vouches(th) is not None else "")
+        + (GLOSSARY_MAJORITY if match.look_majority(th) is not None else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"

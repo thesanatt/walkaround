@@ -77,6 +77,8 @@ def _instances() -> list[c.Contract]:
         c.RegistrationFit(kf_pair=["pickup_hood_kf1", "return_hood_kf1"], model="outline", ok=True, n_matches=9, n_inliers=4, spread=0.1, mask_iou=0.95, reproj_px=2.1, H=[[1.0, 0.0, 3.0], [0.0, 1.0, -2.0], [0.0, 0.0, 1.0]]),
         c.ByEyeLine(kind="debris", text="debris on this panel; check by eye", mark_ids=["pickup_front_bumper_kf1_m1"]),
         c.OwnContrast(mark_id="pickup_rear_bumper_kf2_m2", kf_id="pickup_rear_bumper_kf2", result="faint", contrast=0.95, panel_share=0.003),
+        c.RegistrationVouch(fit=c.RegistrationFit(kf_pair=["pickup_rear_bumper_kf1", "return_rear_bumper_kf2"], model="features", ok=True, n_matches=179, n_inliers=110, spread=0.665, mask_iou=0.858, reproj_px=1.32), vouched=True),
+        c.KeyframePairTry(kf_pair=["pickup_rear_bumper_kf1", "return_rear_bumper_kf2"], gates=["G4"], mask_iou=0.68, vouch=c.RegistrationVouch(fit=c.RegistrationFit(kf_pair=["pickup_rear_bumper_kf1", "return_rear_bumper_kf2"], model="outline", ok=False, why="mask IoU after the warp 0.86"), vouched=False, why="the fit was refused (mask IoU after the warp 0.86)")),
         c.SameWalkNote(mark_id="pickup_rear_bumper_kf3_m1", from_kf="pickup_rear_bumper_kf3", to_kf="pickup_rear_bumper_kf2", merged_into="pickup_rear_bumper_kf2_m1", model="features", reproj_px=0.87),
         c.RegistrationMark(mark_id="return_hood_kf1_m1", other_kf="pickup_hood_kf1", result="present", mapped_box=[10.0, 10.0, 30.0, 20.0], found_box=[12.0, 10.0, 32.0, 20.0], ncc=0.8, contrast_own=12.0, contrast_other=10.0, uncertainty_px=4.0, used="capped"),
         c.OffPanelNote(mark_id="pickup_hood_kf1_m2", from_panel=c.PanelId.HOOD, off_frac=0.06),

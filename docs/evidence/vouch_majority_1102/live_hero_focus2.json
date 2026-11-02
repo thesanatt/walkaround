@@ -1,0 +1,631 @@
+{
+ "run": "hero_focus2",
+ "summary": {
+  "already_there": 7,
+  "needs_your_eye": 12,
+  "not_comparable": 8,
+  "new_or_unseen": 1
+ },
+ "rows": {
+  "left_front_door|pickup_left_front_door_kf1_m2|return_left_front_door_kf1_m1": [
+   "already_there",
+   [
+    "L3"
+   ],
+   null,
+   null
+  ],
+  "left_front_door|pickup_left_front_door_kf1_m3|return_left_front_door_kf1_m2": [
+   "already_there",
+   [
+    "L3"
+   ],
+   null,
+   null
+  ],
+  "left_front_door|pickup_left_front_door_kf1_m4|return_left_front_door_kf1_m3": [
+   "already_there",
+   [
+    "L3"
+   ],
+   null,
+   null
+  ],
+  "left_front_door|pickup_left_front_door_kf1_m1": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L1",
+    "K15"
+   ],
+   null,
+   null
+  ],
+  "left_rear_door|pickup_left_rear_door_kf2_m1|return_left_rear_door_kf1_s1": [
+   "needs_your_eye",
+   [
+    "L4",
+    "K1",
+    "K12",
+    "K3",
+    "K4",
+    "K5"
+   ],
+   null,
+   null
+  ],
+  "right_front_door|return_roof_kf1_m2": [
+   "not_comparable",
+   [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   null,
+   null
+  ],
+  "right_rear_door|pickup_right_rear_door_kf1_s1": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L5",
+    "K12",
+    "K20",
+    "K3",
+    "K4"
+   ],
+   null,
+   null
+  ],
+  "right_rear_door|return_right_rear_door_kf1_m1": [
+   "new_or_unseen",
+   [
+    "L5"
+   ],
+   "the second look saw damage in the box (2 of 2 answers) and not at the same spot in the pickup walk (2 of 2 answers), so the label stands",
+   null
+  ],
+  "left_rear_fender|return_left_rear_fender_kf1_m1|return_left_rear_fender_kf2_m1|return_left_rear_fender_kf2_m2": [
+   "not_comparable",
+   [
+    "L6",
+    "G1"
+   ],
+   null,
+   null
+  ],
+  "right_front_fender|pickup_right_front_fender_kf1_m1|pickup_right_front_fender_kf1_m2|pickup_right_front_fender_kf1_m3|return_right_front_fender_kf1_m1|return_right_front_fender_kf1_m2": [
+   "not_comparable",
+   [
+    "L6",
+    "G1",
+    "G3",
+    "G4"
+   ],
+   null,
+   null
+  ],
+  "right_rear_fender|pickup_right_rear_fender_kf1_m1|return_right_rear_fender_kf1_m1": [
+   "not_comparable",
+   [
+    "L6",
+    "G4"
+   ],
+   null,
+   null
+  ],
+  "hood|pickup_hood_kf1_m1|return_hood_kf1_m1": [
+   "already_there",
+   [
+    "L3"
+   ],
+   null,
+   "Muse Spark typed the pickup mark unsure and the return mark scratch (K4), two kinds that disagree (K5), with low confidence on the pickup mark (K12): a note here, since the mark sits in the same place in both walks and the second look compared the two crops and said same (2 of 3 answers)"
+  ],
+  "hood|return_hood_kf2_m12": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L2",
+    "K12",
+    "K15",
+    "K20",
+    "K4"
+   ],
+   null,
+   null
+  ],
+  "roof|return_roof_kf1_m1": [
+   "not_comparable",
+   [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   null,
+   null
+  ],
+  "trunk_lid|return_trunk_lid_kf1_m1": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L2",
+    "K4"
+   ],
+   null,
+   null
+  ],
+  "trunk_lid|return_trunk_lid_kf1_m2": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L2",
+    "K12",
+    "K20",
+    "K4"
+   ],
+   null,
+   null
+  ],
+  "front_bumper|return_front_bumper_kf2_s6": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L2",
+    "K12",
+    "K15",
+    "K19",
+    "K20",
+    "K3",
+    "K4"
+   ],
+   null,
+   null
+  ],
+  "rear_bumper|pickup_rear_bumper_kf1_m2|return_rear_bumper_kf2_m2": [
+   "already_there",
+   [
+    "L3"
+   ],
+   null,
+   null
+  ],
+  "rear_bumper|pickup_rear_bumper_kf2_m1|return_rear_bumper_kf1_m1": [
+   "already_there",
+   [
+    "L3"
+   ],
+   null,
+   null
+  ],
+  "rear_bumper|pickup_rear_bumper_kf2_m2": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L1",
+    "K20"
+   ],
+   null,
+   null
+  ],
+  "rear_bumper|pickup_rear_bumper_kf2_m3": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L1",
+    "K20",
+    "K4"
+   ],
+   null,
+   null
+  ],
+  "rear_bumper|pickup_rear_bumper_kf2_m4": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L1",
+    "K4"
+   ],
+   null,
+   null
+  ],
+  "rear_bumper|pickup_rear_bumper_kf1_m3": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L1",
+    "K4"
+   ],
+   null,
+   null
+  ],
+  "rear_bumper|return_rear_bumper_kf1_m2": [
+   "needs_your_eye",
+   [
+    "L4",
+    "L2",
+    "K20"
+   ],
+   null,
+   null
+  ],
+  "left_rear_wheel": [
+   "not_comparable",
+   [
+    "L6",
+    "G1"
+   ],
+   null,
+   null
+  ],
+  "right_front_wheel|pickup_right_front_wheel_kf1_m1|return_right_front_wheel_kf1_m1": [
+   "already_there",
+   [
+    "L3"
+   ],
+   null,
+   "Muse Spark typed both marks dirt (K4): a note here, since the mark sits in the same place in both walks and the second look compared the two crops and said same (2 of 2 answers)"
+  ],
+  "headlights": [
+   "not_comparable",
+   [
+    "L6",
+    "G1"
+   ],
+   null,
+   null
+  ],
+  "mirrors|pickup_mirrors_kf2_m1|pickup_mirrors_kf2_m2|return_mirrors_kf1_m1|return_mirrors_kf1_m2|return_mirrors_kf2_m1|return_mirrors_kf2_m2|return_mirrors_kf3_m1|return_mirrors_kf3_m2|return_mirrors_kf3_m3": [
+   "not_comparable",
+   [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   null,
+   null
+  ]
+ },
+ "truth": [
+  {
+   "mark": "rear bumper strip A",
+   "right": "already_there",
+   "label": "already_there",
+   "ok": true,
+   "mark_ids": [
+    "pickup_rear_bumper_kf2_m1",
+    "return_rear_bumper_kf1_m1"
+   ],
+   "rules": [
+    "L3"
+   ]
+  },
+  {
+   "mark": "rear bumper strip B",
+   "right": "already_there",
+   "label": "already_there",
+   "ok": true,
+   "mark_ids": [
+    "pickup_rear_bumper_kf1_m2",
+    "return_rear_bumper_kf2_m2"
+   ],
+   "rules": [
+    "L3"
+   ]
+  },
+  {
+   "mark": "front left door strip, kept",
+   "right": "already_there",
+   "label": "already_there",
+   "ok": true,
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m2",
+    "return_left_front_door_kf1_m1"
+   ],
+   "rules": [
+    "L3"
+   ]
+  },
+  {
+   "mark": "front left door strip, removed",
+   "right": "not_seen_at_return",
+   "label": "needs_your_eye",
+   "ok": false,
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m1"
+   ],
+   "rules": [
+    "L4",
+    "L1",
+    "K15"
+   ]
+  },
+  {
+   "mark": "right rear door strip, new",
+   "right": "new_or_unseen",
+   "label": "new_or_unseen",
+   "ok": true,
+   "mark_ids": [
+    "return_right_rear_door_kf1_m1"
+   ],
+   "rules": [
+    "L5"
+   ]
+  },
+  {
+   "mark": "front left door scrape",
+   "right": "already_there",
+   "label": "already_there",
+   "ok": true,
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m3",
+    "return_left_front_door_kf1_m2"
+   ],
+   "rules": [
+    "L3"
+   ]
+  }
+ ],
+ "looks": [
+  {
+   "key": [
+    "pickup_hood_kf1_m1",
+    "return_hood_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 0,
+   "stored": true,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-16154f45c67e4949ba1744f77175ad0f",
+   "reason": "Both magenta boxes outline the same diagonal scratch on the right side of the hood at the identical location, with the second image simply showing higher contrast of the same mark."
+  },
+  {
+   "key": [
+    "pickup_hood_kf1_m1",
+    "return_hood_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 1,
+   "stored": false,
+   "mark_seen": null,
+   "verdict": "different",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-96e7e3c589b44cd38b8d8cf5ee7c16ca",
+   "reason": "The boxed area in the first image shows only faint light scuffs while the second shows a prominent dark diagonal scratch that is absent in the first, indicating a different/missing mark."
+  },
+  {
+   "key": [
+    "pickup_hood_kf1_m1",
+    "return_hood_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 2,
+   "stored": false,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-46bea0e2d7aa40969c87570ca393c96b",
+   "reason": "Both boxed regions show the identical diagonal scratch on the right side of the hood in the same location and orientation."
+  },
+  {
+   "key": [
+    "pickup_left_front_door_kf1_m2",
+    "return_left_front_door_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 0,
+   "stored": true,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-8cb57cb0b6e5461fbb99df0d1f4db1f9",
+   "reason": "Both magenta boxes outline an identical small light-blue diagonal mark in the same position on the door with no visible difference in shape or location."
+  },
+  {
+   "key": [
+    "pickup_left_front_door_kf1_m2",
+    "return_left_front_door_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 1,
+   "stored": false,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-18e0229261f04909ade2593d53da4fe8",
+   "reason": "Both outlined boxes show the same small angled light-blue tape mark in the identical lower-door location with matching shape and color."
+  },
+  {
+   "key": [
+    "pickup_left_front_door_kf1_m3",
+    "return_left_front_door_kf1_m2"
+   ],
+   "kind": "pair",
+   "ask": 0,
+   "stored": true,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-2a62c3a3da2941b9924f9b83bee02463",
+   "reason": "Both boxed spots show the same dark irregular scuff/scratch on the lower left front door in the same location with matching shape and appearance."
+  },
+  {
+   "key": [
+    "pickup_left_front_door_kf1_m3",
+    "return_left_front_door_kf1_m2"
+   ],
+   "kind": "pair",
+   "ask": 1,
+   "stored": false,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-bf8d7a37be604d2fb0fb4c7a5d259266",
+   "reason": "Both outlined boxes show the same small dark jagged chip/scratch in the identical lower-door position with matching shape and surroundings, with no contradictory detail."
+  },
+  {
+   "key": [
+    "pickup_left_front_door_kf1_m4",
+    "return_left_front_door_kf1_m3"
+   ],
+   "kind": "pair",
+   "ask": 0,
+   "stored": true,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-fddb4392a7b34d848d017b8ce80a3fb5",
+   "reason": "Both pink-boxed spots show the same plain white paint surface just above the lower dark scuff mark, with no visible damage or difference between pickup and return."
+  },
+  {
+   "key": [
+    "pickup_left_front_door_kf1_m4",
+    "return_left_front_door_kf1_m3"
+   ],
+   "kind": "pair",
+   "ask": 1,
+   "stored": false,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-fb4dbebd124e4af6916dcaac127f766b",
+   "reason": "Both pink-boxed spots show unmarked white paint in the same lower door location with no visible scratch or dent inside the box."
+  },
+  {
+   "key": [
+    "pickup_rear_bumper_kf1_m2",
+    "return_rear_bumper_kf2_m2"
+   ],
+   "kind": "pair",
+   "ask": 0,
+   "stored": true,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-1d58c3557eb047bdb600832ec3554ebd",
+   "reason": "Both outlined spots show the same small light-blue rectangular tape/mark on the right side of the white rear bumper with identical placement and appearance."
+  },
+  {
+   "key": [
+    "pickup_rear_bumper_kf1_m2",
+    "return_rear_bumper_kf2_m2"
+   ],
+   "kind": "pair",
+   "ask": 1,
+   "stored": false,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-a0ea26b1b9004b7088625967107f2d7b",
+   "reason": "Both images show an identical light-blue diagonal tape mark inside the magenta box on the right side of the rear bumper with same shape, color and orientation."
+  },
+  {
+   "key": [
+    "pickup_rear_bumper_kf2_m1",
+    "return_rear_bumper_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 0,
+   "stored": true,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-2073280dff8c4d2688e55262bc1d7813",
+   "reason": "Both outlined spots show the same light-blue tape mark with identical shape, color and orientation on the lower rear bumper, with no contradictory differences."
+  },
+  {
+   "key": [
+    "pickup_rear_bumper_kf2_m1",
+    "return_rear_bumper_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 1,
+   "stored": false,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-d14bbfbfb04e44f5ab1c61cb2820479e",
+   "reason": "Both outlined spots show the same small light blue paint/tape mark in the identical location on the white rear bumper."
+  },
+  {
+   "key": [
+    "pickup_right_front_wheel_kf1_m1",
+    "return_right_front_wheel_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 0,
+   "stored": true,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-b74e0a0cfb9b48e9bd5e5348ce8ae7b3",
+   "reason": "Both outlined boxes show the same dirty/discolored pattern on the lower rim spokes and inner barrel with identical shape and location, giving no reason to doubt the pairing."
+  },
+  {
+   "key": [
+    "pickup_right_front_wheel_kf1_m1",
+    "return_right_front_wheel_kf1_m1"
+   ],
+   "kind": "pair",
+   "ask": 1,
+   "stored": false,
+   "mark_seen": null,
+   "verdict": "same",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-3e65abe257014b8a95d9317f60f4466b",
+   "reason": "Both outlined spots show the same pattern of brake dust and grime on the lower rim and bead area with identical shape and shading and no new mark or missing detail."
+  },
+  {
+   "key": [
+    "pickup_right_rear_door_kf1",
+    "return_right_rear_door_kf1_m1"
+   ],
+   "kind": "counter2",
+   "ask": 0,
+   "stored": true,
+   "mark_seen": "yes",
+   "verdict": "different",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-0fb23151a567495abb7317949aec9770",
+   "reason": "First image shows a distinct light-blue horizontal patch inside the small box on the door that is absent in the second image where the larger box covers clean white paint."
+  },
+  {
+   "key": [
+    "pickup_right_rear_door_kf1",
+    "return_right_rear_door_kf1_m1"
+   ],
+   "kind": "counter2",
+   "ask": 1,
+   "stored": false,
+   "mark_seen": "yes",
+   "verdict": "different",
+   "key_slot": "hackathon",
+   "engine": "baseten",
+   "request_id": "chatcmpl-5d28f462560542109273ae7cdba1ffc1",
+   "reason": "First box contains a small light-blue horizontal patch/stripe on the white door paint, while the enlarged second box over the same door area shows only clean uniform white paint with no such..."
+  }
+ ],
+ "calls": 9,
+ "rebuild_replays_live": true
+}

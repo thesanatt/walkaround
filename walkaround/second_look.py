@@ -107,12 +107,16 @@ class LookRecord(Contract):
     kind: Literal["counter", "counter2"] | None = None
     mark_id: str | None = None
     mark_seen: Literal["yes", "no", "unsure"] | None = None
+    # The majority look (matching.look_majority, lead decision 2 of 11/2) asks the same look up to three times and
+    # keeps every answer as its own row: ask is 1 and 2 on the second and third (left out of the JSON on the first,
+    # so a run asking once keeps its bytes). match.majority_pair_look and match.majority_counter read them in order.
+    ask: int | None = None
 
     @model_serializer(mode="wrap")
     def _omit_pair_fields(self, handler: Any) -> Any:
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("kind", "mark_id", "mark_seen"):
+            for key in ("kind", "mark_id", "mark_seen", "ask"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
@@ -174,10 +178,11 @@ def stored_looks(run_id: str) -> list[LookRecord]:
     return read_json_list(path, LookRecord) if path.is_file() and path.stat().st_size > 0 else []
 
 
-def _prior(run_id: str) -> dict[tuple[str, str], LookRecord]:
-    """The rows already there, for a resumed run; an unreadable looks.json counts as none, since this call rewrites it."""
+def _prior(run_id: str) -> dict[tuple[str, str, int], LookRecord]:
+    """The rows already there by (pickup field, return field, ask), for a resumed run; an unreadable looks.json counts
+    as none, since this call rewrites it."""
     try:
-        return {(r.pickup_mark, r.return_mark): r for r in stored_looks(run_id)}
+        return {(r.pickup_mark, r.return_mark, r.ask or 0): r for r in stored_looks(run_id)}
     except (OSError, ValueError):
         return {}
 
@@ -301,18 +306,27 @@ class SecondLook:
         self.rpm = float(th["orchestrator"]["baseten_rpm"])
         self.colour = match.colour_on_paint(th)  # Nov 2: part 1 of the two-question look counts a stripe of another colour
         self.breaker = _Breaker(BASETEN_FAILURES_MAX)
-        self.asked: dict[tuple[str, str], LookRecord] = {}
+        self.asked: dict[tuple[tuple[str, str], int], LookRecord] = {}  # (row key, ask) -> row
         self._marks: dict[str, Mark] | None = None
         self._keyframes: dict[str, Keyframe] = {}
-        self._prior: dict[tuple[str, str], LookRecord] = {}
+        self._prior: dict[tuple[str, str, int], LookRecord] = {}
+
+    def _next_ask(self, key: tuple[str, str]) -> int:
+        """0 the first time a look is asked, 1 and 2 when the majority look asks it again (lead decision 2 of 11/2)."""
+        return sum(1 for k, _ in self.asked if k == key)
+
+    def _store(self, key: tuple[str, str], ask: int, row: LookRecord) -> None:
+        self.asked[(key, ask)] = row.model_copy(update={"ask": ask or None})
+        write_json(paths.looks_json(self.run_id), [self.asked[k] for k in sorted(self.asked)])
 
     def __call__(self, pair: MatchCandidate) -> LookVerdict | None:
+        key = (pair.pickup_mark, pair.return_mark)
+        ask = self._next_ask(key)
         try:
-            row = self._look(pair)
+            row = self._look(pair, ask)
         except Exception as exc:  # a look must never stop the match stage; one that did not run leaves the label alone
             row = _not_run(pair, self._panel(pair), f"the look failed: {type(exc).__name__}: {redact(str(exc))}")
-        self.asked[(pair.pickup_mark, pair.return_mark)] = row
-        write_json(paths.looks_json(self.run_id), [self.asked[key] for key in sorted(self.asked)])
+        self._store(key, ask, row)
         return row.verdict
 
     def _load(self) -> dict[str, Mark]:
@@ -328,7 +342,7 @@ class SecondLook:
         mark = marks.get(pair.pickup_mark) or marks.get(pair.return_mark)
         return mark.panel_id if mark is not None else None
 
-    def _look(self, pair: MatchCandidate) -> LookRecord:
+    def _look(self, pair: MatchCandidate, ask: int = 0) -> LookRecord:
         marks = self._load()
         a, b = marks.get(pair.pickup_mark), marks.get(pair.return_mark)
         if a is None or b is None:
@@ -340,7 +354,7 @@ class SecondLook:
             return _not_run(pair, a.panel_id, str(exc))
         shown = _Shown(images=(image_a, image_b), outlines=[box_a, box_b], refs=[ref_a, ref_b])
         question = _question(a.panel_id, shown.refs, engine=self.engine, effort=self.effort, max_tokens=[self.max_tokens, self.retry_max_tokens])
-        prior = self._prior.get((pair.pickup_mark, pair.return_mark))
+        prior = self._prior.get((pair.pickup_mark, pair.return_mark, ask))
         if prior is not None and prior.verdict is not None and prior.question_sha256 == question:
             return prior  # a resumed run: this question already has an answer
         records, notes, baseten_failed = self._ask((pair.pickup_mark, pair.return_mark), a.panel_id, shown)
@@ -354,15 +368,15 @@ class SecondLook:
         11/1) the same two images get spark_client.counter2_prompt, the row is kind "counter2" and the answer is a
         CounterAnswer of both parts."""
         kind = "counter2" if ask.confirm_mark else "counter"
+        n = self._next_ask(ask.key)
         try:
-            row = self._counter(ask, kind)
+            row = self._counter(ask, kind, n)
         except Exception as exc:  # a look must never stop the match stage
             row = _not_run(ask.key, ask.panel_id, f"the look failed: {type(exc).__name__}: {redact(str(exc))}", counter=ask.mark_id, kind=kind)
-        self.asked[ask.key] = row
-        write_json(paths.looks_json(self.run_id), [self.asked[key] for key in sorted(self.asked)])
+        self._store(ask.key, n, row)
         return counter_answer_of(row)
 
-    def _counter(self, ask: "CounterAsk", kind: str) -> LookRecord:
+    def _counter(self, ask: "CounterAsk", kind: str, n: int = 0) -> LookRecord:
         marks = self._load()
         mark = marks.get(ask.mark_id)
         if mark is None:
@@ -380,7 +394,7 @@ class SecondLook:
         prompt = spark_client.counter2_prompt(ask.panel_id, mark.role, colour=self.colour) if two_part else spark_client.counter_prompt(ask.panel_id, mark.role)
         schema = {"schema": "counter2_v1"} if two_part else {}  # left out of the one-question hash so its old rows still match
         question = _question(ask.panel_id, shown.refs, prompt=prompt, engine=self.engine, effort=self.effort, max_tokens=[self.max_tokens, self.retry_max_tokens], **schema)
-        prior = self._prior.get(ask.key)
+        prior = self._prior.get((*ask.key, n))
         if prior is not None and prior.verdict is not None and prior.question_sha256 == question and prior.kind == kind:
             return prior  # a resumed run: this question already has an answer
         records, notes, baseten_failed = self._ask(ask.key, ask.panel_id, shown, prompt=prompt, kind=kind, schema_name="counter2_v1" if two_part else None)
@@ -536,8 +550,15 @@ def replay_second_look(run_id: str, *, th: dict | None = None) -> Callable[[Matc
     path = paths.looks_json(run_id)
     if not path.is_file() or path.stat().st_size == 0:
         return None
-    rows = read_json_list(path, LookRecord)
-    return _Replay({(r.pickup_mark, r.return_mark): r.verdict for r in rows if r.kind is None}, {r.mark_id: counter_answer_of(r) for r in rows if r.kind is not None and r.mark_id})
+    rows = sorted(read_json_list(path, LookRecord), key=lambda r: r.ask or 0)  # stable: one row per look keeps its order
+    pairs: dict[tuple[str, str], list[LookVerdict | None]] = {}
+    counters: dict[str, list[LookVerdict | CounterAnswer | None]] = {}
+    for r in rows:
+        if r.kind is None:
+            pairs.setdefault((r.pickup_mark, r.return_mark), []).append(r.verdict)
+        elif r.mark_id:
+            counters.setdefault(r.mark_id, []).append(counter_answer_of(r))
+    return _Replay(pairs, counters)
 
 
 def counter_answer_of(row: LookRecord) -> LookVerdict | CounterAnswer | None:
@@ -553,17 +574,25 @@ def counter_answer_of(row: LookRecord) -> LookVerdict | CounterAnswer | None:
 class _Replay:
     """replay_second_look's answer: called with a pair, the stored pair look; counter(ask), the stored counter-look of
     the mark (lead 11/1, third), read by the row's own kind (counter_answer_of). No call, no write; a pair or mark with
-    no row, or whose look did not run, gets None."""
+    no row, or whose look did not run, gets None. A look stored more than once (the majority look, lead decision 2 of
+    11/2) gives its answers in the order asked, one per call, then None."""
 
-    def __init__(self, pairs: dict[tuple[str, str], LookVerdict | None], counters: dict[str, LookVerdict | CounterAnswer | None]) -> None:
+    def __init__(self, pairs: dict[tuple[str, str], list[LookVerdict | None]], counters: dict[str, list[LookVerdict | CounterAnswer | None]]) -> None:
         self.pairs = pairs
         self.counters = counters
+        self._used: dict[Any, int] = {}
+
+    def _next(self, key: Any, answers: list[Any] | None) -> Any:
+        i = self._used.get(key, 0)
+        self._used[key] = i + 1
+        return answers[i] if answers is not None and i < len(answers) else None
 
     def __call__(self, pair: MatchCandidate) -> LookVerdict | None:
-        return self.pairs.get((pair.pickup_mark, pair.return_mark))
+        key = (pair.pickup_mark, pair.return_mark)
+        return self._next(("pair", key), self.pairs.get(key))
 
     def counter(self, ask: "CounterAsk") -> LookVerdict | CounterAnswer | None:
-        return self.counters.get(ask.mark_id)
+        return self._next(("counter", ask.mark_id), self.counters.get(ask.mark_id))
 
 
 __all__ = ["BASETEN_FAILURES_MAX", "ENGINES", "LookRecord", "SecondLook", "engine_of", "look_images", "make_second_look", "replay_second_look", "stored_looks"]
