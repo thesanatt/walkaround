@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from walkaround import config, contracts as c, ledger, marks, paths, pipeline, sam_client, seal, spark_client
+from walkaround import config, contracts as c, ledger, marks, paths, pipeline, sam_client, seal, spark_client, zoom_refine
 from walkaround.orchestrator import REUSED_CODE, Orchestrator
 
 ROOT = Path(__file__).resolve().parent
@@ -174,7 +174,9 @@ async def test_run_pair_self_pair_end_to_end_then_rebuild_and_verify(offline: di
     pickup_marks = [m for m in c.read_json_list(paths.marks_json(run_id), c.Mark) if m.role == "pickup" and m.source == c.MarkSource.SPARK_BOX]
     assert len(boxes) == len({m.kf_id for m in pickup_marks}) and all(m.box_refine is not None for m in pickup_marks)
     assert len(calls["image"]) - len(boxes) == 2 * len({k.f_proxy for k in pickup_kfs}) + 2 * len(clips)
-    assert len(calls["spark"]) == len({k.crop.sha256 for k in pickup_kfs if k.crop})
+    zooms = zoom_refine.read_asks(run_id)  # dedup.spark_zoom_refine: one zoomed look per pickup box; the return reuses them
+    assert zooms and {a.role for a in zooms} == {"pickup"} and all(m.zoom_refine is not None for m in pickup_marks)
+    assert len(calls["spark"]) == len({k.crop.sha256 for k in pickup_kfs if k.crop}) + len(zooms)
     for kf in kfs:
         assert kf.crop is not None and (paths.run_dir(run_id) / kf.crop.path).is_file()
         assert kf.marks_status == c.MarksStatus.COMPLETE

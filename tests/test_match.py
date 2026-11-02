@@ -847,6 +847,8 @@ async def test_derive_marks_with_a_fake_spark_writes_marks_keyframes_and_sigma_v
         return sam_client.SegmentationRun(concept=concept, media="image", media_width=1, media_height=1, outcome="completed", response_id="resp_fake")
 
     monkeypatch.setattr(sam_client, "segment_image", fake_segment_image)
+    th = json.loads(json.dumps(th))
+    del th["dedup"]["spark_zoom_refine"]  # the zoom look has its own derive test (tests/test_zoom_refine.py)
     out, updated, records = await marks.derive_marks(run_id, "pickup", kfs, th=th)
     assert len(sam_asked) == 2  # one request per crop with box marks (the third crop's answer was cut off)
     assert all(m.box_refine is not None and m.box_refine.used == "spark" and m.box_refine.note == "SAM found nothing in the box" for m in out if m.source == MarkSource.SPARK_BOX)

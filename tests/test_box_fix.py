@@ -236,6 +236,7 @@ def run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
 def test_derive_asks_sam_once_and_rebuild_replays_with_no_call(run: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
     run_id, kf, th = run["run_id"], run["kf"], run["th"]
     record = run["record"]
+    th.get("dedup", {}).pop("spark_zoom_refine", None)  # SAM on Spark's own box; the zoom has tests/test_zoom_refine.py
     monkeypatch.setattr(spark_client, "find_marks", lambda *a, **k: spark_client.marks_result_from_record(record, orig_width=400, orig_height=300, landmarks=[]))
     out, _kfs, _recs = asyncio.run(marks.derive_marks(run_id, "pickup", [kf], th=th))
     assert len(run["calls"]) == 1

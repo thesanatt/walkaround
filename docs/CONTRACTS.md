@@ -1707,3 +1707,43 @@ misses by whole steps of about 28 sent pixels (one vision patch).
   and the crop figure at three aspects, the refined box is drawn, the "How it was checked" line). tests/conftest.py
   makes `sam_client.client` raise in every test unless LIVE=1 (a marks test paid for 5 SAM requests before it).
   test_match, test_narration and test_pipeline fake SAM where they run derive_marks with today's thresholds.
+
+## Zoom refine (2026-11-01): Spark's box moved onto the mark by a zoomed look
+
+Why: on Sanat's 48 hand-moved boxes of pairC_core3, Spark's box sits a median 26 px (about one patch) from his, and
+SAM on Spark's box could not move it (docs/evidence/box_refine_hand_1101/). A second marks_v1 call on an enlarged
+window finds the mark; Spark's box moved there scores median IoU 0.353 against 0.149 and has its centre on his mark
+for 34 of 48 against 23 (docs/evidence/zoom_refine_1101/NOTES.md).
+
+- thresholds `dedup.spark_zoom_refine` (value: enabled, min_px 96, window_patches 3, patch_sent_px 28, out_w 1280,
+  out_h 720). Off when absent, so runs frozen before it rebuild unchanged.
+- `walkaround/zoom_refine.py`: `settings(th)`; `window(box, crop, s)` (pure: short side max(min_px, window_patches
+  patches, the box plus one patch a side), long side to out_w:out_h, shifted inside the crop, then clamped to it);
+  `zoom_image(crop_rgb, window, s)` (the window resized to out_w x out_h per axis); `plan(marks, kf, s)`;
+  `ask(run_id, kf, crop_rgb, mark, window, s, th=)` (LIVE, one `spark_client.find_marks` with no landmarks and the
+  run's effort, fixtures and seams flags); `ZoomAsk(kf_id, role, mark_id, panel_id, crop_path, crop_sha256, crop_w,
+  crop_h, window, out_w, out_h, record)`; `read_asks` and `write_asks` (`paths.zoom_marks_json`, a frozen fact);
+  `Index(asks)` keyed by (crop sha256, window); `zoom_boxes(ask)` maps every returned box to crop pixels with the rule
+  of `marks.map_spark_mark`; `decide(mark, ask, window, crop) -> ZoomRefine` (pure: Spark's box, same size, moved so
+  its centre is the centre of the returned box nearest Spark's box centre, then shifted back inside the crop; Spark's
+  box with the reason when nothing is stored, the answer was cut short or invalid, or no box came back);
+  `apply(mark, refine, crop, th)` sets bbox_crop, point_crop (box centre), bbox_src, point_src, size_px_src and K3
+  from the moved box; type, confidence and note stay Spark's; `refine_marks(marks, kf, index, th=)` (pure).
+- `contracts.ZoomRefine(used "zoom" | "spark", spark_bbox_crop, spark_point_crop, window_crop, zoom_bbox_crop,
+  zoom_type, zoom_boxes, moved_bbox_crop, spark_zoom_request_id, note)` and `Mark.zoom_refine`, left out of the JSON
+  when None, like `box_refine`. `paths.zoom_marks_json(run_id)` = runs/<id>/zoom_marks.json.
+- marks: `_marks_of(..., zoom_index=)` moves each box right after `marks_from_answer` and before the SAM step, so
+  SAM is prompted with the moved box and `box_refine.spark_bbox_crop` holds the moved box (Spark's own box is in
+  `zoom_refine.spark_bbox_crop`). `derive_marks` calls `_zoom_boxes` before `_sam_boxes` (LIVE: one call per box mark
+  under `orchestrator.spark_semaphore`; a (crop, window) with a stored answer is not asked again, so a self-pair's
+  return walk reuses the pickup's). `rebuild_marks` reads zoom_marks.json, then sam_marks.json.
+- Ledger: one `spark` row per zoom call (note marks) with the run id. About $0.0065 a call; pairC_core3 has 94 box
+  marks, so about $0.60 a run.
+- Web: nothing changed. Every overlay draws bbox_crop, so it shows the moved (and then tightened) box. The "How it
+  was checked" line still reads `box_refine` and calls the box SAM started from "Muse Spark's box"; after a zoom move
+  that is Spark's box moved by Spark's zoomed look. `zoom_refine` is not in web/src/types.ts yet.
+- Tests: tests/test_zoom_refine.py (11: leaf off, the window, the enlarged image, decide picks the nearest box and
+  keeps Spark's size, the clamp, every keep reason, K3, bytes without the field, derive asks once and SAM gets the
+  moved box, rebuild replays with no call, no zoom without the leaf, and the product code on the stored study answers
+  gives the study's numbers). test_match and test_box_fix drop the leaf where they test the plain and SAM paths;
+  test_narration and test_pipeline count the zoom call.

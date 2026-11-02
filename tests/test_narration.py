@@ -532,14 +532,14 @@ def test_marks_rebuild_then_narration_rebuild_gives_the_run_bytes_back(runs: Pat
         mp.setattr(sam_client, "segment_image", no_masks)
         asyncio.run(marks.derive_marks("rb", "pickup", [kf], th=TH))
     derive("rb")
-    assert client.calls == ["marks_v1", "seed_v1"]
+    assert client.calls == ["marks_v1", "marks_v1", "seed_v1"]  # the second is the zoomed look on the box (dedup.spark_zoom_refine)
     files = [paths.marks_json("rb"), paths.narration_json("rb"), narration.pieces_json("rb"), paths.calibration_json("rb")]
     before = [f.read_bytes() for f in files]
     assert [m.source for m in c.read_json_list(paths.marks_json("rb"), c.Mark)] == [c.MarkSource.SPARK_BOX, c.MarkSource.NARRATION_SEED]
     marks.rebuild_marks("rb", "pickup", th=TH)
     assert seed_marks("rb") == []
     narration.rebuild_narration("rb", th=TH)
-    assert [f.read_bytes() for f in files] == before and client.calls == ["marks_v1", "seed_v1"]
+    assert [f.read_bytes() for f in files] == before and client.calls == ["marks_v1", "marks_v1", "seed_v1"]
 
 
 def test_merge_seed_marks_does_nothing_before_the_narration_stage(runs: Path):

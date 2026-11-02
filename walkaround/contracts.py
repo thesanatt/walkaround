@@ -1212,6 +1212,24 @@ class BoxRefine(Contract):
     note: str = ""  # why Spark's box was kept, in words; empty when SAM's box is used
 
 
+class ZoomRefine(Contract):
+    """How a Spark box mark was moved by the zoomed look (thresholds dedup.spark_zoom_refine, zoom refine 11/1): Spark's
+    box, same size, moved so its centre is the centre of the zoom box nearest it, or Spark's box with the reason.
+    Spark's box and point and the zoom's own box are kept here; the mark's bbox_crop, point_crop, bbox_src, point_src
+    and size_px_src are those of the box used (before any SAM tighten, which then starts from the moved box)."""
+
+    used: Literal["zoom", "spark"]
+    spark_bbox_crop: Box4
+    spark_point_crop: Point2 | None = None
+    window_crop: IntBox4 | None = None  # the crop window that was enlarged and sent
+    zoom_bbox_crop: Box4 | None = None  # the zoom box nearest Spark's box centre, as Spark drew it, in crop pixels
+    zoom_type: MarkKind | None = None  # what the zoomed look called it; the mark keeps Spark's first type
+    zoom_boxes: int | None = None  # how many boxes the zoomed look returned
+    moved_bbox_crop: Box4 | None = None
+    spark_zoom_request_id: str | None = None
+    note: str = ""  # why Spark's box was kept, in words; empty when the moved box is used
+
+
 class Mark(Contract):
     """One derived/marks.json entry. Grid coords are what Spark said; crop, src and w are code's mappings."""
 
@@ -1240,12 +1258,15 @@ class Mark(Contract):
     spark_request_id: str | None = None
     caps: list[str] = Field(default_factory=list)  # K ids set upstream
     box_refine: BoxRefine | None = None  # left out of the JSON when absent, so marks of runs without the leaf keep their bytes
+    zoom_refine: ZoomRefine | None = None  # the same rule
 
     @model_serializer(mode="wrap")
     def _omit_box_refine(self, handler: Any) -> Any:
         data = handler(self)
-        if isinstance(data, dict) and data.get("box_refine") is None:
-            data.pop("box_refine", None)
+        if isinstance(data, dict):
+            for key in ("box_refine", "zoom_refine"):
+                if data.get(key) is None:
+                    data.pop(key, None)
         return data
 
 

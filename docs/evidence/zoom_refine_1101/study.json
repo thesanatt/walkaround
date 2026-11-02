@@ -1,0 +1,7554 @@
+{
+ "run": "pairC_core3",
+ "min_px": 96,
+ "out": [
+  1280,
+  720
+ ],
+ "table": {
+  "spark": {
+   "n": 48,
+   "with_box": 48,
+   "median_iou": 0.149,
+   "mean_iou": 0.21,
+   "median_centre_px": 26.3,
+   "on_mark": 23,
+   "iou_ge_05": 6,
+   "zoom_used": 0
+  },
+  "w1": {
+   "n": 48,
+   "with_box": 48,
+   "median_iou": 0.192,
+   "mean_iou": 0.206,
+   "median_centre_px": 11.0,
+   "on_mark": 34,
+   "iou_ge_05": 5,
+   "zoom_used": 43
+  },
+  "w2": {
+   "n": 48,
+   "with_box": 48,
+   "median_iou": 0.238,
+   "mean_iou": 0.232,
+   "median_centre_px": 15.0,
+   "on_mark": 33,
+   "iou_ge_05": 5,
+   "zoom_used": 46
+  },
+  "w1_raw": {
+   "n": 48,
+   "with_box": 43,
+   "median_iou": 0.175,
+   "mean_iou": 0.183,
+   "median_centre_px": 10.7,
+   "on_mark": 32,
+   "iou_ge_05": 4,
+   "zoom_used": 43
+  },
+  "w1_if_agree": {
+   "n": 48,
+   "with_box": 48,
+   "median_iou": 0.237,
+   "mean_iou": 0.244,
+   "median_centre_px": 15.2,
+   "on_mark": 30,
+   "iou_ge_05": 7,
+   "zoom_used": 27
+  },
+  "w2_then_w1": {
+   "n": 48,
+   "with_box": 48,
+   "median_iou": 0.192,
+   "mean_iou": 0.197,
+   "median_centre_px": 11.0,
+   "on_mark": 34,
+   "iou_ge_05": 4,
+   "zoom_used": 48
+  },
+  "w1_centre": {
+   "n": 48,
+   "with_box": 48,
+   "median_iou": 0.353,
+   "mean_iou": 0.308,
+   "median_centre_px": 11.0,
+   "on_mark": 34,
+   "iou_ge_05": 12,
+   "zoom_used": 43
+  },
+  "w2_centre": {
+   "n": 48,
+   "with_box": 48,
+   "median_iou": 0.25,
+   "mean_iou": 0.27,
+   "median_centre_px": 15.0,
+   "on_mark": 33,
+   "iou_ge_05": 7,
+   "zoom_used": 46
+  },
+  "w1_if_agree_centre": {
+   "n": 48,
+   "with_box": 48,
+   "median_iou": 0.279,
+   "mean_iou": 0.279,
+   "median_centre_px": 15.2,
+   "on_mark": 30,
+   "iou_ge_05": 10,
+   "zoom_used": 27
+  }
+ },
+ "not_mark": [
+  {
+   "mark_id": "pickup_mirrors_kf1_m1",
+   "w1": {
+    "n_boxes": 0,
+    "pick_type": null,
+    "pick_conf": null,
+    "on_spark": false
+   },
+   "w2": {
+    "n_boxes": 0,
+    "pick_type": null,
+    "pick_conf": null,
+    "on_spark": false
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_rear_window_kf1_m1",
+   "w1": {
+    "n_boxes": 3,
+    "pick_type": "crack",
+    "pick_conf": "medium",
+    "on_spark": true
+   },
+   "w2": {
+    "n_boxes": 3,
+    "pick_type": "crack",
+    "pick_conf": "medium",
+    "on_spark": true
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_right_front_door_kf1_m1",
+   "w1": {
+    "n_boxes": 1,
+    "pick_type": "scratch",
+    "pick_conf": "medium",
+    "on_spark": true
+   },
+   "w2": {
+    "n_boxes": 1,
+    "pick_type": "scratch",
+    "pick_conf": "low",
+    "on_spark": true
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_right_front_door_kf1_m2",
+   "w1": {
+    "n_boxes": 1,
+    "pick_type": "scratch",
+    "pick_conf": "low",
+    "on_spark": false
+   },
+   "w2": {
+    "n_boxes": 2,
+    "pick_type": "dirt",
+    "pick_conf": "medium",
+    "on_spark": true
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_headlights_kf1_m1",
+   "w1": {
+    "n_boxes": 1,
+    "pick_type": "unsure",
+    "pick_conf": "low",
+    "on_spark": false
+   },
+   "w2": {
+    "n_boxes": 1,
+    "pick_type": "unsure",
+    "pick_conf": "low",
+    "on_spark": false
+   },
+   "agree": true
+  }
+ ],
+ "moved_pick_types": {
+  "w1": {
+   "chip": 1,
+   "scratch": 8,
+   "unsure": 16,
+   "dirt": 10,
+   "scuff": 3,
+   "reflection": 4,
+   "dent": 1,
+   "none": 5
+  },
+  "w2": {
+   "dirt": 18,
+   "unsure": 13,
+   "scratch": 5,
+   "scuff": 2,
+   "dent": 1,
+   "reflection": 4,
+   "crack": 1,
+   "none": 2,
+   "chip": 2
+  }
+ },
+ "rows": [
+  {
+   "mark_id": "pickup_front_bumper_kf1_m1",
+   "status": "moved",
+   "size_class": "M",
+   "type": "dirt",
+   "hand": [
+    113.3,
+    93.4,
+    332.3,
+    200.4
+   ],
+   "spark": [
+    38.0,
+    80.0,
+    257.0,
+    187.0
+   ],
+   "crop_wh": [
+    1280,
+    230
+   ],
+   "w1": {
+    "window": [
+     3,
+     52,
+     292,
+     215
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      108.44,
+      104.75,
+      206.88,
+      158.18
+     ],
+     "type": "chip",
+     "confidence": "medium",
+     "note": "pitted chipped scuff on chrome bumper"
+    },
+    "boxes": [
+     {
+      "box": [
+       108.44,
+       104.75,
+       206.88,
+       158.18
+      ],
+      "type": "chip",
+      "confidence": "medium",
+      "note": "pitted chipped scuff on chrome bumper"
+     },
+     {
+      "box": [
+       220.88,
+       89.13,
+       228.1,
+       93.66
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck on white paint"
+     },
+     {
+      "box": [
+       225.85,
+       118.11,
+       232.39,
+       122.63
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck on white paint"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     580,
+     230
+    ],
+    "n_boxes": 4,
+    "valid": true,
+    "pick": {
+     "box": [
+      84.28,
+      16.93,
+      180.8,
+      161.0
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "speckled dirt pitting along bumper curve"
+    },
+    "boxes": [
+     {
+      "box": [
+       158.14,
+       130.01,
+       260.09,
+       161.96
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown rust staining on chrome bumper"
+     },
+     {
+      "box": [
+       84.28,
+       16.93,
+       180.8,
+       161.0
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "speckled dirt pitting along bumper curve"
+     },
+     {
+      "box": [
+       159.95,
+       87.53,
+       170.38,
+       92.32
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck on paint"
+     },
+     {
+      "box": [
+       190.77,
+       117.88,
+       200.73,
+       122.67
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck on paint"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_hood_kf1_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    735.8,
+    121.6,
+    772.6,
+    145.3
+   ],
+   "spark": [
+    695.0,
+    140.0,
+    723.0,
+    151.0
+   ],
+   "crop_wh": [
+    1230,
+    700
+   ],
+   "w1": {
+    "window": [
+     624,
+     98,
+     794,
+     194
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      659.73,
+      106.4,
+      739.41,
+      123.33
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "long dark line on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       659.73,
+       106.4,
+       739.41,
+       123.33
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "long dark line on hood"
+     },
+     {
+      "box": [
+       744.99,
+       125.07,
+       771.16,
+       137.47
+      ],
+      "type": "chip",
+      "confidence": "low",
+      "note": "dark irregular spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     538,
+     50,
+     880,
+     242
+    ],
+    "n_boxes": 10,
+    "valid": true,
+    "pick": {
+     "box": [
+      734.65,
+      117.2,
+      755.49,
+      123.33
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "small dark spot debris"
+    },
+    "boxes": [
+     {
+      "box": [
+       568.73,
+       132.93,
+       597.05,
+       139.6
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "small dark debris on hood"
+     },
+     {
+      "box": [
+       597.85,
+       187.07,
+       656.36,
+       207.07
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "thin curved twig debris"
+     },
+     {
+      "box": [
+       734.65,
+       117.2,
+       755.49,
+       123.33
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot debris"
+     },
+     {
+      "box": [
+       644.07,
+       91.6,
+       685.22,
+       96.67
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "thin dark line debris"
+     },
+     {
+      "box": [
+       598.12,
+       70.8,
+       624.84,
+       78.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark debris near edge"
+     },
+     {
+      "box": [
+       739.73,
+       87.33,
+       779.27,
+       95.87
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark debris cluster"
+     },
+     {
+      "box": [
+       820.15,
+       88.67,
+       848.47,
+       95.07
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brownish debris"
+     },
+     {
+      "box": [
+       779.0,
+       172.93,
+       790.76,
+       176.67
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       758.96,
+       218.27,
+       791.56,
+       242.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "thin twig at edge"
+     },
+     {
+      "box": [
+       842.59,
+       166.53,
+       879.47,
+       198.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "thin curved debris"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_hood_kf1_m2",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    556.3,
+    149.3,
+    604.2,
+    162.6
+   ],
+   "spark": [
+    530.0,
+    163.0,
+    573.0,
+    171.0
+   ],
+   "crop_wh": [
+    1230,
+    700
+   ],
+   "w1": {
+    "window": [
+     466,
+     119,
+     637,
+     215
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      566.2,
+      142.87,
+      596.39,
+      147.8
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "dark blurry spot on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       566.2,
+       142.87,
+       596.39,
+       147.8
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark blurry spot on hood"
+     },
+     {
+      "box": [
+       491.25,
+       210.47,
+       503.41,
+       215.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     381,
+     71,
+     722,
+     263
+    ],
+    "n_boxes": 7,
+    "valid": true,
+    "pick": {
+     "box": [
+      569.88,
+      152.07,
+      603.98,
+      158.2
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "small dark horizontal spot"
+    },
+    "boxes": [
+     {
+      "box": [
+       461.19,
+       139.27,
+       540.84,
+       147.53
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "thin curved dark line on hood"
+     },
+     {
+      "box": [
+       569.88,
+       152.07,
+       603.98,
+       158.2
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "small dark horizontal spot"
+     },
+     {
+      "box": [
+       599.19,
+       188.07,
+       669.52,
+       214.2
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "thin diagonal dark line"
+     },
+     {
+      "box": [
+       496.89,
+       211.27,
+       554.16,
+       232.07
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "thin diagonal line on hood"
+     },
+     {
+      "box": [
+       422.03,
+       195.8,
+       466.52,
+       209.13
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small mottled marks"
+     },
+     {
+      "box": [
+       445.47,
+       112.6,
+       454.26,
+       117.13
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark dot"
+     },
+     {
+      "box": [
+       473.18,
+       118.47,
+       482.23,
+       128.87
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark dash"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf1_m3",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    586.4,
+    181.7,
+    672.2,
+    223.9
+   ],
+   "spark": [
+    572.0,
+    217.0,
+    636.0,
+    233.0
+   ],
+   "crop_wh": [
+    1230,
+    700
+   ],
+   "w1": {
+    "window": [
+     519,
+     177,
+     689,
+     273
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      606.52,
+      188.47,
+      665.36,
+      205.4
+     ],
+     "type": "scratch",
+     "confidence": "medium",
+     "note": "curved dark thin line"
+    },
+    "boxes": [
+     {
+      "box": [
+       606.52,
+       188.47,
+       665.36,
+       205.4
+      ],
+      "type": "scratch",
+      "confidence": "medium",
+      "note": "curved dark thin line"
+     },
+     {
+      "box": [
+       519.0,
+       221.67,
+       539.59,
+       229.4
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "dark line at left edge"
+     },
+     {
+      "box": [
+       529.23,
+       177.0,
+       536.93,
+       179.53
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "tiny dark spot corner"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     433,
+     129,
+     775,
+     321
+    ],
+    "n_boxes": 6,
+    "valid": true,
+    "pick": {
+     "box": [
+      612.82,
+      188.2,
+      663.85,
+      214.07
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "thin curved line on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       569.8,
+       150.6,
+       600.26,
+       158.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot on hood"
+     },
+     {
+      "box": [
+       461.05,
+       169.8,
+       546.82,
+       179.67
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved dark line"
+     },
+     {
+      "box": [
+       612.82,
+       188.2,
+       663.85,
+       214.07
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved line on hood"
+     },
+     {
+      "box": [
+       503.0,
+       210.6,
+       546.55,
+       231.93
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "short thin angled line"
+     },
+     {
+      "box": [
+       751.49,
+       230.07,
+       775.0,
+       314.07
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "long curved line at edge"
+     },
+     {
+      "box": [
+       742.14,
+       129.0,
+       765.92,
+       136.2
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark speck at top edge"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf1_m4",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    731.7,
+    198.3,
+    823.7,
+    314.5
+   ],
+   "spark": [
+    729.0,
+    238.0,
+    776.0,
+    303.0
+   ],
+   "crop_wh": [
+    1230,
+    700
+   ],
+   "w1": {
+    "window": [
+     645,
+     210,
+     860,
+     331
+    ],
+    "n_boxes": 4,
+    "valid": true,
+    "pick": {
+     "box": [
+      752.5,
+      211.85,
+      804.23,
+      296.04
+     ],
+     "type": "scratch",
+     "confidence": "medium",
+     "note": "long curved thin scratch"
+    },
+    "boxes": [
+     {
+      "box": [
+       752.5,
+       211.85,
+       804.23,
+       296.04
+      ],
+      "type": "scratch",
+      "confidence": "medium",
+      "note": "long curved thin scratch"
+     },
+     {
+      "box": [
+       787.94,
+       218.4,
+       813.98,
+       239.24
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "short curved branch line"
+     },
+     {
+      "box": [
+       786.43,
+       233.7,
+       792.48,
+       237.39
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "tiny dark spot"
+     },
+     {
+      "box": [
+       810.62,
+       263.78,
+       817.67,
+       268.65
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     537,
+     150,
+     968,
+     392
+    ],
+    "n_boxes": 7,
+    "valid": true,
+    "pick": {
+     "box": [
+      758.9,
+      211.84,
+      809.41,
+      292.51
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "long curved scratch by panel gap"
+    },
+    "boxes": [
+     {
+      "box": [
+       597.27,
+       187.64,
+       665.63,
+       213.86
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved line on hood"
+     },
+     {
+      "box": [
+       758.9,
+       211.84,
+       809.41,
+       292.51
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "long curved scratch by panel gap"
+     },
+     {
+      "box": [
+       837.69,
+       165.12,
+       928.27,
+       218.57
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "curved thin marks upper right"
+     },
+     {
+      "box": [
+       562.93,
+       152.02,
+       586.83,
+       158.74
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck top edge"
+     },
+     {
+      "box": [
+       663.61,
+       372.51,
+       682.46,
+       383.93
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck lower hood"
+     },
+     {
+      "box": [
+       898.3,
+       299.57,
+       914.46,
+       309.65
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark speck on right side"
+     },
+     {
+      "box": [
+       804.69,
+       267.3,
+       816.14,
+       274.7
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dot by panel gap"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf1_m5",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    825,
+    153.9,
+    939.1,
+    217.5
+   ],
+   "spark": [
+    825.0,
+    164.0,
+    880.0,
+    214.0
+   ],
+   "crop_wh": [
+    1230,
+    700
+   ],
+   "w1": {
+    "window": [
+     758,
+     136,
+     947,
+     242
+    ],
+    "n_boxes": 4,
+    "valid": true,
+    "pick": {
+     "box": [
+      842.16,
+      165.15,
+      924.41,
+      209.76
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "curved and straight thin lines"
+    },
+    "boxes": [
+     {
+      "box": [
+       842.16,
+       165.15,
+       924.41,
+       209.76
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "curved and straight thin lines"
+     },
+     {
+      "box": [
+       769.37,
+       213.44,
+       805.4,
+       242.0
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "two intersecting curved lines"
+     },
+     {
+      "box": [
+       914.81,
+       136.0,
+       941.54,
+       145.72
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "short diagonal dark streak"
+     },
+     {
+      "box": [
+       805.25,
+       175.75,
+       816.77,
+       180.61
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     664,
+     83,
+     1041,
+     295
+    ],
+    "n_boxes": 8,
+    "valid": true,
+    "pick": {
+     "box": [
+      860.75,
+      187.53,
+      871.64,
+      194.3
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "tiny dark speck"
+    },
+    "boxes": [
+     {
+      "box": [
+       743.23,
+       87.12,
+       1041.0,
+       163.09
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "branches debris across top edge"
+     },
+     {
+      "box": [
+       829.23,
+       174.57,
+       910.52,
+       216.09
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "thin curved twig on hood"
+     },
+     {
+      "box": [
+       739.4,
+       212.85,
+       797.72,
+       295.0
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "curved twigs lower left"
+     },
+     {
+      "box": [
+       949.11,
+       231.4,
+       1041.0,
+       295.0
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "twigs debris lower right"
+     },
+     {
+      "box": [
+       741.76,
+       124.81,
+       765.32,
+       137.77
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark leaf debris"
+     },
+     {
+      "box": [
+       860.75,
+       187.53,
+       871.64,
+       194.3
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     },
+     {
+      "box": [
+       970.61,
+       207.26,
+       989.16,
+       216.09
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny speck debris"
+     },
+     {
+      "box": [
+       784.17,
+       187.53,
+       795.95,
+       192.83
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf1_m6",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    823.5,
+    196.2,
+    1103.5,
+    451.7
+   ],
+   "spark": [
+    950.0,
+    291.0,
+    999.0,
+    318.0
+   ],
+   "crop_wh": [
+    1230,
+    700
+   ],
+   "w1": {
+    "window": [
+     889,
+     256,
+     1060,
+     352
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      903.56,
+      256.0,
+      1038.22,
+      352.0
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "blurry long branching dark line"
+    },
+    "boxes": [
+     {
+      "box": [
+       903.56,
+       256.0,
+       1038.22,
+       352.0
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "blurry long branching dark line"
+     },
+     {
+      "box": [
+       918.12,
+       299.73,
+       939.1,
+       309.73
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark blurred spot"
+     },
+     {
+      "box": [
+       984.39,
+       259.07,
+       1002.82,
+       269.73
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "reddish blurred spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     804,
+     208,
+     1145,
+     400
+    ],
+    "n_boxes": 8,
+    "valid": true,
+    "pick": {
+     "box": [
+      936.94,
+      288.0,
+      967.84,
+      317.07
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "leaf debris on edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       822.12,
+       277.6,
+       830.91,
+       282.67
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       836.77,
+       326.4,
+       845.83,
+       331.73
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       914.83,
+       299.73,
+       932.14,
+       309.33
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark speck near edge"
+     },
+     {
+      "box": [
+       936.94,
+       288.0,
+       967.84,
+       317.07
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "leaf debris on edge"
+     },
+     {
+      "box": [
+       929.48,
+       250.13,
+       938.27,
+       255.2
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       1056.02,
+       281.6,
+       1064.81,
+       286.67
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       1079.2,
+       273.6,
+       1097.85,
+       286.67
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "grayish speck"
+     },
+     {
+      "box": [
+       1007.53,
+       377.33,
+       1016.59,
+       382.67
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf1_m7",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    639,
+    369.3,
+    685.9,
+    408.9
+   ],
+   "spark": [
+    635.0,
+    372.0,
+    654.0,
+    383.0
+   ],
+   "crop_wh": [
+    1230,
+    700
+   ],
+   "w1": {
+    "window": [
+     559,
+     330,
+     730,
+     426
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      645.84,
+      396.0,
+      656.12,
+      402.13
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark dot"
+    },
+    "boxes": [
+     {
+      "box": [
+       667.48,
+       368.8,
+       687.92,
+       376.53
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "elongated dark spot"
+     },
+     {
+      "box": [
+       645.84,
+       396.0,
+       656.12,
+       402.13
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark dot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     474,
+     282,
+     815,
+     474
+    ],
+    "n_boxes": 5,
+    "valid": true,
+    "pick": {
+     "box": [
+      649.03,
+      396.67,
+      662.08,
+      405.73
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark dot below"
+    },
+    "boxes": [
+     {
+      "box": [
+       665.01,
+       374.27,
+       682.33,
+       384.13
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark linear mark"
+     },
+     {
+      "box": [
+       649.03,
+       396.67,
+       662.08,
+       405.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark dot below"
+     },
+     {
+      "box": [
+       497.18,
+       317.73,
+       511.03,
+       325.2
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark speck on left"
+     },
+     {
+      "box": [
+       498.24,
+       436.67,
+       509.43,
+       442.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny speck at lower edge"
+     },
+     {
+      "box": [
+       750.8,
+       282.0,
+       763.85,
+       301.2
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved mark top edge"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf2_m3",
+   "status": "moved",
+   "size_class": "M",
+   "type": "dirt",
+   "hand": [
+    853.7,
+    172.4,
+    936.6,
+    294.9
+   ],
+   "spark": [
+    864.0,
+    209.0,
+    931.0,
+    305.0
+   ],
+   "crop_wh": [
+    1278,
+    708
+   ],
+   "w1": {
+    "window": [
+     762,
+     181,
+     1033,
+     333
+    ],
+    "n_boxes": 4,
+    "valid": true,
+    "pick": {
+     "box": [
+      893.48,
+      181.0,
+      931.59,
+      286.77
+     ],
+     "type": "scratch",
+     "confidence": "medium",
+     "note": "curved thin scratch"
+    },
+    "boxes": [
+     {
+      "box": [
+       893.48,
+       181.0,
+       931.59,
+       286.77
+      ],
+      "type": "scratch",
+      "confidence": "medium",
+      "note": "curved thin scratch"
+     },
+     {
+      "box": [
+       905.12,
+       214.36,
+       912.53,
+       218.58
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     },
+     {
+      "box": [
+       945.98,
+       254.26,
+       954.45,
+       260.59
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark dot"
+     },
+     {
+      "box": [
+       971.39,
+       313.16,
+       979.86,
+       318.43
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     627,
+     105,
+     1168,
+     409
+    ],
+    "n_boxes": 7,
+    "valid": true,
+    "pick": {
+     "box": [
+      875.52,
+      179.73,
+      911.02,
+      281.91
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "long curved thin line"
+    },
+    "boxes": [
+     {
+      "box": [
+       688.71,
+       155.67,
+       755.06,
+       184.38
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin diagonal line on hood"
+     },
+     {
+      "box": [
+       875.52,
+       179.73,
+       911.02,
+       281.91
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "long curved thin line"
+     },
+     {
+      "box": [
+       901.73,
+       179.73,
+       931.31,
+       227.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "short diagonal thin line"
+     },
+     {
+      "box": [
+       926.66,
+       126.96,
+       1009.93,
+       181.42
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "crossed thin lines upper hood"
+     },
+     {
+      "box": [
+       856.92,
+       365.09,
+       873.41,
+       376.49
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       936.38,
+       253.2,
+       947.8,
+       260.8
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       1075.02,
+       177.2,
+       1148.56,
+       252.36
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "plant debris along hood edge"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf2_m4",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    809.5,
+    387.1,
+    834.5,
+    408.7
+   ],
+   "spark": [
+    790.0,
+    395.0,
+    810.0,
+    407.0
+   ],
+   "crop_wh": [
+    1278,
+    708
+   ],
+   "w1": {
+    "window": [
+     715,
+     353,
+     885,
+     449
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      811.95,
+      391.67,
+      825.23,
+      399.53
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small round dark blurry spot"
+    },
+    "boxes": [
+     {
+      "box": [
+       836.66,
+       364.47,
+       856.18,
+       375.67
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark elongated blurry spot"
+     },
+     {
+      "box": [
+       811.95,
+       391.67,
+       825.23,
+       399.53
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small round dark blurry spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     629,
+     305,
+     971,
+     497
+    ],
+    "n_boxes": 4,
+    "valid": true,
+    "pick": {
+     "box": [
+      827.25,
+      402.87,
+      838.48,
+      409.8
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "small dark spot below"
+    },
+    "boxes": [
+     {
+      "box": [
+       661.6,
+       324.2,
+       672.02,
+       331.13
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck top left"
+     },
+     {
+      "box": [
+       837.67,
+       369.27,
+       860.12,
+       381.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "elongated dark spot center"
+     },
+     {
+      "box": [
+       827.25,
+       402.87,
+       838.48,
+       409.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot below"
+     },
+     {
+      "box": [
+       697.4,
+       457.53,
+       705.15,
+       463.13
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny speck near edge"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_hood_kf2_m5",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    926.1,
+    530.1,
+    949.8,
+    548.4
+   ],
+   "spark": [
+    943.0,
+    537.0,
+    962.0,
+    550.0
+   ],
+   "crop_wh": [
+    1278,
+    708
+   ],
+   "w1": {
+    "window": [
+     867,
+     496,
+     1038,
+     592
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      934.06,
+      535.73,
+      942.75,
+      544.13
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark speck on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       934.06,
+       535.73,
+       942.75,
+       544.13
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark speck on hood"
+     },
+     {
+      "box": [
+       914.02,
+       583.2,
+       925.25,
+       592.0
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark spot at bottom edge"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     782,
+     448,
+     1123,
+     640
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      949.3,
+      515.47,
+      960.49,
+      524.27
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "tiny dark spot on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       949.3,
+       515.47,
+       960.49,
+       524.27
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark spot on hood"
+     },
+     {
+      "box": [
+       921.86,
+       575.73,
+       938.91,
+       592.53
+      ],
+      "type": "chip",
+      "confidence": "medium",
+      "note": "small dark chip spot"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_hood_kf2_m6",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    775.5,
+    76.2,
+    821,
+    106.4
+   ],
+   "spark": [
+    778.0,
+    92.0,
+    802.0,
+    100.0
+   ],
+   "crop_wh": [
+    1278,
+    708
+   ],
+   "w1": {
+    "window": [
+     705,
+     48,
+     875,
+     144
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      787.48,
+      85.2,
+      818.16,
+      99.2
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "brownish spot on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       787.48,
+       85.2,
+       818.16,
+       99.2
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brownish spot on hood"
+     },
+     {
+      "box": [
+       738.47,
+       59.87,
+       772.34,
+       67.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "blurry dark linear mark"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     619,
+     0,
+     961,
+     192
+    ],
+    "n_boxes": 8,
+    "valid": true,
+    "pick": {
+     "box": [
+      784.12,
+      82.67,
+      812.44,
+      96.0
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "brown leaf debris on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       660.68,
+       37.6,
+       708.77,
+       47.2
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved dark line"
+     },
+     {
+      "box": [
+       784.12,
+       82.67,
+       812.44,
+       96.0
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf debris on hood"
+     },
+     {
+      "box": [
+       619.0,
+       114.13,
+       644.65,
+       119.73
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown spot at left edge"
+     },
+     {
+      "box": [
+       684.73,
+       164.27,
+       769.69,
+       184.27
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved line"
+     },
+     {
+      "box": [
+       856.26,
+       152.27,
+       870.42,
+       157.6
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       911.3,
+       137.87,
+       961.0,
+       185.6
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "branched twig debris"
+     },
+     {
+      "box": [
+       768.89,
+       46.4,
+       809.77,
+       56.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark debris near rear edge"
+     },
+     {
+      "box": [
+       806.3,
+       52.27,
+       961.0,
+       86.93
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin diagonal lines"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf3_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "scratch",
+   "hand": [
+    653.6,
+    192,
+    740.8,
+    230.9
+   ],
+   "spark": [
+    705.0,
+    198.0,
+    778.0,
+    230.0
+   ],
+   "crop_wh": [
+    1280,
+    736
+   ],
+   "w1": {
+    "window": [
+     656,
+     166,
+     827,
+     262
+    ],
+    "n_boxes": 5,
+    "valid": true,
+    "pick": {
+     "box": [
+      722.8,
+      244.53,
+      763.01,
+      259.33
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "blurry speck cluster"
+    },
+    "boxes": [
+     {
+      "box": [
+       666.29,
+       198.13,
+       735.62,
+       210.27
+      ],
+      "type": "scratch",
+      "confidence": "medium",
+      "note": "curved dark line scratch"
+     },
+     {
+      "box": [
+       684.32,
+       166.0,
+       702.62,
+       174.53
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark dash at edge"
+     },
+     {
+      "box": [
+       784.38,
+       190.8,
+       822.32,
+       197.87
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "dot with faint streak"
+     },
+     {
+      "box": [
+       722.8,
+       244.53,
+       763.01,
+       259.33
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "blurry speck cluster"
+     },
+     {
+      "box": [
+       801.48,
+       233.07,
+       827.0,
+       239.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "faint blurry spots"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     571,
+     118,
+     912,
+     310
+    ],
+    "n_boxes": 6,
+    "valid": true,
+    "pick": {
+     "box": [
+      734.31,
+      241.73,
+      760.95,
+      258.8
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "small speck cluster"
+    },
+    "boxes": [
+     {
+      "box": [
+       681.56,
+       164.4,
+       701.54,
+       174.8
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark dash"
+     },
+     {
+      "box": [
+       662.38,
+       198.27,
+       722.59,
+       224.93
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "curved dark line"
+     },
+     {
+      "box": [
+       789.45,
+       189.73,
+       824.35,
+       197.47
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "short horizontal mark"
+     },
+     {
+      "box": [
+       734.31,
+       241.73,
+       760.95,
+       258.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small speck cluster"
+     },
+     {
+      "box": [
+       813.16,
+       234.53,
+       877.1,
+       240.67
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin horizontal line"
+     },
+     {
+      "box": [
+       879.5,
+       256.67,
+       897.88,
+       277.47
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark irregular spot at edge"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf3_m2",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    219.8,
+    200.1,
+    375.9,
+    245.2
+   ],
+   "spark": [
+    207.0,
+    212.0,
+    341.0,
+    251.0
+   ],
+   "crop_wh": [
+    1280,
+    736
+   ],
+   "w1": {
+    "window": [
+     179,
+     178,
+     369,
+     285
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      234.07,
+      205.79,
+      350.3,
+      217.38
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "thin transverse dark line"
+    },
+    "boxes": [
+     {
+      "box": [
+       184.64,
+       178.0,
+       312.15,
+       233.73
+      ],
+      "type": "crack",
+      "confidence": "low",
+      "note": "long diagonal dark line"
+     },
+     {
+      "box": [
+       234.07,
+       205.79,
+       350.3,
+       217.38
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin transverse dark line"
+     },
+     {
+      "box": [
+       313.93,
+       226.15,
+       354.9,
+       245.02
+      ],
+      "type": "crack",
+      "confidence": "low",
+      "note": "dark branched irregular damage"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     84,
+     125,
+     464,
+     338
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      248.17,
+      215.23,
+      358.31,
+      230.61
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "thin curved line above seam"
+    },
+    "boxes": [
+     {
+      "box": [
+       376.72,
+       165.82,
+       386.52,
+       172.04
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark dot"
+     },
+     {
+      "box": [
+       248.17,
+       215.23,
+       358.31,
+       230.61
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved line above seam"
+     },
+     {
+      "box": [
+       379.39,
+       281.5,
+       404.33,
+       293.62
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "reddish spot on panel edge"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf3_m3",
+   "status": "moved",
+   "size_class": "M",
+   "type": "dirt",
+   "hand": [
+    566.7,
+    48.6,
+    755.7,
+    94.6
+   ],
+   "spark": [
+    553.0,
+    52.0,
+    742.0,
+    98.0
+   ],
+   "crop_wh": [
+    1280,
+    736
+   ],
+   "w1": {
+    "window": [
+     525,
+     6,
+     770,
+     144
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      574.0,
+      61.97,
+      716.21,
+      80.75
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "faint diagonal line across hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       574.0,
+       61.97,
+       716.21,
+       80.75
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "faint diagonal line across hood"
+     },
+     {
+      "box": [
+       673.15,
+       107.39,
+       691.33,
+       114.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot on hood"
+     },
+     {
+      "box": [
+       712.39,
+       61.97,
+       746.84,
+       84.2
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brownish discoloration near right edge"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     402,
+     0,
+     892,
+     276
+    ],
+    "n_boxes": 8,
+    "valid": true,
+    "pick": {
+     "box": [
+      667.67,
+      104.65,
+      689.11,
+      113.85
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "small dark spot debris"
+    },
+    "boxes": [
+     {
+      "box": [
+       414.25,
+       81.65,
+       432.62,
+       96.22
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "dark leaf debris on hood"
+     },
+     {
+      "box": [
+       452.15,
+       170.58,
+       514.16,
+       183.62
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "thin twig lying on hood"
+     },
+     {
+      "box": [
+       667.67,
+       104.65,
+       689.11,
+       113.85
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot debris"
+     },
+     {
+      "box": [
+       675.33,
+       167.52,
+       696.0,
+       175.18
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark dash debris"
+     },
+     {
+      "box": [
+       674.56,
+       199.72,
+       731.98,
+       227.7
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "curved thin line twig"
+     },
+     {
+      "box": [
+       789.02,
+       189.75,
+       824.24,
+       198.95
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small twig fragment"
+     },
+     {
+      "box": [
+       806.25,
+       230.38,
+       869.8,
+       242.27
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "thin stick on hood edge"
+     },
+     {
+      "box": [
+       690.64,
+       252.23,
+       717.82,
+       272.55
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "speckled dirt near edge"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf3_m5",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    662.1,
+    100.3,
+    688.1,
+    116.3
+   ],
+   "spark": [
+    653.0,
+    115.0,
+    679.0,
+    131.0
+   ],
+   "crop_wh": [
+    1280,
+    736
+   ],
+   "w1": {
+    "window": [
+     581,
+     75,
+     751,
+     171
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      666.8,
+      99.0,
+      688.18,
+      105.8
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "small dark spot center"
+    },
+    "boxes": [
+     {
+      "box": [
+       666.8,
+       99.0,
+       688.18,
+       105.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot center"
+     },
+     {
+      "box": [
+       600.52,
+       88.87,
+       619.38,
+       106.33
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "faint diagonal line upper left"
+     },
+     {
+      "box": [
+       683.0,
+       164.33,
+       701.86,
+       171.0
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "blurry gray shape bottom edge"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     495,
+     27,
+     837,
+     219
+    ],
+    "n_boxes": 5,
+    "valid": true,
+    "pick": {
+     "box": [
+      674.55,
+      104.07,
+      693.25,
+      112.6
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "small dark debris spot"
+    },
+    "boxes": [
+     {
+      "box": [
+       674.55,
+       104.07,
+       693.25,
+       112.6
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "small dark debris spot"
+     },
+     {
+      "box": [
+       674.82,
+       166.73,
+       692.99,
+       174.2
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "small dark debris"
+     },
+     {
+      "box": [
+       773.94,
+       190.47,
+       803.07,
+       198.2
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot with faint line"
+     },
+     {
+      "box": [
+       525.73,
+       80.07,
+       536.41,
+       89.13
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small curved dark line"
+     },
+     {
+      "box": [
+       604.81,
+       91.8,
+       620.85,
+       107.0
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "faint linear mark"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_hood_kf3_m6",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    849.2,
+    121.3,
+    914.2,
+    153.3
+   ],
+   "spark": [
+    870.0,
+    140.0,
+    935.0,
+    172.0
+   ],
+   "crop_wh": [
+    1280,
+    736
+   ],
+   "w1": {
+    "window": [
+     817,
+     108,
+     988,
+     204
+    ],
+    "n_boxes": 4,
+    "valid": true,
+    "pick": {
+     "box": [
+      876.18,
+      139.33,
+      900.9,
+      148.13
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "brownish debris on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       860.42,
+       126.0,
+       871.91,
+       138.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck near edge"
+     },
+     {
+      "box": [
+       876.18,
+       139.33,
+       900.9,
+       148.13
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brownish debris on hood"
+     },
+     {
+      "box": [
+       932.96,
+       156.13,
+       944.58,
+       162.4
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark spot on seam"
+     },
+     {
+      "box": [
+       958.08,
+       194.53,
+       978.92,
+       202.4
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "yellowish debris at edge"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     732,
+     60,
+     1073,
+     252
+    ],
+    "n_boxes": 6,
+    "valid": true,
+    "pick": {
+     "box": [
+      878.52,
+      123.47,
+      904.36,
+      136.0
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "brown leaf debris on hood edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       803.66,
+       160.8,
+       844.69,
+       166.93
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck on hood"
+     },
+     {
+      "box": [
+       820.71,
+       188.53,
+       872.13,
+       194.67
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "faint linear mark on hood"
+     },
+     {
+      "box": [
+       878.52,
+       123.47,
+       904.36,
+       136.0
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf debris on hood edge"
+     },
+     {
+      "box": [
+       863.34,
+       116.53,
+       873.73,
+       124.53
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark speck on hood edge"
+     },
+     {
+      "box": [
+       972.3,
+       163.73,
+       994.94,
+       174.4
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "yellow debris on hood edge"
+     },
+     {
+      "box": [
+       935.0,
+       143.47,
+       945.39,
+       147.73
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot on edge"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_left_front_wheel_kf1_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "unsure",
+   "hand": [
+    74.2,
+    182.8,
+    99.3,
+    231.8
+   ],
+   "spark": [
+    81.0,
+    191.0,
+    96.0,
+    239.0
+   ],
+   "crop_wh": [
+    164,
+    467
+   ],
+   "w1": {
+    "window": [
+     0,
+     163,
+     164,
+     267
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      86.87,
+      191.02,
+      101.86,
+      211.97
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "dark smudge with specks on fender edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       86.87,
+       191.02,
+       101.86,
+       211.97
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark smudge with specks on fender edge"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     111,
+     164,
+     319
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      85.33,
+      186.98,
+      103.01,
+      217.31
+     ],
+     "type": "scuff",
+     "confidence": "low",
+     "note": "small dark specks on bumper edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       85.33,
+       186.98,
+       103.01,
+       217.31
+      ],
+      "type": "scuff",
+      "confidence": "low",
+      "note": "small dark specks on bumper edge"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_mirrors_kf1_m1",
+   "status": "not_mark",
+   "size_class": "M",
+   "type": "reflection",
+   "hand": null,
+   "spark": [
+    20.0,
+    17.0,
+    36.0,
+    78.0
+   ],
+   "crop_wh": [
+    126,
+    168
+   ],
+   "w1": {
+    "window": [
+     0,
+     0,
+     126,
+     117
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     126,
+     168
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_rear_bumper_kf1_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    233.7,
+    57.9,
+    310.8,
+    105.5
+   ],
+   "spark": [
+    268.0,
+    72.0,
+    312.0,
+    95.0
+   ],
+   "crop_wh": [
+    1280,
+    442
+   ],
+   "w1": {
+    "window": [
+     205,
+     36,
+     375,
+     132
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      259.05,
+      64.8,
+      295.58,
+      90.4
+     ],
+     "type": "scuff",
+     "confidence": "low",
+     "note": "brown scuffed area on bumper"
+    },
+    "boxes": [
+     {
+      "box": [
+       259.05,
+       64.8,
+       295.58,
+       90.4
+      ],
+      "type": "scuff",
+      "confidence": "low",
+      "note": "brown scuffed area on bumper"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     119,
+     0,
+     461,
+     192
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      262.21,
+      64.8,
+      300.15,
+      92.8
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "brown leaf debris on bumper"
+    },
+    "boxes": [
+     {
+      "box": [
+       119.0,
+       63.47,
+       268.09,
+       107.73
+      ],
+      "type": "scuff",
+      "confidence": "medium",
+      "note": "white scuff along chrome bumper edge"
+     },
+     {
+      "box": [
+       262.21,
+       64.8,
+       300.15,
+       92.8
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf debris on bumper"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_rear_bumper_kf3_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    212.7,
+    55.4,
+    276.1,
+    99
+   ],
+   "spark": [
+    173.0,
+    76.0,
+    231.0,
+    100.0
+   ],
+   "crop_wh": [
+    1280,
+    459
+   ],
+   "w1": {
+    "window": [
+     117,
+     40,
+     287,
+     136
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      117.0,
+      60.13,
+      233.21,
+      88.13
+     ],
+     "type": "scuff",
+     "confidence": "low",
+     "note": "white paint scuff along top edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       117.0,
+       60.13,
+       233.21,
+       88.13
+      ],
+      "type": "scuff",
+      "confidence": "low",
+      "note": "white paint scuff along top edge"
+     },
+     {
+      "box": [
+       239.45,
+       64.93,
+       260.84,
+       79.47
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "brownish spot at panel seam"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     31,
+     0,
+     373,
+     192
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      110.09,
+      57.87,
+      214.29,
+      97.6
+     ],
+     "type": "scuff",
+     "confidence": "medium",
+     "note": "white paint scuff on bumper corner"
+    },
+    "boxes": [
+     {
+      "box": [
+       110.09,
+       57.87,
+       214.29,
+       97.6
+      ],
+      "type": "scuff",
+      "confidence": "medium",
+      "note": "white paint scuff on bumper corner"
+     },
+     {
+      "box": [
+       244.75,
+       59.47,
+       270.67,
+       77.6
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brown spot at bumper seam"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_rear_bumper_kf3_m2",
+   "status": "moved",
+   "size_class": "M",
+   "type": "scuff",
+   "hand": [
+    932.8,
+    298,
+    1116.2,
+    358.8
+   ],
+   "spark": [
+    858.0,
+    275.0,
+    1117.0,
+    357.0
+   ],
+   "crop_wh": [
+    1280,
+    459
+   ],
+   "w1": {
+    "window": [
+     830,
+     227,
+     1145,
+     405
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      830.0,
+      284.36,
+      1107.35,
+      341.96
+     ],
+     "type": "scuff",
+     "confidence": "medium",
+     "note": "chrome peeling abrasion along bumper top edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       830.0,
+       284.36,
+       1107.35,
+       341.96
+      ],
+      "type": "scuff",
+      "confidence": "medium",
+      "note": "chrome peeling abrasion along bumper top edge"
+     },
+     {
+      "box": [
+       830.0,
+       310.56,
+       1145.0,
+       405.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brown dirt staining on lower bumper"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     650,
+     105,
+     1280,
+     459
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      839.0,
+      271.18,
+      1092.97,
+      376.4
+     ],
+     "type": "dent",
+     "confidence": "medium",
+     "note": "chrome bumper dented crumpled"
+    },
+    "boxes": [
+     {
+      "box": [
+       839.0,
+       271.18,
+       1092.97,
+       376.4
+      ],
+      "type": "dent",
+      "confidence": "medium",
+      "note": "chrome bumper dented crumpled"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_rear_window_kf1_m1",
+   "status": "not_mark",
+   "size_class": "L",
+   "type": "crack",
+   "hand": null,
+   "spark": [
+    86.0,
+    31.0,
+    745.0,
+    297.0
+   ],
+   "crop_wh": [
+    860,
+    348
+   ],
+   "w1": {
+    "window": [
+     58,
+     0,
+     773,
+     348
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      108.27,
+      52.2,
+      737.81,
+      264.87
+     ],
+     "type": "crack",
+     "confidence": "medium",
+     "note": "branching cracks across rear glass"
+    },
+    "boxes": [
+     {
+      "box": [
+       108.27,
+       52.2,
+       737.81,
+       264.87
+      ],
+      "type": "crack",
+      "confidence": "medium",
+      "note": "branching cracks across rear glass"
+     },
+     {
+      "box": [
+       163.57,
+       20.78,
+       449.57,
+       42.05
+      ],
+      "type": "chip",
+      "confidence": "low",
+      "note": "peeling debris along top edge"
+     },
+     {
+      "box": [
+       140.11,
+       104.4,
+       246.8,
+       146.45
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "red reflection on glass"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     860,
+     348
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      103.47,
+      52.2,
+      714.2,
+      268.25
+     ],
+     "type": "crack",
+     "confidence": "medium",
+     "note": "multiple cracks across rear glass"
+    },
+    "boxes": [
+     {
+      "box": [
+       103.47,
+       52.2,
+       714.2,
+       268.25
+      ],
+      "type": "crack",
+      "confidence": "medium",
+      "note": "multiple cracks across rear glass"
+     },
+     {
+      "box": [
+       172.0,
+       20.78,
+       434.7,
+       47.37
+      ],
+      "type": "chip",
+      "confidence": "low",
+      "note": "peeling rust along top window frame"
+     },
+     {
+      "box": [
+       120.27,
+       93.77,
+       215.67,
+       132.92
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "red mark on left glass"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_rear_window_kf1_m2",
+   "status": "moved",
+   "size_class": "M",
+   "type": "chip",
+   "hand": [
+    100.9,
+    10.8,
+    433.5,
+    47.3
+   ],
+   "spark": [
+    103.0,
+    9.0,
+    414.0,
+    34.0
+   ],
+   "crop_wh": [
+    860,
+    348
+   ],
+   "w1": {
+    "window": [
+     75,
+     0,
+     442,
+     206
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      215.21,
+      22.32,
+      300.93,
+      39.77
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "irregular brown along top seal"
+    },
+    "boxes": [
+     {
+      "box": [
+       113.99,
+       68.95,
+       127.47,
+       92.13
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "light speck on upper left glass"
+     },
+     {
+      "box": [
+       132.92,
+       104.14,
+       193.13,
+       131.04
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "red streak reflection on left glass"
+     },
+     {
+      "box": [
+       215.21,
+       22.32,
+       300.93,
+       39.77
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "irregular brown along top seal"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     734,
+     348
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      176.05,
+      19.33,
+      466.78,
+      47.37
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "leaves debris on top seal"
+    },
+    "boxes": [
+     {
+      "box": [
+       125.01,
+       102.47,
+       217.33,
+       131.95
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "red linear mark on glass"
+     },
+     {
+      "box": [
+       176.05,
+       19.33,
+       466.78,
+       47.37
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "leaves debris on top seal"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_rear_window_kf1_m3",
+   "status": "moved",
+   "size_class": "S",
+   "type": "reflection",
+   "hand": [
+    112.6,
+    89.7,
+    215.6,
+    133.6
+   ],
+   "spark": [
+    120.0,
+    75.0,
+    212.0,
+    107.0
+   ],
+   "crop_wh": [
+    860,
+    348
+   ],
+   "w1": {
+    "window": [
+     81,
+     43,
+     251,
+     139
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      130.41,
+      100.47,
+      202.39,
+      132.73
+     ],
+     "type": "reflection",
+     "confidence": "medium",
+     "note": "red curved light reflection on glass"
+    },
+    "boxes": [
+     {
+      "box": [
+       122.17,
+       73.67,
+       135.85,
+       92.33
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "pale spot on dark surface"
+     },
+     {
+      "box": [
+       130.41,
+       100.47,
+       202.39,
+       132.73
+      ],
+      "type": "reflection",
+      "confidence": "medium",
+      "note": "red curved light reflection on glass"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     341,
+     192
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      103.37,
+      96.53,
+      189.95,
+      133.07
+     ],
+     "type": "reflection",
+     "confidence": "low",
+     "note": "red streak reflection on glass"
+    },
+    "boxes": [
+     {
+      "box": [
+       103.37,
+       96.53,
+       189.95,
+       133.07
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "red streak reflection on glass"
+     },
+     {
+      "box": [
+       105.5,
+       71.73,
+       120.95,
+       90.67
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "light small spot on glass"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_rear_window_kf1_m4",
+   "status": "moved",
+   "size_class": "S",
+   "type": "scuff",
+   "hand": [
+    179.6,
+    314.6,
+    292.6,
+    335.6
+   ],
+   "spark": [
+    168.0,
+    327.0,
+    281.0,
+    348.0
+   ],
+   "crop_wh": [
+    860,
+    348
+   ],
+   "w1": {
+    "window": [
+     139,
+     252,
+     310,
+     348
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      198.85,
+      324.0,
+      310.0,
+      348.0
+     ],
+     "type": "dent",
+     "confidence": "medium",
+     "note": "dented scraped area below glass"
+    },
+    "boxes": [
+     {
+      "box": [
+       198.85,
+       324.0,
+       310.0,
+       348.0
+      ],
+      "type": "dent",
+      "confidence": "medium",
+      "note": "dented scraped area below glass"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     54,
+     156,
+     395,
+     348
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      215.71,
+      323.47,
+      343.32,
+      348.0
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "dark streaky spot on white paint"
+    },
+    "boxes": [
+     {
+      "box": [
+       215.71,
+       323.47,
+       343.32,
+       348.0
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark streaky spot on white paint"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_rear_window_kf2_m2",
+   "status": "moved",
+   "size_class": "L",
+   "type": "reflection",
+   "hand": [
+    86.7,
+    37.3,
+    717.2,
+    308.3
+   ],
+   "spark": [
+    94.0,
+    38.0,
+    600.0,
+    267.0
+   ],
+   "crop_wh": [
+    856,
+    380
+   ],
+   "w1": {
+    "window": [
+     66,
+     0,
+     628,
+     316
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      133.62,
+      21.94,
+      420.32,
+      55.74
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "debris leaves on top window seal"
+    },
+    "boxes": [
+     {
+      "box": [
+       133.62,
+       21.94,
+       420.32,
+       55.74
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "debris leaves on top window seal"
+     },
+     {
+      "box": [
+       124.83,
+       100.51,
+       212.65,
+       132.54
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "red reflection on glass"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     856,
+     380
+    ],
+    "n_boxes": 4,
+    "valid": true,
+    "pick": {
+     "box": [
+      167.19,
+      92.89,
+      603.88,
+      268.64
+     ],
+     "type": "crack",
+     "confidence": "medium",
+     "note": "branching cracks across rear glass"
+    },
+    "boxes": [
+     {
+      "box": [
+       167.19,
+       92.89,
+       603.88,
+       268.64
+      ],
+      "type": "crack",
+      "confidence": "medium",
+      "note": "branching cracks across rear glass"
+     },
+     {
+      "box": [
+       697.51,
+       279.19,
+       740.98,
+       310.33
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "small marks lower right glass"
+     },
+     {
+      "box": [
+       235.4,
+       24.81,
+       454.08,
+       51.72
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "leaves debris on top seal"
+     },
+     {
+      "box": [
+       141.11,
+       344.11,
+       377.18,
+       380.0
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "leaves debris on trunk edge"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_rear_window_kf2_m4",
+   "status": "moved",
+   "size_class": "M",
+   "type": "dirt",
+   "hand": [
+    80.6,
+    318.6,
+    385.7,
+    378.4
+   ],
+   "spark": [
+    154.0,
+    332.0,
+    335.0,
+    379.0
+   ],
+   "crop_wh": [
+    856,
+    380
+   ],
+   "w1": {
+    "window": [
+     126,
+     247,
+     363,
+     380
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      281.16,
+      337.51,
+      309.86,
+      351.55
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "brownish spot right of wiper"
+    },
+    "boxes": [
+     {
+      "box": [
+       175.81,
+       354.69,
+       204.32,
+       363.56
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark short mark left of wiper"
+     },
+     {
+      "box": [
+       126.0,
+       364.11,
+       146.37,
+       368.92
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin dark line at left edge"
+     },
+     {
+      "box": [
+       281.16,
+       337.51,
+       309.86,
+       351.55
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brownish spot right of wiper"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     8,
+     113,
+     482,
+     380
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_right_front_door_kf1_m1",
+   "status": "not_mark",
+   "size_class": "M",
+   "type": "unsure",
+   "hand": null,
+   "spark": [
+    96.0,
+    480.0,
+    152.0,
+    529.0
+   ],
+   "crop_wh": [
+    250,
+    741
+   ],
+   "w1": {
+    "window": [
+     31,
+     452,
+     217,
+     557
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      90.58,
+      495.02,
+      134.32,
+      531.92
+     ],
+     "type": "scratch",
+     "confidence": "medium",
+     "note": "dark wavy scratch mark"
+    },
+    "boxes": [
+     {
+      "box": [
+       90.58,
+       495.02,
+       134.32,
+       531.92
+      ],
+      "type": "scratch",
+      "confidence": "medium",
+      "note": "dark wavy scratch mark"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     400,
+     250,
+     610
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      91.99,
+      480.79,
+      142.77,
+      533.58
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "dark wavy line on door"
+    },
+    "boxes": [
+     {
+      "box": [
+       91.99,
+       480.79,
+       142.77,
+       533.58
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "dark wavy line on door"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_right_front_door_kf1_m2",
+   "status": "not_mark",
+   "size_class": "M",
+   "type": "dirt",
+   "hand": null,
+   "spark": [
+    0.0,
+    519.0,
+    46.0,
+    741.0
+   ],
+   "crop_wh": [
+    250,
+    741
+   ],
+   "w1": {
+    "window": [
+     0,
+     463,
+     250,
+     741
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      82.42,
+      488.1,
+      141.41,
+      532.89
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "thin dark wavy line on white panel"
+    },
+    "boxes": [
+     {
+      "box": [
+       82.42,
+       488.1,
+       141.41,
+       532.89
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin dark wavy line on white panel"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     185,
+     250,
+     741
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      0.0,
+      465.32,
+      53.52,
+      740.23
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "mud splash on lower door edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       91.8,
+       415.12,
+       193.75,
+       530.96
+      ],
+      "type": "crack",
+      "confidence": "high",
+      "note": "long wavy crack across door"
+     },
+     {
+      "box": [
+       0.0,
+       465.32,
+       53.52,
+       740.23
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "mud splash on lower door edge"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_right_rear_fender_kf2_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    192.1,
+    40.9,
+    237.8,
+    66.1
+   ],
+   "spark": [
+    200.0,
+    37.0,
+    235.0,
+    59.0
+   ],
+   "crop_wh": [
+    378,
+    332
+   ],
+   "w1": {
+    "window": [
+     132,
+     0,
+     303,
+     96
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "w2": {
+    "window": [
+     37,
+     0,
+     378,
+     192
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      246.66,
+      33.6,
+      258.92,
+      48.8
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark speck on fender edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       246.66,
+       33.6,
+       258.92,
+       48.8
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark speck on fender edge"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_right_rear_fender_kf3_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    235.4,
+    24,
+    281.4,
+    52
+   ],
+   "spark": [
+    222.0,
+    40.0,
+    268.0,
+    68.0
+   ],
+   "crop_wh": [
+    382,
+    334
+   ],
+   "w1": {
+    "window": [
+     160,
+     6,
+     330,
+     102
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      238.23,
+      34.8,
+      267.18,
+      44.53
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "dark smudge on fender lip"
+    },
+    "boxes": [
+     {
+      "box": [
+       238.23,
+       34.8,
+       267.18,
+       44.53
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark smudge on fender lip"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     41,
+     0,
+     382,
+     192
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      225.09,
+      30.67,
+      266.38,
+      54.93
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "dark residue along fender seam"
+    },
+    "boxes": [
+     {
+      "box": [
+       225.09,
+       30.67,
+       266.38,
+       54.93
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark residue along fender seam"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_trunk_lid_kf1_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    395.2,
+    118.2,
+    450.7,
+    154.1
+   ],
+   "spark": [
+    380.0,
+    140.0,
+    407.0,
+    157.0
+   ],
+   "crop_wh": [
+    1055,
+    702
+   ],
+   "w1": {
+    "window": [
+     308,
+     100,
+     479,
+     196
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "w2": {
+    "window": [
+     223,
+     52,
+     564,
+     244
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      511.52,
+      72.8,
+      520.04,
+      78.13
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "tiny dark speck on paint"
+    },
+    "boxes": [
+     {
+      "box": [
+       511.52,
+       72.8,
+       520.04,
+       78.13
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck on paint"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_trunk_lid_kf1_m2",
+   "status": "moved",
+   "size_class": "S",
+   "type": "scratch",
+   "hand": [
+    664.3,
+    101.1,
+    714.7,
+    164.6
+   ],
+   "spark": [
+    685.0,
+    128.0,
+    724.0,
+    173.0
+   ],
+   "crop_wh": [
+    1055,
+    702
+   ],
+   "w1": {
+    "window": [
+     615,
+     100,
+     794,
+     201
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      674.43,
+      110.24,
+      729.67,
+      145.87
+     ],
+     "type": "scratch",
+     "confidence": "medium",
+     "note": "curved dark line scratch"
+    },
+    "boxes": [
+     {
+      "box": [
+       674.43,
+       110.24,
+       729.67,
+       145.87
+      ],
+      "type": "scratch",
+      "confidence": "medium",
+      "note": "curved dark line scratch"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     525,
+     50,
+     884,
+     252
+    ],
+    "n_boxes": 4,
+    "valid": true,
+    "pick": {
+     "box": [
+      685.71,
+      116.77,
+      724.41,
+      158.86
+     ],
+     "type": "scratch",
+     "confidence": "medium",
+     "note": "curved dark scratch center"
+    },
+    "boxes": [
+     {
+      "box": [
+       685.71,
+       116.77,
+       724.41,
+       158.86
+      ],
+      "type": "scratch",
+      "confidence": "medium",
+      "note": "curved dark scratch center"
+     },
+     {
+      "box": [
+       710.95,
+       65.43,
+       740.68,
+       72.44
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck on top edge"
+     },
+     {
+      "box": [
+       827.63,
+       85.35,
+       884.0,
+       98.82
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brownish debris on top right edge"
+     },
+     {
+      "box": [
+       586.7,
+       76.37,
+       601.29,
+       87.31
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "faint dark speck upper left"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "pickup_trunk_lid_kf1_m3",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    805.1,
+    72.8,
+    921.2,
+    119.8
+   ],
+   "spark": [
+    820.0,
+    91.0,
+    868.0,
+    109.0
+   ],
+   "crop_wh": [
+    1055,
+    702
+   ],
+   "w1": {
+    "window": [
+     759,
+     52,
+     929,
+     148
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      815.98,
+      86.13,
+      833.11,
+      91.07
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark spot blur"
+    },
+    "boxes": [
+     {
+      "box": [
+       840.55,
+       82.67,
+       912.13,
+       102.0
+      ],
+      "type": "scuff",
+      "confidence": "low",
+      "note": "brownish streak paint damage"
+     },
+     {
+      "box": [
+       815.98,
+       86.13,
+       833.11,
+       91.07
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot blur"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     673,
+     4,
+     1015,
+     196
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      833.85,
+      62.67,
+      916.14,
+      78.13
+     ],
+     "type": "chip",
+     "confidence": "medium",
+     "note": "brown rust corrosion around emblem base"
+    },
+    "boxes": [
+     {
+      "box": [
+       833.85,
+       62.67,
+       916.14,
+       78.13
+      ],
+      "type": "chip",
+      "confidence": "medium",
+      "note": "brown rust corrosion around emblem base"
+     },
+     {
+      "box": [
+       715.75,
+       48.27,
+       741.67,
+       54.13
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot on paint"
+     },
+     {
+      "box": [
+       959.69,
+       145.07,
+       966.64,
+       148.53
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck on paint"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "pickup_trunk_lid_kf2_m2",
+   "status": "moved",
+   "size_class": "S",
+   "type": "unsure",
+   "hand": [
+    122.8,
+    252.3,
+    163.9,
+    294.5
+   ],
+   "spark": [
+    127.0,
+    234.0,
+    156.0,
+    265.0
+   ],
+   "crop_wh": [
+    1102,
+    669
+   ],
+   "w1": {
+    "window": [
+     56,
+     202,
+     227,
+     298
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      138.03,
+      267.87,
+      153.66,
+      279.87
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark blurry spot"
+    },
+    "boxes": [
+     {
+      "box": [
+       138.03,
+       267.87,
+       153.66,
+       279.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark blurry spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     154,
+     341,
+     346
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      118.55,
+      262.8,
+      130.81,
+      277.73
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark speck on trunk lid"
+    },
+    "boxes": [
+     {
+      "box": [
+       118.55,
+       262.8,
+       130.81,
+       277.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark speck on trunk lid"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_headlights_kf1_m1",
+   "status": "not_mark",
+   "size_class": "L",
+   "type": "reflection",
+   "hand": null,
+   "spark": [
+    48.0,
+    0.0,
+    60.0,
+    214.0
+   ],
+   "crop_wh": [
+    228,
+    214
+   ],
+   "w1": {
+    "window": [
+     0,
+     0,
+     228,
+     214
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      73.03,
+      17.24,
+      160.85,
+      50.53
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "mottled texture on chrome trim"
+    },
+    "boxes": [
+     {
+      "box": [
+       73.03,
+       17.24,
+       160.85,
+       50.53
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "mottled texture on chrome trim"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     228,
+     214
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      70.72,
+      16.05,
+      189.35,
+      59.15
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "crinkled texture on chrome bezel"
+    },
+    "boxes": [
+     {
+      "box": [
+       70.72,
+       16.05,
+       189.35,
+       59.15
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "crinkled texture on chrome bezel"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "return_headlights_kf1_m2",
+   "status": "moved",
+   "size_class": "M",
+   "type": "reflection",
+   "hand": [
+    67.3,
+    7.2,
+    180.4,
+    62.6
+   ],
+   "spark": [
+    64.0,
+    12.0,
+    133.0,
+    38.0
+   ],
+   "crop_wh": [
+    228,
+    214
+   ],
+   "w1": {
+    "window": [
+     13,
+     0,
+     184,
+     96
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      64.97,
+      16.8,
+      179.72,
+      46.27
+     ],
+     "type": "reflection",
+     "confidence": "low",
+     "note": "mottled dark pattern above lens"
+    },
+    "boxes": [
+     {
+      "box": [
+       64.97,
+       16.8,
+       179.72,
+       46.27
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "mottled dark pattern above lens"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     228,
+     192
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      66.26,
+      17.07,
+      200.39,
+      61.33
+     ],
+     "type": "reflection",
+     "confidence": "low",
+     "note": "mottled reflection on chrome bezel"
+    },
+    "boxes": [
+     {
+      "box": [
+       54.33,
+       0.0,
+       66.26,
+       192.0
+      ],
+      "type": "reflection",
+      "confidence": "medium",
+      "note": "thin vertical line over lens and body"
+     },
+     {
+      "box": [
+       66.26,
+       17.07,
+       200.39,
+       61.33
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "mottled reflection on chrome bezel"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "return_headlights_kf2_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "reflection",
+   "hand": [
+    52.2,
+    8.3,
+    195.1,
+    70.3
+   ],
+   "spark": [
+    34.0,
+    17.0,
+    172.0,
+    53.0
+   ],
+   "crop_wh": [
+    228,
+    226
+   ],
+   "w1": {
+    "window": [
+     6,
+     0,
+     200,
+     109
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      69.96,
+      17.11,
+      176.81,
+      57.38
+     ],
+     "type": "reflection",
+     "confidence": "high",
+     "note": "tree reflection on chrome bezel"
+    },
+    "boxes": [
+     {
+      "box": [
+       69.96,
+       17.11,
+       176.81,
+       57.38
+      ],
+      "type": "reflection",
+      "confidence": "high",
+      "note": "tree reflection on chrome bezel"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     0,
+     0,
+     228,
+     218
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      73.03,
+      16.35,
+      188.28,
+      63.58
+     ],
+     "type": "reflection",
+     "confidence": "low",
+     "note": "mottled tree reflection on chrome bezel"
+    },
+    "boxes": [
+     {
+      "box": [
+       73.03,
+       16.35,
+       188.28,
+       63.58
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "mottled tree reflection on chrome bezel"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "return_hood_kf1_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    784.4,
+    68.8,
+    879.9,
+    113.3
+   ],
+   "spark": [
+    824.0,
+    84.0,
+    854.0,
+    99.0
+   ],
+   "crop_wh": [
+    1090,
+    546
+   ],
+   "w1": {
+    "window": [
+     754,
+     44,
+     924,
+     140
+    ],
+    "n_boxes": 5,
+    "valid": true,
+    "pick": {
+     "box": [
+      801.95,
+      83.87,
+      839.93,
+      95.47
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "brownish smudge on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       801.95,
+       83.87,
+       839.93,
+       95.47
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brownish smudge on hood"
+     },
+     {
+      "box": [
+       847.9,
+       84.53,
+       882.3,
+       94.93
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brownish smudge on hood"
+     },
+     {
+      "box": [
+       789.73,
+       66.13,
+       809.91,
+       72.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot"
+     },
+     {
+      "box": [
+       824.39,
+       136.4,
+       844.45,
+       140.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark spot at bottom edge"
+     },
+     {
+      "box": [
+       905.67,
+       114.4,
+       919.75,
+       124.0
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "spot at right edge"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     668,
+     0,
+     1010,
+     192
+    ],
+    "n_boxes": 7,
+    "valid": true,
+    "pick": {
+     "box": [
+      849.69,
+      86.67,
+      878.54,
+      98.67
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "brown leaf debris"
+    },
+    "boxes": [
+     {
+      "box": [
+       783.69,
+       74.67,
+       804.27,
+       82.13
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "small dark leaf debris"
+     },
+     {
+      "box": [
+       797.05,
+       88.53,
+       828.05,
+       102.67
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf cluster on hood"
+     },
+     {
+      "box": [
+       849.69,
+       86.67,
+       878.54,
+       98.67
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf debris"
+     },
+     {
+      "box": [
+       919.69,
+       99.73,
+       941.87,
+       105.6
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "small leaf debris"
+     },
+     {
+      "box": [
+       919.16,
+       114.13,
+       934.65,
+       124.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small leaf debris spot"
+     },
+     {
+      "box": [
+       821.1,
+       137.33,
+       838.47,
+       144.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       712.89,
+       132.27,
+       775.68,
+       160.27
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved dark line"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf1_m2",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    908.9,
+    91.9,
+    961.8,
+    127.7
+   ],
+   "spark": [
+    861.0,
+    110.0,
+    890.0,
+    122.0
+   ],
+   "crop_wh": [
+    1090,
+    546
+   ],
+   "w1": {
+    "window": [
+     790,
+     68,
+     961,
+     164
+    ],
+    "n_boxes": 8,
+    "valid": true,
+    "pick": {
+     "box": [
+      846.38,
+      74.27,
+      914.91,
+      123.87
+     ],
+     "type": "reflection",
+     "confidence": "low",
+     "note": "bright elongated glare streak"
+    },
+    "boxes": [
+     {
+      "box": [
+       803.63,
+       88.13,
+       846.51,
+       102.67
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brownish dirt patch"
+     },
+     {
+      "box": [
+       853.32,
+       86.67,
+       888.46,
+       99.33
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brown dirt debris"
+     },
+     {
+      "box": [
+       846.38,
+       74.27,
+       914.91,
+       123.87
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "bright elongated glare streak"
+     },
+     {
+      "box": [
+       933.35,
+       99.2,
+       950.05,
+       106.53
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "greenish dirt spot"
+     },
+     {
+      "box": [
+       916.25,
+       115.47,
+       934.68,
+       125.73
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "greenish dirt spot"
+     },
+     {
+      "box": [
+       813.11,
+       136.67,
+       835.42,
+       144.4
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small grey smudge"
+     },
+     {
+      "box": [
+       790.0,
+       76.13,
+       802.96,
+       81.07
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark speck near edge"
+     },
+     {
+      "box": [
+       899.81,
+       140.0,
+       912.37,
+       150.27
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark spot on edge seam"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     705,
+     20,
+     1046,
+     212
+    ],
+    "n_boxes": 8,
+    "valid": true,
+    "pick": {
+     "box": [
+      871.77,
+      85.87,
+      902.67,
+      98.13
+     ],
+     "type": "dirt",
+     "confidence": "medium",
+     "note": "brown leaf debris near ornament"
+    },
+    "boxes": [
+     {
+      "box": [
+       797.44,
+       88.27,
+       837.67,
+       102.67
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf debris on hood"
+     },
+     {
+      "box": [
+       871.77,
+       85.87,
+       902.67,
+       98.13
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf debris near ornament"
+     },
+     {
+      "box": [
+       800.37,
+       76.0,
+       816.36,
+       81.33
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       713.52,
+       136.27,
+       782.79,
+       166.93
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved dark line twig or scratch"
+     },
+     {
+      "box": [
+       813.16,
+       136.27,
+       837.14,
+       144.27
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small linear mark"
+     },
+     {
+      "box": [
+       920.52,
+       115.2,
+       933.84,
+       125.33
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small speck on hood"
+     },
+     {
+      "box": [
+       951.43,
+       99.73,
+       968.21,
+       105.87
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small greenish speck"
+     },
+     {
+      "box": [
+       801.17,
+       181.6,
+       852.59,
+       192.27
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "debris along panel edge"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "return_hood_kf1_m3",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    542.4,
+    116.1,
+    583.2,
+    127.6
+   ],
+   "spark": [
+    545.0,
+    117.0,
+    578.0,
+    125.0
+   ],
+   "crop_wh": [
+    1090,
+    546
+   ],
+   "w1": {
+    "window": [
+     476,
+     73,
+     647,
+     169
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "w2": {
+    "window": [
+     391,
+     25,
+     732,
+     217
+    ],
+    "n_boxes": 10,
+    "valid": true,
+    "pick": {
+     "box": [
+      537.52,
+      122.87,
+      578.02,
+      132.73
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "oval light dark mark center"
+    },
+    "boxes": [
+     {
+      "box": [
+       404.59,
+       159.13,
+       464.26,
+       175.4
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved line on left hood"
+     },
+     {
+      "box": [
+       440.55,
+       148.47,
+       505.55,
+       159.67
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved line middle left"
+     },
+     {
+      "box": [
+       520.21,
+       130.6,
+       529.26,
+       136.2
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark dot center"
+     },
+     {
+      "box": [
+       537.52,
+       122.87,
+       578.02,
+       132.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "oval light dark mark center"
+     },
+     {
+      "box": [
+       643.29,
+       163.13,
+       655.54,
+       191.93
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "small curved line near seam"
+     },
+     {
+      "box": [
+       655.27,
+       194.33,
+       664.33,
+       217.0
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "small curved line lower right"
+     },
+     {
+      "box": [
+       709.09,
+       158.07,
+       732.0,
+       167.4
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin diagonal line far right"
+     },
+     {
+      "box": [
+       613.72,
+       59.93,
+       641.95,
+       66.07
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot upper right"
+     },
+     {
+      "box": [
+       391.0,
+       111.4,
+       403.25,
+       117.27
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark spot far left edge"
+     },
+     {
+      "box": [
+       391.0,
+       182.07,
+       420.3,
+       213.27
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark cluster bottom left corner"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf1_m4",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    369,
+    109.2,
+    406.5,
+    122.1
+   ],
+   "spark": [
+    417.0,
+    114.0,
+    437.0,
+    122.0
+   ],
+   "crop_wh": [
+    1090,
+    546
+   ],
+   "w1": {
+    "window": [
+     342,
+     70,
+     512,
+     166
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      376.0,
+      103.07,
+      403.36,
+      108.53
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "short dark line on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       376.0,
+       103.07,
+       403.36,
+       108.53
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "short dark line on hood"
+     },
+     {
+      "box": [
+       449.05,
+       142.93,
+       505.36,
+       151.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin angled line lower right"
+     },
+     {
+      "box": [
+       406.55,
+       154.93,
+       454.36,
+       166.0
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin diagonal line at bottom"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     256,
+     22,
+     598,
+     214
+    ],
+    "n_boxes": 6,
+    "valid": true,
+    "pick": {
+     "box": [
+      411.5,
+      122.0,
+      464.94,
+      139.07
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "thin curved line below other line"
+    },
+    "boxes": [
+     {
+      "box": [
+       368.75,
+       91.6,
+       404.02,
+       100.4
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "short dark dash on hood"
+     },
+     {
+      "box": [
+       504.75,
+       93.47,
+       514.1,
+       99.07
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark dot on hood"
+     },
+     {
+      "box": [
+       529.87,
+       86.27,
+       563.8,
+       95.33
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "short dark dash on right hood"
+     },
+     {
+      "box": [
+       444.1,
+       111.33,
+       506.35,
+       124.13
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved line on hood"
+     },
+     {
+      "box": [
+       411.5,
+       122.0,
+       464.94,
+       139.07
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved line below other line"
+     },
+     {
+      "box": [
+       285.12,
+       143.07,
+       342.03,
+       188.4
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "faint diagonal streak reflection"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf1_m5",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    696.8,
+    129.3,
+    779.9,
+    167.2
+   ],
+   "spark": [
+    762.0,
+    140.0,
+    846.0,
+    160.0
+   ],
+   "crop_wh": [
+    1090,
+    546
+   ],
+   "w1": {
+    "window": [
+     719,
+     102,
+     889,
+     198
+    ],
+    "n_boxes": 5,
+    "valid": true,
+    "pick": {
+     "box": [
+      809.05,
+      127.2,
+      827.11,
+      133.33
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small blurred dark spot"
+    },
+    "boxes": [
+     {
+      "box": [
+       719.0,
+       131.07,
+       770.93,
+       146.13
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved dark line"
+     },
+     {
+      "box": [
+       809.05,
+       127.2,
+       827.11,
+       133.33
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small blurred dark spot"
+     },
+     {
+      "box": [
+       843.05,
+       102.0,
+       884.35,
+       119.47
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "blurry dark white shape"
+     },
+     {
+      "box": [
+       858.45,
+       160.13,
+       874.66,
+       168.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "yellowish speck on edge"
+     },
+     {
+      "box": [
+       810.77,
+       179.07,
+       830.43,
+       186.0
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark speck near edge"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     633,
+     54,
+     975,
+     246
+    ],
+    "n_boxes": 6,
+    "valid": true,
+    "pick": {
+     "box": [
+      721.97,
+      135.33,
+      795.72,
+      160.13
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "thin curved dark line"
+    },
+    "boxes": [
+     {
+      "box": [
+       721.97,
+       135.33,
+       795.72,
+       160.13
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved dark line"
+     },
+     {
+      "box": [
+       806.14,
+       88.93,
+       844.61,
+       103.33
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf debris"
+     },
+     {
+      "box": [
+       845.95,
+       91.33,
+       881.22,
+       105.73
+      ],
+      "type": "dirt",
+      "confidence": "medium",
+      "note": "brown leaf debris"
+     },
+     {
+      "box": [
+       855.3,
+       76.4,
+       912.75,
+       123.07
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "light linear mark with discoloration"
+     },
+     {
+      "box": [
+       809.08,
+       179.6,
+       861.71,
+       191.87
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "thin twigs debris"
+     },
+     {
+      "box": [
+       914.08,
+       185.47,
+       938.4,
+       197.2
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spots"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf1_m6",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    549.2,
+    280.2,
+    568.2,
+    291.2
+   ],
+   "spark": [
+    576.0,
+    284.0,
+    595.0,
+    295.0
+   ],
+   "crop_wh": [
+    1090,
+    546
+   ],
+   "w1": {
+    "window": [
+     500,
+     242,
+     671,
+     338
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      550.5,
+      280.53,
+      562.39,
+      290.4
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark blurry spot"
+    },
+    "boxes": [
+     {
+      "box": [
+       550.5,
+       280.53,
+       562.39,
+       290.4
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark blurry spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     415,
+     194,
+     756,
+     386
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      551.4,
+      281.47,
+      568.72,
+      290.27
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark speck on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       551.4,
+       281.47,
+       568.72,
+       290.27
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark speck on hood"
+     },
+     {
+      "box": [
+       528.49,
+       338.0,
+       555.13,
+       354.53
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "darker debris-like spot on hood"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "return_hood_kf1_m7",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    529.1,
+    335.8,
+    572.4,
+    361.2
+   ],
+   "spark": [
+    537.0,
+    314.0,
+    565.0,
+    327.0
+   ],
+   "crop_wh": [
+    1090,
+    546
+   ],
+   "w1": {
+    "window": [
+     466,
+     272,
+     636,
+     368
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      544.49,
+      338.67,
+      568.27,
+      353.87
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "larger dark blotchy spot"
+    },
+    "boxes": [
+     {
+      "box": [
+       559.63,
+       281.2,
+       571.19,
+       289.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot blurry"
+     },
+     {
+      "box": [
+       544.49,
+       338.67,
+       568.27,
+       353.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "larger dark blotchy spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     380,
+     224,
+     722,
+     416
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      537.64,
+      337.6,
+      562.49,
+      347.73
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "dark spot on hood blurry"
+    },
+    "boxes": [
+     {
+      "box": [
+       415.54,
+       252.0,
+       426.49,
+       259.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark speck on hood"
+     },
+     {
+      "box": [
+       549.66,
+       282.13,
+       562.22,
+       289.33
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark speck on hood"
+     },
+     {
+      "box": [
+       537.64,
+       337.6,
+       562.49,
+       347.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark spot on hood blurry"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "return_hood_kf1_m8",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    577.5,
+    438.3,
+    603.5,
+    460.6
+   ],
+   "spark": [
+    614.0,
+    417.0,
+    633.0,
+    429.0
+   ],
+   "crop_wh": [
+    1090,
+    546
+   ],
+   "w1": {
+    "window": [
+     538,
+     375,
+     709,
+     471
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "w2": {
+    "window": [
+     453,
+     327,
+     794,
+     519
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      592.86,
+      444.33,
+      612.84,
+      455.53
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark spot near front edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       553.97,
+       339.0,
+       576.35,
+       353.4
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark speck on hood"
+     },
+     {
+      "box": [
+       592.86,
+       444.33,
+       612.84,
+       455.53
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot near front edge"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf2_m1",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    562.8,
+    132.3,
+    606.9,
+    148.6
+   ],
+   "spark": [
+    564.0,
+    160.0,
+    603.0,
+    171.0
+   ],
+   "crop_wh": [
+    1084,
+    592
+   ],
+   "w1": {
+    "window": [
+     498,
+     118,
+     669,
+     214
+    ],
+    "n_boxes": 6,
+    "valid": true,
+    "pick": {
+     "box": [
+      579.09,
+      135.33,
+      603.81,
+      143.07
+     ],
+     "type": "dirt",
+     "confidence": "low",
+     "note": "elongated dark smudge top center"
+    },
+    "boxes": [
+     {
+      "box": [
+       579.09,
+       135.33,
+       603.81,
+       143.07
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "elongated dark smudge top center"
+     },
+     {
+      "box": [
+       537.28,
+       143.73,
+       546.76,
+       148.53
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot upper left"
+     },
+     {
+      "box": [
+       500.54,
+       167.47,
+       514.16,
+       171.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small horizontal mark at left edge"
+     },
+     {
+      "box": [
+       601.0,
+       185.73,
+       608.75,
+       190.4
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "faint light spot center lower"
+     },
+     {
+      "box": [
+       640.28,
+       176.27,
+       655.64,
+       212.4
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved line lower right"
+     },
+     {
+      "box": [
+       661.79,
+       146.27,
+       669.0,
+       152.13
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "partial spot at far right edge"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     413,
+     70,
+     754,
+     262
+    ],
+    "n_boxes": 11,
+    "valid": true,
+    "pick": {
+     "box": [
+      575.24,
+      142.27,
+      614.67,
+      150.8
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "blurry dark smudge"
+    },
+    "boxes": [
+     {
+      "box": [
+       414.6,
+       127.6,
+       447.37,
+       135.07
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot left edge"
+     },
+     {
+      "box": [
+       457.22,
+       164.13,
+       512.1,
+       178.27
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved dark line"
+     },
+     {
+      "box": [
+       413.0,
+       176.67,
+       484.93,
+       186.53
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin dark line left"
+     },
+     {
+      "box": [
+       532.35,
+       148.13,
+       545.67,
+       154.27
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark dot center"
+     },
+     {
+      "box": [
+       575.24,
+       142.27,
+       614.67,
+       150.8
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "blurry dark smudge"
+     },
+     {
+      "box": [
+       690.6,
+       151.87,
+       703.12,
+       158.8
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dot right side"
+     },
+     {
+      "box": [
+       674.08,
+       72.4,
+       701.78,
+       80.13
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark mark top edge"
+     },
+     {
+      "box": [
+       712.44,
+       184.13,
+       754.0,
+       191.6
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "long thin line right"
+     },
+     {
+      "box": [
+       641.58,
+       191.33,
+       654.63,
+       220.67
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "curved vertical line"
+     },
+     {
+      "box": [
+       677.27,
+       223.6,
+       694.59,
+       262.0
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "vertical dark line bottom"
+     },
+     {
+      "box": [
+       595.49,
+       193.47,
+       605.61,
+       198.0
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "faint spot center"
+     }
+    ]
+   },
+   "agree": true
+  },
+  {
+   "mark_id": "return_hood_kf2_m2",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    912.2,
+    138.1,
+    965.6,
+    153.5
+   ],
+   "spark": [
+    886.0,
+    163.0,
+    932.0,
+    176.0
+   ],
+   "crop_wh": [
+    1084,
+    592
+   ],
+   "w1": {
+    "window": [
+     824,
+     122,
+     994,
+     218
+    ],
+    "n_boxes": 8,
+    "valid": true,
+    "pick": {
+     "box": [
+      909.8,
+      162.67,
+      920.16,
+      170.67
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "dark spot on edge line"
+    },
+    "boxes": [
+     {
+      "box": [
+       852.95,
+       122.0,
+       869.16,
+       125.6
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "brown blur at top edge"
+     },
+     {
+      "box": [
+       877.26,
+       122.0,
+       929.72,
+       144.67
+      ],
+      "type": "reflection",
+      "confidence": "low",
+      "note": "elongated white reflection blur"
+     },
+     {
+      "box": [
+       963.45,
+       123.87,
+       982.18,
+       131.2
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "greenish blur spot"
+     },
+     {
+      "box": [
+       943.8,
+       140.67,
+       955.09,
+       152.4
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small gray square spot"
+     },
+     {
+      "box": [
+       958.01,
+       147.2,
+       963.59,
+       150.27
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     },
+     {
+      "box": [
+       824.0,
+       157.07,
+       842.86,
+       163.87
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "dark smudge on left"
+     },
+     {
+      "box": [
+       909.8,
+       162.67,
+       920.16,
+       170.67
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark spot on edge line"
+     },
+     {
+      "box": [
+       846.05,
+       179.2,
+       880.45,
+       193.33
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "whitish blob with dark dot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     738,
+     74,
+     1080,
+     266
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf2_m3",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    402,
+    155.2,
+    519,
+    191.6
+   ],
+   "spark": [
+    444.0,
+    221.0,
+    528.0,
+    232.0
+   ],
+   "crop_wh": [
+    1084,
+    592
+   ],
+   "w1": {
+    "window": [
+     401,
+     178,
+     571,
+     274
+    ],
+    "n_boxes": 0,
+    "valid": true,
+    "pick": null,
+    "boxes": []
+   },
+   "w2": {
+    "window": [
+     315,
+     130,
+     657,
+     322
+    ],
+    "n_boxes": 7,
+    "valid": true,
+    "pick": {
+     "box": [
+      419.2,
+      168.4,
+      486.27,
+      186.8
+     ],
+     "type": "scratch",
+     "confidence": "low",
+     "note": "thin diagonal line"
+    },
+    "boxes": [
+     {
+      "box": [
+       468.9,
+       156.93,
+       511.92,
+       170.53
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin curved line"
+     },
+     {
+      "box": [
+       419.2,
+       168.4,
+       486.27,
+       186.8
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "thin diagonal line"
+     },
+     {
+      "box": [
+       539.97,
+       141.2,
+       550.66,
+       146.0
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark speck"
+     },
+     {
+      "box": [
+       568.03,
+       134.27,
+       599.02,
+       143.33
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark smudge"
+     },
+     {
+      "box": [
+       643.37,
+       180.93,
+       656.47,
+       213.47
+      ],
+      "type": "scratch",
+      "confidence": "low",
+      "note": "faint curved edge line"
+     },
+     {
+      "box": [
+       368.7,
+       279.33,
+       388.74,
+       288.67
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot"
+     },
+     {
+      "box": [
+       510.58,
+       313.47,
+       526.61,
+       321.73
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small dark spot"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf2_m4",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    770.4,
+    191.9,
+    876.2,
+    228.6
+   ],
+   "spark": [
+    739.0,
+    253.0,
+    817.0,
+    264.0
+   ],
+   "crop_wh": [
+    1084,
+    592
+   ],
+   "w1": {
+    "window": [
+     693,
+     210,
+     863,
+     306
+    ],
+    "n_boxes": 5,
+    "valid": true,
+    "pick": {
+     "box": [
+      778.0,
+      244.53,
+      787.43,
+      249.47
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark spot on edge"
+    },
+    "boxes": [
+     {
+      "box": [
+       715.98,
+       289.73,
+       727.13,
+       296.53
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark nick on hood edge"
+     },
+     {
+      "box": [
+       778.0,
+       244.53,
+       787.43,
+       249.47
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot on edge"
+     },
+     {
+      "box": [
+       702.3,
+       249.33,
+       711.46,
+       253.87
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "small gray speck on hood"
+     },
+     {
+      "box": [
+       747.45,
+       220.53,
+       756.35,
+       225.07
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "faint speck on hood"
+     },
+     {
+      "box": [
+       820.5,
+       224.93,
+       830.86,
+       230.27
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark spot at edge joint"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     607,
+     162,
+     949,
+     354
+    ],
+    "n_boxes": 7,
+    "valid": true,
+    "pick": {
+     "box": [
+      785.48,
+      211.6,
+      850.67,
+      232.4
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "irregular dark lines crossing seam"
+    },
+    "boxes": [
+     {
+      "box": [
+       635.32,
+       178.0,
+       653.76,
+       212.67
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved dark line"
+     },
+     {
+      "box": [
+       654.83,
+       219.07,
+       671.66,
+       265.47
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "thin curved dark line"
+     },
+     {
+      "box": [
+       713.07,
+       162.0,
+       822.62,
+       184.4
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "long thin dark line"
+     },
+     {
+      "box": [
+       785.48,
+       211.6,
+       850.67,
+       232.4
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "irregular dark lines crossing seam"
+     },
+     {
+      "box": [
+       895.3,
+       222.0,
+       910.52,
+       231.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot"
+     },
+     {
+      "box": [
+       770.25,
+       314.27,
+       781.47,
+       319.33
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot"
+     },
+     {
+      "box": [
+       832.77,
+       163.87,
+       846.67,
+       171.87
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark spot at top"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf2_m5",
+   "status": "moved",
+   "size_class": "S",
+   "type": "unsure",
+   "hand": [
+    624.5,
+    164.9,
+    683,
+    274
+   ],
+   "spark": [
+    670.0,
+    297.0,
+    712.0,
+    342.0
+   ],
+   "crop_wh": [
+    1084,
+    592
+   ],
+   "w1": {
+    "window": [
+     601,
+     269,
+     781,
+     370
+    ],
+    "n_boxes": 1,
+    "valid": true,
+    "pick": {
+     "box": [
+      740.92,
+      321.18,
+      750.06,
+      326.09
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "small dark speck on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       740.92,
+       321.18,
+       750.06,
+       326.09
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "small dark speck on hood"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     511,
+     218,
+     871,
+     420
+    ],
+    "n_boxes": 6,
+    "valid": true,
+    "pick": {
+     "box": [
+      588.06,
+      218.0,
+      862.28,
+      420.0
+     ],
+     "type": "reflection",
+     "confidence": "medium",
+     "note": "long diagonal branch reflection"
+    },
+    "boxes": [
+     {
+      "box": [
+       588.06,
+       218.0,
+       862.28,
+       420.0
+      ],
+      "type": "reflection",
+      "confidence": "medium",
+      "note": "long diagonal branch reflection"
+     },
+     {
+      "box": [
+       656.12,
+       218.0,
+       677.22,
+       265.69
+      ],
+      "type": "reflection",
+      "confidence": "medium",
+      "note": "short curved reflection top"
+     },
+     {
+      "box": [
+       702.25,
+       264.29,
+       713.5,
+       269.06
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     },
+     {
+      "box": [
+       741.34,
+       312.83,
+       752.59,
+       318.16
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     },
+     {
+      "box": [
+       657.81,
+       370.9,
+       668.22,
+       376.23
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     },
+     {
+      "box": [
+       761.31,
+       384.93,
+       771.16,
+       389.7
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     }
+    ]
+   },
+   "agree": false
+  },
+  {
+   "mark_id": "return_hood_kf2_m6",
+   "status": "moved",
+   "size_class": "S",
+   "type": "dirt",
+   "hand": [
+    482.8,
+    371.1,
+    521.4,
+    396.7
+   ],
+   "spark": [
+    555.0,
+    381.0,
+    580.0,
+    396.0
+   ],
+   "crop_wh": [
+    1084,
+    592
+   ],
+   "w1": {
+    "window": [
+     482,
+     340,
+     653,
+     436
+    ],
+    "n_boxes": 3,
+    "valid": true,
+    "pick": {
+     "box": [
+      491.89,
+      373.07,
+      512.06,
+      385.73
+     ],
+     "type": "unsure",
+     "confidence": "low",
+     "note": "oval spot on left panel"
+    },
+    "boxes": [
+     {
+      "box": [
+       491.89,
+       373.07,
+       512.06,
+       385.73
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "oval spot on left panel"
+     },
+     {
+      "box": [
+       627.35,
+       361.6,
+       643.25,
+       373.6
+      ],
+      "type": "unsure",
+      "confidence": "low",
+      "note": "dark mark at panel edge"
+     },
+     {
+      "box": [
+       630.42,
+       376.8,
+       641.11,
+       383.47
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "faint round spot"
+     }
+    ]
+   },
+   "w2": {
+    "window": [
+     397,
+     292,
+     738,
+     484
+    ],
+    "n_boxes": 2,
+    "valid": true,
+    "pick": {
+     "box": [
+      493.17,
+      370.67,
+      513.15,
+      389.33
+     ],
+     "type": "chip",
+     "confidence": "low",
+     "note": "dark spot on hood"
+    },
+    "boxes": [
+     {
+      "box": [
+       493.17,
+       370.67,
+       513.15,
+       389.33
+      ],
+      "type": "chip",
+      "confidence": "low",
+      "note": "dark spot on hood"
+     },
+     {
+      "box": [
+       527.54,
+       312.27,
+       541.13,
+       323.47
+      ],
+      "type": "dirt",
+      "confidence": "low",
+      "note": "tiny dark speck"
+     }
+    ]
+   },
+   "agree": true
+  }
+ ],
+ "then_sam": {
+  "zoom_centre": {
+   "n": 48,
+   "median_iou": 0.353,
+   "mean_iou": 0.308,
+   "median_centre_px": 11.0,
+   "on_mark": 34,
+   "iou_ge_05": 12
+  },
+  "zoom_centre_sam": {
+   "n": 48,
+   "median_iou": 0.377,
+   "mean_iou": 0.327,
+   "median_centre_px": 9.8,
+   "on_mark": 34,
+   "iou_ge_05": 12,
+   "sam_used": 34
+  }
+ }
+}
