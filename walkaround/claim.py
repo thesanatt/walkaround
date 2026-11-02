@@ -439,6 +439,32 @@ def photo_twin_check(
     return (PANEL_NOUN[found] if found is not None else None), record
 
 
+def photo_door_check(
+    sam: dict[str, SamAnswer], noun: Noun | None, center: tuple[float, float], masks: _Masks, th: dict[str, Any]
+) -> tuple[Position | None, dict[str, Any]] | None:
+    """panels' door check on the photo when the SAM vote names a car door: the door is the winning detection, the cues
+    are the vote's own side mirror and wheel detections, one frame of evidence each (a mirror at the door's front edge
+    marks the front door, one a door width away or a wheel under the door the rear door). (the door the photo shows,
+    or None when its cues are silent or split, and the record kept on the vote row); None when the vote is no door or
+    the run's thresholds predate the check."""
+    cfg = panels.door_settings(th)
+    if cfg is None or noun is not Noun.CAR_DOOR:
+        return None
+    answer = sam.get(noun.value)
+    cs = [d.c for a in sam.values() if a.status == "completed" for d in a.detections if d.c is not None]
+    _, index = _scored(noun.value, answer, center, masks, statistics.median(cs) if cs else 0.5)
+    if answer is None or index is None:
+        return None
+    door = answer.detections[index].box
+    votes, numbers = panels.door_position_cues(
+        {0: door}, {0: _boxes(sam, Noun.SIDE_MIRROR)}, {0: _boxes(sam, Noun.WHEEL)}, cfg, min_frames=1
+    )
+    end, score, decided = panels.door_decision(votes, ("mirror", "wheel"), 0, cfg["weights"], float(cfg.get("photo_margin_min", cfg["margin_min"])))
+    found = Position.FRONT if end > 0 else Position.REAR if end < 0 else None
+    record = {"votes": votes, "numbers": numbers, "score": score, "decided": found is not None, "position": found.value if found is not None else None}
+    return found, record
+
+
 def cut_windows(windows: SamAnswer, mask: np.ndarray, masks: _Masks, th: dict[str, Any]) -> tuple[np.ndarray, bool]:
     """panels.score_keyframe's rule for a door: every car window over panels' area floor that overlaps the door mask
     is cut out of it, so the claim's moments come from the same mask definition as the pickup keyframes' (G9).
@@ -810,11 +836,25 @@ def _decide(view: RunView, answers: ClaimAnswers, img: np.ndarray, th: dict[str,
         next(row for row in rows if row["winner"])["twin_check"] = record
         twin_split = lid is None
         sam_noun = lid if lid is not None else sam_noun
+    # Which door a door photo shows: the vote's own mirror and wheel, like the walk's door check (thresholds
+    # panels.door_check). It fills a position neither the bill nor Spark names and turns a disagreement into both slots.
+    door = photo_door_check(answers.sam, sam_noun, center, ctx.masks, th)
+    photo_pos = None
+    if door is not None:
+        photo_pos, record = door
+        next(row for row in rows if row["winner"])["door_check"] = record
     text_side, text_pos = side_from_text(answers.text, th), position_from_text(answers.text)
     spark_side = naming.side if naming.side is not Side.NONE else None
     spark_pos = naming.position if naming.position is not Position.NONE else None
     side, side_clash = _settle(text_side, spark_side, "the {} side")
     position, pos_clash = _settle(text_pos, spark_pos, "{}")
+    if photo_pos is not None and not pos_clash and spark_noun in (Noun.CAR_DOOR, None):
+        if position is None:
+            position = photo_pos
+        elif position is not photo_pos:
+            said = "the words on the bill say" if text_pos is not None else "Muse Spark sees"
+            pos_clash = f"the side mirror and wheel in the photo point to the {photo_pos.value} door and {said} {position.value}"
+            position = None
     for row in rows:
         cands = panel_candidates(Noun(row["noun"]), side, position) if row["noun"] != Noun.CAR.value else []
         row["panel_id"] = cands[0].value if len(cands) == 1 else None

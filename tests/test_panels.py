@@ -1367,10 +1367,12 @@ def test_twin_check_files_the_pair_c_lids_by_the_end_they_show() -> None:
 
 
 def test_lights_and_glass_take_the_end_of_the_lid_they_sit_beside() -> None:
-    old = copy.deepcopy(TH)
+    twin_only = copy.deepcopy(TH)
+    twin_only["panels"].pop("door_check", None)  # the door check's moves are test_door_check_* below
+    old = copy.deepcopy(twin_only)
     del old["panels"]["twin_check"]
     _, before = _pair_c_vote(old)
-    _, after = _pair_c_vote(TH)
+    _, after = _pair_c_vote(twin_only)
     was = {t.track_id: t.panel_id for t in before}
     moved = {t.track_id: t.panel_id for t in after if t.noun in panels.NEIGHBOUR_SLOTS and t.panel_id != was[t.track_id]}
     assert moved == {

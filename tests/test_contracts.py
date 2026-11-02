@@ -67,6 +67,7 @@ def _instances() -> list[c.Contract]:
         c.FrameObs(frame=3, pts=0.2, box=[1.0, 2.0, 3.0, 4.0], box_area_frac=0.05, in_car_box=True, c=None, border_frac=0.0),
         c.PanelTrack(track_id="t1", role="pickup", noun=c.Noun.CAR_DOOR, sam_object_ids=["0"], fragments=[c.TrackFragment(object_id="0", first_frame=0, last_frame=9)], per_frame=[c.FrameObs(frame=0, pts=0.0, box=[0, 0, 10, 10], box_area_frac=0.1, in_car_box=True)], panel_id=c.PanelId.LEFT_FRONT_DOOR, side=c.Side.LEFT, position=c.Position.FRONT),
         c.TwinCheck(lid=["return_hood_00", "return_trunk_lid_00"], votes={"plate": -1, "mirror": -1, "lights": 0, "glass": 0}, numbers={"plate_on_lid_share": 0.91, "mirror_gap_lid_sizes": 2.57}, score=-4.0, decided=True),
+        c.DoorCheck(was=c.PanelId.RIGHT_REAR_DOOR, votes={"lid_side": -1, "mirror_side": 0, "mirror": 1, "wheel": 0, "pair": 1, "walk": 1}, numbers={"mirror_gap_door_widths": 0.02}, side_score=-2.0, position_score=4.0),
         c.SideVotes(R1=2, R2=1),
         c.PanelRole(track_ids=["t1"], windows=[[8.0, 14.0]], seconds_visible=6.0, state=c.CoverageState.FILMED, keyframe_ids=["kf1"]),
         c.Panel(panel_id=c.PanelId.LEFT_FRONT_DOOR, noun=c.Noun.CAR_DOOR, side=c.Side.LEFT, position=c.Position.FRONT, instance_from=c.InstanceFrom.TRACKS, front_sign=1, per_role={"pickup": c.PanelRole(state=c.CoverageState.FILMED)}, comparable=True),

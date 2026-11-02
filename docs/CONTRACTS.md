@@ -1747,3 +1747,59 @@ for 34 of 48 against 23 (docs/evidence/zoom_refine_1101/NOTES.md).
   moved box, rebuild replays with no call, no zoom without the leaf, and the product code on the stored study answers
   gives the study's numbers). test_match and test_box_fix drop the leaf where they test the plain and SAM paths;
   test_narration and test_pipeline count the zoom call.
+
+## Doors (2026-11-01): the door check and the edge-on floor
+
+Found by Sanat on pairC_core3: the pickup's right rear door keyframe showed the left front door and its mirror almost
+edge-on (the left doors seen from the rear-left corner at the end of the walk, filed right by the side vote), and
+other door keyframes were edge-on slivers (pickup_left_front_door_kf1, 152 x 665 px). The match had called them not
+comparable, but the sheet, coverage, the car map and the claim vote named them. Two thresholds leaves, each off when a
+run's frozen thresholds lack it, so runs frozen before them vote, derive, rebuild and verify as they did. Evidence:
+walkaround/docs/evidence/doors_1101/ (NOTES.md, rederive_doors.py, summarize.py, doors.json). No model call.
+
+- `panels.door_check` (dict leaf). `vote_sides` builds the role's `_RoleContext` once; after `_vote_role` and
+  `apply_twin_check`, `apply_door_check(ctx, role_tracks, th)` files every car door track of a role that is not frozen.
+  `door_check(ctx, role_tracks, th) -> {track id: (Side, Position, DoorCheck)}`. Side cues (+1 right, -1 left):
+  `lid_side`, a hood or trunk lid the twin check placed (lane noun when the track has no record), on shared frames: the
+  hood lies toward the front, the trunk lid toward the rear, and the front shows image-right on the right side;
+  `mirror_side`, a mirror outside the door box (gap >= mirror_side_gap_min door widths) on frames where the door box is
+  not edge-on (aspect >= side_view_aspect_min). Each needs dir_share_min of min_frames or more frames one way. Position
+  cues (+1 front, -1 rear): `mirror`, the median gap of the nearest mirror centre in the door's height band
+  (mirror_band_door_heights above it), <= mirror_near_door_widths front, >= mirror_far_door_widths rear; `wheel`, a
+  wheel with >= wheel_overlap_min of its width under the door on >= wheel_rear_share_min of the frames with a wheel
+  votes rear (never front); `pair`, other doors filed on the same side sharing >= min_frames frames and not the same
+  door (median box IoU under same_door_iou_min) all toward the front (rear) or all toward the rear (front); `walk`, this
+  door first (last) among those peers while the walk passes the side front to rear (`adjacent_order`). Side first, then
+  position with the new side. `door_decision(votes, cues, prior, weights, margin)`: a weighted sum reaching margin_min
+  decides; under it the side vote's answer (the prior) stands unless a cue points the other way, then the side or the
+  position is NONE. An undecided track keeps a placeholder slot among its candidates (the one the side vote gave when it
+  is one) and `candidate_slots` lists the others, so the panel is side_uncertain (G6) and coverage prints "front or rear
+  uncertain" (side decided) or "side uncertain". Built fenders read the doors through `_door_side`, so they follow.
+- `door_end_views(role_tracks, th)`: with door_check.end_light_inside_min set, a door frame whose box holds at least
+  that share of a headlight or tail light box is an end view (SAM's door lane on the NHTSA Golf's hatch) and
+  `_keyframe_plan` never takes it as a door candidate.
+- Contracts: `DoorCheck {was, votes, numbers, side_score, position_score, side_decided, position_decided}`;
+  `PanelTrack.door_check: DoorCheck | None` and `PanelTrack.edge_on_frames: list[int]`, both left out of the JSON when
+  None or empty (the serializer that already dropped twin_check), so earlier tracks.json files keep their bytes.
+- `panels.edge_on_floor` ({noun: min width over height}; car door 0.4, wheel 0.36, fender 0.4). In
+  `_KeyframeRun.panel`, after the mask pass, `edge_on_candidates(scored, track_of, th)` finds the candidates whose raw
+  frontality (`_mask_aspect` of the panel mask after the window cut, before `normalise_scores`) is under the floor of
+  their track's noun; they are added to the track's `edge_on_frames` and dropped before normalising and ordering. In
+  `_tracked_coverage`, a slot with no keyframe whose decoded candidate rows are all in `edge_on_frames` is glimpsed with
+  the reason "only seen edge-on: N s visible, and every candidate view of it was too narrow (under the edge-on floor),
+  so no keyframe was kept; film it from the side". The top-up asks for it as for any glimpsed panel.
+- Claim (`claim.photo_door_check`): when the SAM vote names a car door, the door detection holding the ROI centre and
+  the vote's own side mirror and wheel detections go through `panels.door_position_cues` (one frame) and
+  `door_decision` with photo_margin_min. The record rides on the winning vote row as sam_votes[i]["door_check"]. A
+  decided door fills the position when neither the bill nor Spark names one; when they name the other one, both slots
+  are shown with the clash sentence "the side mirror and wheel in the photo point to the front door and ...".
+- Offline proof on the stored lanes and source videos (scratch re-derive, stub blur): pairC_core3's pickup right door
+  keyframes now show the right front door with its mirror (car_door_01 f141) and the right rear door over the wheel
+  (car_door_03 f152, f142); car_door_04 and _05 are the left rear and left front doors (lid_side -1); the four left-door
+  slivers of both walks are gone and coverage says "only seen edge-on". synth_pair2_r9's car_door_06 (the right front
+  door edge-on, filed right rear in both walks) is right front and gives no keyframe. eval_nhtsa15759_r6's pickup hatch
+  keyframes (left rear f68, right front f121, f132, f110) are gone; the real doors take their place. 36 door tracks, 5
+  change slot, 3 stay undecided (they were before). Still wrong: that run's return car_door_04, a rear-corner strip with
+  a tail light, is now filed right rear (aspect 0.56, over the floor).
+- Tests: tests/test_doors_1101.py (12). test_panels' twin-check fixture test runs without door_check (the door check's
+  moves on the same fixture are in test_doors_1101); test_contracts has a DoorCheck round-trip case.

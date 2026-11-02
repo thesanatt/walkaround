@@ -1237,7 +1237,9 @@ def vote_sides(
     (an asked slot, else left and front first, skipping slots a decided track of the role holds) and its panel is
     side_uncertain. expected_by_role names a top-up's asked slots: an undecided track that is the only claimant of the
     one asked slot among its candidates takes it. frozen_roles keep their stored panel_id, side and position (their
-    votes are recomputed for the sums). direction_by_role overrides direction per role (walks may go opposite ways)."""
+    votes are recomputed for the sums). direction_by_role overrides direction per role (walks may go opposite ways).
+    After the vote, the twin check files the lids, lights and glass and the door check (thresholds panels.door_check)
+    the doors of every role that is not frozen."""
     p = th["panels"]
     weights = p["side_vote_weights"]
     margin_min = float(p["side_vote_margin_min"])
@@ -1256,12 +1258,14 @@ def vote_sides(
         # ways on pair C (panels lane notes in docs/CONTRACTS.md)
         lid_ids = {t.track_id for t in role_tracks if t.noun in LID_NOUNS}
         ends = {tid: LID_END[PANEL_NOUN[slot]] if slot is not None else 0 for tid, (slot, _record) in twin.items() if tid in lid_ids}
-        _vote_role(_RoleContext(role_tracks, role_direction, floor, ends), role_tracks, weights, margin_min, expected, votes_by_track)
+        ctx = _RoleContext(role_tracks, role_direction, floor, ends)
+        _vote_role(ctx, role_tracks, weights, margin_min, expected, votes_by_track)
         if role in frozen_roles:
             for t in role_tracks:
                 t.panel_id, t.side, t.position = stored[t.track_id]
         else:
             apply_twin_check(role_tracks, th, result=twin)
+            apply_door_check(ctx, role_tracks, th)
     panels = _panels_from(
         out_tracks,
         votes_by_track,
@@ -1516,6 +1520,254 @@ def apply_twin_check(
         t.panel_id = slot if slot is not None else SINGLE_SLOT[t.noun]
         if slot is not None and slot is not SINGLE_SLOT[t.noun]:
             log.info("%s: %s (%s lane) filed as %s by the twin check, score %+.0f", t.role, t.track_id, t.noun.value, slot.value, record.score)
+
+
+# ----------------------------------------------------------------------------------------------------------------
+# 5.2 the door check: which side and which door (11/1, thresholds panels.door_check)
+# ----------------------------------------------------------------------------------------------------------------
+#
+# The side vote files doors by the sum of R1 to R4, and on pair C it filed the left doors seen from the rear corner at
+# the end of the pickup walk as the right doors (the light and glass lanes there hold the other end's parts), so the
+# right rear door's keyframe showed the left front door with its mirror. After the side vote and the twin check, each
+# door track is judged from what the walk tracked, each cue +1, -1 or 0:
+#   side      lid_side: a hood or trunk lid the twin check decided, on shared frames: the hood lies toward the front, the
+#             trunk lid toward the rear, and the front shows image-right on the right side; mirror_side: a side mirror
+#             outside the door box on frames where the door is not edge-on lies toward the front.
+#   position  mirror: the side mirror sits at the front door's front edge and a door width or more from the rear door;
+#             wheel: the rear door's lower edge runs over the rear wheel (a door clear of the wheels says nothing);
+#             pair: of two same-side doors sharing frames, the one toward the front; walk: of two same-side doors, the
+#             one the walk reaches first when it passes that side front to rear.
+# A weighted sum reaching margin_min decides; under it the side vote's answer stands unless a cue points the other way,
+# and then the side or the position is left undecided (a placeholder slot, side_uncertain).
+
+DOOR_SIDE_CUES: tuple[str, ...] = ("lid_side", "mirror_side")
+DOOR_POSITION_CUES: tuple[str, ...] = ("mirror", "wheel", "pair", "walk")
+
+
+def door_settings(th: dict[str, Any] | None) -> dict[str, Any] | None:
+    """thresholds panels.door_check, or None when the run's thresholds predate it (the check is then off)."""
+    cfg = (th or {}).get("panels", {}).get("door_check")
+    return cfg if isinstance(cfg, dict) else None
+
+
+def _mirror_near(door: Box, mirrors: Sequence[Box], cfg: dict[str, Any]) -> tuple[float, int] | None:
+    """(gap in door widths, +1 when the mirror lies image-right of the door centre) for the nearest mirror whose centre
+    sits in the door's height band, or None."""
+    w = max(_width(door), 1.0)
+    band = float(cfg["mirror_band_door_heights"]) * _height(door)
+    cx = _centroid(door)[0]
+    best: tuple[float, int] | None = None
+    for m in mirrors:
+        mx, my = _centroid(m)
+        if not float(door[1]) - band <= my <= float(door[3]):
+            continue
+        gap = max(float(door[0]) - mx, mx - float(door[2]), 0.0) / w
+        if best is None or gap < best[0]:
+            best = (gap, 1 if mx > cx else -1)
+    return best
+
+
+def _wheel_overlap(door: Box, wheel: Box) -> float:
+    """Share of the wheel's width that lies under the door's horizontal span."""
+    inter = max(0.0, min(float(door[2]), float(wheel[2])) - max(float(door[0]), float(wheel[0])))
+    return inter / max(_width(wheel), 1.0)
+
+
+def _majority(signs: list[int], share_min: float, min_frames: int) -> tuple[int, float]:
+    """(+1 or -1 when at least share_min of the signs agree on at least min_frames frames, else 0; that share)."""
+    if len(signs) < min_frames or not signs:
+        return 0, 0.0
+    plus = sum(1 for s in signs if s > 0) / len(signs)
+    if plus >= share_min:
+        return 1, plus
+    if 1.0 - plus >= share_min:
+        return -1, 1.0 - plus
+    return 0, max(plus, 1.0 - plus)
+
+
+def door_side_cues(
+    door: dict[int, Box],
+    lids: dict[int, list[tuple[Box, int]]],
+    mirrors: dict[int, list[Box]],
+    cfg: dict[str, Any],
+    *,
+    min_frames: int,
+) -> tuple[dict[str, int], dict[str, float]]:
+    """The two side votes (+1 right, -1 left, 0 silent) on one door given its box per frame, the decided lids per frame
+    as (box, +1 hood or -1 trunk lid) and the mirror boxes per frame, plus the numbers behind them. The car's front shows
+    image-right on its right side (front_sign +1), so the image direction of the front is the side."""
+    share_min = float(cfg["dir_share_min"])
+    lid_signs = [end * _sign(_centroid(box)[0] - _centroid(door[f])[0]) for f in sorted(door) for box, end in lids.get(f, [])]
+    lid_signs = [s for s in lid_signs if s]
+    votes: dict[str, int] = {}
+    numbers: dict[str, float] = {}
+    votes["lid_side"], share = _majority(lid_signs, share_min, min_frames)
+    numbers.update(lid_frames=float(len(lid_signs)), lid_side_share=share)
+    mirror_signs: list[int] = []
+    for f in sorted(door):
+        if _aspect(door[f]) < float(cfg["side_view_aspect_min"]):
+            continue
+        near = _mirror_near(door[f], mirrors.get(f, []), cfg)
+        if near is not None and near[0] >= float(cfg["mirror_side_gap_min"]):
+            mirror_signs.append(near[1])
+    votes["mirror_side"], share = _majority(mirror_signs, share_min, min_frames)
+    numbers.update(mirror_side_frames=float(len(mirror_signs)), mirror_side_share=share)
+    return votes, numbers
+
+
+def door_position_cues(
+    door: dict[int, Box], mirrors: dict[int, list[Box]], wheels: dict[int, list[Box]], cfg: dict[str, Any], *, min_frames: int
+) -> tuple[dict[str, int], dict[str, float]]:
+    """The mirror and wheel votes (+1 front door, -1 rear door, 0 silent) on one door given its box per frame and the
+    mirror and wheel boxes per frame, plus the numbers behind them (a claim photo is one frame, min_frames 1)."""
+    votes: dict[str, int] = {}
+    numbers: dict[str, float] = {}
+    gaps = [near[0] for f in sorted(door) if (near := _mirror_near(door[f], mirrors.get(f, []), cfg)) is not None]
+    numbers["mirror_frames"] = float(len(gaps))
+    votes["mirror"] = 0
+    if gaps and len(gaps) >= min_frames:
+        gap = statistics.median(gaps)
+        numbers["mirror_gap_door_widths"] = gap
+        votes["mirror"] = 1 if gap <= float(cfg["mirror_near_door_widths"]) else -1 if gap >= float(cfg["mirror_far_door_widths"]) else 0
+    lap_min = float(cfg["wheel_overlap_min"])
+    with_wheel = [f for f in sorted(door) if wheels.get(f)]
+    under = sum(1 for f in with_wheel if max(_wheel_overlap(door[f], w) for w in wheels[f]) >= lap_min)
+    numbers.update(wheel_frames=float(len(with_wheel)), wheel_under_frames=float(under))
+    # only ever rear: a door clear of the wheels may still be a rear door whose wheel is out of the frame
+    rear = len(with_wheel) >= min_frames and under / len(with_wheel) >= float(cfg["wheel_rear_share_min"])
+    votes["wheel"] = -1 if rear else 0
+    return votes, numbers
+
+
+def door_decision(votes: dict[str, int], cues: Collection[str], prior: int, weights: dict[str, Any], margin: float) -> tuple[int, float, bool]:
+    """(+1, -1 or 0 for undecided; the weighted score; decided) for one door's side or position. A score reaching
+    margin decides; under it the prior (the side vote's answer, 0 when it had none) stands unless a cue points the
+    other way, which leaves it undecided."""
+    score = float(sum(float(weights.get(k, 0)) * votes.get(k, 0) for k in cues))
+    if score >= margin:
+        return 1, score, True
+    if score <= -margin:
+        return -1, score, True
+    against = any(votes.get(k, 0) and votes[k] != prior for k in cues)
+    if prior and not against:
+        return prior, score, True
+    return 0, score, False
+
+
+def _door_peers(ctx: _RoleContext, t: c.PanelTrack, doors: list[c.PanelTrack], sides: dict[str, int], cfg: dict[str, Any]) -> list[c.PanelTrack]:
+    """The other doors filed on t's side that share at least min_frames frames with it and are not the same door
+    (median box IoU on the shared frames under same_door_iou_min)."""
+    boxes = {r.frame: r.box for r in t.per_frame}
+    peers = []
+    for o in doors:
+        if o.track_id == t.track_id or not sides.get(t.track_id) or sides.get(o.track_id) != sides[t.track_id]:
+            continue
+        sh = ctx.shared(t, o)
+        if len(sh) < int(cfg["min_frames"]):
+            continue
+        ob = {r.frame: r.box for r in o.per_frame}
+        if statistics.median(box_iou(boxes[f], ob[f]) for f in sh) < float(cfg["same_door_iou_min"]):
+            peers.append(o)
+    return peers
+
+
+def _pair_and_walk(ctx: _RoleContext, t: c.PanelTrack, peers: list[c.PanelTrack], front_sign: int) -> tuple[dict[str, int], dict[str, float]]:
+    votes = {"pair": 0, "walk": 0}
+    numbers: dict[str, float] = {"peers": float(len(peers))}
+    if not peers:
+        return votes, numbers
+    if front_sign:
+        rel = [ctx.mean_dx(t, o, ctx.shared(t, o)) * front_sign for o in peers]
+        numbers["pair_toward_front_px"] = float(min(rel)) if all(r > 0 for r in rel) else float(max(rel))
+        votes["pair"] = -1 if all(r > 0 for r in rel) else 1 if all(r < 0 for r in rel) else 0
+    order = ctx.adjacent_order(t)
+    first = ctx.window(t)[0]
+    starts = [ctx.window(o)[0] for o in peers]
+    numbers["walk_order"] = float(order)
+    if order and all(first < s for s in starts):
+        votes["walk"] = order
+    elif order and all(first > s for s in starts):
+        votes["walk"] = -order
+    return votes, numbers
+
+
+def _seen_by_frame(tracks: list[c.PanelTrack], noun: Noun) -> dict[int, list[Box]]:
+    out: dict[int, list[Box]] = {}
+    for t in tracks:
+        if t.noun is noun and not is_wheel_fender(t):
+            for r in t.per_frame:
+                out.setdefault(r.frame, []).append(r.box)
+    return out
+
+
+def door_check(ctx: _RoleContext, role_tracks: list[c.PanelTrack], th: dict[str, Any]) -> dict[str, tuple[Side, Position, c.DoorCheck]]:
+    """{track id: (side, position, its DoorCheck)} for every car door track of one voted walk, NONE where the cues left
+    it undecided; empty when thresholds panels.door_check is absent. Reads the side vote's answer and the placed lids
+    from the tracks (run it after the twin check is applied)."""
+    cfg = door_settings(th)
+    doors = [t for t in role_tracks if t.noun is Noun.CAR_DOOR and t.per_frame]
+    if cfg is None or not doors:
+        return {}
+    min_frames = int(cfg["min_frames"])
+    weights, margin = cfg["weights"], float(cfg["margin_min"])
+    mirrors = _seen_by_frame(role_tracks, Noun.SIDE_MIRROR)
+    wheels = _seen_by_frame(role_tracks, Noun.WHEEL)
+    lids: dict[int, list[tuple[Box, int]]] = {}
+    for t in role_tracks:
+        placed = t.noun in LID_NOUNS and t.panel_id in (PanelId.HOOD, PanelId.TRUNK_LID) and (t.twin_check is None or t.twin_check.decided)
+        if placed and t.panel_id is not None:
+            for r in t.per_frame:
+                lids.setdefault(r.frame, []).append((r.box, LID_END[PANEL_NOUN[t.panel_id]]))
+    sides: dict[str, int] = {}
+    found: dict[str, tuple[dict[str, int], dict[str, float], float, bool]] = {}
+    for t in doors:
+        box = {r.frame: r.box for r in t.per_frame}
+        prior = 1 if t.side is Side.RIGHT else -1 if t.side is Side.LEFT else 0
+        votes, numbers = door_side_cues(box, lids, mirrors, cfg, min_frames=min_frames)
+        side, score, decided = door_decision(votes, DOOR_SIDE_CUES, prior, weights, margin)
+        sides[t.track_id] = side
+        found[t.track_id] = (votes, numbers, score, decided)
+    out: dict[str, tuple[Side, Position, c.DoorCheck]] = {}
+    for t in doors:
+        box = {r.frame: r.box for r in t.per_frame}
+        votes, numbers, side_score, side_decided = found[t.track_id]
+        pv, pn = door_position_cues(box, mirrors, wheels, cfg, min_frames=min_frames)
+        wv, wn = _pair_and_walk(ctx, t, _door_peers(ctx, t, doors, sides, cfg), sides[t.track_id])
+        votes = {**votes, **pv, **wv}
+        numbers = {**numbers, **pn, **wn}
+        prior = 1 if t.position is Position.FRONT else -1 if t.position is Position.REAR else 0
+        pos, pos_score, pos_decided = door_decision(votes, DOOR_POSITION_CUES, prior, weights, margin)
+        side = Side.RIGHT if sides[t.track_id] > 0 else Side.LEFT if sides[t.track_id] < 0 else Side.NONE
+        position = Position.FRONT if pos > 0 else Position.REAR if pos < 0 else Position.NONE
+        record = c.DoorCheck(
+            was=t.panel_id, votes=votes, numbers=numbers, side_score=side_score, position_score=pos_score,
+            side_decided=side_decided and side is not Side.NONE, position_decided=pos_decided and position is not Position.NONE,
+        )
+        out[t.track_id] = (side, position, record)
+    return out
+
+
+def apply_door_check(ctx: _RoleContext, role_tracks: list[c.PanelTrack], th: dict[str, Any]) -> None:
+    """File every car door track of one voted walk under the side and door the door check found, in place; an
+    undecided side or position keeps a placeholder slot among its candidates (the one the side vote gave when it is
+    one of them) and the panel is side_uncertain."""
+    result = door_check(ctx, role_tracks, th)
+    for t in role_tracks:
+        if t.noun is not Noun.CAR_DOOR:
+            continue
+        got = result.get(t.track_id)
+        t.door_check = got[2] if got is not None else None
+        if got is None:
+            continue
+        side, position, record = got
+        lean = t.side if t.side is not Side.NONE else Side.LEFT
+        sides = [side] if side is not Side.NONE else [lean, Side.RIGHT if lean is Side.LEFT else Side.LEFT]
+        positions = [position] if position is not Position.NONE else [Position.FRONT, Position.REAR]
+        cands = [_lateral_panel_id(Noun.CAR_DOOR, s, q) for s in sides for q in positions]
+        t.side, t.position = side, position
+        t.panel_id = t.panel_id if t.panel_id in cands else cands[0]
+        if t.panel_id != record.was:
+            log.info("%s: %s filed as %s by the door check (was %s)", t.role, t.track_id, t.panel_id.value, record.was.value if record.was else None)
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -1864,6 +2116,25 @@ def select_keyframes(scored: list[tuple[int, c.KeyframeScore]], *, fps: float, t
     return chosen
 
 
+def edge_on_floor(th: dict[str, Any] | None, noun: Noun) -> float | None:
+    """thresholds panels.edge_on_floor for one noun: the narrowest panel mask (width over height, after the window cut)
+    a keyframe may show; None when the leaf is absent (runs frozen before 11/1) or the noun has no floor."""
+    floors = (th or {}).get("panels", {}).get("edge_on_floor")
+    value = floors.get(noun.value) if isinstance(floors, dict) else None
+    return float(value) if value is not None else None
+
+
+def edge_on_candidates(scored: list[tuple[int, c.KeyframeScore]], track_of: dict[int, c.PanelTrack], th: dict[str, Any]) -> set[int]:
+    """The scored candidates seen near edge-on: raw frontality (the mask's width over height, before normalise_scores)
+    under the floor of the candidate track's noun."""
+    out: set[int] = set()
+    for f, s in scored:
+        floor = edge_on_floor(th, track_of[f].noun)
+        if floor is not None and s.frontality < floor:
+            out.add(f)
+    return out
+
+
 # ----------------------------------------------------------------------------------------------------------------
 # 5.4 coverage and the top-up plan
 # ----------------------------------------------------------------------------------------------------------------
@@ -1969,6 +2240,12 @@ def _tracked_coverage(
         k = max(filmed, key=lambda k: (k.score.total, k.kf_id))
         reason = f"keyframe {k.kf_id}: completeness {k.score.completeness:.2f}, area {k.score.area:.3f}, sharpness {k.score.sharpness:.2f}"
         return c.PanelCoverage(state=CoverageState.FILMED, seconds=seconds, best_kf=best_id, reason=reason)
+    if not kfs and _only_edge_on(mine):
+        reason = (
+            f"only seen edge-on: {seconds:.1f} s visible, and every candidate view of it was too narrow (under the "
+            "edge-on floor), so no keyframe was kept; film it from the side"
+        )
+        return c.PanelCoverage(state=CoverageState.GLIMPSED, seconds=seconds, best_kf=None, reason=reason)
     lead = f"{seconds:.1f} s visible, no keyframe whole, large and sharp enough to count as filmed"
     best_track = max(mine, key=lambda t: (len(t.per_frame), t.track_id))
     if best_track.c_present_share >= float(cov["c_present_floor"]):
@@ -1986,6 +2263,13 @@ def _tracked_coverage(
     return c.PanelCoverage(state=CoverageState.GLIMPSED, state_basis=basis, seconds=seconds, best_kf=best_id, reason=reason)
 
 
+def _only_edge_on(tracks: list[c.PanelTrack]) -> bool:
+    """True when the tracks' keyframe candidates were all under panels.edge_on_floor (every decoded row is one)."""
+    edge = {(t.track_id, f) for t in tracks for f in t.edge_on_frames}
+    decoded = {(t.track_id, r.frame) for t in tracks for r in t.per_frame if r.mask_decoded}
+    return bool(edge) and decoded <= edge
+
+
 def _uncertain_coverage(maybe: list[c.PanelTrack], kfs: list[c.Keyframe], *, fps: float) -> c.PanelCoverage:
     """glimpsed for a slot an undecided track may be, naming the track, its candidates and where its frames are filed."""
     seconds = _seconds_in_car(maybe, fps)
@@ -1994,7 +2278,9 @@ def _uncertain_coverage(maybe: list[c.PanelTrack], kfs: list[c.Keyframe], *, fps
     for t in maybe:
         slots.extend(s for s in candidate_slots(t) if s not in slots)
     filed = sorted({t.panel_id for t in maybe if t.panel_id is not None}, key=lambda pid: pid.value)
-    lead = "front or rear uncertain" if all(t.noun in LID_NOUNS for t in maybe) else "side uncertain"
+    # a door the door check placed on a side but not front or rear says so (runs before it keep their words)
+    ends_only = all(t.noun in LID_NOUNS or (t.door_check is not None and t.side is not Side.NONE) for t in maybe)
+    lead = "front or rear uncertain" if ends_only else "side uncertain"
     reason = (
         f"{lead}: {', '.join(t.track_id for t in maybe)} could be {' or '.join(display_name(s) for s in slots)}; "
         f"{seconds:.1f} s visible, frames filed under {', '.join(display_name(pid) for pid in filed)}"
@@ -2378,19 +2664,45 @@ async def derive(
     return tracks, panels, all_keyframes, cov_role
 
 
+def door_end_views(role_tracks: list[c.PanelTrack], th: dict[str, Any]) -> dict[str, set[int]]:
+    """{door track id: frames whose door box holds at least panels.door_check end_light_inside_min of a headlight or tail
+    light box}. A side door never holds a lamp; such a box is a tailgate or a corner seen end-on (SAM's door lane on
+    the NHTSA Golf's hatch), so those frames are never door keyframe candidates. Empty when the leaf is absent."""
+    cfg = door_settings(th)
+    share_min = cfg.get("end_light_inside_min") if cfg is not None else None
+    if share_min is None:
+        return {}
+    lights: dict[int, list[Box]] = {}
+    for t in role_tracks:
+        if t.noun in (Noun.HEADLIGHT, Noun.TAIL_LIGHT):
+            for r in t.per_frame:
+                lights.setdefault(r.frame, []).append(r.box)
+    out: dict[str, set[int]] = {}
+    for t in role_tracks:
+        if t.noun is Noun.CAR_DOOR:
+            hit = {r.frame for r in t.per_frame if any(containment(b, r.box) >= float(share_min) for b in lights.get(r.frame, ()))}
+            if hit:
+                out[t.track_id] = hit
+    return out
+
+
 def _keyframe_plan(
     panels: list[c.Panel], role_tracks: list[c.PanelTrack], th: dict[str, Any]
 ) -> list[tuple[c.Panel, list[tuple[int, c.PanelTrack]]]]:
     """The box pass per panel: up to keyframe_box_pass_candidates (frame, track) pairs, one per frame. A placeholder
     track never takes keyframes from a slot a decided track of the role holds."""
     limit = int(th["panels"]["keyframe_box_pass_candidates"])
+    end_views = door_end_views(role_tracks, th)
     plan = []
     for panel in panels:
         if panel.noun in UNNAMED_NOUNS:
             continue
         mine = [t for t in role_tracks if t.panel_id == panel.panel_id]
         pool = [t for t in mine if not undecided(t)] or mine
-        ranked = sorted(((f, t) for t in pool for f in keyframe_candidates(t, th)), key=lambda ft: (-box_pass_score(ft[1], ft[0], th), ft[0]))
+        ranked = sorted(
+            ((f, t) for t in pool for f in keyframe_candidates(t, th) if f not in end_views.get(t.track_id, ())),
+            key=lambda ft: (-box_pass_score(ft[1], ft[0], th), ft[0]),
+        )
         cands: list[tuple[int, c.PanelTrack]] = []
         for f, t in ranked:
             if len(cands) < limit and all(f != g for g, _ in cands):
@@ -2924,6 +3236,13 @@ class _KeyframeRun:
         self.n_scored += len(scored)
         for f, score in scored:
             _note_decoded(details[f][0], f, score, th)
+        edge = edge_on_candidates(scored, {f: details[f][0] for f, _ in scored}, th)
+        if edge:  # panels.edge_on_floor: a sliver never becomes a keyframe; coverage reads edge_on_frames
+            for f in sorted(edge):
+                track = details[f][0]
+                track.edge_on_frames = sorted({*track.edge_on_frames, f})
+            scored = [(f, s) for f, s in scored if f not in edge]
+            log.info("%s %s %s: %d of %d candidates seen edge-on, not kept", self.run_id, self.role, panel.panel_id.value, len(edge), len(edge) + len(scored))
         min_gap = float(th["panels"]["keyframe_min_gap_s"]) * self.fps
         taken: list[int] = []
         out: list[c.Keyframe] = []

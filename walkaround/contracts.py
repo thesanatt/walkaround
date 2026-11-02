@@ -997,6 +997,22 @@ class FrameObs(Contract):
     complete: bool | None = None
 
 
+class DoorCheck(Contract):
+    """The door check (11/1, thresholds panels.door_check): which side and which door (front or rear) a car door track
+    is, from cues the walk already tracked. votes: side cues lid_side and mirror_side are +1 right, -1 left; position
+    cues mirror, wheel, pair and walk are +1 front, -1 rear; 0 is silent. numbers holds what each vote was measured
+    from. was is the slot the side vote gave; side_decided or position_decided false means the cues disagreed, so the
+    track keeps a placeholder slot and its panel is side_uncertain (G6)."""
+
+    was: PanelId | None = None
+    votes: dict[str, int] = Field(default_factory=dict)
+    numbers: dict[str, float] = Field(default_factory=dict)
+    side_score: float = 0.0
+    position_score: float = 0.0
+    side_decided: bool = True
+    position_decided: bool = True
+
+
 class TwinCheck(Contract):
     """The twin check (panels lane, 11/1): which end of the car a hood or trunk-lid track's lid is on, and for a light
     or glass track the end of the placed lid it sits beside. votes are +1 for the front, -1 for the rear and 0 when a
@@ -1027,13 +1043,20 @@ class PanelTrack(Contract):
     side: Side = Side.NONE
     position: Position = Position.NONE
     twin_check: TwinCheck | None = None  # lid, light and glass tracks the twin check placed (thresholds panels.twin_check)
+    door_check: DoorCheck | None = None  # door tracks the door check judged (thresholds panels.door_check)
+    edge_on_frames: list[int] = Field(default_factory=list)  # keyframe candidates under panels.edge_on_floor
 
     @model_serializer(mode="wrap")
     def _omit_absent_twin_check(self, handler: Any) -> Any:
-        """A track the twin check did not place serializes as it did before the field existed (11/1)."""
+        """A track the twin check, the door check or the edge-on floor did not touch serializes as it did before those
+        fields existed (11/1)."""
         data = handler(self)
-        if isinstance(data, dict) and data.get("twin_check") is None:
-            data.pop("twin_check", None)
+        if isinstance(data, dict):
+            for key in ("twin_check", "door_check"):
+                if data.get(key) is None:
+                    data.pop(key, None)
+            if not data.get("edge_on_frames"):
+                data.pop("edge_on_frames", None)
         return data
 
 
