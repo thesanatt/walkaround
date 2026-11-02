@@ -282,7 +282,7 @@
     "pickup_runs_per_day": {"value": 6, "source": "9 (PICKUP_RUNS_PER_DAY)"},
     "pair_runs_per_day": {"value": 1, "source": "9 (PAIR_RUNS_PER_DAY)"},
     "run_spend_ceiling_cents": {"value": 1200, "source": "9 (RUN_SPEND_CEILING_CENTS); raised from 800 on Nov 2 (lead decision: the hero run must not stop on a cap; the daily cap stays $50): a 60 s + 60 s 4K pair scaled from lexi_pair2 and synth_pair2_r9 is $7.38, upper $8.30, 1.25 x upper $10.38 (scripts/hero_check.py estimate)", "unit": "cents"},
-    "daily_card_ceiling_cents": {"value": 5000, "source": "9; raised to $50 by Sanat 11/1 1:15 AM (\"feel free to spend more\"), runs bill the $150 Meta credit", "unit": "cents"},
+    "daily_card_ceiling_cents": {"value": 7500, "source": "9; raised to $50 by Sanat 11/1 1:15 AM (\"feel free to spend more\"), then to $75 by the lead 11/2 5 PM under that yes so the hero run does not wait a day; runs bill the Meta credit, then the card", "unit": "cents"},
     "judging_card_ceiling_cents": {"value": 5000, "source": "9 (the $50 ask in NEEDS_YOU; if no, caps drop to 3 pickup checks and no live pair)", "unit": "cents"},
     "caps_if_no_card_ceiling": {"value": {"pickup_runs_per_day": 3, "pair_runs_per_day": 0}, "source": "9"},
     "max_concurrent_runs": {"value": 2, "source": "9 (MAX_CONCURRENT_RUNS)"},
