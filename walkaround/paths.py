@@ -240,6 +240,11 @@ def crop_mask_png_path(run_id: str, role: str, kf_id: str) -> Path:
     return _file(crops_dir(run_id, role) / f"{kf_id}.mask.png")
 
 
+def crop_blur_png_path(run_id: str, role: str, kf_id: str) -> Path:
+    """One-bit mask of the crop pixels blurred for privacy (privacy.mask_blur, R27); written only when any are."""
+    return _file(crops_dir(run_id, role) / f"{kf_id}.blur.png")
+
+
 def clips_dir(run_id: str, role: str) -> Path:
     return _dir(run_dir(run_id) / "clips" / role)
 

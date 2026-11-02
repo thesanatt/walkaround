@@ -965,9 +965,11 @@ def render_blurred_proxy(
     preset: str = "medium",
     crf: int = 20,
     blocks_across: float | None = None,
+    frame_fn: Callable[[int, np.ndarray], np.ndarray] | None = None,
 ) -> VideoInfo:
     """Decode the proxy, pixelate each frame's boxes (proxy pixels) through privacy.pixelate, re-encode it CFR.
-    blocks_across, when given, is privacy.pixelate's: each box's block grows so the box spans at most that many."""
+    blocks_across, when given, is privacy.pixelate's: each box's block grows so the box spans at most that many.
+    frame_fn, when given (privacy.mask_blur, R27), blurs each decoded frame instead: frame_fn(index, rgb) -> rgb."""
     proxy, dst = Path(proxy), Path(dst)
     # a key that is not a frame index (str after a JSON round trip) would blur nothing; fail closed instead. Keys past
     # the last frame are allowed: gate_sam carries a track's last box a bridge past the lane's end on purpose
@@ -983,7 +985,9 @@ def render_blurred_proxy(
         with closing(_raw_frames(proxy, info.width, info.height)) as frames:
             for index, rgb in frames:
                 boxes = boxes_by_frame.get(index)
-                if boxes:
+                if frame_fn is not None:
+                    rgb = frame_fn(index, rgb)
+                elif boxes:
                     rgb = pixelate(rgb, boxes, block_px=block_px, dilate_frac=dilate_frac, dilate_px=dilate_px, **extra)
                 enc.write(np.ascontiguousarray(rgb).tobytes())
         enc.finish()

@@ -302,7 +302,8 @@ def test_track_boxes_at_holds_the_last_box_and_ignores_other_nouns() -> None:
 
 
 def test_track_boxes_at_carries_before_the_first_and_after_the_last_sighting() -> None:
-    th = TH
+    th = copy.deepcopy(TH)
+    th["privacy"].pop("mask_blur", None)  # the box rule, as runs frozen before R27 have it (R27 caps the growth: tests/test_r27.py)
     fps = 15.0
     carry = math.ceil(th["privacy"]["track_carry_s"] * fps - 1e-9)
     bridge = math.ceil(th["privacy"]["track_gap_bridge_s"] * fps)

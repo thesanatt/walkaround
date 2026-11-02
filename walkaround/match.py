@@ -60,6 +60,7 @@ from .contracts import (
     Panel,
     PanelId,
     PanelMatch,
+    PrivacyDrop,
     RegistrationFit,
     RegistrationVouch,
     RegistrationMark,
@@ -82,7 +83,7 @@ Point2 = list[float]
 ROLES = ("pickup", "return")
 CAP_IDS_FROM_MARK = ("K2", "K3", "K4", "K8", "K9", "K10", "K11", "K12", "K14")
 LOWERABLE = (VerdictLabel.ALREADY_THERE, VerdictLabel.NEW_OR_UNSEEN, VerdictLabel.NOT_SEEN_AT_RETURN)
-VIEW_GATES = ("G3", "G4", "G5", "G8", "G9")  # gates of the keyframe pair: another pair of the panel may pass them (rule 2)
+VIEW_GATES = ("G3", "G4", "G5", "G8", "G9", "G11", "G12", "G13")  # gates of the keyframe pair: another pair of the panel may pass them (rule 2)
 PANEL_GATES = ("G1", "G6", "G7", "G10")  # gates of the panel: no other keyframe pair changes them, so none is tried
 TYPE_CAPS = ("K4", "K12")  # what Muse Spark typed and how sure it was: notes on a tight pair the second look answered (rule 1)
 TYPE_CAPS_K5 = ("K4", "K5", "K12")  # rule 1 with matching.tight_pair_k5 (lead 11/1, second): the two types disagreeing waits too
@@ -122,6 +123,60 @@ def counter_confirms_mark(th: dict | None) -> bool:
     """Lead decision 5 of 11/1 (thresholds matching.counter_confirms_mark): the counter-look also asks whether the mark
     is a damage mark at all, so new needs a confirmed mark. Only with one_walk_counter_look; off when absent."""
     return one_walk_counter_look(th) and bool((th or {}).get("matching", {}).get("counter_confirms_mark", False))
+
+
+PAIR_SCALE_DEFAULTS: dict[str, Any] = {"enabled": True, "max_ratio": 2.0, "prefer_ratio": 1.5}
+PRIVACY_BLUR_DEFAULTS: dict[str, Any] = {"enabled": True, "view_max": 0.2, "mark_max": 0.5}
+
+
+TWIN_PANELS = (PanelId.HEADLIGHTS, PanelId.TAIL_LIGHTS, PanelId.MIRRORS)
+TWIN_MIRROR_DEFAULTS: dict[str, Any] = {"enabled": True, "margin": 0.1, "grid": 64}
+
+
+def twin_mirror(th: dict | None) -> dict[str, Any] | None:
+    """thresholds matching.twin_mirror (R27) with defaults filled; None when absent or off (runs frozen before it)."""
+    raw = (th or {}).get("matching", {}).get("twin_mirror")
+    if not isinstance(raw, dict) or not raw.get("enabled", False):
+        return None
+    return {**TWIN_MIRROR_DEFAULTS, **raw}
+
+
+def mirror_ious(mask_p: np.ndarray | None, mask_r: np.ndarray | None, grid: int = 64) -> tuple[float, float] | None:
+    """(IoU as they are, IoU with the return mask mirrored left to right), each mask cut to its box and scaled to a
+    grid x grid square. A left and a right headlight are mirror images: on hero_focus4 the same lamp gave 0.80 and 0.73
+    as they are (0.35 and 0.34 mirrored), the other lamp 0.45 as it is and 0.91 mirrored."""
+    import cv2
+
+    if mask_p is None or mask_r is None or not mask_p.any() or not mask_r.any():
+        return None
+
+    def norm(m: np.ndarray) -> np.ndarray:
+        ys, xs = np.nonzero(m)
+        sub = m[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1].astype(np.uint8)
+        return cv2.resize(sub, (grid, grid), interpolation=cv2.INTER_NEAREST) > 0
+
+    a, b = norm(mask_p), norm(mask_r)
+
+    def iou(x: np.ndarray, y: np.ndarray) -> float:
+        return float((x & y).sum()) / float(max(1, (x | y).sum()))
+
+    return round(iou(a, b), 4), round(iou(a, b[:, ::-1]), 4)
+
+
+def pair_scale(th: dict | None) -> dict[str, Any] | None:
+    """thresholds matching.pair_scale (R27) with defaults filled; None when absent or off (runs frozen before it)."""
+    raw = (th or {}).get("matching", {}).get("pair_scale")
+    if not isinstance(raw, dict) or not raw.get("enabled", False):
+        return None
+    return {**PAIR_SCALE_DEFAULTS, **raw}
+
+
+def privacy_blur(th: dict | None) -> dict[str, Any] | None:
+    """thresholds matching.privacy_blur (R27) with defaults filled; None when absent or off (runs frozen before it)."""
+    raw = (th or {}).get("matching", {}).get("privacy_blur")
+    if not isinstance(raw, dict) or not raw.get("enabled", False):
+        return None
+    return {**PRIVACY_BLUR_DEFAULTS, **raw}
 
 
 def fixtures_not_damage(th: dict | None) -> bool:
@@ -660,7 +715,7 @@ def _kf_index(kf: Keyframe) -> tuple[int, str]:
     return (int(found.group(1)) if found else 1 << 30, kf.kf_id)
 
 
-def keyframe_pair_order(kfs_pickup: list[Keyframe], kfs_return: list[Keyframe], *, th: dict | None = None) -> list[tuple[Keyframe, Keyframe]]:
+def keyframe_pair_order(kfs_pickup: list[Keyframe], kfs_return: list[Keyframe], *, th: dict | None = None, scales: dict[str, float | None] | None = None) -> list[tuple[Keyframe, Keyframe]]:
     """Every keyframe pair of a panel in the order match tries them (lead 11/1, rule 2): the pair pair_keyframes chooses
     first, then the others with clean views first (how many of the two keyframes prefer_clean would not offer: 0, 1
     or 2), then the product of the two keyframe scores, highest first (a pair needs both views good; a sum would rank
@@ -670,7 +725,54 @@ def keyframe_pair_order(kfs_pickup: list[Keyframe], kfs_return: list[Keyframe], 
     clean_r = {kf.kf_id for kf in prefer_clean(kfs_return, th)}
     others = [(a, b) for a in kfs_pickup for b in kfs_return if (a.kf_id, b.kf_id) != (first_p.kf_id, first_r.kf_id)]
     others.sort(key=lambda ab: ((ab[0].kf_id not in clean_p) + (ab[1].kf_id not in clean_r), -(ab[0].score.total * ab[1].score.total), _kf_index(ab[0]), _kf_index(ab[1])))
-    return [(first_p, first_r), *others]
+    order = [(first_p, first_r), *others]
+    ps = pair_scale(th)
+    if ps is not None and scales is not None:  # R27: pairs at a similar scale first, then the rest, each in the order above
+        def band(ab: tuple[Keyframe, Keyframe]) -> int:
+            r = scale_ratio(scales.get(ab[0].kf_id), scales.get(ab[1].kf_id))
+            return 1 if r is None else 0 if r <= float(ps["prefer_ratio"]) else 1 if r <= float(ps["max_ratio"]) else 2
+        order = sorted(order, key=band)
+    return order
+
+
+def scale_ratio(a: float | None, b: float | None) -> float | None:
+    """The larger of two keyframe scales over the smaller; None when either is unknown."""
+    if a is None or b is None or a <= 0 or b <= 0:
+        return None
+    return max(a, b) / min(a, b)
+
+
+def keyframe_scales(run_id: str, keyframes: list[Keyframe], masks: dict[str, np.ndarray | None] | None = None) -> dict[str, float | None]:
+    """Each keyframe's scale in source px (R27): the long side of its panel mask's box, mask px over the crop's scale;
+    for a fender built from a wheel, the wheel track's box long side at that frame (the wheel size the fender was built
+    from), proxy px times the keyframe's source-over-proxy factor. On hero_focus4 the return right rear wheel's mask held
+    both wheels of that side (1900 px against 476 px at pickup) and the fender built from it spanned the whole side."""
+    tracks: dict[str, Any] | None = None
+    out: dict[str, float | None] = {}
+    for kf in keyframes:
+        value: float | None = None
+        if "_fender_from_wheel_" in kf.track_id:
+            if tracks is None:
+                tp = paths.tracks_json(run_id)
+                tracks = {t["track_id"]: t for t in json.loads(tp.read_text(encoding="utf-8"))} if tp.is_file() else {}
+            fender, wheel = tracks.get(kf.track_id), tracks.get(kf.track_id.replace("_fender_from_wheel_", "_wheel_", 1))
+            fb = next((r["box"] for r in (fender or {}).get("per_frame", []) if r["frame"] == kf.f_proxy), None)
+            wb = next((r["box"] for r in (wheel or {}).get("per_frame", []) if r["frame"] == kf.f_proxy), None)
+            if fb is not None and wb is not None and fb[2] > fb[0]:
+                factor = (kf.box_src[2] - kf.box_src[0]) / (fb[2] - fb[0])
+                value = max(wb[2] - wb[0], wb[3] - wb[1]) * factor
+        if value is None and kf.crop is not None and kf.crop.scale > 0:
+            if masks is not None and kf.kf_id in masks:
+                m = masks[kf.kf_id]
+            else:
+                m = _load_mask(run_id, kf)
+                if masks is not None:
+                    masks[kf.kf_id] = m
+            if m is not None and m.any():
+                ys, xs = np.nonzero(m)
+                value = float(max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1)) / kf.crop.scale
+        out[kf.kf_id] = round(value, 1) if value is not None else None
+    return out
 
 
 def _joined(items: list[str], last: str) -> str:
@@ -1084,6 +1186,7 @@ def how_checked(pm: PanelMatch) -> str | None:
         _how_checked_tries(pm),
         reshape_words(pm.reshape) if pm.reshape is not None else None,
         fixture_words(pm.fixtures) if pm.fixtures else None,
+        privacy_drop_words(pm.privacy_drops) if pm.privacy_drops else None,
         off_panel_words(pm) if pm.off_panel else None,
         "; ".join(f"second marks pass: {w}" for w in pm.second_pass) if pm.second_pass else None,
         registration_words(pm),
@@ -1250,6 +1353,44 @@ def fixture_words(drops: list[FixtureDrop]) -> str:
     )
 
 
+def privacy_drops(run_id: str, marks: list[Mark], kf_by_id: dict[str, Keyframe], th: dict) -> dict[str, PrivacyDrop]:
+    """Every mark whose box has more than privacy_blur's mark_max of its pixels in the part of its crop blurred for
+    privacy (the keyframe's blur_png), by mark id. Empty with the leaf off or for keyframes made before R27."""
+    pb = privacy_blur(th)
+    if pb is None:
+        return {}
+    import cv2
+
+    blur_masks: dict[str, np.ndarray | None] = {}
+    out: dict[str, PrivacyDrop] = {}
+    for m in marks:
+        kf = kf_by_id.get(m.kf_id)
+        if kf is None or not kf.blur_png or m.grid_bbox is None or kf.crop is None:
+            continue
+        if kf.kf_id not in blur_masks:
+            img = cv2.imread(str(paths.run_dir(run_id) / kf.blur_png), cv2.IMREAD_GRAYSCALE)
+            blur_masks[kf.kf_id] = None if img is None else img > 0
+        bm = blur_masks[kf.kf_id]
+        if bm is None:
+            continue
+        h, w = bm.shape[:2]
+        x1, y1 = int(math.floor(m.grid_bbox.x_min * w / 1000)), int(math.floor(m.grid_bbox.y_min * h / 1000))
+        x2, y2 = max(x1 + 1, int(math.ceil(m.grid_bbox.x_max * w / 1000))), max(y1 + 1, int(math.ceil(m.grid_bbox.y_max * h / 1000)))
+        sub = bm[max(0, y1) : min(h, y2), max(0, x1) : min(w, x2)]
+        share = float(sub.mean()) if sub.size else 0.0
+        if share > float(pb["mark_max"]):
+            out[m.mark_id] = PrivacyDrop(mark_id=m.mark_id, kf_id=kf.kf_id, share=round(share, 4))
+    return out
+
+
+def privacy_drop_words(drops: list[PrivacyDrop]) -> str:
+    """how_checked's words for the marks left out under the privacy blur."""
+    return "; ".join(
+        f"left out: {d.mark_id} sits where {d.kf_id} is blurred for privacy ({math.floor(d.share * 100 + 0.5)}% of its box), so it was not matched"
+        for d in drops
+    )
+
+
 def marks_on_panel(th: dict | None) -> bool:
     """thresholds dedup.marks_on_panel (lexi run 1, 11/2): a mark off its own panel mask was moved or left out by the
     marks stage, and match leaves the left-out ones out; off when absent."""
@@ -1305,9 +1446,13 @@ def panel_gates(
     marks_truncated_all: dict[str, bool],
     calibration: Calibration,
     th: dict,
+    scale_ratio: float | None = None,
+    mirrored: tuple[float, float] | None = None,
 ) -> list[str]:
-    """The failing gate ids in order G1, G3..G10; an empty list means the panel is comparable. G2 (a wet, dirty or
-    glare flag on either crop) is no gate since 10/31: a flagged view caps the marks that depend on it (K15)."""
+    """The failing gate ids in order G1, G3..G12; an empty list means the panel is comparable. G2 (a wet, dirty or
+    glare flag on either crop) is no gate since 10/31: a flagged view caps the marks that depend on it (K15). G11 (a
+    scale gap over pair_scale's max_ratio, scale_ratio measured by the caller) and G12 (a crop whose panel is more than
+    privacy_blur's view_max blurred for privacy) exist only with their thresholds leaves (R27)."""
     m = th["matching"]
     failing: list[str] = []
     states = [panel.per_role.get(role).state if panel.per_role.get(role) is not None else CoverageState.NOT_SEEN for role in ROLES]
@@ -1334,6 +1479,15 @@ def panel_gates(
         failing.append("G9")
     if any(marks_truncated_all.get(role, False) for role in ROLES):
         failing.append("G10")
+    ps = pair_scale(th)
+    if ps is not None and paired and scale_ratio is not None and scale_ratio > float(ps["max_ratio"]):
+        failing.append("G11")
+    pb = privacy_blur(th)
+    if pb is not None and any(kf is not None and (kf.privacy_blurred_frac or 0.0) > float(pb["view_max"]) for kf in kfs):
+        failing.append("G12")
+    tm = twin_mirror(th)
+    if tm is not None and paired and panel.panel_id in TWIN_PANELS and mirrored is not None and mirrored[1] > mirrored[0] + float(tm["margin"]):
+        failing.append("G13")
     return failing
 
 
@@ -2375,6 +2529,7 @@ def _pair_gates(
     calibration: Calibration,
     th: dict,
     masks: dict[str, np.ndarray | None],
+    scales: dict[str, float | None] | None = None,
 ) -> KeyframePairTry:
     """One keyframe pair of the panel put through the gates: the failing ids, the whitened mask IoU (None when the
     frames disagree) and whether they agreed."""
@@ -2385,7 +2540,15 @@ def _pair_gates(
         # the IoU is dropped because it cannot vouch for frames that picked different axes.
         mask_iou = None
     residual = handle_residual(kf_p, kf_r)
-    gates = panel_gates(panel, kf_p, kf_r, mask_iou=mask_iou, residual=residual, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
+    ratio = scale_ratio(scales.get(kf_p.kf_id), scales.get(kf_r.kf_id)) if scales is not None else None
+    tm = twin_mirror(th)
+    mirrored = None
+    if tm is not None and panel.panel_id in TWIN_PANELS:
+        for kf in (kf_p, kf_r):
+            if kf.kf_id not in masks:
+                masks[kf.kf_id] = _load_mask(run_id, kf)
+        mirrored = mirror_ious(masks[kf_p.kf_id], masks[kf_r.kf_id], int(tm["grid"]))
+    gates = panel_gates(panel, kf_p, kf_r, mask_iou=mask_iou, residual=residual, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th, scale_ratio=ratio, mirrored=mirrored)
     return KeyframePairTry(kf_pair=[kf_p.kf_id, kf_r.kf_id], gates=gates, mask_iou=mask_iou, frames_agree=agree)
 
 
@@ -2481,6 +2644,7 @@ def derive_match(
     marks_by_id = {m.mark_id: m for m in marks}
     kf_by_id = {kf.kf_id: kf for kf in keyframes}
     fixtures = fixture_drops(marks, keyframes, _read_list(paths.spark_json(run_id), SparkRequestRecord), th) if fixtures_not_damage(th) else {}
+    blurred = privacy_drops(run_id, marks, kf_by_id, th)
     on_panel = marks_on_panel(th)
     left_out = {m.mark_id for m in marks if on_panel and m.off_panel is not None and m.off_panel.moved_to_kf is None}
     off_notes = off_panel_notes(marks) if on_panel else {}
@@ -2505,6 +2669,7 @@ def derive_match(
     so_cache = (reg_cache or sw_cache or RegistrationCache(run_id, kf_by_id, marks, so_cfg)) if so_cfg is not None else None  # pixels only
     as_placed = {m.mark_id: m for m in marks}  # before the same-walk step re-places any
     masks: dict[str, np.ndarray | None] = {}
+    scales = keyframe_scales(run_id, keyframes, masks) if pair_scale(th) is not None else None
     matches: list[PanelMatch] = []
     verdicts: list[Verdict] = []
     staged: list[tuple[PanelMatch, dict[tuple[str, str], LookVerdict | None]]] = []
@@ -2512,15 +2677,17 @@ def derive_match(
         kfs = {role: [kf for kf in keyframes if kf.panel_id == panel.panel_id and kf.role == role] for role in ROLES}
         if not kfs["pickup"] and not kfs["return"]:
             continue
-        panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role and m.mark_id not in fixtures and m.mark_id not in left_out] for role in ROLES}
+        panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role and m.mark_id not in fixtures and m.mark_id not in left_out and m.mark_id not in blurred] for role in ROLES}
         glass_ids: list[str] = []
         if panel.panel_id in glass:  # lead Nov 2: glass gets one check-by-eye line, its marks no verdict
             glass_ids = sorted(m.mark_id for role in ROLES for m in panel_marks[role])
             panel_marks = {role: [] for role in ROLES}
         truncated_all = {role: bool(kfs[role]) and all(kf.marks_status == MarksStatus.TRUNCATED for kf in kfs[role]) for role in ROLES}
         if kfs["pickup"] and kfs["return"]:
-            order = keyframe_pair_order(kfs["pickup"], kfs["return"], th=th)
+            order = keyframe_pair_order(kfs["pickup"], kfs["return"], th=th, scales=scales)
             inputs: dict[str, Any] = {"lane_status": lane_status, "truncated_all": truncated_all, "calibration": calibration, "th": th, "masks": masks}
+            if scales is not None:
+                inputs["scales"] = scales
             kf_p, kf_r = order[0]
             used = _pair_gates(run_id, panel, kf_p, kf_r, kfs, panel_marks, **inputs)
             tries = [used]
@@ -2577,6 +2744,9 @@ def derive_match(
         dropped = [fixtures[m.mark_id] for m in marks if m.panel_id == panel.panel_id and m.mark_id in fixtures]
         if dropped:
             pm = pm.model_copy(update={"fixtures": dropped})
+        hidden = [blurred[m.mark_id] for m in marks if m.panel_id == panel.panel_id and m.mark_id in blurred]
+        if hidden:
+            pm = pm.model_copy(update={"privacy_drops": hidden})
         if off_notes.get(panel.panel_id):
             pm = pm.model_copy(update={"off_panel": off_notes[panel.panel_id]})
         if passes.get(panel.panel_id):

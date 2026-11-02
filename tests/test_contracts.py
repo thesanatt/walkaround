@@ -114,6 +114,7 @@ def _instances() -> list[c.Contract]:
         c.KeyframePairTry(kf_pair=["kf1", "kf8"], gates=["G4"], mask_iou=None, frames_agree=False),  # match lane 11/1 (rule 2)
         c.ReshapeCheck(kf_pair=["kf3", "kf1"], mask_iou=0.699, aspect_ratios=[0.988, 0.984], aspect_off=0.004, blob_share=0.64, called=True),  # lead 11/1 (second)
         c.FixtureDrop(mark_id="return_rear_bumper_kf1_m1", fixture="sensor", source="spark", overlap=0.92),  # lead decision 4 of 11/1
+        c.PrivacyDrop(mark_id="pickup_hood_kf1_m2", kf_id="pickup_hood_kf1", share=0.81),  # R27
         c.VerdictFlags(return_mark=True, K2=True, K6=True),
         c.Trace(rule_ids=["L3", "K2"], thresholds={"tau_pre": 0.25}, spark_request_ids=["resp_1"], event_seqs=[3, 4], config_hash=SHA),
         c.SizeEstimate(inches=0.9, bound_lo=0.6, bound_hi=1.3, ruler=c.RulerKind.PLATE, ruler_source_kf="kf1", threshold_type=c.ThresholdType.DENT),
@@ -241,7 +242,7 @@ def test_thresholds_load_and_hash() -> None:
 
 
 def test_rules_table() -> None:
-    assert rules.gate_ids() == [f"G{i}" for i in range(1, 11)]
+    assert rules.gate_ids() == [f"G{i}" for i in range(1, 14)]  # G11 to G13 since R27
     assert rules.cap_ids() == [f"K{i}" for i in range(1, 21)]
     assert rules.rule("K7").label == "second look"
     assert rules.describe(["G1"])[0].startswith("G1 not filmed: ")

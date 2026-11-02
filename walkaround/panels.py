@@ -2361,10 +2361,15 @@ def _percentile(values: list[float], pct: float) -> float:
 
 
 def _is_filmed(kf: c.Keyframe, cov: dict[str, Any]) -> bool:
+    """A keyframe whole, large and sharp enough. "Large" is filmed_area_frac_min of the frame, or for a small panel the
+    floor coverage.filmed_area_frac_min_by_panel gives it (R27: a whole, sharp headlight filling a 584 px crop is 2% of
+    a 1080p frame, under the 3% a door clears; absent from runs frozen before it)."""
     s = kf.score
+    by_panel = cov.get("filmed_area_frac_min_by_panel") or {}
+    area_min = float(by_panel.get(kf.panel_id.value, cov["filmed_area_frac_min"]))
     return (
         s.completeness >= float(cov["filmed_completeness_min"])
-        and s.area >= float(cov["filmed_area_frac_min"])
+        and s.area >= area_min
         and s.sharpness >= float(cov["filmed_sharpness_rel_min"])
     )
 
@@ -3404,6 +3409,16 @@ def _keyframe_files(
     mask_file = paths.crop_mask_png_path(run_id, role, kf_id)
     video.write_png_mask(mask_crop, mask_file)
     moments = geometry.moments_from_mask(mask_crop) if int(mask_crop.sum()) >= 3 else None
+    blurred_frac, blur_png = None, None
+    where = blur.blurred_mask()
+    if where is not None:  # privacy.mask_blur (R27): how much of the panel the privacy blur covers in this crop
+        where_crop = _mask_to_crop(_fit_mask(np.asarray(where, dtype=bool), (h_src, w_src)), crop)
+        panel_px = int(mask_crop.sum())
+        blurred_frac = round(float((mask_crop & where_crop).sum()) / panel_px, 4) if panel_px else 0.0
+        if where_crop.any():
+            blur_file = paths.crop_blur_png_path(run_id, role, kf_id)
+            video.write_png_mask(where_crop, blur_file)
+            blur_png = paths.rel(run_id, blur_file)
     if car_box is not None:
         cb = [int(round(v)) for v in _scale_box(car_box, media_size, (w_src, h_src))]
         frame_crop = blurred[max(0, cb[1]) : min(h_src, cb[3]), max(0, cb[0]) : min(w_src, cb[2])]
@@ -3425,6 +3440,8 @@ def _keyframe_files(
         front_sign=panel.front_sign,
         window_subtracted=window_subtracted,
         blur=blur,
+        privacy_blurred_frac=blurred_frac,
+        blur_png=blur_png,
     )
 
 

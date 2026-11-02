@@ -26,6 +26,7 @@ import json
 import math
 import re
 import shutil
+import threading
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Awaitable, Callable, Iterable
@@ -90,6 +91,53 @@ _LK = dict(winSize=(15, 15), maxLevel=3, criteria=(cv2.TERM_CRITERIA_EPS | cv2.T
 def privacy_params(th: dict[str, Any]) -> dict[str, Any]:
     """th["privacy"] over PRIVACY_DEFAULTS."""
     return {**PRIVACY_DEFAULTS, **th.get("privacy", {})}
+
+
+# Mask blur (R27, 11/2). On hero_focus4 SAM 3.1's "face" lane tracked the Focus's windshield for 264 frames (a 380 x
+# 150 px box on the 960 px proxy, its mask the glass), and the box rule pixelated that box, carried it 3 s past the
+# track growing by half its size a second, in 4 blocks across: the pickup mirror, roof and hood crops were mostly
+# mosaic and the blocks spilled onto the right front door and fender. Under privacy.mask_blur a face or plate is
+# blurred inside its SAM mask (the lane's mask on the video, the image check's on a keyframe) with a small dilation,
+# none for a face whose mask lies on the car's own glass or paint (a reflection), by a smooth blur whose strength
+# follows the object's own size (samples_across samples on its long side), so it looks the same in both walks. Faces
+# are never carried; a plate is still carried before and after its sightings (edge-on plates), its box growing at most
+# plate_carry_grow_max. Runs frozen before it have no mask_blur leaf and blur as they did.
+MASK_BLUR_DEFAULTS: dict[str, Any] = {
+    "enabled": True,
+    "dilate_frac": 0.03,
+    "dilate_px_at_4k": 12,
+    "samples_across": 4.0,
+    "on_car_min": 0.6,
+    "on_car_frames": 5,
+    "plate_carry_grow_max": 0.5,
+}
+
+
+def mask_blur_settings(th: dict[str, Any] | None) -> dict[str, Any] | None:
+    """thresholds privacy.mask_blur with its defaults filled, or None when absent or off (every run frozen before R27)."""
+    raw = (th or {}).get("privacy", {}).get("mask_blur")
+    if not isinstance(raw, dict) or not raw.get("enabled", False):
+        return None
+    return {**MASK_BLUR_DEFAULTS, **raw}
+
+
+def carry_params(th: dict[str, Any]) -> dict[str, Any]:
+    """privacy_params plus, under mask_blur, the plate carry's growth cap and no carry for faces."""
+    p = privacy_params(th)
+    mb = mask_blur_settings(th)
+    if mb is not None:
+        p = {**p, "track_carry_grow_max": float(mb["plate_carry_grow_max"]), "carry_nouns": (Noun.LICENSE_PLATE,)}
+    return p
+
+
+def _carries(noun: Noun, p: dict[str, Any]) -> bool:
+    nouns = p.get("carry_nouns")
+    return nouns is None or noun in nouns
+
+
+def _capped(grow: float, p: dict[str, Any]) -> float:
+    cap = p.get("track_carry_grow_max")
+    return grow if cap is None else min(grow, float(cap))
 
 
 def _utc_now() -> str:
@@ -404,7 +452,7 @@ def _extrapolated(rows: list[Any], i: int, side: int, d: int, *, fps: float, fra
     """The carried box d frames from rows[i] when no flow is known: moved at the seed velocity, its margin grown by
     track_carry_grow_per_s of its size per second carried."""
     cx, cy, w, h, vx, vy = _carry_seed(rows, i, side, fps=fps, frame_long=frame_long, p=p)
-    return _box_around(cx + side * vx * d, cy + side * vy * d, w, h, float(p["track_carry_grow_per_s"]) * d / fps)
+    return _box_around(cx + side * vx * d, cy + side * vy * d, w, h, _capped(float(p["track_carry_grow_per_s"]) * d / fps, p))
 
 
 Carried = dict[tuple[str, int, int], Box4]
@@ -420,17 +468,19 @@ def track_boxes_at(
     th: dict[str, Any],
     nouns: tuple[Noun, ...] = PRIVACY_NOUNS,
     carried: Carried | None = None,
+    sightings: bool = True,
 ) -> list[Box4]:
     """Plate and face track boxes at a proxy frame, scaled to source pixels: every sighting within track_box_union_s
     of the frame (so a one-frame box glitch never uncovers the object); after a sighting, its box held for
     track_gap_bridge_s; and before each run of sightings and after it, for up to track_carry_s, a carried box: moved
     on from the run's edge and grown by track_carry_grow_per_s of its size per second carried (extrapolated), or the
     box flow_carry followed on the unblurred proxy, keyed (track_id, frame, side) in carried. That covers an edge-on
-    plate before SAM's lane picks it up and one that leaves after the lane lets go. Over-blurring is the safe side."""
-    p = privacy_params(th)
+    plate before SAM's lane picks it up and one that leaves after the lane lets go. Over-blurring is the safe side.
+    Under privacy.mask_blur (R27) a face track is never carried and a plate's carried box grows at most
+    plate_carry_grow_max; sightings=False leaves out the sighting and bridge boxes (their masks are blurred instead)."""
+    p = carry_params(th)
     union = _frames(p["track_box_union_s"], fps)
     bridge = int(math.ceil(p["track_gap_bridge_s"] * fps))
-    carry = _frames(p["track_carry_s"], fps)
     frame_long = float(max(media_size_proxy))
     sx = media_size_src[0] / media_size_proxy[0]
     sy = media_size_src[1] / media_size_proxy[1]
@@ -440,18 +490,19 @@ def track_boxes_at(
     for track in tracks:
         if track.noun not in nouns or not track.per_frame:
             continue
+        carry = _frames(p["track_carry_s"], fps) if _carries(track.noun, p) else 0
         rows = sorted(track.per_frame, key=lambda r: r.frame)
         frames = [r.frame for r in rows]
-        boxes: list[Any] = [rows[j].box for j in range(bisect.bisect_left(frames, f - union), bisect.bisect_right(frames, f + union))]
+        boxes: list[Any] = [rows[j].box for j in range(bisect.bisect_left(frames, f - union), bisect.bisect_right(frames, f + union))] if sightings else []
         k = bisect.bisect_left(frames, f)
         if k == len(frames) or frames[k] != f:
             for i, side in ((k - 1, 1), (k, -1)):  # the last sighting before the frame, the first one after it
                 if not 0 <= i < len(frames):
                     continue
                 d = abs(f - frames[i])
-                if side > 0 and d <= bridge:
+                if sightings and side > 0 and d <= bridge:
                     boxes.append(rows[i].box)
-                if d <= carry:
+                if 0 < d <= carry:
                     known = carried.get((track.track_id, f, side)) if carried else None
                     boxes.append(known if known is not None else _extrapolated(rows, i, side, d, fps=fps, frame_long=frame_long, p=p))
         for b in boxes:
@@ -493,10 +544,11 @@ def _flow_step(a: np.ndarray | None, b: np.ndarray | None, cx: float, cy: float,
 
 def carry_frames_needed(tracks: list[PanelTrack], *, fps: float, n_frames: int, th: dict[str, Any], nouns: tuple[Noun, ...] = PRIVACY_NOUNS) -> set[int]:
     """The proxy frames flow_carry reads: every run edge and the frames it carries into."""
-    carry = _frames(privacy_params(th)["track_carry_s"], fps)
+    p = carry_params(th)
+    carry = _frames(p["track_carry_s"], fps)
     needed: set[int] = set()
     for track in tracks:
-        if track.noun not in nouns or not track.per_frame:
+        if track.noun not in nouns or not track.per_frame or not _carries(track.noun, p):
             continue
         frames = sorted({r.frame for r in track.per_frame})
         for i, side, span in _run_edges(frames, n_frames, carry):
@@ -524,7 +576,7 @@ def flow_carry(
     drifted 80 px off the edge-on plate while the plate stayed near its first sighting), so the path is covered, out
     to track_flow_cover_max_frac of the frame's long edge past the box (a whole pan's path would cover a car's side).
     Pure and deterministic for the same frames, so a re-render gives the same boxes."""
-    p = privacy_params(th)
+    p = carry_params(th)
     carry = _frames(p["track_carry_s"], fps)
     frame_long = float(max(media_size_proxy))
     vmax = float(p["track_carry_speed_max_frac_per_s"]) * frame_long / fps
@@ -535,7 +587,7 @@ def flow_carry(
     scale = float(sample.shape[1]) / float(media_size_proxy[0]) if sample is not None else 1.0
     out: Carried = {}
     for track in tracks:
-        if track.noun not in nouns or not track.per_frame:
+        if track.noun not in nouns or not track.per_frame or not _carries(track.noun, p):
             continue
         rows = sorted(track.per_frame, key=lambda r: r.frame)
         frames = [r.frame for r in rows]
@@ -555,7 +607,7 @@ def flow_carry(
                     step_x, step_y = moved
                 cx, cy = cx + step_x, cy + step_y
                 held = d if followed is None else followed
-                box = _box_around(cx, cy, w, h, (g_flow * held + g_kin * (d - held)) / fps)
+                box = _box_around(cx, cy, w, h, _capped((g_flow * held + g_kin * (d - held)) / fps, p))
                 if cover_path:
                     path = [min(path[0], box[0]), min(path[1], box[1]), max(path[2], box[2]), max(path[3], box[3])]
                     box = [max(path[0], box[0] - reach), max(path[1], box[1] - reach), min(path[2], box[2] + reach), min(path[3], box[3] + reach)]
@@ -628,6 +680,13 @@ async def blur_keyframe(
     if (int(frame_rgb.shape[1]), int(frame_rgb.shape[0])) != tuple(src_size):
         raise ValueError(f"frame is {frame_rgb.shape[1]}x{frame_rgb.shape[0]} but sizes says source {src_size[0]}x{src_size[1]}")
     plates, faces, record = await (checks or image_checks)(frame_rgb, run_id=run_id, role=role, tag=f"f{f_proxy:06d}", th=th)
+    if mask_blur_settings(th) is not None:
+        masks = _walk_masks(run_id, role, tracks, proxy_size)
+        blurred, where = await asyncio.to_thread(
+            blur_keyframe_masks, frame_rgb, f_proxy=f_proxy, tracks=tracks, fps=fps, proxy_size=proxy_size, masks=masks, plates=plates, faces=faces, th=th
+        )
+        record.set_blurred(where)
+        return blurred, record
     common = dict(fps=fps, media_size_proxy=proxy_size, media_size_src=src_size, th=th)
     face_boxes = track_boxes_at(f_proxy, tracks, nouns=(Noun.FACE,), **common)
     plate_boxes = track_boxes_at(f_proxy, tracks, nouns=(Noun.LICENSE_PLATE,), **common)
@@ -642,6 +701,268 @@ async def blur_keyframe(
         plate_detections=plates,
     )
     return blurred, record
+
+
+# Mask blur (R27): masks from the stored lanes, the smooth blur, keyframes and the display video ------------------------
+
+
+class TrackMasks:
+    """Proxy-size masks of a walk's plate, face and car objects, decoded from its stored lanes (sam/<role>/*.index.json
+    and the gzipped events) on first use and kept. Thread safe: keyframe blurs run in worker threads."""
+
+    def __init__(self, run_id: str, role: str, media_size: tuple[int, int]) -> None:
+        self.run_id, self.role = run_id, role
+        self.media_size = (int(media_size[0]), int(media_size[1]))
+        self._lanes: dict[Noun, tuple[Path | None, dict[tuple[int, str], Any], dict[int, str]]] = {}
+        self._masks: dict[tuple[Noun, int, str], np.ndarray | None] = {}
+        self._on_car: dict[str, bool] = {}
+        self._decoder: Any = None
+        self._lock = threading.RLock()
+
+    def _lane(self, noun: Noun) -> tuple[Path | None, dict[tuple[int, str], Any], dict[int, str]]:
+        if noun not in self._lanes:
+            index = paths.sam_dir(self.run_id, self.role) / f"{paths.lane_id(noun)}.index.json"
+            frames = read_json_list(index, IndexFrame) if index.is_file() else []
+            lookup = {(fr.frame, o.id): o for fr in frames for o in fr.objects}
+            largest = {fr.frame: max(fr.objects, key=lambda o: (o.box[2] - o.box[0]) * (o.box[3] - o.box[1])).id for fr in frames if fr.objects}
+            lane = None
+            for name in (f"{paths.lane_id(noun)}.ndjson.gz", f"{paths.lane_id(noun)}.ndjson"):
+                candidate = paths.sam_dir(self.run_id, self.role) / name
+                if candidate.is_file():
+                    lane = candidate
+                    break
+            self._lanes[noun] = (lane, lookup, largest)
+        return self._lanes[noun]
+
+    def object_mask(self, noun: Noun, frame: int, oid: str) -> np.ndarray | None:
+        """The object's mask pasted on the proxy frame; its box filled when the lane carries no mask for it; None when
+        the lane has no such object at that frame."""
+        with self._lock:
+            key = (noun, int(frame), str(oid))
+            if key in self._masks:
+                return self._masks[key]
+            from . import fastmask, sam_wire
+
+            lane, lookup, _ = self._lane(noun)
+            obj = lookup.get((int(frame), str(oid)))
+            out: np.ndarray | None = None
+            if obj is not None:
+                w, h = self.media_size
+                if obj.mask is not None and lane is not None:
+                    if self._decoder is None:
+                        self._decoder = fastmask.LaneMasks()
+                    raster = self._decoder.decode(lane, [obj.mask])[0]
+                    out = sam_wire.paste_mask(np.asarray(raster, dtype=bool), list(obj.box), obj.mask, self.media_size)
+                else:
+                    out = np.zeros((h, w), dtype=bool)
+                    x1, y1, x2, y2 = (int(round(v)) for v in obj.box)
+                    out[max(0, y1) : min(h, y2), max(0, x1) : min(w, x2)] = True
+            self._masks[key] = out
+            return out
+
+    def track_mask(self, track: PanelTrack, frame: int) -> np.ndarray | None:
+        oid = next((fr.object_id for fr in track.fragments if fr.first_frame <= frame <= fr.last_frame), None)
+        return None if oid is None else self.object_mask(track.noun, frame, oid)
+
+    def car_mask(self, frame: int) -> np.ndarray | None:
+        """The largest car object's mask at the proxy frame (the object the keyframe car test reads)."""
+        _, _, largest = self._lane(Noun.CAR)
+        oid = largest.get(int(frame))
+        return None if oid is None else self.object_mask(Noun.CAR, frame, oid)
+
+    def on_car(self, track: PanelTrack, settings: dict[str, Any]) -> bool:
+        """True when the track's mask lies on the car's own glass or paint: the median share of its pixels inside the car
+        mask, over up to on_car_frames frames spread over the track, at or above on_car_min (a reflection, or SAM
+        calling the glass a face). A person standing in front of the car is not in the car's mask."""
+        with self._lock:
+            if track.track_id in self._on_car:
+                return self._on_car[track.track_id]
+            rows = sorted(r.frame for r in track.per_frame)
+            n = max(1, int(settings["on_car_frames"]))
+            picks = sorted({rows[int(round(i * (len(rows) - 1) / max(1, n - 1)))] for i in range(n)}) if rows else []
+            shares = []
+            for f in picks:
+                m, car = self.track_mask(track, f), self.car_mask(f)
+                if m is not None and car is not None and m.any():
+                    shares.append(float((m & car).sum()) / float(m.sum()))
+            got = bool(shares) and float(np.median(shares)) >= float(settings["on_car_min"])
+            self._on_car[track.track_id] = got
+            return got
+
+
+_TRACK_MASKS: dict[tuple[str, str, str], TrackMasks] = {}
+
+
+def track_masks_for(run_id: str, role: str, media_size: tuple[int, int]) -> TrackMasks:
+    """One TrackMasks per walk while its lanes stay the same files (a re-run under the same id gets a new one)."""
+    index = paths.sam_dir(run_id, role) / f"{paths.lane_id(Noun.FACE)}.index.json"
+    stamp = f"{paths.run_dir(run_id)}:{index.stat().st_mtime_ns if index.is_file() else 0}"
+    key = (run_id, role, stamp)
+    got = _TRACK_MASKS.get(key)
+    if got is None or got.media_size != (int(media_size[0]), int(media_size[1])):
+        if len(_TRACK_MASKS) > 8:
+            _TRACK_MASKS.clear()
+        got = _TRACK_MASKS[key] = TrackMasks(run_id, role, media_size)
+    return got
+
+
+def _fit_bool(mask: np.ndarray, shape: tuple[int, ...]) -> np.ndarray:
+    h, w = int(shape[0]), int(shape[1])
+    if mask.shape[:2] == (h, w):
+        return mask
+    return cv2.resize(mask.astype(np.uint8), (w, h), interpolation=cv2.INTER_NEAREST).astype(bool)
+
+
+def _long_side(mask: np.ndarray) -> float:
+    ys, xs = np.nonzero(mask)
+    if ys.size == 0:
+        return 0.0
+    return float(max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1))
+
+
+def smooth_fill(out: np.ndarray, where: np.ndarray, cell: float) -> None:
+    """In place: the pixels under where replaced by a smooth blur of their neighbourhood that keeps about one sample
+    per cell px (area means on a cell grid, spread back with linear interpolation and a Gaussian of cell / 2), the same
+    information a pixelation of that block keeps, without the blocks."""
+    ys, xs = np.nonzero(where)
+    if ys.size == 0:
+        return
+    h_img, w_img = where.shape[:2]
+    pad = int(math.ceil(cell))
+    y1, y2 = max(0, int(ys.min()) - pad), min(h_img, int(ys.max()) + 1 + pad)
+    x1, x2 = max(0, int(xs.min()) - pad), min(w_img, int(xs.max()) + 1 + pad)
+    sub = out[y1:y2, x1:x2]
+    h, w = sub.shape[:2]
+    sw, sh = max(1, int(round(w / cell))), max(1, int(round(h / cell)))
+    small = cv2.resize(sub, (sw, sh), interpolation=cv2.INTER_AREA)
+    big = cv2.resize(small, (w, h), interpolation=cv2.INTER_LINEAR)
+    big = cv2.GaussianBlur(big, (0, 0), sigmaX=max(0.5, cell / 2.0))
+    m = where[y1:y2, x1:x2]
+    sub[m] = big[m]
+
+
+Region = tuple[np.ndarray, float, bool]  # (mask on the frame, long side of the object in frame px, dilate it)
+
+
+def blur_regions(rgb: np.ndarray, regions: list[Region], *, th: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+    """(blurred copy, the mask of every pixel blurred): each region dilated by mask_blur's dilate_frac of its long side
+    plus dilate_px_at_4k (scaled to the frame) unless it is a reflection, then smooth_fill with a cell of the object's
+    long side over samples_across, at least pixel_block_px_at_4k scaled to the frame. Largest objects first, so a
+    plate inside a blurred windshield keeps its own, finer, cell on top."""
+    mb = mask_blur_settings(th) or MASK_BLUR_DEFAULTS
+    out = np.array(rgb, copy=True)
+    where_all = np.zeros(out.shape[:2], dtype=bool)
+    block = _block_for(th, out.shape)
+    dpx = float(mb["dilate_px_at_4k"]) * _scale_for(out.shape)
+    for mask, long_side, dilate in sorted(regions, key=lambda r: -r[1]):
+        if not mask.any():
+            continue
+        grown = _dilate_mask(mask, dilate_frac=float(mb["dilate_frac"]), dilate_px=dpx) if dilate else mask
+        cell = max(float(block), long_side / float(mb["samples_across"]))
+        smooth_fill(out, grown, cell)
+        where_all |= grown
+    return out, where_all
+
+
+def _box_region(box: Iterable[float], shape: tuple[int, ...]) -> Region | None:
+    h, w = shape[:2]
+    x1, y1, x2, y2 = (float(v) for v in box)
+    ix1, iy1, ix2, iy2 = max(0, math.floor(x1)), max(0, math.floor(y1)), min(w, math.ceil(x2)), min(h, math.ceil(y2))
+    if ix2 <= ix1 or iy2 <= iy1:
+        return None
+    m = np.zeros((h, w), dtype=bool)
+    m[iy1:iy2, ix1:ix2] = True
+    return m, float(max(x2 - x1, y2 - y1)), True
+
+
+def track_mask_regions(
+    f_proxy: int, tracks: list[PanelTrack], masks: TrackMasks, *, fps: float, shape: tuple[int, ...], th: dict[str, Any], nouns: tuple[Noun, ...] = PRIVACY_NOUNS
+) -> list[Region]:
+    """The plate and face track masks at a proxy frame, on a frame of shape: the masks of every sighting within
+    track_box_union_s, else the last sighting's mask held for track_gap_bridge_s (the box rule's bridge). A face on the
+    car's own glass or paint is not dilated. Carried plate boxes come from track_boxes_at(sightings=False)."""
+    p = privacy_params(th)
+    mb = mask_blur_settings(th) or MASK_BLUR_DEFAULTS
+    union = _frames(p["track_box_union_s"], fps)
+    bridge = int(math.ceil(p["track_gap_bridge_s"] * fps))
+    sx = shape[1] / float(masks.media_size[0])
+    out: list[Region] = []
+    f = int(f_proxy)
+    for track in tracks:
+        if track.noun not in nouns or not track.per_frame:
+            continue
+        frames = sorted({r.frame for r in track.per_frame})
+        near = frames[bisect.bisect_left(frames, f - union) : bisect.bisect_right(frames, f + union)]
+        if not near:
+            k = bisect.bisect_left(frames, f) - 1
+            near = [frames[k]] if k >= 0 and f - frames[k] <= bridge else []
+        if not near:
+            continue
+        got = [m for m in (masks.track_mask(track, g) for g in near) if m is not None and m.any()]
+        if not got:
+            continue
+        union_mask = np.logical_or.reduce(got)
+        reflection = track.noun == Noun.FACE and masks.on_car(track, mb)
+        out.append((_fit_bool(union_mask, shape), _long_side(union_mask) * sx, not reflection))
+    return out
+
+
+def detection_regions(dets: list[sam_client.Detection], shape: tuple[int, ...], *, car_mask: np.ndarray | None, th: dict[str, Any], faces: bool) -> list[Region]:
+    """Image-check detections as regions; a face whose mask lies on the car (car_mask, any size) is not dilated."""
+    mb = mask_blur_settings(th) or MASK_BLUR_DEFAULTS
+    size = (int(shape[1]), int(shape[0]))
+    car = _fit_bool(car_mask, shape) if car_mask is not None else None
+    out: list[Region] = []
+    for det in dets:
+        m = detection_mask(det, size)
+        if not m.any():
+            continue
+        reflection = faces and car is not None and float((m & car).sum()) / float(m.sum()) >= float(mb["on_car_min"])
+        out.append((m, _long_side(m), not reflection))
+    return out
+
+
+def blur_keyframe_masks(
+    frame_rgb: np.ndarray, *, f_proxy: int, tracks: list[PanelTrack], fps: float, proxy_size: tuple[int, int], masks: TrackMasks | None,
+    plates: list[sam_client.Detection], faces: list[sam_client.Detection], th: dict[str, Any],
+) -> tuple[np.ndarray, np.ndarray]:
+    """A keyframe under mask_blur: track masks (when the walk's lanes are on disk), carried plate boxes and the image
+    checks' masks, through blur_regions. Returns (blurred, blurred-pixel mask)."""
+    shape = frame_rgb.shape
+    src_size = (int(shape[1]), int(shape[0]))
+    regions: list[Region] = []
+    car = None
+    if masks is not None:
+        regions += track_mask_regions(f_proxy, tracks, masks, fps=fps, shape=shape, th=th)
+        car = masks.car_mask(f_proxy)
+        carried = track_boxes_at(f_proxy, tracks, fps=fps, media_size_proxy=proxy_size, media_size_src=src_size, th=th, nouns=(Noun.LICENSE_PLATE,), sightings=False)
+    else:  # no lanes on disk (a stand-in run): the track boxes, as the box rule gives them, minus the face carry
+        carried = track_boxes_at(f_proxy, tracks, fps=fps, media_size_proxy=proxy_size, media_size_src=src_size, th=th)
+    regions += [r for r in (_box_region(b, shape) for b in carried) if r is not None]
+    regions += detection_regions(plates, shape, car_mask=None, th=th, faces=False)
+    regions += detection_regions(faces, shape, car_mask=car, th=th, faces=True)
+    return blur_regions(frame_rgb, regions, th=th)
+
+
+def _walk_masks(run_id: str, role: str, tracks: list[PanelTrack], proxy_size: tuple[int, int]) -> TrackMasks | None:
+    """The walk's TrackMasks when every privacy noun it has a track for has its lane index on disk; else None, and the
+    caller falls back to boxes (never to no blur)."""
+    nouns = {t.noun for t in tracks if t.noun in PRIVACY_NOUNS and t.per_frame}
+    if any(not (paths.sam_dir(run_id, role) / f"{paths.lane_id(n)}.index.json").is_file() for n in nouns):
+        return None
+    return track_masks_for(run_id, role, proxy_size)
+
+
+def display_frame_fn(tracks: list[PanelTrack], masks: TrackMasks, carried: Carried, *, fps: float, size: tuple[int, int], th: dict[str, Any]) -> Callable[[int, np.ndarray], np.ndarray]:
+    """The display video's per-frame blur under mask_blur: track masks plus the flow-carried plate boxes."""
+
+    def fn(index: int, rgb: np.ndarray) -> np.ndarray:
+        regions = track_mask_regions(index, tracks, masks, fps=fps, shape=rgb.shape, th=th)
+        boxes = track_boxes_at(index, tracks, fps=fps, media_size_proxy=size, media_size_src=size, th=th, nouns=(Noun.LICENSE_PLATE,), carried=carried, sightings=False)
+        regions += [r for r in (_box_region(b, rgb.shape) for b in boxes) if r is not None]
+        return blur_regions(rgb, regions, th=th)[0] if regions else rgb
+
+    return fn
 
 
 # Proxy blur, quarantine, deletions --------------------------------------------------------------------------------
@@ -662,6 +983,21 @@ def display_boxes(proxy: Path, tracks: list[PanelTrack], *, fps: float, frames: 
 
     info = video.probe(proxy)
     size = (int(info.width), int(info.height))
+    carried = display_carried(proxy, tracks, fps=fps, frames=frames, th=th)
+    out: dict[int, list[Box4]] = {}
+    for f in range(frames):
+        boxes = track_boxes_at(f, tracks, fps=fps, media_size_proxy=size, media_size_src=size, th=th, carried=carried)
+        if boxes:
+            out[f] = boxes
+    return out
+
+
+def display_carried(proxy: Path, tracks: list[PanelTrack], *, fps: float, frames: int, th: dict[str, Any]) -> Carried:
+    """flow_carry on the unblurred proxy's gray frames, only the frames it needs."""
+    from . import video  # the media lane
+
+    info = video.probe(proxy)
+    size = (int(info.width), int(info.height))
     needed = carry_frames_needed(tracks, fps=fps, n_frames=frames, th=th)
     scale = min(1.0, FLOW_MAX_EDGE / float(max(size)))
     gray_size = (max(1, int(round(size[0] * scale))), max(1, int(round(size[1] * scale))))
@@ -671,16 +1007,10 @@ def display_boxes(proxy: Path, tracks: list[PanelTrack], *, fps: float, frames: 
             if index in needed:
                 gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
                 grays[index] = cv2.resize(gray, gray_size, interpolation=cv2.INTER_AREA) if scale < 1.0 else gray
-    carried = flow_carry(grays, tracks, fps=fps, media_size_proxy=size, n_frames=frames, th=th)
-    out: dict[int, list[Box4]] = {}
-    for f in range(frames):
-        boxes = track_boxes_at(f, tracks, fps=fps, media_size_proxy=size, media_size_src=size, th=th, carried=carried)
-        if boxes:
-            out[f] = boxes
-    return out
+    return flow_carry(grays, tracks, fps=fps, media_size_proxy=size, n_frames=frames, th=th)
 
 
-def render_display(proxy: Path, dst: Path, tracks: list[PanelTrack], *, fps: float, frames: int, th: dict[str, Any]) -> Any:
+def render_display(proxy: Path, dst: Path, tracks: list[PanelTrack], *, fps: float, frames: int, th: dict[str, Any], masks: TrackMasks | None = None) -> Any:
     """The blurred display video from an unblurred proxy: display_boxes pixelated through video.render_blurred_proxy
     with the privacy dilation and block scaled to the proxy, each box's block grown by box_blocks_across. Writes dst
     only; the blur stage and rederive_display both call it, so the same proxy, tracks and th give the same bytes."""
@@ -689,6 +1019,11 @@ def render_display(proxy: Path, dst: Path, tracks: list[PanelTrack], *, fps: flo
     p = privacy_params(th)
     info = video.probe(proxy)
     scale = max(int(info.width), int(info.height)) / SRC_REFERENCE_EDGE
+    if mask_blur_settings(th) is not None and masks is not None:
+        size = (int(info.width), int(info.height))
+        carried = display_carried(proxy, tracks, fps=fps, frames=frames, th=th)
+        fn = display_frame_fn(tracks, masks, carried, fps=fps, size=size, th=th)
+        return video.render_blurred_proxy(proxy, dst, {}, block_px=1, dilate_frac=0.0, dilate_px=0, frame_fn=fn)
     boxes = display_boxes(proxy, tracks, fps=fps, frames=frames, th=th)
     return video.render_blurred_proxy(
         proxy,
@@ -710,7 +1045,8 @@ async def render_blurred_proxy(
         raise FileNotFoundError(f"videos/{role}.json has no proxy record")
     proxy = paths.run_dir(run_id) / record.proxy.path
     dst = paths.proxy_blurred_path(run_id, role)
-    await asyncio.to_thread(render_display, proxy, dst, tracks, fps=fps, frames=record.proxy.frames, th=th)
+    masks = _walk_masks(run_id, role, tracks, (record.proxy.width, record.proxy.height)) if mask_blur_settings(th) is not None else None
+    await asyncio.to_thread(render_display, proxy, dst, tracks, fps=fps, frames=record.proxy.frames, th=th, masks=masks)
     blurred = BlurredProxyRecord(path=paths.rel(run_id, dst), sha256=_sha256_file(dst))
     deletion = _delete_file(run_id, proxy, kind=DeletionKind.FILE, reason="unblurred proxy deleted at blur.done", now=_utc_now())
     return blurred, deletion
@@ -765,7 +1101,8 @@ def rederive_display(run_id: str, role: str, original: Path, out_dir: Path, *, t
         video.make_proxy(Path(original), proxy, fps=float(media["proxy_fps"]), max_edge=int(media["proxy_max_edge"]), preset=media["proxy_preset"], crf=int(media["proxy_crf"]))
         proxy_sha = _sha256_file(proxy)
         tracks = walk_privacy_tracks(run_id, role, th=th)
-        render_display(proxy, dst, tracks, fps=record.proxy.fps, frames=record.proxy.frames, th=th)
+        masks = _walk_masks(run_id, role, tracks, (record.proxy.width, record.proxy.height)) if mask_blur_settings(th) is not None else None
+        render_display(proxy, dst, tracks, fps=record.proxy.fps, frames=record.proxy.frames, th=th, masks=masks)
     finally:
         proxy.unlink(missing_ok=True)
     blurred_sha = _sha256_file(dst)

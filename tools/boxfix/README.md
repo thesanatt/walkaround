@@ -9,9 +9,10 @@ Keys: C correct (next), M moved (set by any drag), N not a mark (next), D missed
 Z zooms on the box, G shows ground truth on synthetic runs, Delete removes a selected missed box, Esc cancels drawing.
 
 ## Verdicts
-One item per row of the run's derived/verdicts.json. The pickup crop and the return crop sit side by side with this verdict's mark boxes in yellow (numbered when a side has more than one) and the product's other marks on that crop in thin white. The product's verdict is at the top in plain words: already there, new since pickup, needs your eye, not seen at return, not comparable. The line under it says why (rule names, what a needs your eye was lowered from, the match distance).
-Keys: Y right (next), W wrong (then 1 to 5 picks what it should say, and moves on), S not sure (next), R reset, Left/Right back and next, F other frame of the panel (frames with this verdict's marks come first, then the paired keyframe, then the panel's other views), Z zooms on the marks.
-Every change saves to eval/verdict_checks/<run_id>.json (atomic), one row per verdict id with the status, the product's label, the right label when wrong, the mark ids, rule ids and config hash.
+One item per row of the run's derived/verdicts.json. The main view is two photos, Pickup on the left and Return on the right, with this verdict's mark boxes in yellow (numbered when a side has more than one). Above them is one plain sentence with the panel name and the verdict (already there, new since pickup, not seen at return, needs your eye, not comparable).
+Three big buttons: Right (Y), Wrong (W), Can't tell (S). Wrong shows the five verdicts in plain words to pick the right one (keys 1 to 5), then moves on. Other keys: R reset, Left/Right back and next, D details, Z zoom on the marks (zoom button is inside details).
+Details (closed by default, key D) shows the rule ids and the why line, the match distance, keyframe ids, the other-frame browser (F steps through frames with this verdict's marks first, then the paired keyframe, then the panel's other views), the mark list per side, the product's other marks in thin white, and the run picker.
+Every change saves to eval/verdict_checks/<run_id>.json (atomic), one row per verdict id with the status, the product's label, the right label when wrong, the mark ids, rule ids and config hash. The saved format did not change.
 
 ## Report
 `.venv/bin/python tools/boxfix/analyze.py` prints both parts.

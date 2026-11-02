@@ -29,6 +29,9 @@ GATES: tuple[Rule, ...] = (
     Rule("G8", "hood IoU", "hood pair with whitened mask IoU under 0.8", "6; 5.5"),
     Rule("G9", "mask definition differs", "window_subtracted differs between the paired keyframes", "6; 5.1"),
     Rule("G10", "marks incomplete", "Spark marks truncated after the retry on every keyframe of the panel in either walk", "6; 5 step 8"),
+    Rule("G11", "scale gap", "the panel shows at very different sizes in the two keyframes: the long side of the panel mask's box (for a fender built from a wheel, the wheel box's long side) differs by more than max_ratio between the walks, so a close crop is not compared with a wide one (thresholds matching.pair_scale, R27)", "R27; 5.8"),
+    Rule("G12", "view mostly blurred for privacy", "more than view_max of the panel's area in a keyframe crop is blurred for privacy (a face or plate over it), so that crop gives no verdict (thresholds matching.privacy_blur, R27)", "R27; 8"),
+    Rule("G13", "the other one of the pair", "headlights, tail lights or mirrors: the two keyframes show the left one in one walk and the right one in the other (their masks, each scaled to its box, overlap better mirrored than as they are by more than margin), so they are not compared (thresholds matching.twin_mirror, R27)", "R27; 5.8"),
 )
 
 CAPS: tuple[Rule, ...] = (

@@ -16,7 +16,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Annotated, Any, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_serializer
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_serializer
 
 FLOAT_PLACES = 6
 
@@ -1150,6 +1150,13 @@ class BlurRecord(Contract):
     plate_ruler_px: float | None = None  # long side of the plate mask's min-area rectangle on the unblurred frame
     plate_ruler_c: float | None = None
     plate_tilt_hw: float | None = None  # apparent h / w
+    _blurred: Any = PrivateAttr(default=None)  # privacy.mask_blur (R27): bool mask of the pixels blurred; never serialized
+
+    def set_blurred(self, mask: Any) -> None:
+        self._blurred = mask
+
+    def blurred_mask(self) -> Any:
+        return self._blurred
 
 
 class HandleRecord(Contract):
@@ -1189,6 +1196,18 @@ class Keyframe(Contract):
     handle: HandleRecord = Field(default_factory=HandleRecord)
     conditions: Conditions = Field(default_factory=Conditions)
     marks_status: MarksStatus = MarksStatus.NOT_RUN
+    privacy_blurred_frac: float | None = None  # share of the crop's panel mask blurred for privacy (mask_blur, R27)
+    blur_png: str | None = None  # one-bit PNG in crop pixels of what was blurred, when anything was (R27)
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_privacy(self, handler: Any) -> Any:
+        """A keyframe made before R27 serializes as it did."""
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in ("privacy_blurred_frac", "blur_png"):
+                if data.get(key) is None:
+                    data.pop(key, None)
+        return data
 
 
 # ----------------------------------------------------------------------------------------------------------------
@@ -1602,6 +1621,15 @@ class ReshapeCheck(Contract):
     called: bool = False
 
 
+class PrivacyDrop(Contract):
+    """A mark left out of matching because its box sits in the part of its crop blurred for privacy (thresholds
+    matching.privacy_blur, R27): share is the part of the box under the blur. Printed in how_checked."""
+
+    mark_id: str
+    kf_id: str
+    share: float
+
+
 class FixtureDrop(Contract):
     """A mark left out of matching because its box sits on a factory fixture the run already has (thresholds
     matching.fixtures_not_damage, lead decision 4 of 11/1): a fixture landmark Muse Spark pointed at in the same crop
@@ -1668,6 +1696,8 @@ class PanelMatch(Contract):
     reshape: ReshapeCheck | None = None
     # marks left out of matching as factory fixtures (thresholds matching.fixtures_not_damage, lead decision 4 of 11/1)
     fixtures: list[FixtureDrop] = Field(default_factory=list)
+    # marks left out of matching because their box sits in a blurred part of the crop (matching.privacy_blur, R27)
+    privacy_drops: list[PrivacyDrop] = Field(default_factory=list)
     # marks moved onto or left off this panel because they sat off their own panel mask (dedup.marks_on_panel, 11/2)
     off_panel: list[OffPanelNote] = Field(default_factory=list)
     # the second marks pass on this panel: the other walk's marks whose spot was looked at again (11/2)
@@ -1693,7 +1723,7 @@ class PanelMatch(Contract):
             data.pop("reshape", None)
         if isinstance(data, dict) and not data.get("fixtures"):
             data.pop("fixtures", None)
-        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk", "own_contrast"):
+        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk", "own_contrast", "privacy_drops"):
             if isinstance(data, dict) and not data.get(key):
                 data.pop(key, None)
         return data

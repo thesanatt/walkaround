@@ -2054,3 +2054,56 @@ after its first object leaves), so a chip names the panel the door check decided
 only objects inside a kept track, never one off the car. The second look is counted per look (the majority of up to 3
 answers, as match.py decides it). A panel's heading and first card follow its strongest verdict (new, not seen at
 return, already there, needs your eye). The kiosk coverage scene of a pair run shows both walks, each with its own gaps.
+
+## R27: the blur inside each face or plate's own mask, three pair gates, small panels filmed (2026-11-02, round 27)
+
+Found by eye on hero_focus4: SAM 3.1's "face" lane tracked the Focus's windshield (264 frames, a 380 x 150 px box on
+the 960 px proxy, its mask the glass). The box rule pixelated that box in 4 blocks across and carried it 3 s past the
+track, growing by half its size a second, so the pickup mirror, roof and hood crops were mostly mosaic and the blocks
+spilled onto the right front door and fender; the hood still got already there. Each change below is a thresholds leaf,
+on for new runs and absent from frozen runs (which rebuild and blur as they did).
+
+- privacy.mask_blur `{"enabled", "dilate_frac": 0.03, "dilate_px_at_4k": 12, "samples_across": 4.0, "on_car_min": 0.6,
+  "on_car_frames": 5, "plate_carry_grow_max": 0.5}`. privacy.blur_keyframe (same signature) reads the walk's stored face,
+  plate and car lanes itself (`privacy.TrackMasks`, `track_masks_for`; when a privacy noun's lane index is missing it
+  falls back to boxes, never to no blur) and blurs: each face or plate track's lane mask at the frame (every sighting
+  within track_box_union_s, else the last one held for track_gap_bridge_s), the image checks' masks, and only for plates
+  the carried box before and after its sightings (`track_boxes_at(..., sightings=False)`), its growth capped at
+  plate_carry_grow_max. Faces are never carried (`carry_params`). A mask is dilated by dilate_frac of its long side plus
+  dilate_px_at_4k scaled to the frame, except a face on the car's own glass or paint (median share of its mask inside
+  the car mask at least on_car_min over on_car_frames frames of the track, or the keyframe's car mask for an image
+  check), which is blurred inside its mask only. The blur (`privacy.smooth_fill`, `blur_regions`): area means on a grid
+  of one sample per cell, spread back by linear interpolation and a Gaussian of cell / 2, cell = the object's long side
+  over samples_across (at least pixel_block_px_at_4k scaled), composited on the mask only: the information a 4-block
+  pixelation keeps, without the blocks, and the same look in both walks. Largest objects first.
+- What was blurred: `BlurRecord.blurred_mask()` (a pydantic private attribute, never serialized) carries the frame's
+  blurred-pixel mask from blur_keyframe to panels._keyframe_files, which records `Keyframe.privacy_blurred_frac` (share
+  of the crop's panel mask blurred) and, when any crop pixel was blurred, `Keyframe.blur_png`
+  (crops/<role>/<kf_id>.blur.png, one bit, crop pixels; `paths.crop_blur_png_path`). Both fields are left out of the JSON
+  when None, so keyframes made before R27 serialize as they did.
+- Display video: `privacy.render_display(..., masks=TrackMasks)` and `video.render_blurred_proxy(..., frame_fn=)` (one
+  additive keyword) blur each frame with the same masks plus the flow-carried plate boxes (`display_carried`,
+  `display_frame_fn`). render_blurred_proxy and rederive_display pass the masks. Stays Put clips still pixelate boxes
+  (track_boxes_at), now without the face carry and with the plate cap.
+- matching.privacy_blur `{"enabled", "view_max": 0.2, "mark_max": 0.5}`: G12 "view mostly blurred for privacy", a view
+  gate (another keyframe pair may pass), on a keyframe whose privacy_blurred_frac is over view_max; a mark with more than
+  mark_max of its box under the keyframe's blur_png is left out of matching (`match.privacy_drops`), recorded on
+  `PanelMatch.privacy_drops` (`PrivacyDrop`: mark_id, kf_id, share; omitted when empty) and printed in how_checked
+  ("left out: ... sits where ... is blurred for privacy (N% of its box), so it was not matched").
+- matching.pair_scale `{"enabled", "max_ratio": 2.0, "prefer_ratio": 1.5}`: `match.keyframe_scales` gives each keyframe
+  a scale in source px, the long side of its panel mask's box (mask px over crop.scale), or for a fender built from a
+  wheel the wheel track's box long side at that frame times the keyframe's source-over-proxy factor.
+  keyframe_pair_order(..., scales=) tries pairs within prefer_ratio first, then within max_ratio, then the rest, each
+  in the old order; G11 "scale gap" (view gate) fails a pair over max_ratio. On hero_focus4 the return right rear wheel's
+  mask held both wheels of that side (1900 px against 476 px at pickup); every other panel's pairs sat within 1.15
+  except the roof (1.14 and 1.53).
+- matching.twin_mirror `{"enabled", "margin": 0.1, "grid": 64}`: on headlights, tail lights and mirrors,
+  `match.mirror_ious` compares the two crop masks, each cut to its box and scaled to grid x grid, as they are and with
+  the return mask mirrored; G13 "the other one of the pair" (view gate) when mirrored beats as-they-are by more than
+  margin. hero_focus4: the same headlight 0.80 / 0.35, the other headlight 0.45 / 0.91 (whitened IoU 0.91 passed G4).
+- coverage.filmed_area_frac_min_by_panel `{"headlights": 0.01, "tail_lights": 0.01, "mirrors": 0.005}`:
+  panels._is_filmed uses the panel's own floor. hero_focus4's headlights were whole and sharp in both walks at 0.017 to
+  0.022 of the frame, under the 0.03 floor, so glimpsed and G1.
+- Rules: G11, G12, G13 in walkaround/rules.py and web/src/lib/rules.ts; match.VIEW_GATES includes them.
+- Tests: tests/test_r27.py (17); tests/test_contracts.py (gate ids G1 to G13, PrivacyDrop round trip);
+  tests/test_privacy.py's carry test runs the box rule without the leaf.
