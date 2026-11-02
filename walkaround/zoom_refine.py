@@ -102,7 +102,7 @@ async def ask(run_id: str, kf: Keyframe, crop_rgb: np.ndarray, m: Mark, win: lis
     rgb = zoom_image(crop_rgb, win, s)
     result = await asyncio.to_thread(
         spark_client.find_marks, rgb, kf.panel_id, landmarks=[], effort=str(th["spark"]["effort"]), run_id=run_id,
-        fixtures=match.fixtures_not_damage(th), seams=match.seams_not_marks(th),
+        fixtures=match.fixtures_not_damage(th), seams=match.seams_not_marks(th), colour=match.colour_on_paint(th), panel_conditions=match.conditions_on_panel(th),
     )
     return ZoomAsk(
         kf_id=kf.kf_id, role=kf.role, mark_id=m.mark_id, panel_id=kf.panel_id, crop_path=kf.crop.path, crop_sha256=kf.crop.sha256,
@@ -161,9 +161,21 @@ def _centre(b: list[float]) -> tuple[float, float]:
     return (b[0] + b[2]) / 2, (b[1] + b[3]) / 2
 
 
-def decide(m: Mark, a: ZoomAsk | None, win: list[int], crop: Crop) -> ZoomRefine:
-    """Pure: Spark's box moved so its centre is the centre of the zoom box nearest Spark's box centre, then shifted back
-    inside the crop; Spark's box with the reason when there is no usable zoom answer."""
+DAMAGE_TYPES = frozenset({"scratch", "scuff", "chip", "dent", "crack"})
+
+
+def prefer_kind(s: dict[str, Any] | None) -> bool:
+    """Lead Nov 2 (key prefer_kind of dedup.spark_zoom_refine): when Spark typed the mark as damage, the zoom box taken is
+    the nearest one the zoomed look also typed as damage, if it returned any; else the nearest box as before. On
+    hero_focus1 a scrape Spark boxed 15 px low went to a faint dash the zoom typed unsure, the nearer of 6 boxes, while
+    the zoom's own "dark wavy paint scratch" sat on the scrape. Off when absent."""
+    return bool((s or {}).get("prefer_kind", False))
+
+
+def decide(m: Mark, a: ZoomAsk | None, win: list[int], crop: Crop, *, kind_first: bool = False) -> ZoomRefine:
+    """Pure: Spark's box moved so its centre is the centre of the zoom box nearest Spark's box centre (with kind_first
+    and a damage type from Spark, the nearest damage-typed zoom box when there is one), then shifted back inside the
+    crop; Spark's box with the reason when there is no usable zoom answer."""
     spark = [float(v) for v in m.bbox_crop or []]
     base = {"spark_bbox_crop": spark, "spark_point_crop": m.point_crop, "window_crop": list(win)}
     if a is None:
@@ -175,7 +187,10 @@ def decide(m: Mark, a: ZoomAsk | None, win: list[int], crop: Crop) -> ZoomRefine
     if not boxes:
         return ZoomRefine(used="spark", spark_zoom_request_id=rid, zoom_boxes=0, note="the zoomed look found no mark near the box", **base)
     sx, sy = _centre(spark)
-    zb, sm = min(boxes, key=lambda bs: (_centre(bs[0])[0] - sx) ** 2 + (_centre(bs[0])[1] - sy) ** 2)
+    pool = boxes
+    if kind_first and m.type.value in DAMAGE_TYPES:
+        pool = [bs for bs in boxes if str(getattr(bs[1].type, "value", bs[1].type)) in DAMAGE_TYPES] or boxes
+    zb, sm = min(pool, key=lambda bs: (_centre(bs[0])[0] - sx) ** 2 + (_centre(bs[0])[1] - sy) ** 2)
     zx, zy = _centre(zb)
     moved = [spark[0] + zx - sx, spark[1] + zy - sy, spark[2] + zx - sx, spark[3] + zy - sy]
     dx = -min(0.0, moved[0]) - max(0.0, moved[2] - crop.w)
@@ -216,7 +231,7 @@ def refine_marks(marks: list[Mark], kf: Keyframe, index: Index, *, th: dict) -> 
             out.append(m)
             continue
         win = window(list(m.bbox_crop or []), kf.crop, s)
-        out.append(apply(m, decide(m, index.get(kf.crop, win), win, kf.crop), kf.crop, th))
+        out.append(apply(m, decide(m, index.get(kf.crop, win), win, kf.crop, kind_first=prefer_kind(s)), kf.crop, th))
     return out
 
 

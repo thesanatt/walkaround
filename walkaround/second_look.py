@@ -38,7 +38,7 @@ import cv2
 import numpy as np
 from pydantic import Field, model_serializer
 
-from . import open_weights, paths, spark_client
+from . import match, open_weights, paths, spark_client
 from .config import redact
 from .contracts import (
     Box4,
@@ -299,6 +299,7 @@ class SecondLook:
         self.max_tokens = int(th["spark"]["max_output_tokens"])
         self.retry_max_tokens = int(th["spark"]["retry_max_output_tokens"])
         self.rpm = float(th["orchestrator"]["baseten_rpm"])
+        self.colour = match.colour_on_paint(th)  # Nov 2: part 1 of the two-question look counts a stripe of another colour
         self.breaker = _Breaker(BASETEN_FAILURES_MAX)
         self.asked: dict[tuple[str, str], LookRecord] = {}
         self._marks: dict[str, Mark] | None = None
@@ -376,7 +377,7 @@ class SecondLook:
             return _not_run(ask.key, ask.panel_id, str(exc), counter=ask.mark_id, kind=kind)
         shown = _Shown(images=(image_a, image_b), outlines=[box_a, box_b], refs=[ref_a, ref_b])
         two_part = kind == "counter2"
-        prompt = spark_client.counter2_prompt(ask.panel_id, mark.role) if two_part else spark_client.counter_prompt(ask.panel_id, mark.role)
+        prompt = spark_client.counter2_prompt(ask.panel_id, mark.role, colour=self.colour) if two_part else spark_client.counter_prompt(ask.panel_id, mark.role)
         schema = {"schema": "counter2_v1"} if two_part else {}  # left out of the one-question hash so its old rows still match
         question = _question(ask.panel_id, shown.refs, prompt=prompt, engine=self.engine, effort=self.effort, max_tokens=[self.max_tokens, self.retry_max_tokens], **schema)
         prior = self._prior.get(ask.key)

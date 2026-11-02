@@ -1581,6 +1581,31 @@ class FixtureDrop(Contract):
     overlap: float
 
 
+class ByEyeLine(Contract):
+    """One check-by-eye line on a panel in place of mark-level verdicts (lead Nov 2, hero_focus1). kind "glass": the
+    panel is glass (thresholds matching.glass_by_eye), its marks are left out of matching and it gets no verdict;
+    kind "debris": the needs-your-eye lines whose every mark Muse Spark typed dirt on a flagged view (thresholds
+    matching.debris_by_eye), folded into this one line. mark_ids are the marks the line stands for, never dropped
+    silently."""
+
+    kind: Literal["glass", "debris"]
+    text: str
+    mark_ids: list[str] = Field(default_factory=list)
+
+
+class SameWalkNote(Contract):
+    """A mark of a non-compared keyframe carried onto its walk's compared keyframe by registration (thresholds
+    matching.same_walk_register, 11/2): merged_into names the compared keyframe's mark it landed on (the two are one
+    mark, this one leaves matching); None means it was carried, re-placed and whitened in the compared keyframe."""
+
+    mark_id: str
+    from_kf: str
+    to_kf: str
+    merged_into: str | None = None
+    model: str = "none"  # the fit used: features or outline
+    reproj_px: float | None = None
+
+
 class OffPanelNote(Contract):
     """A mark moved onto or left off this panel by the on-panel rule (thresholds dedup.marks_on_panel), for how_checked."""
 
@@ -1616,6 +1641,10 @@ class PanelMatch(Contract):
     # registration (thresholds matching.registration, 11/2): the keyframe pairs aligned and each mark's presence test
     registration: list[RegistrationFit] = Field(default_factory=list)
     registration_marks: list[RegistrationMark] = Field(default_factory=list)
+    # check-by-eye lines (thresholds matching.glass_by_eye and matching.debris_by_eye, Nov 2)
+    by_eye: list[ByEyeLine] = Field(default_factory=list)
+    # marks of the walk's other keyframes carried onto the compared keyframe (matching.same_walk_register, Nov 2)
+    same_walk: list[SameWalkNote] = Field(default_factory=list)
 
     @model_serializer(mode="wrap")
     def _omit_no_tries(self, handler: Any) -> Any:
@@ -1628,7 +1657,7 @@ class PanelMatch(Contract):
             data.pop("reshape", None)
         if isinstance(data, dict) and not data.get("fixtures"):
             data.pop("fixtures", None)
-        for key in ("off_panel", "second_pass", "registration", "registration_marks"):
+        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk"):
             if isinstance(data, dict) and not data.get(key):
                 data.pop(key, None)
         return data
@@ -1656,6 +1685,7 @@ class VerdictFlags(Contract):
     K16: bool = False  # the counter-look at the other walk's same spot said same or unsure (lead 11/1, third)
     K17: bool = False  # the two-question counter-look did not say yes, a damage mark is in the box (lead decision 5 of 11/1)
     K18: bool = False  # registration: the other walk's crop shows the same patch at this mark's mapped spot (11/2)
+    K19: bool = False  # the mark's spot lies inside a box the other walk drew in its compared view (11/2)
 
     def set_caps(self) -> list[str]:
         return [name for name in sorted(type(self).model_fields) if name.startswith("K") and getattr(self, name)]
@@ -1921,13 +1951,17 @@ class SheetPanelBlock(Contract):
     chips: list[SheetChip] = Field(default_factory=list)
     odometer_path: str | None = None
     how_checked: str | None = None  # match.how_checked: the keyframe pair compared on and each pair tried with its gates (11/1)
+    by_eye_lines: list[str] = Field(default_factory=list)  # match.by_eye_words: glass and debris lines (Nov 2)
 
     @model_serializer(mode="wrap")
     def _omit_absent_how_checked(self, handler: Any) -> Any:
-        """A block with no recorded keyframe pair tries serializes as it did before the field existed (11/1)."""
+        """A block with no recorded keyframe pair tries serializes as it did before the field existed (11/1); one with
+        no check-by-eye line as before Nov 2."""
         data = handler(self)
         if isinstance(data, dict) and data.get("how_checked") is None:
             data.pop("how_checked", None)
+        if isinstance(data, dict) and not data.get("by_eye_lines"):
+            data.pop("by_eye_lines", None)
         return data
 
 

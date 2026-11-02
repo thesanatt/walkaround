@@ -516,6 +516,26 @@ GLOSSARY_REGISTRATION = (  # match.registration_config, 11/2
     "If it has an unmatched mark there, the two are paired and measured at that spot. Nothing here is a model's answer, and a refused fit changes nothing.\n"
 )
 
+GLOSSARY_GLASS = (  # match.glass_by_eye, lead decision 11/2
+    "glass: the windshield and rear window get one line, check by eye. Reflections of trees, sky and buildings move with the camera and Muse Spark boxes them as marks, "
+    "so marks on glass are not compared. The boxes it drew there are kept and counted on the line.\n"
+)
+
+GLOSSARY_DEBRIS = (  # match.debris_by_eye, lead decision 11/2
+    "debris: on a compared panel, the needs-your-eye lines whose every mark Muse Spark typed dirt, on a view it flagged wet, dirty or glare, become one line for the panel, "
+    "debris on this panel; check by eye. A line holding a mark typed as damage or unsure stays as its own line.\n"
+)
+
+GLOSSARY_COLOUR = (  # match.colour_on_paint, 11/2
+    "colour on the paint: Muse Spark is also asked to box a stripe or patch of a clearly different colour on the paint, such as paint transferred from another car, tape or a sticker, as a scuff. "
+    "The second look counts one as a mark in the box.\n"
+)
+
+GLOSSARY_INSIDE_OTHER = (  # match.inside_other_box, 11/2
+    "inside the other walk's box: a mark seen in one walk only whose box lies at least half inside a box Muse Spark drew in the other walk's view (often one large box, such as a crush, dirt or a reflection) "
+    "is not called new or gone, since the other walk did not show clean paint there: needs your eye (K19).\n"
+)
+
 GLOSSARY_FIXTURES = (  # match.fixtures_not_damage, lead decision 4 of 11/1
     "factory fixture: parking sensors, badges, door handles and locks, washer nozzles, the tire valve, the wheel hub and the plate corners are part of the car, not damage. "
     "Muse Spark is asked not to box them, and a mark whose box still sits mostly on one the run found in the same view (a point Muse Spark named, or the door handle SAM found) "
@@ -541,6 +561,10 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + (GLOSSARY_COUNTER_CONFIRM if match.counter_confirms_mark(th) else GLOSSARY_COUNTER_LOOK if match.one_walk_counter_look(th) else "")
         + (GLOSSARY_FIXTURES if match.fixtures_not_damage(th) else "")
         + (GLOSSARY_REGISTRATION if match.registration_config(th) is not None else "")
+        + (GLOSSARY_GLASS if match.glass_by_eye(th) else "")
+        + (GLOSSARY_DEBRIS if match.debris_by_eye(th) else "")
+        + (GLOSSARY_COLOUR if match.colour_on_paint(th) else "")
+        + (GLOSSARY_INSIDE_OTHER if match.inside_other_box(th) else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"
@@ -891,6 +915,7 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
                 coverage_states=dict(sorted(cov_states.items(), key=lambda kv: _role_order(kv[0]))),
                 verdicts=lines, group_lines=[g.text for g in pm.groups] if pm else [], chips=chips,
                 how_checked=match.how_checked(pm) if pm else None,
+                by_eye_lines=match.by_eye_words(pm),
             )
         )
     if coverage is not None and coverage.odometer.frame_path:

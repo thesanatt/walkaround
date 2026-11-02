@@ -388,10 +388,35 @@ SEAMS_SENTENCE = (
 )
 
 
-def marks_prompt(panel_id: PanelId, landmarks: list[str], *, fixtures: bool = False, seams: bool = False) -> str:
+# Lead Nov 2 (thresholds matching.colour_on_paint): on hero_focus1 the prompt above boxed none of the tape strips on a
+# white Ford Focus, though they were plain in every crop; the one it boxed came back "unsure, small blue rectangular
+# mark". The prompt names only scratch, scuff, chip, dent and crack. A stripe of another colour on the paint is how
+# paint transfer from another car looks, a common rental charge, and it is not one of those. One sentence after the
+# fixtures and seams ones (the seams sentence's last clause then names it too), sent only when the run's thresholds
+# have the leaf.
+COLOUR_SENTENCE = (
+    "A stripe or patch of a clearly different colour on the paint, such as paint transferred from another car, tape or "
+    "a sticker, is a mark too: box it and type it scuff. Dirt, mud, leaves and water spots stay dirt. "
+)
+SEAMS_SENTENCE_COLOUR = (
+    "Panel seams, body lines, the edges where paint meets glass or trim, and shading or reflections on smooth or dark "
+    "glossy paint are not marks: box a spot only where the surface itself is scraped, broken or bent, or carries a "
+    "colour that is not its own, and keep the box tight on that spot. "
+)
+
+
+def _conditions_line(panel: str, on_panel: bool) -> str:
+    """Lead Nov 2 (thresholds matching.conditions_on_panel): the flags of the panel itself, not of the whole crop."""
+    if on_panel:
+        return f"conditions describe the {panel} itself, not the rest of the crop: wet, dirty, glare, dark. "
+    return "conditions describe the whole crop: wet, dirty, glare, dark. "
+
+
+def marks_prompt(panel_id: PanelId, landmarks: list[str], *, fixtures: bool = False, seams: bool = False, colour: bool = False, panel_conditions: bool = False) -> str:
     """The marks_v1 grounding instruction of section 5 step 8: expert framing, grid, point plus bbox, do not miss; with
     fixtures, the sentence that factory fixtures are not damage; with seams, the sentence that seams, shading and
-    reflections are not marks."""
+    reflections are not marks; with colour, the sentence that a stripe of another colour on the paint is a mark (the
+    seams sentence then names it); with panel_conditions, the view flags of the panel, not the crop."""
     panel = panel_display_name(panel_id)
     names = ", ".join(landmarks)  # the whole closed list; LANDMARKS_MAX caps how many come back, not the names
     landmark_line = (
@@ -403,12 +428,12 @@ def marks_prompt(panel_id: PanelId, landmarks: list[str], *, fixtures: bool = Fa
         f"You are an object grounding expert. This image is a close crop of the {panel} of a car, cut from a rental "
         f"walkaround video. Find every scratch, scuff, chip, dent and crack on the painted, plastic or glass surface "
         f"of the {panel}. Do not miss any mark, including small ones. {FIXTURES_SENTENCE if fixtures else ''}"
-        f"{SEAMS_SENTENCE if seams else ''}For each "
+        f"{(SEAMS_SENTENCE_COLOUR if colour else SEAMS_SENTENCE) if seams else ''}{COLOUR_SENTENCE if colour else ''}For each "
         f"mark give one point at its centre and one bbox that covers it. {_GRID_SENTENCE} type is scratch, scuff, chip, dent or crack for damage; dirt or "
         "reflection when a spot is dirt, a water drop, a shadow or a reflection that could pass for damage; unsure "
         "when you cannot tell. size_class: S is smaller than a coin, M up to a hand, L larger than a hand. confidence "
-        "is low, medium or high. note is a few words on what you see. conditions describe the whole crop: wet, dirty, "
-        f"glare, dark. {landmark_line}neighbour_car_visible is true when another vehicle shows in the crop. If the "
+        f"is low, medium or high. note is a few words on what you see. {_conditions_line(panel, panel_conditions)}"
+        f"{landmark_line}neighbour_car_visible is true when another vehicle shows in the crop. If the "
         "surface is clean, return an empty marks list."
     )
 
@@ -448,16 +473,24 @@ def counter_prompt(panel_id: PanelId, mark_role: str) -> str:
     )
 
 
-def counter2_prompt(panel_id: PanelId, mark_role: str) -> str:
+def counter2_prompt(panel_id: PanelId, mark_role: str, *, colour: bool = False) -> str:
     """The two-question counter-look (lead decision 5 of 11/1): is the mark found in one walk only a damage mark at all,
-    and does the other walk's view of the same spot show it. Part 2 keeps the one-question counter-look's wording."""
+    and does the other walk's view of the same spot show it. Part 2 keeps the one-question counter-look's wording.
+    With colour (thresholds matching.colour_on_paint, Nov 2) part 1 also counts a stripe or patch of another colour on
+    the paint, as the marks prompt then asks for it."""
     panel = panel_display_name(panel_id)
     other = "pickup" if mark_role == "return" else "return"
+    kinds = (
+        "a scratch, scuff, chip, dent or crack, or a stripe or patch of a clearly different colour on the paint such as "
+        "paint transfer, tape or a sticker"
+        if colour
+        else "a scratch, scuff, chip, dent or crack"
+    )
     return (
         f"The first image shows the {panel} of a car at {mark_role}, with one candidate mark outlined with a thin box. "
         f"The second image shows the same {panel} at {other}, with a box outlined where that mark would sit; the box is "
         f"larger than the mark to allow for the change of view. Deterministic matching found no mark there at {other}. "
-        "Answer two questions. mark_in_box: is there a damage mark (a scratch, scuff, chip, dent or crack) inside the "
+        f"Answer two questions. mark_in_box: is there a damage mark ({kinds}) inside the "
         "outlined box on the first image? Answer yes when you can see one. Answer no when the box shows only clean paint, "
         "a panel seam or body line, a reflection, dirt or a part of the car such as a badge, sensor or handle. Answer "
         "unsure when glare, water, blur or the size of the spot make it impossible to tell. same_mark_at_spot: look "
@@ -916,6 +949,8 @@ def find_marks(
     max_edge: int = IMAGE_LONG_EDGE,
     fixtures: bool = False,
     seams: bool = False,
+    colour: bool = False,
+    panel_conditions: bool = False,
 ) -> MarksResult:
     """The marks_v1 grounding call on one blurred crop. Points and boxes stay in the grid of the sent image. fixtures
     adds the factory-fixtures sentence to the prompt (thresholds matching.fixtures_not_damage); the schema is the same.
@@ -929,7 +964,7 @@ def find_marks(
     data_url, sent_width, sent_height, scale = prepare_image(crop_rgb, max_edge)
     names = [str(n) for n in dict.fromkeys(landmarks) if n]  # order kept, duplicates dropped (an enum lists each once)
     parts = [
-        {"type": "input_text", "text": marks_prompt(panel_id, names, fixtures=fixtures, seams=seams)},
+        {"type": "input_text", "text": marks_prompt(panel_id, names, fixtures=fixtures, seams=seams, colour=colour, panel_conditions=panel_conditions)},
         {"type": "input_image", "image_url": data_url},
     ]
     attempts = _ask_attempts(

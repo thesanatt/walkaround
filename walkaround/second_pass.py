@@ -140,7 +140,7 @@ async def ask(run_id: str, kf: Keyframe, crop_rgb: np.ndarray, other: Mark, expe
     rgb = zoom_refine.zoom_image(crop_rgb, win, s["window"])
     result = await asyncio.to_thread(
         spark_client.find_marks, rgb, kf.panel_id, landmarks=[], effort=str(th["spark"]["effort"]), run_id=run_id,
-        fixtures=match.fixtures_not_damage(th), seams=match.seams_not_marks(th),
+        fixtures=match.fixtures_not_damage(th), seams=match.seams_not_marks(th), colour=match.colour_on_paint(th), panel_conditions=match.conditions_on_panel(th),
     )
     return SecondPassAsk(
         kf_id=kf.kf_id, role=kf.role, panel_id=kf.panel_id, other_mark=other.mark_id, crop_path=kf.crop.path, crop_sha256=kf.crop.sha256,

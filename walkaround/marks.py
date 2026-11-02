@@ -899,7 +899,8 @@ async def derive_marks(run_id: str, role: str, keyframes: list[Keyframe], *, th:
     async def ask(kf: Keyframe, crop_rgb: np.ndarray, input_ref: InputRef | None) -> tuple[Any, Any]:
         async with semaphore:
             result = await asyncio.to_thread(
-                spark_client.find_marks, crop_rgb, kf.panel_id, landmarks=landmarks_for(kf.panel_id, th), effort=effort, run_id=run_id, input_ref=input_ref, fixtures=fixtures, seams=seams
+                spark_client.find_marks, crop_rgb, kf.panel_id, landmarks=landmarks_for(kf.panel_id, th), effort=effort, run_id=run_id, input_ref=input_ref, fixtures=fixtures, seams=seams,
+                colour=match.colour_on_paint(th), panel_conditions=match.conditions_on_panel(th),
             )
             count = None
             if count_mode:

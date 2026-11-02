@@ -34,6 +34,7 @@ from . import geometry, paths, rules
 from .contracts import (
     LOWER_BUMPERS,
     WHEEL_PANELS,
+    ByEyeLine,
     Calibration,
     Confidence,
     CoverageState,
@@ -60,6 +61,7 @@ from .contracts import (
     PanelMatch,
     RegistrationFit,
     RegistrationMark,
+    SameWalkNote,
     SparkPurpose,
     SparkRequestRecord,
     StaysPutVerdict,
@@ -130,6 +132,254 @@ def seams_not_marks(th: dict | None) -> bool:
     """Lead 11/1 (thresholds matching.seams_not_marks): the marks prompt adds spark_client.SEAMS_SENTENCE (seams, shading
     and reflections are not marks); off when absent, as in every run frozen before it."""
     return bool((th or {}).get("matching", {}).get("seams_not_marks", False))
+
+
+def colour_on_paint(th: dict | None) -> bool:
+    """Lead Nov 2 (thresholds matching.colour_on_paint): the marks prompt also asks for a stripe or patch of a clearly
+    different colour on the paint (paint transfer, tape, a sticker) typed scuff, and the two-question counter-look
+    counts one as a mark in the box. On hero_focus1 the old prompt (scratch, scuff, chip, dent and crack only) boxed none
+    of the tape strips Sanat put on the paint in the pickup, and the one it boxed at return came back unsure. Off when
+    absent."""
+    leaf = (th or {}).get("matching", {}).get("colour_on_paint")
+    return bool(leaf.get("enabled")) if isinstance(leaf, dict) else bool(leaf)
+
+
+def conditions_on_panel(th: dict | None) -> bool:
+    """Lead Nov 2 (thresholds matching.conditions_on_panel): the marks prompt asks for the wet, dirty, glare and dark
+    flags of the named panel itself, not of the whole crop, so leaves on the windshield in a door crop do not flag the
+    door (K15 caps that door's one-walk marks). Off when absent."""
+    leaf = (th or {}).get("matching", {}).get("conditions_on_panel")
+    return bool(leaf.get("enabled")) if isinstance(leaf, dict) else bool(leaf)
+
+
+def inside_other_box(th: dict | None) -> bool:
+    """Nov 2 (thresholds matching.inside_other_box): a mark seen in one walk only whose position lies inside a box the
+    other walk drew in its compared keyframe is capped (K19). Off when absent."""
+    leaf = (th or {}).get("matching", {}).get("inside_other_box")
+    return bool(leaf.get("enabled")) if isinstance(leaf, dict) else bool(leaf)
+
+
+def _compared_frame_box(m: Mark, kf: Keyframe | None, residual: Point2 | None) -> list[tuple[float, float]] | None:
+    """The four corners of the mark's box whitened in its own keyframe, in the frame the match compares in."""
+    if m.bbox_crop is None or kf is None or kf.moments is None or kf.front_sign is None:
+        return None
+    du, dv = (float(residual[0]), float(residual[1])) if residual is not None and m.role == "return" else (0.0, 0.0)
+    x1, y1, x2, y2 = (float(v) for v in m.bbox_crop)
+    try:
+        corners = [geometry.whiten(p, kf.moments, kf.front_sign) for p in ((x1, y1), (x2, y1), (x2, y2), (x1, y2))]
+    except (ValueError, np.linalg.LinAlgError):
+        return None
+    return [(float(u) - du, float(v) - dv) for u, v in corners]
+
+
+COVERED_SHARE_MIN = 0.5  # K19: at least this share of the mark's whitened box lies inside the other walk's box
+
+
+def _covered_share(poly: list[tuple[float, float]], other: list[tuple[float, float]]) -> float:
+    """The share of poly's area inside other (both whitened boxes, convex quadrilaterals)."""
+    import cv2
+
+    a = np.asarray(poly, dtype=np.float32).reshape(-1, 1, 2)
+    b = np.asarray(other, dtype=np.float32).reshape(-1, 1, 2)
+    own = abs(float(cv2.contourArea(a)))
+    if own <= 0.0:
+        return 0.0
+    if cv2.contourArea(a, oriented=True) < 0:
+        a = a[::-1].copy()
+    if cv2.contourArea(b, oriented=True) < 0:
+        b = b[::-1].copy()
+    inter, _ = cv2.intersectConvexConvex(a, b)
+    return float(inter) / own
+
+
+def covered_by_other_walk(pm: PanelMatch, marks: dict[str, Mark], keyframes: dict[str, Keyframe]) -> dict[str, str]:
+    """Pure (Nov 2, K19): each mark of the panel seen in one walk only (unmatched, or in a pair beyond tau_eye_r) whose
+    whitened box, in the frame the match compares in, lies at least COVERED_SHARE_MIN inside the whitened box of a
+    mark the other walk has in its compared keyframe, mapped to that mark's id. On eval_nhtsa15759_r16 with the colour
+    sentence, the pickup's tape stripes on the left front door had no return box of their own because the return
+    answer boxed the whole crush as one mark over them, and each came out not seen at return. The share, not the
+    centre, decides: the crush itself, whose centre falls on a thin pickup tape box, stays new."""
+    if pm.state != MatchState.COMPARABLE or not pm.kf_pair:
+        return {}
+    residual = pm.handle_residual
+    one_walk = [*pm.unmatched_pickup, *pm.unmatched_return, *(i for p in pm.pairs if p.d >= p.tau_eye_r for i in (p.pickup_mark, p.return_mark))]
+    panel_ids = {*pm.unmatched_pickup, *pm.unmatched_return, *(i for p in pm.pairs for i in (p.pickup_mark, p.return_mark))}
+    compared = dict(zip(ROLES, pm.kf_pair))
+    boxes: dict[str, list[tuple[str, list[tuple[float, float]]]]] = {role: [] for role in ROLES}
+    for i in sorted(panel_ids):
+        m = marks.get(i)
+        if m is None or m.kf_id != compared.get(m.role):
+            continue
+        poly = _compared_frame_box(m, keyframes.get(m.kf_id), residual)
+        if poly is not None:
+            boxes[m.role].append((i, poly))
+    out: dict[str, str] = {}
+    for i in one_walk:
+        m = marks.get(i)
+        own = _compared_frame_box(m, keyframes.get(m.kf_id), residual) if m is not None else None
+        if own is None:
+            continue
+        other = "return" if m.role == "pickup" else "pickup"
+        hit = next((j for j, poly in boxes[other] if _covered_share(own, poly) >= COVERED_SHARE_MIN), None)
+        if hit is not None:
+            out[i] = hit
+    return out
+
+
+def same_walk_config(th: dict | None) -> dict[str, Any] | None:
+    """Nov 2 (thresholds matching.same_walk_register): the registration numbers (the matching.registration leaf with
+    register.DEFAULTS filled, or the defaults alone) when the leaf is on; None when absent or off."""
+    leaf = (th or {}).get("matching", {}).get("same_walk_register")
+    if not (leaf.get("enabled") if isinstance(leaf, dict) else leaf):
+        return None
+    from . import register
+
+    return register.config(th) or {**register.DEFAULTS}
+
+
+def same_walk_step(
+    panel_marks: dict[str, list[Mark]], compared: dict[str, Keyframe], cache: "RegistrationCache", th: dict
+) -> tuple[dict[str, list[Mark]], list[Mark], list[SameWalkNote]]:
+    """Nov 2 (matching.same_walk_register), on a compared non-wheel panel before the match: in each walk, every mark of
+    another keyframe of that walk is carried onto the walk's compared keyframe through a registration fit of the two
+    crops (register.align, the same fit as across walks; within one walk the light and view barely change). A carried
+    box whose centre lands inside, or within register.coincide_px of, a mark already on the compared keyframe is that
+    mark seen again and leaves matching (merged_into); any other is re-placed there (kf_id, box and point mapped,
+    whitened in the compared keyframe's frame) so every mark of the walk is compared in one frame. A mark whose fit is
+    refused, or whose box lands off the compared crop, stays as it was. On hero_focus1 one tape strip sat 0.4 to 0.9
+    panel units apart in the three pickup keyframes of the rear bumper (its SAM mask changed shape between them), far
+    over the 0.2 merge radius, so the copies stayed apart and none paired. A mark another keyframe's copy merged into
+    loses K2 (single frame): it shows in two keyframes. Returns the walks' marks, the marks changed (re-placed, or K2
+    lifted) and the notes."""
+    from . import register
+    from .marks import whiten_marks
+
+    out: dict[str, list[Mark]] = {role: list(panel_marks.get(role, [])) for role in ROLES}
+    moved: list[Mark] = []
+    notes: list[SameWalkNote] = []
+    for role in ROLES:
+        k = compared.get(role)
+        if k is None or k.moments is None or k.front_sign is None or k.crop is None:
+            continue
+        kept = [m for m in out[role] if m.kf_id == k.kf_id]
+        anchors = [(m.mark_id, tuple(float(v) for v in m.bbox_crop)) for m in kept if m.bbox_crop is not None]
+        seen_again: set[str] = set()
+        others = sorted({m.kf_id for m in out[role] if m.kf_id != k.kf_id}, key=lambda i: (_kf_index(cache.kf_by_id[i]) if i in cache.kf_by_id else (1 << 30, i)))
+        for kf_id in others:
+            ms = [m for m in out[role] if m.kf_id == kf_id]
+            al = cache.fit(kf_id, k.kf_id)
+            if al is None or not al.ok or al.H is None:
+                kept.extend(ms)
+                continue
+            reproj = None if not math.isfinite(al.reproj_px) else round(float(al.reproj_px), 3)
+            for m in ms:
+                if m.bbox_crop is None:
+                    kept.append(m)
+                    continue
+                box = register.map_box(al.H, tuple(float(v) for v in m.bbox_crop))  # type: ignore[arg-type]
+                cx, cy = _centre(box)
+                if not (0.0 <= cx < k.crop.w and 0.0 <= cy < k.crop.h):
+                    kept.append(m)
+                    continue
+                hit = None
+                best = float("inf")
+                for aid, ab in anchors:
+                    ax, ay = _centre(ab)
+                    dist = math.hypot(cx - ax, cy - ay)
+                    inside = ab[0] <= cx <= ab[2] and ab[1] <= cy <= ab[3]
+                    if (inside or dist <= register.coincide_px(ab, cache.cfg)) and dist < best:
+                        hit, best = aid, dist
+                if hit is not None:
+                    notes.append(SameWalkNote(mark_id=m.mark_id, from_kf=kf_id, to_kf=k.kf_id, merged_into=hit, model=str(al.model), reproj_px=reproj))
+                    seen_again.add(hit)
+                    continue
+                clipped = [max(0.0, box[0]), max(0.0, box[1]), min(float(k.crop.w), box[2]), min(float(k.crop.h), box[3])]
+                placed = m.model_copy(update={"kf_id": k.kf_id, "bbox_crop": [round(v, 3) for v in clipped], "point_crop": [round(cx, 3), round(cy, 3)]})
+                [placed], _ = whiten_marks([placed], k, th=th)
+                kept.append(placed)
+                moved.append(placed)
+                anchors.append((placed.mark_id, tuple(clipped)))  # type: ignore[arg-type]
+                notes.append(SameWalkNote(mark_id=m.mark_id, from_kf=kf_id, to_kf=k.kf_id, model=str(al.model), reproj_px=reproj))
+        # K2 (single frame) said the mark showed in one keyframe only; a copy registered onto it shows it in two
+        lifted = [m.model_copy(update={"caps": [c for c in m.caps if c != "K2"]}) if m.mark_id in seen_again and "K2" in m.caps else m for m in kept]
+        moved.extend(m for m, was in zip(lifted, kept) if m is not was and m not in moved)
+        out[role] = lifted
+    return out, moved, notes
+
+
+def same_walk_words(pm: PanelMatch) -> str | None:
+    """how_checked's part for the same-walk step: each mark merged or carried, with the fit."""
+    if not pm.same_walk:
+        return None
+    parts = []
+    for n in pm.same_walk:
+        if n.merged_into:
+            parts.append(f"{n.mark_id} is {n.merged_into} seen again in {n.from_kf} (registered onto {n.to_kf}, {n.model})")
+        else:
+            parts.append(f"{n.mark_id} carried from {n.from_kf} onto {n.to_kf} ({n.model})")
+    return "same walk: " + "; ".join(parts)
+
+
+GLASS_LINE = "glass: check by eye; reflections make marks on glass unreliable"
+DEBRIS_LINE = "debris on this panel; check by eye"
+
+
+def glass_by_eye(th: dict | None) -> frozenset[PanelId]:
+    """Lead Nov 2 (thresholds matching.glass_by_eye {"enabled", "panels"}): the glass panels whose marks are left out
+    of matching and that get one check-by-eye line (GLASS_LINE) instead of verdicts. Side windows are part of the door
+    crops, whose masks cut the window out (keyframe window_subtracted), so the on-panel rule already leaves their boxes
+    out. Empty when absent or off."""
+    leaf = (th or {}).get("matching", {}).get("glass_by_eye")
+    if not isinstance(leaf, dict) or not leaf.get("enabled"):
+        return frozenset()
+    return frozenset(PanelId(p) for p in leaf.get("panels", [PanelId.WINDSHIELD.value, PanelId.REAR_WINDOW.value]))
+
+
+def debris_by_eye(th: dict | None) -> frozenset[MarkKind]:
+    """Lead Nov 2 (thresholds matching.debris_by_eye {"enabled", "types"}): the mark types whose needs-your-eye lines on a
+    flagged view fold into one DEBRIS_LINE per panel (debris_split). Empty when absent or off."""
+    leaf = (th or {}).get("matching", {}).get("debris_by_eye")
+    if not isinstance(leaf, dict) or not leaf.get("enabled"):
+        return frozenset()
+    return frozenset(MarkKind(t) for t in leaf.get("types", [MarkKind.DIRT.value]))
+
+
+def debris_split(pm: PanelMatch, verdicts: list[Verdict], marks: dict[str, Mark], keyframes: dict[str, Keyframe], th: dict) -> tuple[PanelMatch, list[Verdict]]:
+    """Pure (lead Nov 2, matching.debris_by_eye): on a compared panel, a needs-your-eye verdict whose every mark Muse Spark
+    typed one of the leaf's types (dirt) and whose views are flagged (the views K15 reads: the compared keyframe pair
+    and the keyframes its marks were placed in, wet, dirty or glare) leaves the verdict list and its marks go into one
+    ByEyeLine of kind debris on the panel. A verdict holding any other type (a damage type or unsure) stays, so no mark
+    Spark called damage or could not tell is hidden. The kept verdicts are numbered again in order."""
+    types = debris_by_eye(th)
+    if not types or pm.state != MatchState.COMPARABLE or not verdicts:
+        return pm, verdicts
+    paired = [keyframes.get(k) for k in (pm.kf_pair or [])]
+
+    def folds(v: Verdict) -> bool:
+        involved = [marks.get(i) for i in v.mark_ids]
+        if v.label != VerdictLabel.NEEDS_YOUR_EYE or not involved or any(m is None or m.type not in types for m in involved):
+            return False
+        views = [*paired, *(keyframes.get(m.kf_id) for m in involved if m is not None)]
+        return any(view_flags(kf) for kf in views)
+
+    folded = [v for v in verdicts if folds(v)]
+    if not folded:
+        return pm, verdicts
+    kept = [v.model_copy(update={"verdict_id": f"{pm.panel_id.value}_v{n}"}) for n, v in enumerate((v for v in verdicts if not folds(v)), 1)]
+    line = ByEyeLine(kind="debris", text=DEBRIS_LINE, mark_ids=sorted({i for v in folded for i in v.mark_ids}))
+    return pm.model_copy(update={"by_eye": [*pm.by_eye, line]}), kept
+
+
+def by_eye_words(pm: PanelMatch | None) -> list[str]:
+    """The sheet's check-by-eye lines for a panel: the line, then how many boxes it stands for."""
+    out = []
+    for line in pm.by_eye if pm is not None else []:
+        n = len(line.mark_ids)
+        if line.kind == "glass":
+            out.append(f"{line.text} ({n} spot{'' if n == 1 else 's'} Muse Spark boxed on it, not judged)" if n else line.text)
+        else:
+            out.append(f"{line.text} ({n} spot{'' if n == 1 else 's'} Muse Spark typed dirt on a flagged view, not listed one by one)")
+    return out
 
 
 def registration_config(th: dict | None) -> dict[str, Any] | None:
@@ -595,6 +845,7 @@ def how_checked(pm: PanelMatch) -> str | None:
         off_panel_words(pm) if pm.off_panel else None,
         "; ".join(f"second marks pass: {w}" for w in pm.second_pass) if pm.second_pass else None,
         registration_words(pm),
+        same_walk_words(pm),
     ]
     line = "; ".join(p for p in parts if p)
     return line or None
@@ -1347,6 +1598,7 @@ def verdicts_for(
     counters, counter_skipped = counters or {}, counter_skipped or {}
     confirm = counter_confirms_mark(th)
     reg_capped = registration_capped(pm)
+    covered = covered_by_other_walk(pm, marks, keyframes) if inside_other_box(th) else {}
     cm_per_unit = float(th["matching"]["cm_per_unit_for_print"])
     panel_marks = [marks[i] for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in marks]
     kf_status = {kf.kf_id: kf.marks_status for kf in keyframes.values() if kf.panel_id == pm.panel_id}
@@ -1467,6 +1719,8 @@ def verdicts_for(
                 flags = flags_for(pair, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
                 if mark.mark_id in reg_capped:
                     flags = flags.model_copy(update={"K18": True})
+                if mark.mark_id in covered:
+                    flags = flags.model_copy(update={"K19": True})
                 flags, counter_note = counter_flags(mark, flags, counters, counter_skipped, confirm=confirm)
                 label, ids = verdict(pair.d, pair.tau_pre_r, pair.tau_eye_r, flags)
                 emit(label, ids, [mark.mark_id], None, pair, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
@@ -1483,6 +1737,8 @@ def verdicts_for(
         flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
         if mark.mark_id in reg_capped:
             flags = flags.model_copy(update={"K18": True})
+        if mark.mark_id in covered:
+            flags = flags.model_copy(update={"K19": True})
         flags, counter_note = counter_flags(mark, flags, counters, counter_skipped, confirm=confirm)
         label, ids = verdict(None, tau_pre_r, tau_eye_r, flags)
         emit(label, ids, [mark.mark_id], None, None, one_walk_note("return" if is_return else "pickup", view), counter_note=counter_note)
@@ -1968,6 +2224,9 @@ def derive_match(
     deferred = tight_pair_deferrable(th)
     reg_cfg = registration_config(th)
     reg_cache = RegistrationCache(run_id, kf_by_id, marks, reg_cfg) if reg_cfg is not None else None
+    glass = glass_by_eye(th)
+    sw_cfg = same_walk_config(th)
+    sw_cache = (reg_cache if reg_cache is not None and reg_cache.cfg == sw_cfg else RegistrationCache(run_id, kf_by_id, marks, sw_cfg)) if sw_cfg is not None else None
     masks: dict[str, np.ndarray | None] = {}
     matches: list[PanelMatch] = []
     verdicts: list[Verdict] = []
@@ -1977,6 +2236,10 @@ def derive_match(
         if not kfs["pickup"] and not kfs["return"]:
             continue
         panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role and m.mark_id not in fixtures and m.mark_id not in left_out] for role in ROLES}
+        glass_ids: list[str] = []
+        if panel.panel_id in glass:  # lead Nov 2: glass gets one check-by-eye line, its marks no verdict
+            glass_ids = sorted(m.mark_id for role in ROLES for m in panel_marks[role])
+            panel_marks = {role: [] for role in ROLES}
         truncated_all = {role: bool(kfs[role]) and all(kf.marks_status == MarksStatus.TRUNCATED for kf in kfs[role]) for role in ROLES}
         if kfs["pickup"] and kfs["return"]:
             order = keyframe_pair_order(kfs["pickup"], kfs["return"], th=th)
@@ -1991,11 +2254,19 @@ def derive_match(
                     if not cand.gates:
                         kf_p, kf_r, used = cand_p, cand_r, cand
                         break
+            sw_notes: list[SameWalkNote] = []
+            if sw_cache is not None and not used.gates and panel.panel_id not in WHEEL_PANELS:
+                panel_marks, placed, sw_notes = same_walk_step(panel_marks, {"pickup": kf_p, "return": kf_r}, sw_cache, th)
+                for m in placed:
+                    marks_by_id[m.mark_id] = m
+                    whitened[m.mark_id] = whitened_from_marks([m])[m.mark_id]
             pm = match_panel(panel, panel_marks["pickup"], panel_marks["return"], whitened, (kf_p, kf_r), list(used.gates), calibration, th)
+            if sw_notes:
+                pm = pm.model_copy(update={"same_walk": sw_notes})
             pm = pm.model_copy(update={"mask_iou": used.mask_iou, "kf_pairs_tried": tries if retry else []})
             if reshaped and pm.state == MatchState.NOT_COMPARABLE:
                 pm = pm.model_copy(update={"reshape": reshape_check(run_id, tries, kf_by_id, th, masks)})
-            if reg_cache is not None:
+            if reg_cache is not None and panel.panel_id not in glass:
                 try:
                     pm = registration_step(pm, panel_marks, reg_cache, calibration, th)
                 except Exception as exc:  # pixels only and never a verdict: a failure here must not stop the match
@@ -2017,6 +2288,8 @@ def derive_match(
             pm = pm.model_copy(update={"off_panel": off_notes[panel.panel_id]})
         if passes.get(panel.panel_id):
             pm = pm.model_copy(update={"second_pass": passes[panel.panel_id]})
+        if panel.panel_id in glass:
+            pm = pm.model_copy(update={"by_eye": [ByEyeLine(kind="glass", text=GLASS_LINE, mark_ids=glass_ids)]})
         looks: dict[tuple[str, str], LookVerdict | None] = {}  # None: asked, no usable answer
         if second_look is not None and pm.state == MatchState.COMPARABLE:
             kf_status = {kf.kf_id: kf.marks_status for kf in keyframes if kf.panel_id == pm.panel_id}
@@ -2027,7 +2300,6 @@ def derive_match(
                 if _provisional_already_there(pair, a, b, staysput_caps(mark_tracks, th), kf_status, deferred=deferred):
                     looks[(pair.pickup_mark, pair.return_mark)] = second_look(pair)
                     looks_used += 1
-        matches.append(pm)
         staged.append((pm, looks))
     counter = counter_look if counter_look is not None else getattr(second_look, "counter", None)
     counters: dict[str, LookVerdict | CounterAnswer | None] = {}
@@ -2040,7 +2312,13 @@ def derive_match(
             counters[ask.mark_id] = counter(ask)
         skipped = {ask.mark_id: cap for ask in ranked[cap:]}
     for pm, looks in staged:
-        verdicts.extend(verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th, counters, skipped))
+        if pm.panel_id in glass:
+            matches.append(pm)  # the glass line stands for the panel: no verdict, not even not comparable
+            continue
+        panel_verdicts = verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th, counters, skipped)
+        pm, panel_verdicts = debris_split(pm, panel_verdicts, marks_by_id, kf_by_id, th)
+        matches.append(pm)
+        verdicts.extend(panel_verdicts)
     write_json(paths.matches_json(run_id), matches)
     write_json(paths.verdicts_json(run_id), verdicts)
     return matches, verdicts, calibration

@@ -73,6 +73,10 @@ def th() -> dict[str, Any]:
     # registration (11/2) reads the crops' pixels; these fixtures use one picture for both walks, so it would see
     # every one-walk mark at its spot. It has its own tests (tests/test_registration_1102.py).
     values["matching"].pop("registration", None)
+    # the Nov 2 leaves (glass and debris lines, the colour and panel-conditions sentences, K19, the same-walk step)
+    # change what these fixtures were written to show; they have their own tests (tests/test_hero_1102.py)
+    for leaf in ("glass_by_eye", "debris_by_eye", "colour_on_paint", "conditions_on_panel", "inside_other_box", "same_walk_register"):
+        values["matching"].pop(leaf, None)
     return values
 
 
@@ -833,7 +837,7 @@ async def test_derive_marks_with_a_fake_spark_writes_marks_keyframes_and_sigma_v
     calls: list[tuple[PanelId, list[str], str]] = []
     fixture_flags: list[bool] = []
 
-    def fake_find_marks(crop_rgb: np.ndarray, panel_id: PanelId, *, landmarks: list[str], effort: str, run_id: str | None, input_ref: Any, fixtures: bool = False, seams: bool = False) -> spark_client.MarksResult:
+    def fake_find_marks(crop_rgb: np.ndarray, panel_id: PanelId, *, landmarks: list[str], effort: str, run_id: str | None, input_ref: Any, fixtures: bool = False, seams: bool = False, colour: bool = False, panel_conditions: bool = False) -> spark_client.MarksResult:
         calls.append((panel_id, landmarks, effort))
         fixture_flags.append(fixtures)
         n = len(calls)

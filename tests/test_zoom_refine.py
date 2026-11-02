@@ -19,6 +19,8 @@ from walkaround import contracts as c
 
 TH = c.load_thresholds()
 S = zoom_refine.settings(TH)
+# the 11/1 study ran with the nearest zoom box; prefer_kind (11/2) is scored in docs/evidence/hero_1102/zoom_kind.py
+STUDY_TH = {**TH, "dedup": {**TH["dedup"], "spark_zoom_refine": {k: v for k, v in TH["dedup"]["spark_zoom_refine"].items() if k != "prefer_kind"}}}
 CROP = c.Crop(path="crops/pickup/pickup_hood_kf1.jpg", sha256="a" * 64, w=400, h=300, scale=0.5, dx=1000.0, dy=500.0)
 EVIDENCE = Path(__file__).resolve().parent.parent / "docs" / "evidence" / "zoom_refine_1101"
 
@@ -252,7 +254,7 @@ def test_the_product_code_gives_the_studys_numbers_on_the_stored_answers() -> No
         assert win == e["window"]
         a = zoom_refine.ZoomAsk(kf_id=kf_id, role="pickup", mark_id=m.mark_id, panel_id=c.PanelId(e["panel_id"]), crop_path=crop.path, crop_w=crop.w, crop_h=crop.h, window=win, out_w=1280, out_h=720, record=c.SparkRequestRecord.model_validate(e["record"]))
         kf = _kf(crop).model_copy(update={"kf_id": kf_id})
-        out = zoom_refine.refine_marks([m], kf, zoom_refine.Index([a]), th=TH)[0]
+        out = zoom_refine.refine_marks([m], kf, zoom_refine.Index([a]), th=STUDY_TH)[0]
         if row["status"] != "moved":
             continue
         b, h = list(out.bbox_crop), row["hand"]  # type: ignore[arg-type]
