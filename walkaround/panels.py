@@ -2863,6 +2863,9 @@ async def derive(
     early = prior_tracks + [t for t in on_disk if t.role == role and t.noun not in PRIVACY_NOUNS] + privacy_new
     await asyncio.to_thread(c.write_json, paths.tracks_json(run_id), _sorted_tracks(early))
     panel_new, kept = await asyncio.to_thread(_role_panel_tracks, role, frames_by_noun, **common)
+    off_cfg = off_car_settings(th)
+    if off_cfg is not None:
+        panel_new = await asyncio.to_thread(_drop_off_car, run_id, role, panel_new, kept, records, media_size, decode, off_cfg, th)
     new_tracks = privacy_new + panel_new
     prior_keyframes = [k for k in await asyncio.to_thread(_read_list, paths.keyframes_json(run_id), c.Keyframe) if k.role != role]
     cov_path = paths.coverage_json(run_id)
@@ -3086,6 +3089,130 @@ class _CarTest:
             return True  # no car mask decoded at this frame: score_keyframe skips the test too
         total = int(mask.sum())
         return total > 0 and float((mask & _fit_mask(car, mask.shape[:2])).sum()) / total >= self.min_share
+
+
+# Off-car panel tracks (R26, 11/2). The box test (car_box_containment_min) keeps a part of another car whenever that car
+# stands inside the target car's box, as the SUV parked behind the Focus on hero_focus4 did. A panel track whose mask
+# lies mostly outside the target car's own mask (the largest car box's mask, as _CarTest reads it) is dropped.
+OFF_CAR_DEFAULTS: dict[str, Any] = {"enabled": True, "min_inside": 0.25, "frames": 3, "grid": 10}
+
+
+def off_car_settings(th: dict[str, Any] | None) -> dict[str, Any] | None:
+    """thresholds panels.off_car_tracks with its defaults filled, or None when absent or off, as in every run frozen
+    before it (those keep their tracks as they were)."""
+    raw = (th or {}).get("panels", {}).get("off_car_tracks")
+    if not isinstance(raw, dict) or not raw.get("enabled", False):
+        return None
+    return {**OFF_CAR_DEFAULTS, **raw}
+
+
+def off_car_frames(track: c.PanelTrack, car_frames: Collection[int], cfg: dict[str, Any]) -> list[tuple[int, str]]:
+    """Up to cfg frames (frame, SAM id) spread evenly over the track, only where the car lane has an object. Frames on
+    the cfg grid come first, so the tracks seen together share one car mask decode."""
+    rows = [(r.frame, oid) for r in track.per_frame if r.frame in car_frames and (oid := _object_at(track, r.frame)) is not None]
+    grid = int(cfg["grid"])
+    pool = [x for x in rows if grid > 0 and x[0] % grid == 0] or rows
+    n = max(1, int(cfg["frames"]))
+    if len(pool) <= n:
+        return pool
+    if n == 1:
+        return [pool[len(pool) // 2]]
+    return [pool[round(i * (len(pool) - 1) / (n - 1))] for i in range(n)]
+
+
+def off_car_shares(
+    tracks: Sequence[c.PanelTrack],
+    frames_by_noun: dict[Noun, list[c.IndexFrame]],
+    lane_paths: dict[Noun, Path | None],
+    masks: _Masks,
+    media_size: tuple[int, int],
+    cfg: dict[str, Any],
+) -> dict[str, float]:
+    """{track id: the median, over off_car_frames, of the share of the panel mask's pixels inside the car mask} for the
+    panel tracks of one walk. The car mask is the one of the largest car box at the frame. Plate, face, car and built
+    fender tracks are not measured; a track with no frame where both masks decode is left out (kept)."""
+    car_obj = {fr.frame: max(fr.objects, key=lambda o: _area(o.box)) for fr in frames_by_noun.get(Noun.CAR, []) if fr.objects}
+    car_lookup = {(f, o.id): o for f, o in car_obj.items()}
+    lookups: dict[Noun, dict[tuple[int, str], c.IndexObject]] = {}
+    car_masks: dict[int, np.ndarray | None] = {}
+    out: dict[str, float] = {}
+    for t in tracks:
+        if t.noun in PRIVACY_NOUNS or t.noun is Noun.CAR or is_wheel_fender(t):
+            continue
+        lookup = lookups.get(t.noun)
+        if lookup is None:
+            lookup = lookups[t.noun] = _box_lookup(frames_by_noun.get(t.noun, []))
+        shares: list[float] = []
+        for f, oid in off_car_frames(t, car_obj, cfg):
+            obj = lookup.get((f, oid))
+            if obj is None or obj.mask is None:
+                continue
+            raster = masks.lane(lane_paths.get(t.noun), [(f, oid)], lookup).get((f, oid))
+            if raster is None:
+                continue
+            if f not in car_masks:
+                car = car_obj[f]
+                got = masks.lane(lane_paths.get(Noun.CAR), [(f, car.id)], car_lookup).get((f, car.id)) if car.mask is not None else None
+                car_masks[f] = sam_wire.paste_mask(np.asarray(got, dtype=bool), list(car.box), car.mask, media_size) if got is not None and car.mask is not None else None
+            car_mask = car_masks[f]
+            if car_mask is None:
+                continue
+            panel = sam_wire.paste_mask(np.asarray(raster, dtype=bool), list(obj.box), obj.mask, media_size)
+            total = int(panel.sum())
+            if total:
+                shares.append(float((panel & car_mask).sum()) / total)
+        if shares:
+            out[t.track_id] = round(float(statistics.median(shares)), 6)
+    return out
+
+
+def off_car_ids(shares: dict[str, float], cfg: dict[str, Any]) -> list[str]:
+    """The measured tracks under cfg min_inside, sorted."""
+    return sorted(tid for tid, share in shares.items() if share < float(cfg["min_inside"]))
+
+
+def _drop_off_car(
+    run_id: str,
+    role: str,
+    tracks: list[c.PanelTrack],
+    kept: dict[Noun, list[c.IndexFrame]],
+    records: dict[Noun, c.LaneRecord | None],
+    media_size: tuple[int, int],
+    decode: Any,
+    cfg: dict[str, Any],
+    th: dict[str, Any],
+) -> list[c.PanelTrack]:
+    """derive's step under panels.off_car_tracks: the walk's panel tracks less those mostly off the car's mask."""
+    masks = _Masks(decode, th)
+    if not masks.usable:
+        log.warning("%s %s: no mask decoder, so no track was tested against the car mask", run_id, role)
+        return tracks
+    lane_paths = {noun: _lane_path(run_id, role, records.get(noun), noun) for noun in LANE_NOUNS}
+    shares = off_car_shares(tracks, kept, lane_paths, masks, media_size, cfg)
+    off = set(off_car_ids(shares, cfg))
+    if off:
+        log.info("%s %s: dropped %d panel tracks mostly off the car mask: %s", run_id, role, len(off), ", ".join(f"{t} {shares[t]:.2f}" for t in sorted(off)))
+    return [t for t in tracks if t.track_id not in off]
+
+
+def stored_off_car(
+    run_id: str,
+    role: str,
+    tracks: Sequence[c.PanelTrack],
+    lanes: dict[str, tuple[c.LaneRecord, list[c.IndexFrame]]],
+    media_size: tuple[int, int],
+    th: dict[str, Any],
+) -> dict[str, float]:
+    """off_car_shares of a stored walk's tracks, read from its stored lanes (the walk overlay's display filter for runs
+    frozen before panels.off_car_tracks; nothing in the run changes). Uses the run's off_car_tracks numbers when it has
+    them, else OFF_CAR_DEFAULTS."""
+    cfg = off_car_settings(th) or dict(OFF_CAR_DEFAULTS)
+    frames_by_noun = {noun: (lanes.get(noun_slug(noun)) or (None, []))[1] for noun in LANE_NOUNS}
+    lane_paths = {noun: _lane_path(run_id, role, (lanes.get(noun_slug(noun)) or (None, []))[0], noun) for noun in LANE_NOUNS}
+    masks = _Masks(None, th)
+    if not masks.usable:
+        return {}
+    return off_car_shares([t for t in tracks if t.role == role], frames_by_noun, lane_paths, masks, media_size, cfg)
 
 
 def _mask_at(

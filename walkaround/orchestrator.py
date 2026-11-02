@@ -315,6 +315,8 @@ class Orchestrator:
         self._deadline: dict[str, float] = {}
         self._decode_pool: Any | None = None
         self._checks_memo: dict[str, dict[str, Any]] = {}  # run_id -> frame digest -> image check answers
+        self._off_car: dict[str, tuple[tuple[int, int], dict[str, Any]]] = {}  # run_id -> (tracks.json stamp, view)
+        self._off_car_lock = threading.Lock()
         self.paused = False
         self.probe_ok: bool | None = None
         self._probe_failures = 0
@@ -1536,6 +1538,39 @@ class Orchestrator:
         if not self.has_dep("panels.privacy_tracks") and not self._role_derived(run_id, role):
             return f"{role} walk: no display video, because its plate and face tracks were never built"
         return None
+
+    def off_car_view(self, run: c.RunManifest) -> dict[str, Any]:
+        """The walk overlay's display filter (R26): {"track_ids": the panel tracks mostly off the car's mask, "shares":
+        every measured share, "min_inside", "in_core"}. A run whose thresholds carry panels.off_car_tracks dropped such
+        tracks in panels.derive (in_core, nothing to hide); for a run frozen before it the same measure is read from
+        its stored lanes (panels.stored_off_car). Nothing in the run changes. Cached per tracks.json stamp."""
+        run_id = run.run_id
+        th = self.run_th(run)
+        path = paths.tracks_json(run_id)
+        empty: dict[str, Any] = {"in_core": False, "min_inside": None, "shares": {}, "track_ids": []}
+        if not path.is_file():
+            return empty
+        if self.dep("panels.off_car_settings")(th) is not None:
+            return {**empty, "in_core": True}
+        st = path.stat()
+        stamp = (st.st_mtime_ns, st.st_size)
+        with self._off_car_lock:
+            hit = self._off_car.get(run_id)
+            if hit is not None and hit[0] == stamp:
+                return hit[1]
+            tracks = c.read_json_list(path, c.PanelTrack)
+            shares: dict[str, float] = {}
+            for role in self.expected_roles(run):
+                video = self.load_video(run_id, role)
+                if video is None or video.proxy is None or not any(t.role == role for t in tracks):
+                    continue
+                lanes = self.load_lanes(run, role)
+                size = (video.proxy.width, video.proxy.height)
+                shares.update(self.dep("panels.stored_off_car")(run_id, role, tracks, lanes, size, th))
+            cfg = self.dep("panels.off_car_settings")(th) or dict(self.dep("panels.OFF_CAR_DEFAULTS"))
+            view = {**empty, "min_inside": float(cfg["min_inside"]), "shares": shares, "track_ids": self.dep("panels.off_car_ids")(shares, cfg)}
+            self._off_car[run_id] = (stamp, view)
+            return view
 
     def _lane_frames(self, run_id: str, role: str, noun: c.Noun) -> list[c.IndexFrame]:
         index = paths.lane_index_path(run_id, role, noun)

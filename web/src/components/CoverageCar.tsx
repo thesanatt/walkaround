@@ -59,6 +59,22 @@ export function slotStates(coverage: Coverage | null, panels: Panel[], role: str
   return out;
 }
 
+export interface WalkGap {
+  id: PanelId;
+  state: CoverageState;
+  seconds: number;
+}
+
+// One walk's slots short of filmed, wheels first, then bumpers, then the rest in car order (coverage's own order).
+export function walkGaps(coverage: Coverage | null, panels: Panel[], role: string): WalkGap[] {
+  const states = slotStates(coverage, panels, role);
+  const group = (id: string) => (id.endsWith('_wheel') ? 0 : id.endsWith('_bumper') ? 1 : 2);
+  return SHAPES.map((s) => s.id)
+    .filter((id) => states[id] !== undefined && states[id] !== 'filmed')
+    .sort((a, b) => group(a) - group(b))
+    .map((id) => ({ id, state: states[id]!, seconds: coverage?.per_role[role]?.[id]?.seconds ?? 0 }));
+}
+
 // The order the slots light up in: by when each first appears in the walk, the slots never filmed last.
 export function revealOrder(panels: Panel[], role: string): PanelId[] {
   const start = (p: Panel) => p.per_role[role]?.windows[0]?.[0] ?? Number.POSITIVE_INFINITY;

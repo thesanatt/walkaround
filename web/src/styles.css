@@ -3274,6 +3274,43 @@ body.kiosk {
   align-items: center;
 }
 
+.cov-scene.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 64px;
+  align-items: start;
+}
+
+.cov-walk {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.cov-short.compact ul {
+  gap: 8px;
+  margin: 0;
+}
+
+.cov-short.compact li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 14px;
+}
+
+.cov-short.compact .short-panel {
+  font-size: 28px;
+}
+
+.cov-short.compact .short-state {
+  font-size: 24px;
+}
+
+.cov-note {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
 .kiosk-stage .coverage-car figcaption {
   font-size: 22px;
   gap: 8px 22px;

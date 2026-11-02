@@ -82,7 +82,7 @@ def test_config_caps_hold_a_padded_sixty_second_pair() -> None:
     o = json.loads((REPO / "config" / "thresholds.json").read_text())["orchestrator"]
     assert e["usd_upper"] * hc.SAFETY <= o["run_spend_ceiling_cents"]["value"] / 100
     assert e["wall_upper_s"] * hc.SAFETY <= o["run_deadline_s"]["value"]
-    assert o["daily_card_ceiling_cents"]["value"] == 5000
+    assert o["daily_card_ceiling_cents"]["value"] == 7500  # $75 since the lead's Nov 2, 5 PM raise (commit 672a167)
     assert "hero" in o["run_spend_ceiling_cents"]["source"] and "hero" in o["run_deadline_s"]["source"]
 
 

@@ -15,9 +15,9 @@ export interface WalkMetadata {
   duration: number;
 }
 
-// Every "<lane>|<SAM id>" of the panel (lib/focus.panelObjectKeys): a merged track carries several ids.
+// The panel's objects at a frame (a merged track carries several ids, and SAM reuses an id for a later object).
 export interface Spotlight {
-  keys: ReadonlySet<string>;
+  has: (lane: string, id: string, frame: number) => boolean;
 }
 
 export interface WalkPlayerProps {
@@ -25,9 +25,10 @@ export interface WalkPlayerProps {
   role: string;
   store: LaneStore;
   lanes: readonly string[];
-  colorFor: (role: string, lane: string, id: string) => string;
-  labelFor: (role: string, lane: string, id: string) => string;
-  filterIds?: (lane: string, id: string) => boolean; // only objects passing it are drawn
+  colorFor: (role: string, lane: string, id: string, frame: number) => string;
+  labelFor: (role: string, lane: string, id: string, frame: number) => string;
+  visible?: (role: string, lane: string, id: string, frame: number) => boolean; // the run's own filter (useTrackStyle)
+  filterIds?: (lane: string, id: string, frame: number) => boolean; // only objects passing it are drawn
   spotlight?: Spotlight | null; // dims everything outside these objects' masks
   seekFrame?: number | null; // pause and show this proxy frame
   startTime?: number; // seconds to open the video at; playback continues from there
@@ -92,7 +93,8 @@ export function WalkPlayer(props: WalkPlayerProps) {
     let anyBlooming = false;
     for (const lane of p.lanes) {
       for (const o of p.store.objectsAt(p.role, lane, fi)) {
-        if (p.filterIds && !p.filterIds(lane, o.id)) continue;
+        if (p.visible && !p.visible(p.role, lane, o.id, fi)) continue;
+        if (p.filterIds && !p.filterIds(lane, o.id, fi)) continue;
         const key = `${p.role}|${lane}|${o.id}`;
         let first = p.store.firstSeen.get(key);
         if (first === undefined) {
@@ -101,7 +103,7 @@ export function WalkPlayer(props: WalkPlayerProps) {
         }
         const age = bloom ? now - first : Infinity;
         if (age < LABEL_AFTER_MS) anyBlooming = true;
-        drawn.push({ o, lane, color: p.colorFor(p.role, lane, o.id), age });
+        drawn.push({ o, lane, color: p.colorFor(p.role, lane, o.id, fi), age });
       }
     }
     blooming.current = anyBlooming;
@@ -121,7 +123,7 @@ export function WalkPlayer(props: WalkPlayerProps) {
       ctx.fillStyle = DIM;
       ctx.fillRect(fit.ox, fit.oy, fit.w, fit.h);
       for (const target of drawn) {
-        if (!target.o.path || !p.spotlight.keys.has(`${target.lane}|${target.o.id}`)) continue;
+        if (!target.o.path || !p.spotlight.has(target.lane, target.o.id, fi)) continue;
         ctx.save();
         place(target.o);
         ctx.clip(pathOf(paths.current, target.o), 'evenodd');
@@ -162,7 +164,7 @@ export function WalkPlayer(props: WalkPlayerProps) {
     ctx.textBaseline = 'middle';
     for (const d of drawn) {
       if (d.age < LABEL_AFTER_MS) continue;
-      const label = p.labelFor(p.role, d.lane, d.o.id);
+      const label = p.labelFor(p.role, d.lane, d.o.id, fi);
       const x = fit.ox + d.o.box[0] * fit.scale;
       const y = fit.oy + d.o.box[1] * fit.scale;
       const tw = ctx.measureText(label).width + ((px * 10) / 12) * dpr;

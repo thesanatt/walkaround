@@ -1,4 +1,4 @@
-import { api, ApiError, type FileView } from '../api/client.ts';
+import { api, ApiError, type FileView, type OffCarView } from '../api/client.ts';
 import type { Claim, DeletionRecord, Event, RunManifest } from '../contracts/types.ts';
 import { mergeClaims } from '../lib/claim.ts';
 import type { AnyEvent, SyntheticEvent } from './types.ts';
@@ -10,6 +10,7 @@ export interface RunFiles {
   json<T>(rel: string): Promise<T | null>; // GET /api/runs/{id}/files/<rel>; null when absent
   text?(rel: string): Promise<string | null>; // the same route read as text (open_weights.ndjson)
   run(): Promise<RunManifest | null>; // GET /api/runs/{id}
+  offCar?(): Promise<OffCarView | null>; // GET /api/runs/{id}/off_car, the walk overlay's display filter
 }
 
 export function runFiles(runId: string, view: FileView = 'owner'): RunFiles {
@@ -25,6 +26,7 @@ export function runFiles(runId: string, view: FileView = 'owner'): RunFiles {
     json: <T>(rel: string) => soft(api.file<T>(runId, rel, view)),
     text: (rel: string) => soft(api.text(runId, rel, view)),
     run: () => soft(api.run(runId)),
+    offCar: () => soft(api.offCar(runId)),
   };
 }
 
@@ -111,13 +113,15 @@ export async function loadFor(event: Event, files: RunFiles): Promise<SyntheticE
       return run ? [{ kind: 'run.loaded', payload: run as unknown as Record<string, unknown> }] : [];
     }
     case 'panels.derived': {
-      const [tracks, panels, keyframes] = await Promise.all([
+      const [tracks, panels, keyframes, offCar] = await Promise.all([
         settle(files.json<unknown[]>('derived/tracks.json')),
         settle(files.json<unknown[]>('derived/panels.json')),
         settle(files.json<unknown[]>('derived/keyframes.json')),
+        files.offCar ? settle(files.offCar()) : Promise.resolve(null),
       ]);
       const payload: Record<string, unknown> = {};
       if (tracks) payload['tracks'] = tracks;
+      if (tracks && offCar) payload['off_car'] = offCar.track_ids;
       if (panels) payload['panels'] = panels;
       if (keyframes) payload['keyframes'] = keyframes;
       return Object.keys(payload).length ? [{ kind: 'panels.derived.loaded', payload }] : [];

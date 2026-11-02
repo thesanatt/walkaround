@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { api, routes } from '../api/client.ts';
 import { BlurBeat } from '../components/BlurBeat.tsx';
-import { CoverageCar, revealOrder } from '../components/CoverageCar.tsx';
+import { CoverageCar, revealOrder, walkGaps } from '../components/CoverageCar.tsx';
 import { bestKeyframe, CropFigure } from '../components/CropView.tsx';
 import { FragmentsRow } from '../components/FragmentsRow.tsx';
 import { HowChecked } from '../components/HowChecked.tsx';
@@ -17,7 +17,7 @@ import { StageLine } from '../components/StageLine.tsx';
 import { controlTrack, StaysPutPair } from '../components/StaysPutPair.tsx';
 import { topupGains } from '../components/TopUpBanner.tsx';
 import { WalkPlayer, type Spotlight } from '../components/WalkPlayer.tsx';
-import type { Claim, PanelId } from '../contracts/types.ts';
+import type { Claim, CoverageState, PanelId } from '../contracts/types.ts';
 import { CHECK_ROWS, COVERAGE_FILL, CROP_MARKS, neighbourScene, revealCount, sceneByName, stepAt, type Scene } from '../kiosk/scenes.ts';
 import { useLanes } from '../lanes/useLanes.ts';
 import { claimPhotoPath, effectiveExit } from '../lib/claim.ts';
@@ -204,12 +204,12 @@ interface WalkOptions {
   only?: boolean;
   spot?: boolean;
   startFrame?: number | null;
-  label?: (role: string, lane: string, id: string) => string;
+  label?: (role: string, lane: string, id: string, frame: number) => string;
 }
 
 // Exported for the tests, which render a scene's body at a given step without the page's data loading.
 export function SceneBody({ scene, state, panelId, elapsed, t, upgraded, runId, lanes, query }: BodyProps) {
-  const { colorFor, labelFor } = useTrackStyle(state.tracks);
+  const { colorFor, labelFor, visible, index } = useTrackStyle(state.tracks, state.offCar);
   const roles = rolesOf(state);
   const step = stepAt(scene, elapsed)?.name ?? scene.steps[0]?.name ?? '';
   const color = colorForPanel(panelId);
@@ -219,9 +219,10 @@ export function SceneBody({ scene, state, panelId, elapsed, t, upgraded, runId, 
   const match = state.matches.find((m) => m.panel_id === panelId);
   const kf = panelId ? bestKeyframe(state.keyframes, 'pickup', panelId) : undefined;
   const panelTracks = state.tracks.filter((x) => x.role === 'pickup' && x.panel_id === panelId);
-  // Every SAM id of the panel's pickup tracks: the filter and the cut-out agree on any fragment the frame is on.
+  // The panel's pickup objects at a frame: the filter, the cut-out and the chip agree on the track that holds the frame.
   const panelIds = panelObjectKeys(state.tracks, 'pickup', panelId);
-  const spotlight: Spotlight | null = panelIds.size ? { keys: panelIds } : null;
+  const onPanel = (lane: string, id: string, frame: number) => panelId !== null && index.at('pickup', lane, id, frame)?.panel_id === panelId;
+  const spotlight: Spotlight | null = panelIds.size ? { has: onPanel } : null;
   const frozenFrame = t !== null ? Math.round((t / 1000) * fps) : null;
 
   const walk = (opts: WalkOptions) =>
@@ -233,7 +234,8 @@ export function SceneBody({ scene, state, panelId, elapsed, t, upgraded, runId, 
         lanes={DRAWN_LANES}
         colorFor={colorFor}
         labelFor={opts.label ?? labelFor}
-        filterIds={opts.only ? (lane, id) => panelIds.has(`${lane}|${id}`) : undefined}
+        visible={visible}
+        filterIds={opts.only ? onPanel : undefined}
         spotlight={opts.spot ? spotlight : null}
         seekFrame={frozenFrame !== null ? (opts.startFrame ?? 0) + frozenFrame : null}
         startTime={frozenFrame === null && opts.startFrame ? opts.startFrame / fps : undefined}
@@ -323,7 +325,8 @@ export function SceneBody({ scene, state, panelId, elapsed, t, upgraded, runId, 
           upgraded={upgraded}
           still={t !== null}
           walk={walk}
-          panelIds={panelIds}
+          onPanel={onPanel}
+          labelFor={labelFor}
           kfStart={startKf ? Math.max(0, startKf.f_proxy - Math.round(1.5 * fps)) : 0}
           matchProps={matchProps}
         />
@@ -360,43 +363,69 @@ export function SceneBody({ scene, state, panelId, elapsed, t, upgraded, runId, 
   }
 }
 
-// B7: the car fills panel by panel in the order the walk reached them; then the slots the coverage step asked for are
-// named, as it asked before any top-up (topup.requested), else as coverage.json has them.
+// B7: the car fills panel by panel in the order the walk reached them; then the slots it missed are named. A pickup
+// check names them as the coverage step asked before any top-up (topup.requested), else as coverage.json has them. A
+// pair run shows both walks, each with its own gaps, so a panel filmed in one walk only reads as missed in the other.
 const SHORT_SHOWN = 6;
 const CALLOUTS_SHOWN = 3;
 
 function CoverageScene({ state, elapsed, step }: { state: RunState; elapsed: number; step: string }) {
-  const order = revealOrder(state.panels, 'pickup');
+  const walks = rolesOf(state);
   const fillTicks = Math.floor((COVERAGE_FILL.toMs - COVERAGE_FILL.fromMs) / COVERAGE_FILL.everyMs) + 1;
-  const shown = step === 'missing' ? order.length : Math.ceil((revealCount(elapsed, COVERAGE_FILL.fromMs, COVERAGE_FILL.everyMs) / fillTicks) * order.length);
-  const revealed = new Set(order.slice(0, shown));
+  const done = step === 'missing';
+  const revealedFor = (role: string) => {
+    const order = revealOrder(state.panels, role);
+    const shown = done ? order.length : Math.ceil((revealCount(elapsed, COVERAGE_FILL.fromMs, COVERAGE_FILL.everyMs) / fillTicks) * order.length);
+    return new Set(order.slice(0, shown));
+  };
+  if (walks.length > 1) {
+    return (
+      <div className="cov-scene two">
+        {walks.map((role) => {
+          const gaps = walkGaps(state.coverage, state.panels, role);
+          return (
+            <div key={role} className="cov-walk">
+              <CoverageCar coverage={state.coverage} panels={state.panels} role={role} revealed={revealedFor(role)} callouts={done ? gaps.slice(0, CALLOUTS_SHOWN).map((g) => g.id) : []} title={`${role} walk`} />
+              <div className={`cov-short compact ${done ? '' : 'hidden'}`}>
+                {gaps.length ? <ShortList gaps={gaps} /> : <p>Every panel was filmed in this walk.</p>}
+              </div>
+            </div>
+          );
+        })}
+        <p className={`cov-note small muted ${done ? '' : 'hidden'}`}>The sheet lists the same slots, so a gap is never read as a clean panel.</p>
+      </div>
+    );
+  }
   const per = state.coverage?.per_role['pickup'] ?? {};
   const missing = (state.topup?.missing ?? state.coverage?.missing ?? []) as PanelId[];
   const short = missing.map((id) => ({ id, state: per[id]?.state ?? 'not_seen', seconds: per[id]?.seconds ?? 0 }));
-  const done = step === 'missing';
   return (
     <div className="cov-scene">
-      <CoverageCar coverage={state.coverage} panels={state.panels} role="pickup" revealed={revealed} callouts={done ? missing.slice(0, CALLOUTS_SHOWN) : []} title="pickup walk" />
+      <CoverageCar coverage={state.coverage} panels={state.panels} role="pickup" revealed={revealedFor('pickup')} callouts={done ? missing.slice(0, CALLOUTS_SHOWN) : []} title="pickup walk" />
       <div className={`cov-short ${done ? '' : 'hidden'}`}>
-        {short.length ? (
-          <ul>
-            {short.slice(0, SHORT_SHOWN).map((x) => (
-              <li key={x.id} className={x.state}>
-                <span className="short-panel">{panelName(x.id)}</span>
-                <span className="short-state">
-                  {COVERAGE_LABEL[x.state]}
-                  {x.state === 'glimpsed' && x.seconds > 0 ? `, ${x.seconds.toFixed(1)} s` : ''}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p>Every panel was filmed.</p>
-        )}
-        {short.length > SHORT_SHOWN ? <p className="small muted">and {short.length - SHORT_SHOWN} more</p> : null}
+        {short.length ? <ShortList gaps={short} /> : <p>Every panel was filmed.</p>}
         <p className="small muted">The sheet lists the same slots, so a gap is never read as a clean panel.</p>
       </div>
     </div>
+  );
+}
+
+function ShortList({ gaps }: { gaps: { id: PanelId; state: CoverageState; seconds: number }[] }) {
+  return (
+    <>
+      <ul>
+        {gaps.slice(0, SHORT_SHOWN).map((x) => (
+          <li key={x.id} className={x.state}>
+            <span className="short-panel">{panelName(x.id)}</span>
+            <span className="short-state">
+              {COVERAGE_LABEL[x.state]}
+              {x.state === 'glimpsed' && x.seconds > 0 ? `, ${x.seconds.toFixed(1)} s` : ''}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {gaps.length > SHORT_SHOWN ? <p className="small muted">and {gaps.length - SHORT_SHOWN} more</p> : null}
+    </>
   );
 }
 
@@ -408,7 +437,8 @@ interface MomentProps {
   upgraded: boolean;
   still: boolean;
   walk: (opts: WalkOptions) => ReactNode;
-  panelIds: ReadonlySet<string>;
+  onPanel: (lane: string, id: string, frame: number) => boolean;
+  labelFor: (role: string, lane: string, id: string, frame: number) => string;
   kfStart: number;
   matchProps: Parameters<typeof MatchPane>[0];
 }
@@ -421,7 +451,7 @@ interface MomentProps {
 const TRAIL_STEP_MS = 3000; // moment's trail step, for the frame a frozen capture shows
 const CLIP_FPS = 30; // Stays Put clips are cut at the source 30 fps
 
-function Moment({ state, panelId, step, elapsed, upgraded, still, walk, panelIds, kfStart, matchProps }: MomentProps) {
+function Moment({ state, panelId, step, elapsed, upgraded, still, walk, onPanel, labelFor, kfStart, matchProps }: MomentProps) {
   const markById = new Map(state.marks.map((m) => [m.mark_id, m]));
   const focus = panelFocus(panelId, matchProps.match, state.verdicts);
   const { a: kfA, b: kfB } = panelId ? paneKeyframes(panelId, matchProps.match, focus, markById, state.keyframes) : { a: undefined, b: undefined };
@@ -438,7 +468,7 @@ function Moment({ state, panelId, step, elapsed, upgraded, still, walk, panelIds
 
   if (step === 'dim') {
     // The renter's words become the label of the panel's outline while the walk dims to it.
-    const label = turn ? (role: string, lane: string, id: string) => (panelIds.has(`${lane}|${id}`) ? `"${turn.text}"` : `${role} ${lane} ${id}`) : undefined;
+    const label = turn ? (role: string, lane: string, id: string, frame: number) => (onPanel(lane, id, frame) ? `"${turn.text}"` : labelFor(role, lane, id, frame)) : undefined;
     return (
       <div className="kiosk-moment">
         {walk({ only: true, spot: true, startFrame: kfStart, label })}

@@ -644,6 +644,7 @@ export interface LookRow {
   kind?: 'counter' | 'counter2' | null; // the one-walk counter-look (K16): the mark's own walk first, then the other walk with the spot outlined; counter2 asks two questions (lead decision 5 of 11/1)
   mark_id?: string | null; // on a counter-look, the mark seen in one walk only
   mark_seen?: 'yes' | 'no' | 'unsure' | null; // counter2 only: is there a damage mark in the box on the mark's own crop (part 1); verdict is part 2
+  answers?: number; // the usable answers this look stands on (matching.look_majority asks up to 3 times)
 }
 
 // One open_weights.ndjson line (walkaround/open_weights.py): one per Muse Spark Open request on Baseten, failed ones

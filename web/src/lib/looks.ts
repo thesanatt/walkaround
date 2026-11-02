@@ -57,7 +57,14 @@ function inputsOf(row: Record<string, unknown>): string[] {
   return refs.map((r) => str(obj(r)?.['path'])).filter((p): p is string => p !== null);
 }
 
+// One row per look. Under matching.look_majority a look is asked up to 3 times and every answer is its own looks.json
+// row, so the answers are grouped by look and the label is the majority, as match.py decides it.
 export function readLooks(value: unknown): LookRow[] {
+  return majorityLooks(readLookAnswers(value));
+}
+
+// Every usable answer as stored, repeats included.
+export function readLookAnswers(value: unknown): LookRow[] {
   const rows = Array.isArray(value) ? value : (obj(value)?.['looks'] as unknown[] | undefined) ?? [];
   const out: LookRow[] = [];
   for (const raw of rows) {
@@ -85,6 +92,49 @@ export function readLooks(value: unknown): LookRow[] {
       mark_id: str(row['mark_id']),
       mark_seen: row['mark_seen'] === 'yes' || row['mark_seen'] === 'no' || row['mark_seen'] === 'unsure' ? row['mark_seen'] : null,
     });
+  }
+  return out;
+}
+
+// match._side: the keeping answer wins only when it outnumbers the rest; else the lowering answer given most, and a
+// tie (between keep and lower, or between the two lowering answers) is unsure.
+function side<T extends string>(keep: number, lowered: number, other: number, kept: T, low: T, unsure: T): T {
+  if (keep > lowered + other) return kept;
+  if (lowered + other > keep && lowered > other) return low;
+  return unsure;
+}
+
+function lookKey(l: LookRow): string {
+  return [l.kind ?? 'pair', l.pickup_mark, l.return_mark, l.mark_id ?? ''].join('|');
+}
+
+// The answers of each look folded into one row, in the order the looks were first asked: match.majority_pair_look
+// for a pair look (same keeps), match.majority_counter for a counter-look (different keeps; part 1 yes keeps). The
+// row is the first answer that agrees with the majority, so its reason and request id are one that stood.
+export function majorityLooks(answers: readonly LookRow[]): LookRow[] {
+  const groups = new Map<string, LookRow[]>();
+  for (const a of answers) {
+    const key = lookKey(a);
+    const list = groups.get(key) ?? [];
+    list.push(a);
+    groups.set(key, list);
+  }
+  const out: LookRow[] = [];
+  for (const rows of groups.values()) {
+    const count = (v: string) => rows.filter((r) => r.verdict === v).length;
+    const same = count('same');
+    const different = count('different');
+    const unsure = rows.length - same - different;
+    const verdict: LookVerdict = isCounterLook(rows[0]) ? side(different, same, unsure, 'different', 'same', 'unsure') : side(same, different, unsure, 'same', 'different', 'unsure');
+    const standing = rows.find((r) => r.verdict === verdict) ?? rows[0]!;
+    const row: LookRow = { ...standing, verdict, answers: rows.length };
+    if (rows[0]!.kind === 'counter2') {
+      const seen = rows.map((r) => r.mark_seen);
+      const yes = seen.filter((m) => m === 'yes').length;
+      const no = seen.filter((m) => m === 'no').length;
+      row.mark_seen = side(yes, no, rows.length - yes - no, 'yes', 'no', 'unsure');
+    }
+    out.push(row);
   }
   return out;
 }

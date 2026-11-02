@@ -174,17 +174,25 @@ describe('the scenes render each step from the stored run', () => {
     expect(html).not.toContain('reflection');
   });
 
-  it('coverage fills the car slot by slot, then names what is short', async () => {
+  it('coverage fills the car of each walk slot by slot, then names what each walk missed', async () => {
     const state = await finalFixtureState();
-    expect(count(body(state, 'coverage', 0), 'cc-panel pending')).toBe(22);
+    expect(count(body(state, 'coverage', 0), 'cc-panel pending')).toBe(44); // a pair run: both walks, 22 slots each
     const mid = body(state, 'coverage', 1500);
     expect(count(mid, 'cc-panel pending')).toBeGreaterThan(0);
-    expect(count(mid, 'cc-panel pending')).toBeLessThan(22);
+    expect(count(mid, 'cc-panel pending')).toBeLessThan(44);
     const end = body(state, 'coverage', 3400);
     expect(count(end, 'cc-panel pending')).toBe(0);
-    expect(end).toContain('class="cov-short "');
-    expect(end).toContain('roof: not run'); // the callout on the car
-    expect(end).toContain('glimpsed, 0.8 s'); // the rear bumper, as the coverage step asked before the top-up
+    expect(count(end, 'class="cov-short compact "')).toBe(2);
+    expect(end).toContain('pickup walk');
+    expect(end).toContain('return walk');
+    // Filmed at pickup, glimpsed at return: it reads as missed in the return walk only (and the hood the other way).
+    expect(end).toContain('<title>left front wheel: filmed</title>');
+    expect(end).toContain('<title>left front wheel: glimpsed</title>');
+    expect(end).toContain('glimpsed, 0.9 s');
+    expect(end).toContain('<title>hood: glimpsed</title>');
+    expect(end).toContain('<title>hood: filmed</title>');
+    expect(end).toContain('rear bumper: glimpsed'); // the pickup callout, before the top-up
+    expect(end).toContain('glimpsed, 0.8 s');
   });
 
   it('top-up: the ask as it was, the nouns it ran, then the bumper filmed and the odometer', async () => {
@@ -215,7 +223,7 @@ describe('the scenes render each step from the stored run', () => {
     const all = body(state, 'checks', 6000);
     expect(count(all, '<dt>')).toBe(5);
     expect(all).toContain('Muse Spark Open on Baseten');
-    expect(all).toContain('took a second look at 2 matches: 1 same and 1 different');
+    expect(all).toContain('took 2 second looks: 1 same and 1 different');
   });
 
   it('crops: the boxes drop in one per tick', async () => {

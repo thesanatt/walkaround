@@ -33,8 +33,9 @@ import { formatDate, formatDateTime } from '../lib/format.ts';
 import { staysPutCalibrated } from '../lib/lines.ts';
 import { clearVerdicts, comparedPanels, eyeGroups, eyeKind, headline, notComparedRows, subline } from '../lib/result.ts';
 import { replayBadgeDate, sheetFileHash } from '../lib/runview.ts';
-import { colorForLane, colorForPanel, DRAWN_LANES, laneId, nounOfLane, panelName } from '../lib/panels.ts';
+import { colorForLane, colorForPanel, DRAWN_LANES, nounOfLane, panelName } from '../lib/panels.ts';
 import { Link, navigate } from '../lib/router.tsx';
+import { trackIndex } from '../lib/trackIndex.ts';
 import { fpsOf, rolesOf } from '../state/reducer.ts';
 import type { RunState } from '../state/types.ts';
 import { useRun, type RunSource } from '../state/useRun.ts';
@@ -58,30 +59,29 @@ export function defaultPanel(state: RunState): string | null {
   return state.tracks.find((t) => t.panel_id)?.panel_id ?? null;
 }
 
-// role|lane|SAM id -> the voted track, so the walk colors each object by its canonical panel once the vote is in.
-export function trackLookup(tracks: PanelTrack[]): Map<string, PanelTrack> {
-  const m = new Map<string, PanelTrack>();
-  for (const t of tracks) for (const id of t.sam_object_ids) m.set(`${t.role}|${laneId(t.noun)}|${id}`, t);
-  return m;
-}
+// The walk overlay's colors, chips and filter, each read from the track that holds the object at that frame
+// (lib/trackIndex): a chip names the panel the door check decided, and a track the run's data puts off the car
+// (state.offCar) is not drawn.
+const NO_IDS: readonly string[] = [];
 
-export function useTrackStyle(tracks: PanelTrack[]) {
-  const lookup = useMemo(() => trackLookup(tracks), [tracks]);
+export function useTrackStyle(tracks: PanelTrack[], offCar: readonly string[] = NO_IDS) {
+  const index = useMemo(() => trackIndex(tracks, offCar), [tracks, offCar]);
   const colorFor = useCallback(
-    (role: string, lane: string, id: string) => {
-      const t = lookup.get(`${role}|${lane}|${id}`);
+    (role: string, lane: string, id: string, frame = -1) => {
+      const t = index.at(role, lane, id, frame);
       return t?.panel_id ? colorForPanel(t.panel_id) : colorForLane(lane);
     },
-    [lookup],
+    [index],
   );
   const labelFor = useCallback(
-    (role: string, lane: string, id: string) => {
-      const t = lookup.get(`${role}|${lane}|${id}`);
+    (role: string, lane: string, id: string, frame = -1) => {
+      const t = index.at(role, lane, id, frame);
       return t?.panel_id ? panelName(t.panel_id) : `${nounOfLane(lane)} ${id}`;
     },
-    [lookup],
+    [index],
   );
-  return { colorFor, labelFor };
+  const visible = useCallback((role: string, lane: string, id: string, frame: number) => index.shows(role, lane, id, frame), [index]);
+  return { colorFor, labelFor, visible, index };
 }
 
 // A pickup check has no second walk to match: each panel's best frame that holds marks, boxed.
@@ -111,7 +111,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   const roles = rolesOf(state);
   const lanes = useLanes(runId, state, roles);
   const { status } = useStatus(mode ? null : runId);
-  const { colorFor, labelFor } = useTrackStyle(state.tracks);
+  const { colorFor, labelFor, visible, index } = useTrackStyle(state.tracks, state.offCar);
   const [selected, setSelected] = useState<string | null>(null);
   const [roleTab, setRoleTab] = useState('pickup');
   const [seek, setSeek] = useState<Record<string, number | null>>({});
@@ -215,6 +215,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
                 lanes={DRAWN_LANES}
                 colorFor={colorFor}
                 labelFor={labelFor}
+                visible={visible}
                 seekFrame={seek[role] ?? null}
               />
             ) : (
@@ -324,6 +325,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
                 store={lanes.store}
                 colorFor={colorFor}
                 labelFor={labelFor}
+                index={index}
               />
             ) : null}
           </section>

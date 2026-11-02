@@ -11,6 +11,7 @@ export const routes = {
   run: (id: string) => `/api/runs/${enc(id)}`,
   events: (id: string) => `/api/runs/${enc(id)}/events`,
   replay: (id: string, mode: ReplayMode) => `/api/runs/${enc(id)}/replay?mode=${mode}`,
+  offCar: (id: string) => `/api/runs/${enc(id)}/off_car`,
   file: (id: string, relPath: string, view: FileView = 'owner') =>
     `/api/runs/${enc(id)}/files/${relPath.split('/').map(enc).join('/')}${view === 'kiosk' ? '?view=kiosk' : ''}`,
   // app.py serves the sheet routes under the files rule, so ?view=kiosk gets a 404 for a keep_plate sheet (it embeds
@@ -77,6 +78,15 @@ export interface CreateRunBody {
   keep_plate: boolean;
 }
 
+// The panel tracks the walk overlay hides as off the car (orchestrator.off_car_view). in_core: the run's own
+// thresholds dropped them before the vote, so none is left to hide.
+export interface OffCarView {
+  track_ids: string[];
+  shares: Record<string, number>;
+  min_inside: number | null;
+  in_core: boolean;
+}
+
 export interface FinalizeBody {
   run_id: string;
   role: string;
@@ -93,6 +103,7 @@ export const api = {
   runs: () => getJson<RunManifest[]>(routes.runs()),
   run: (id: string) => getJson<RunManifest>(routes.run(id)),
   replay: (id: string, mode: ReplayMode) => getJson<ReplayPayload>(routes.replay(id, mode)),
+  offCar: (id: string) => getJson<OffCarView>(routes.offCar(id)),
   file: <T>(id: string, rel: string, view: FileView = 'owner') => getJson<T>(routes.file(id, rel, view)),
   // A stored text file such as open_weights.ndjson, read as is.
   text: async (id: string, rel: string, view: FileView = 'owner'): Promise<string> => {

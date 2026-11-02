@@ -4,6 +4,7 @@ import type { LaneStore } from '../lanes/laneStore.ts';
 import { bestKeyframe, panelObjectKeys } from '../lib/focus.ts';
 import { formatClock } from '../lib/format.ts';
 import { DRAWN_LANES, panelName } from '../lib/panels.ts';
+import type { TrackIndex } from '../lib/trackIndex.ts';
 import { WalkPlayer } from './WalkPlayer.tsx';
 
 const reducedMotion = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -34,14 +35,15 @@ export interface PanelClipProps {
   blurred: Record<string, string | null>; // role -> the blurred display video
   fps: (role: string) => number;
   store: LaneStore;
-  colorFor: (role: string, lane: string, id: string) => string;
-  labelFor: (role: string, lane: string, id: string) => string;
+  colorFor: (role: string, lane: string, id: string, frame: number) => string;
+  labelFor: (role: string, lane: string, id: string, frame: number) => string;
+  index: TrackIndex; // useTrackStyle's: which track holds an object at a frame, and what the overlay hides
 }
 
 // The first card's panel as SAM 3.1 tracked it: a short loop of the blurred walk with everything but that panel
 // dimmed. The walk is the one the card's mark was found in (return for a new mark). Nothing shows when the run has no
 // blurred video or no track of the panel.
-export function PanelClip({ runId, v, marks, keyframes, tracks, blurred, fps, store, colorFor, labelFor }: PanelClipProps) {
+export function PanelClip({ runId, v, marks, keyframes, tracks, blurred, fps, store, colorFor, labelFor, index }: PanelClipProps) {
   const own = v.mark_ids.map((id) => marks.get(id)).filter((m): m is Mark => m !== undefined);
   const role = v.label === 'new_or_unseen' ? 'return' : (own.find((m) => m.role === 'pickup') ?? own[0])?.role ?? 'pickup';
   const src = blurred[role];
@@ -52,6 +54,7 @@ export function PanelClip({ runId, v, marks, keyframes, tracks, blurred, fps, st
   const rate = fps(role) || 15;
   const win = clipWindow(tracks, role, v.panel_id, kf?.f_proxy ?? 0, rate);
   if (!win) return null;
+  const onPanel = (lane: string, id: string, frame: number) => index.at(role, lane, id, frame)?.panel_id === v.panel_id && index.shows(role, lane, id, frame);
   return (
     <figure className="panel-clip">
       <WalkPlayer
@@ -61,8 +64,8 @@ export function PanelClip({ runId, v, marks, keyframes, tracks, blurred, fps, st
         lanes={DRAWN_LANES}
         colorFor={colorFor}
         labelFor={labelFor}
-        filterIds={(lane, id) => keys.has(`${lane}|${id}`)}
-        spotlight={{ keys }}
+        filterIds={onPanel}
+        spotlight={{ has: onPanel }}
         startTime={win[0] / rate}
         segment={win}
         autoPlay={!reducedMotion}

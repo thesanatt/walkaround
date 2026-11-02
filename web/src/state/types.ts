@@ -96,6 +96,7 @@ export interface RunState {
   frames: Record<Role, Record<string, LastFrame>>; // the last sam.frame per lane, boxes only
   seal: SealState;
   tracks: PanelTrack[];
+  offCar: string[]; // GET /api/runs/{id}/off_car: panel tracks mostly off the car's mask, hidden by the walk overlay
   panels: Panel[];
   coverage: Coverage | null;
   topup: { missing: string[]; topup_text: string; nouns_to_rerun: string[] } | null;

@@ -2033,3 +2033,24 @@ those rebuild identical (verified on ten runs); config/thresholds.json turns all
 - Tests: tests/test_vouch_majority_1102.py (32). tests/test_match.py's shared `th` fixture and tests/test_second_look.py's
   drop both leaves; tests/test_contracts.py round-trips RegistrationVouch and a KeyframePairTry with a vouch.
 - Evidence: walkaround/docs/evidence/vouch_majority_1102/ (NOTES.md, replay.py, live.py, truth.py, the JSON outputs).
+
+## R26: off-car tracks, and what the walk overlay names (2026-11-02, round 26)
+
+Thresholds panels.off_car_tracks (on for new runs, absent from frozen runs): `{"enabled": true, "min_inside": 0.25,
+"frames": 3, "grid": 10}`. In panels.derive, after the walk's panel tracks are built and before the vote, each panel
+track (not plates, faces, the car or built fenders) is measured on up to `frames` frames spread over it, grid frames
+first: the share of its mask pixels inside the car mask (the largest car box's object, as the keyframe mask test reads
+it). A track whose median share is under min_inside is dropped (panels.off_car_shares, off_car_ids). On 14 stored runs
+the doors of the cars beside the Focus measure 0.00; every other track 0.77 or more, except thin slivers on the target
+car's own edge (0.35 to 0.46), which 0.25 keeps.
+
+GET /api/runs/{run_id}/off_car (orchestrator.off_car_view), a display filter only, nothing in the run changes:
+`{"in_core", "min_inside", "shares", "track_ids"}`. A run whose thresholds carry the leaf answers in_core true and no
+ids; a frozen run is measured from its stored lanes (panels.stored_off_car) with the leaf's defaults, cached per
+tracks.json stamp, warmed for the samples at boot and on GET /api/runs/{run_id}.
+
+Web (display only): the walk overlay reads each object's track by its fragment at that frame (SAM reuses an object id
+after its first object leaves), so a chip names the panel the door check decided; once a walk has panel tracks it draws
+only objects inside a kept track, never one off the car. The second look is counted per look (the majority of up to 3
+answers, as match.py decides it). A panel's heading and first card follow its strongest verdict (new, not seen at
+return, already there, needs your eye). The kiosk coverage scene of a pair run shows both walks, each with its own gaps.

@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import io
+import logging
 import re
 import secrets
 import zipfile
@@ -51,6 +52,8 @@ from .orchestrator import (
     VideoUnreadable,
     et_day_of,
 )
+
+log = logging.getLogger(__name__)
 
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 ROLE = re.compile(r"^(pickup|return|topup_[0-9]+|claim_[0-9]+)$")
@@ -277,12 +280,29 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
     th = orch.th
     dist = paths.web_dist_dir()
 
+    warming: set[asyncio.Task[Any]] = set()
+
+    def warm_off_car(run: c.RunManifest) -> None:
+        """Measure a frozen run's off-car tracks while the page loads, so the overlay's filter is ready by the walk."""
+
+        async def go() -> None:
+            with suppress(Exception):
+                await asyncio.to_thread(orch.off_car_view, run)
+
+        task = asyncio.create_task(go())
+        warming.add(task)
+        task.add_done_callback(warming.discard)
+
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         tasks: list[asyncio.Task[Any]] = []
         if background:
             orch.seed_samples()
             await orch.resume_all()
+            for run_id in dict.fromkeys([orch.sample_run_id(), *orch.sample_run_ids()]):  # each sample's off-car view, off the loop
+                sample = orch.load_run(run_id) if run_id and paths.run_json(run_id).is_file() else None
+                if sample is not None:
+                    warm_off_car(sample)
             tasks.append(asyncio.create_task(_loop(orch.health_probe, float(th["orchestrator"]["health_probe_interval_s"]))))
             tasks.append(asyncio.create_task(_loop(orch.sweep, float(th["orchestrator"]["sweeper_interval_s"]))))
         try:
@@ -396,7 +416,10 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
 
     @app.get("/api/runs/{run_id}")
     async def get_run(run_id: str) -> Response:
-        return canonical(run_or_404(run_id))
+        run = run_or_404(run_id)
+        if background:
+            warm_off_car(run)
+        return canonical(run)
 
     @app.post("/api/runs/{run_id}/start", status_code=202)
     async def start_run(run_id: str) -> Response:
@@ -427,6 +450,17 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
             ping=int(th["orchestrator"]["sse_ping_s"]),
             ping_message_factory=lambda: ServerSentEvent(comment="ping"),
         )
+
+    @app.get("/api/runs/{run_id}/off_car")
+    async def run_off_car(run_id: str) -> Response:
+        """The panel tracks the walk overlay hides as off the car (orchestrator.off_car_view); display only."""
+        run = run_or_404(run_id)
+        try:
+            view = await asyncio.to_thread(orch.off_car_view, run)
+        except Exception as exc:  # the overlay then draws every track, as before
+            log.warning("off_car view of %s failed: %s", run_id, exc)
+            raise HTTPException(503, "the off-car measure failed for this run") from exc
+        return canonical(view)
 
     @app.get("/api/runs/{run_id}/replay")
     async def run_replay(run_id: str, mode: str = "fixed") -> Response:

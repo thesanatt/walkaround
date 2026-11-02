@@ -1168,6 +1168,7 @@ async def test_derive_decodes_each_mask_once_and_keeps_two_keyframes_over_budget
     th = copy.deepcopy(fixture_th)
     th["panels"]["keyframe_decode_budget_s_per_video"] = -1.0  # always over budget
     th["panels"]["fast_mask_decode"] = fast
+    th["panels"].pop("off_car_tracks", None)  # the keyframe pass's decodes only; the off-car step (R26) has its own test
     pool_calls: list[tuple[str, list[int]]] = []
     fast_calls: list[tuple[str, int, int | None]] = []
     real_fast = fastmask.LaneMasks.decode

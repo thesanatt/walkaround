@@ -42,6 +42,7 @@
   "panels": {
     "car_box_containment_min": {"value": 0.8, "source": "5.1 item 1 (box area inside the largest car box)"},
     "car_mask_containment_min": {"value": 0.8, "source": "5.1 item 1 (mask test at keyframes)"},
+    "off_car_tracks": {"value": {"enabled": true, "min_inside": 0.25, "frames": 3, "grid": 10}, "source": "R26 (11/2, hero_focus4: a door of the SUV parked behind the Focus passed the box test because that SUV stands inside the Focus's car box): a panel track is dropped before the vote when the median, over up to frames frames spread over it (frames on a grid of grid frames first, so tracks share one car decode), of the share of its mask pixels inside the car mask (the largest car box's object, as the keyframe mask test reads it) is under min_inside. On 14 stored runs the doors of the two cars beside the Focus (hero_focus1 to 4, 6 tracks each) measure 0.00, every other track 0.77 or more except thin slivers on the target car's own edge (an NHTSA windshield 0.35 and 0.46, a lexi rear bumper 0.36 and 0.38), which min_inside 0.25 keeps. Absent from runs frozen before it; the walk overlay applies the same measure to those as a display filter only"},
     "area_floor_small": {"value": 0.005, "source": "5.1 item 1 (side mirror, headlight, tail light, license plate, face)"},
     "area_floor_default": {"value": 0.02, "source": "5.1 item 1 (cookbook value for large subjects)"},
     "small_nouns": {"value": ["side mirror", "headlight", "tail light", "license plate", "face"], "source": "5.1 item 1"},

@@ -40,7 +40,7 @@ describe('how it was checked, counted from the run', () => {
       ['SAM 3.1', 'tracked 3 panels in 2 walks and 1 mark through its own clip, plus 1 control clip', 'done'],
       ['Muse Spark 1.3', 'found 8 marks in 6 blurred crops, 1 of them from your words', 'done'],
       ['Muse Voice Transcribe', 'pinned 3 of 3 spoken notes to a panel', 'done'],
-      ['Muse Spark Open on Baseten', 'took a second look at 2 matches: 1 same and 1 different', 'done'],
+      ['Muse Spark Open on Baseten', 'took 2 second looks: 1 same and 1 different', 'done'],
       ['Code, no model', 'matched 3 pairs and wrote 5 labels', 'done'],
     ]);
     // The original sits in quarantine during the run, so the row says what holds for every frame kept or shown.

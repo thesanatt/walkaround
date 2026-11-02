@@ -135,10 +135,15 @@ function openLine(state: RunState): CheckLine {
   }
   const c = lookCounts(open);
   const parts = [c.same ? `${c.same} same` : '', c.different ? `${c.different} different` : '', c.unsure ? `${c.unsure} unsure` : ''].filter(Boolean);
-  const extra = [hosted ? `${n(hosted, 'look', 'looks')} fell back to hosted Muse Spark 1.3` : '', failed ? `${n(failed, 'request', 'requests')} got no answer` : ''].filter(Boolean);
+  const repeats = open.some((l) => (l.answers ?? 1) > 1);
+  const extra = [
+    repeats ? 'each look asked up to 3 times; the majority answer counts once' : '',
+    hosted ? `${n(hosted, 'look', 'looks')} fell back to hosted Muse Spark 1.3` : '',
+    failed ? `${n(failed, 'request', 'requests')} got no answer` : '',
+  ].filter(Boolean);
   return {
     ...base,
-    did: `took a second look at ${n(open.length, 'match', 'matches')}: ${andList(parts)}`,
+    did: `took ${n(open.length, 'second look', 'second looks')}: ${andList(parts)}`,
     detail: ['different or unsure lowers a label to needs your eye; it never raises one', ...extra].join('; '),
     state: 'done',
     link,

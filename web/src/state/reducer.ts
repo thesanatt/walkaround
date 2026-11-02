@@ -30,6 +30,7 @@ export function initialState(): RunState {
     frames: {},
     seal: { manifest_sha256: null, ots: null, tsr_time: null, tsa_issuer: null, files_uploaded: false },
     tracks: [],
+    offCar: [],
     panels: [],
     coverage: null,
     topup: null,
@@ -349,7 +350,8 @@ export function reduce(state: RunState, event: AnyEvent): RunState {
       const tracks = payload['tracks'] as PanelTrack[] | undefined;
       const panels = payload['panels'] as Panel[] | undefined;
       const keyframes = payload['keyframes'] as Keyframe[] | undefined;
-      return { ...state, tracks: tracks ?? state.tracks, panels: panels ?? state.panels, keyframes: keyframes ?? state.keyframes };
+      const offCar = Array.isArray(payload['off_car']) ? list<unknown>(payload['off_car']).map(String) : undefined;
+      return { ...state, tracks: tracks ?? state.tracks, offCar: offCar ?? state.offCar, panels: panels ?? state.panels, keyframes: keyframes ?? state.keyframes };
     }
 
     case 'coverage.updated.loaded':

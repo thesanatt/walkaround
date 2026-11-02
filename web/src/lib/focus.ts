@@ -27,19 +27,35 @@ function pairOf(v: Verdict, pairs: MatchCandidate[]): MatchCandidate | null {
   return pairs.find((p) => v.mark_ids.includes(p.pickup_mark) && v.mark_ids.includes(p.return_mark)) ?? null;
 }
 
-// The one verdict a panel's views lead with: its first "already there", else the first verdict about a joined pair,
-// else its first verdict. The card label, the match-cut alignment and the Stays Put trail all follow this one.
+// The order a panel's verdicts are told in, strongest first: new, then not seen at return, then already there, then
+// needs your eye (not comparable last). The sort is stable, so verdicts with one label keep the order code wrote.
+const STRENGTH: Record<string, number> = { new_or_unseen: 0, not_seen_at_return: 1, already_there: 2, needs_your_eye: 3, not_comparable: 4 };
+
+export function byStrength(verdicts: readonly Verdict[]): Verdict[] {
+  const rank = (v: Verdict) => STRENGTH[v.label] ?? 5;
+  return [...verdicts].sort((a, b) => rank(a) - rank(b));
+}
+
+// The one verdict a panel's views lead with: the strongest label on the panel, and among verdicts with that label the
+// first about a joined pair, else the first. The heading, the first card, the match-cut alignment and the Stays Put
+// trail all follow this one.
 export function panelFocus(panelId: string | null, match: PanelMatch | undefined, verdicts: Verdict[]): PanelFocus {
   if (!panelId) return { verdict: null, pair: null };
   const pairs = joinedPairs(match);
-  const own = verdicts.filter((v) => v.panel_id === panelId);
-  const already = own.find((v) => v.label === 'already_there');
-  if (already) return { verdict: already, pair: pairOf(already, pairs) };
-  for (const v of own) {
+  const own = byStrength(verdicts.filter((v) => v.panel_id === panelId));
+  const top = own.filter((v) => v.label === own[0]?.label);
+  for (const v of top) {
     const pair = pairOf(v, pairs);
     if (pair) return { verdict: v, pair };
   }
-  return { verdict: own[0] ?? null, pair: null };
+  const first = top[0] ?? null;
+  return { verdict: first, pair: first ? pairOf(first, pairs) : null };
+}
+
+// A panel's cards: the focus verdict first, then the rest strongest first.
+export function panelCards(panelId: string, focus: PanelFocus, verdicts: Verdict[]): Verdict[] {
+  const own = byStrength(verdicts.filter((v) => v.panel_id === panelId));
+  return focus.verdict && own.includes(focus.verdict) ? [focus.verdict, ...own.filter((v) => v !== focus.verdict)] : own;
 }
 
 // The keyframes a two-frame view shows. A mark's point_crop is in its own keyframe's crop, and dedup keeps the medoid

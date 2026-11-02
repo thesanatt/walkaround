@@ -1,6 +1,6 @@
 import type { Keyframe, LookRow, Mark, Panel, PanelMatch, RunManifest, Verdict, VideoRecord } from '../contracts/types.ts';
 import { useFileUrl } from '../lib/files.tsx';
-import { drawnPairs, offPaneMarks, paneKeyframes, panelFocus } from '../lib/focus.ts';
+import { drawnPairs, offPaneMarks, paneKeyframes, panelCards, panelFocus } from '../lib/focus.ts';
 import { daysBetween, formatClock, formatDateTime, formatDay, formatTime, minutesBetween } from '../lib/format.ts';
 import { keyframePairLine, markLabel, sizeLine, wallClock } from '../lib/lines.ts';
 import { lookFor, loweredByLook, loweredIds } from '../lib/looks.ts';
@@ -216,8 +216,8 @@ export function MatchPane(props: MatchPaneProps) {
   const [r, g, b] = hexToUnit(color);
   const tint = `tint-${panelId}`;
   const clip = `clip-${panelId}`;
-  const panelVerdicts = verdicts.filter((v) => v.panel_id === panelId);
-  const cards = maxCards !== undefined && panelVerdicts.length > maxCards ? [...(focus.verdict ? [focus.verdict] : []), ...panelVerdicts.filter((v) => v !== focus.verdict)].slice(0, maxCards) : panelVerdicts;
+  const panelVerdicts = panelCards(panelId, focus, verdicts);
+  const cards = maxCards !== undefined ? panelVerdicts.slice(0, maxCards) : panelVerdicts;
   const z = sizesFor(W);
 
   return (
