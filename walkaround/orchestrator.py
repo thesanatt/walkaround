@@ -1825,6 +1825,7 @@ class Orchestrator:
             config_hash=run.config_hash or "",
             app_commit=run.app_commit or "",
             pdf_sha256=sha256_path(pdf) if pdf.is_file() else None,
+            **({"rederived": run.rederived.text} if run.rederived is not None else {}),
         )
 
     def _delete_upload_chunks(self, run_id: str, *, now: str, reason: str) -> list[c.DeletionRecord]:
@@ -2444,6 +2445,140 @@ class Orchestrator:
                 problems.append(f"seal.verify_run failed: {_error_text(exc)}")
         return problems
 
+    # Rederive (R28) ----------------------------------------------------------------------------------------------------
+
+    # the source's events from the first of these on are its own outputs and run end; the new run writes its own
+    REDERIVE_CUT_KINDS = frozenset(
+        {
+            c.EventKind.MATCH_DERIVED,
+            c.EventKind.SHEET_WRITTEN,
+            c.EventKind.FILES_DELETED,
+            c.EventKind.RESPONSES_DELETED,
+            c.EventKind.QUARANTINE_DELETED,
+            c.EventKind.RUN_PARTIAL,
+            c.EventKind.RUN_COMPLETED,
+            c.EventKind.RUN_FAILED,
+        }
+    )
+    # copied from the source but written again by the new run (its sheet, its run-end seal, run.json, the log)
+    REDERIVE_SKIP = ("sheet", "manifest_run.json", "manifest_run.json.ots", "letter.md", "note.md", "verify.md", "run.json", "events.ndjson")
+
+    def rederive(self, run_id: str, new_run_id: str) -> c.RunManifest:
+        """walkaround rederive RUN NEW_RUN (lead decision 5 of 11/2): a new run made from RUN's sealed originals (the same
+        bundle/manifest.json and its stamps, so the seal over the originals still holds) and RUN's stored model answers
+        (SAM tracks and keyframes, spark.json, voice.json, looks.json, the clip lanes), recomputed with this version's
+        code and thresholds and no model call: coverage, marks, narration, Stays Put, the match and verdicts, the ruler,
+        the claims and the sheet, the way rebuild recomputes them. Its event log is RUN's log up to RUN's first output
+        event (match.derived, or the sheet on a pickup check), byte for byte, then its own events; its run-end
+        manifest_run.json, chain head, config hash, app commit and PDF hash are its own. run.json, manifest_run.json and
+        the sheet say what was recomputed, when, and from which stored answers. walkaround verify NEW_RUN rebuilds it."""
+        if not self.run_exists(run_id):
+            raise RebuildRefused(f"no run {run_id}")
+        src = self.load_run(run_id)
+        if not paths.spark_json(run_id).is_file() and src.live_or_replay == c.LiveOrReplay.REPLAY:
+            raise RebuildRefused(f"run {run_id} is a replay copy without its stored model answers; rederive needs spark.json")
+        if not paths.manifest_json(run_id).is_file():
+            raise RebuildRefused(f"run {run_id} has no sealed originals (bundle/manifest.json)")
+        if src.status not in (c.RunStatus.DONE, c.RunStatus.PARTIAL):
+            raise RebuildRefused(f"run {run_id} is {src.status.value}; rederive works on a finished run")
+        _check_new_run_id(new_run_id)
+        source_dir, target = paths.run_dir(run_id), paths.runs_root() / new_run_id
+        never = ("quarantine", "uploads", "*.orig", "*.part", "*.tmp", "*.proxy.mp4", PENDING_EVENTS_NAME, *self.REDERIVE_SKIP)
+        shutil.copytree(source_dir, target, ignore=shutil.ignore_patterns(*never))
+        try:
+            return self._rederive_into(src, new_run_id)
+        except Exception:
+            shutil.rmtree(target, ignore_errors=True)
+            raise
+
+    def _rederive_into(self, src: c.RunManifest, new_run_id: str) -> c.RunManifest:
+        run_id = src.run_id
+        lines = [line for line in (paths.run_dir(run_id) / "events.ndjson").read_text(encoding="utf-8").splitlines() if line.strip()]
+        kept: list[str] = []
+        for line in lines:
+            if c.EventKind(json.loads(line)["kind"]) in self.REDERIVE_CUT_KINDS:
+                break
+            kept.append(line)
+        (paths.runs_root() / new_run_id / "events.ndjson").write_text("".join(line + "\n" for line in kept), encoding="utf-8")
+        from_head = json.loads(kept[-1])["hash"] if kept else None
+        now = self.now()
+        stored_on = _et_day(src.created_at)
+        recomputed_on = _et_day(now)
+        commit = app_commit()
+        text = (
+            f"verdicts recomputed on {recomputed_on} with this version's rules (code {commit[:7] if commit else 'unknown'}) "
+            f"from the model answers stored on {stored_on} by run {run_id}; no new model calls"
+        )
+        th = json.loads(c.canonical_json(self.th))  # the thresholds as run.json will hold them (6-place floats)
+        deadline = None
+        if src.retention_deadline is not None:
+            deadline = (parse_ts(now) + (parse_ts(src.retention_deadline) - parse_ts(src.created_at))).strftime("%Y-%m-%dT%H:%M:%SZ")
+        run = src.model_copy(
+            update={
+                "run_id": new_run_id,
+                "created_at": now,
+                "status": c.RunStatus.MATCHING if src.kind == c.RunKind.PAIR else c.RunStatus.SHEET,
+                "app_commit": commit,
+                "config_hash": c.config_hash(th),
+                "thresholds": th,
+                "api_spend_cents": 0,
+                "events_head_hash": None,
+                "errors": [],
+                "retention_deadline": deadline,
+                "rederived": c.Rederived(
+                    from_run=run_id,
+                    from_events_head_hash=from_head,
+                    from_config_hash=src.config_hash,
+                    from_app_commit=src.app_commit,
+                    stored_on=stored_on,
+                    recomputed_on=recomputed_on,
+                    text=text,
+                ),
+            }
+        )
+        self.save_run(run)
+        run = self.load_run(new_run_id)
+        th = self.run_th(run)
+        rows = self._load_deletions(new_run_id)  # what RUN deleted (its originals, proxies, uploads), as recorded
+        self.emit(new_run_id, c.EventKind.STAGE, {"name": run.status.value, "pct": 88, "rederived_from": run_id})
+        result: dict[str, str] = {"coverage.json": self._rebuild_coverage(run, th)}
+        result.update(self._rebuild_marks(run, th))
+        result.update(self._rebuild_narration(run, th))
+        result.update(self._rebuild_staysput(run, th))
+        if run.kind == c.RunKind.PAIR and self.has_dep("match.derive_match"):
+            if self.has_dep("second_pass.apply_second_pass"):
+                self.dep("second_pass.apply_second_pass")(new_run_id, th=th)
+            replay = self.dep("second_look.replay_second_look")(new_run_id, th=th) if self.has_dep("second_look.replay_second_look") else None
+            matches, verdicts, _cal = self.dep("match.derive_match")(new_run_id, th=th, second_look=replay)
+            if self.has_dep("ruler.size_verdicts"):
+                self.dep("ruler.size_verdicts")(new_run_id, th=th)
+            self.emit(
+                new_run_id,
+                c.EventKind.MATCH_DERIVED,
+                {
+                    "sha256": {"matches": sha256_path(paths.matches_json(new_run_id)), "verdicts": sha256_path(paths.verdicts_json(new_run_id))},
+                    "panels": len(matches),
+                    "verdicts": len(verdicts),
+                    "rederived": {"from_run": run_id, "from_events_head_hash": from_head, "text": text},
+                },
+            )
+            pairs = sum(len(pm.pairs) for pm in matches)
+            self.update_run(new_run_id, lambda r: setattr(r.counts, "matches", pairs))
+        failed = {k: v for k, v in {**result, **self._rebuild_claims(run, th)}.items() if v.startswith("failed")}
+        if failed:
+            raise RuntimeError("rederive failed: " + "; ".join(f"{k} {v}" for k, v in sorted(failed.items())))
+        self._write_manifest_run_sync(self.load_run(new_run_id), rows, self.events.head_hash(new_run_id) or "")  # release: the sheet's verify reads it
+        self.set_stage(new_run_id, c.RunStatus.SHEET, 92)
+        head = self.events.head_hash(new_run_id)
+        self.update_run(new_run_id, lambda r: setattr(r, "events_head_hash", head))
+        _model, hashes = self.dep("sheet.write_sheet")(new_run_id, th=th)
+        self.emit(new_run_id, c.EventKind.SHEET_WRITTEN, {"sha256": hashes})
+        self._write_manifest_run_sync(self.load_run(new_run_id), rows, self.events.head_hash(new_run_id) or "")  # close
+        self.update_run(new_run_id, lambda r: setattr(r, "status", c.RunStatus.DONE))
+        self.emit(new_run_id, c.EventKind.STAGE, {"name": c.RunStatus.DONE.value, "pct": 100})
+        self.emit(new_run_id, c.EventKind.RUN_COMPLETED, {"status": c.RunStatus.DONE.value, "api_spend_cents": 0})
+        return self.load_run(new_run_id)
+
     def _log_problems(self, run_id: str) -> list[str]:
         """The chain of a sealed run: present (seq 0 is chained the moment manifest.json exists, so an empty log means
         it was removed), intact, and holding the head the sheet printed."""
@@ -2526,6 +2661,12 @@ def _frame_digest(rgb: Any) -> str:
 
 def derived_present(run_id: str) -> list[str]:
     return [name for name in paths.DERIVED_FILES if (paths.derived_dir(run_id) / name).is_file()]
+
+
+def _et_day(ts: str) -> str:
+    """The ET calendar day of a timestamp, as the sheet prints dates: Nov 2, 2026."""
+    d = parse_ts(ts).astimezone(ET)
+    return f"{d.strftime('%b')} {d.day}, {d.year}"
 
 
 def _chosen_by(run: c.RunManifest) -> str | None:

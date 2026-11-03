@@ -88,6 +88,7 @@
   <p class="lede">Two walkaround videos of one rental car, compared panel by panel. Code decides every verdict; a model answer can only lower one.</p>
   <p><span class="disclaimer">{{ sheet.disclaimer }}</span></p>
   {% if sheet.stand_in_line %}<p><span class="disclaimer">{{ sheet.stand_in_line }}</span></p>{% endif %}
+  {% if sheet.rederived_line %}<p><span class="disclaimer">This run's {{ sheet.rederived_line }}.</span></p>{% endif %}
   {% if footage_line %}<p class="sub">{{ footage_line }}</p>{% endif %}
 
   <table class="kv">

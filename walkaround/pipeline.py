@@ -164,4 +164,11 @@ def verify(run_id: str, *, out: Path | None = None, orch: Orchestrator | None = 
     return orch.verify(run_id, out=out)
 
 
-__all__ = ["STAND_IN_SLOTS", "make_orchestrator", "rebuild", "run_pair", "run_pair_async", "stage_local_file", "stand_in_prompts", "verify"]
+def rederive(run_id: str, new_run_id: str, *, orch: Orchestrator | None = None) -> c.RunManifest:
+    """A new run from run_id's sealed originals and stored model answers under this version's code and thresholds, with
+    no model call (Orchestrator.rederive)."""
+    orch = orch or make_orchestrator()
+    return orch.rederive(run_id, new_run_id)
+
+
+__all__ = ["STAND_IN_SLOTS", "make_orchestrator", "rebuild", "rederive", "run_pair", "run_pair_async", "stage_local_file", "stand_in_prompts", "verify"]

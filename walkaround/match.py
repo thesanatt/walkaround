@@ -36,6 +36,7 @@ from .contracts import (
     WHEEL_PANELS,
     ByEyeLine,
     Calibration,
+    CopyNote,
     Confidence,
     CoverageState,
     FixtureDrop,
@@ -60,6 +61,7 @@ from .contracts import (
     Panel,
     PanelId,
     PanelMatch,
+    PanelTrack,
     PrivacyDrop,
     RegistrationFit,
     RegistrationVouch,
@@ -348,10 +350,11 @@ def stands_out_words(pm: PanelMatch) -> str | None:
     faint = [r for r in pm.own_contrast if r.result == "faint"]
     if not faint:
         return None
+    off = set(pm.left_off)
     return "; ".join(
         f"{r.mark_id}: its box does not stand out from the paint around it in its own crop"
         + (f" (contrast {r.contrast:.1f})" if r.contrast is not None else "")
-        + ", so needs your eye (K20)"
+        + (", so it is left off the list (K20)" if r.mark_id in off else ", so needs your eye (K20)")
         for r in faint
     )
 
@@ -485,10 +488,14 @@ def debris_split(pm: PanelMatch, verdicts: list[Verdict], marks: dict[str, Mark]
         return pm, verdicts
     paired = [keyframes.get(k) for k in (pm.kf_pair or [])]
 
+    any_view = debris_any_view(th)
+
     def folds(v: Verdict) -> bool:
         involved = [marks.get(i) for i in v.mark_ids]
         if v.label != VerdictLabel.NEEDS_YOUR_EYE or not involved or any(m is None or m.type not in types for m in involved):
             return False
+        if any_view and len(involved) == 1:
+            return True  # R28: a mark seen in one walk only folds whether or not its views are flagged
         views = [*paired, *(keyframes.get(m.kf_id) for m in involved if m is not None)]
         return any(view_flags(kf) for kf in views)
 
@@ -496,7 +503,7 @@ def debris_split(pm: PanelMatch, verdicts: list[Verdict], marks: dict[str, Mark]
     if not folded:
         return pm, verdicts
     kept = [v.model_copy(update={"verdict_id": f"{pm.panel_id.value}_v{n}"}) for n, v in enumerate((v for v in verdicts if not folds(v)), 1)]
-    line = ByEyeLine(kind="debris", text=DEBRIS_LINE, mark_ids=sorted({i for v in folded for i in v.mark_ids}))
+    line = ByEyeLine(kind="debris", text=DEBRIS_LINE, mark_ids=sorted({i for v in folded for i in v.mark_ids}), any_view=True if any_view else None)
     return pm.model_copy(update={"by_eye": [*pm.by_eye, line]}), kept
 
 
@@ -507,9 +514,251 @@ def by_eye_words(pm: PanelMatch | None) -> list[str]:
         n = len(line.mark_ids)
         if line.kind == "glass":
             out.append(f"{line.text} ({n} spot{'' if n == 1 else 's'} Muse Spark boxed on it, not judged)" if n else line.text)
+        elif line.any_view:
+            out.append(f"{line.text} ({n} spot{'' if n == 1 else 's'} Muse Spark typed dirt, not listed one by one)")
         else:
             out.append(f"{line.text} ({n} spot{'' if n == 1 else 's'} Muse Spark typed dirt on a flagged view, not listed one by one)")
     return out
+
+
+def debris_any_view(th: dict | None) -> bool:
+    """R28 (lead decision 2 of 11/2, matching.debris_by_eye any_view): a mark seen in one walk only that Muse Spark typed
+    dirt folds into the debris line whether or not its views are flagged. False when absent."""
+    leaf = (th or {}).get("matching", {}).get("debris_by_eye")
+    return isinstance(leaf, dict) and bool(leaf.get("enabled")) and bool(leaf.get("any_view"))
+
+
+# R28: same-walk copies, faint marks left off, the mirrors' sides ---------------------------------------------------
+
+SIDE_SIGN = {"left": -1, "right": 1}  # the lateral rule: facing the left side the car's front shows image-left
+
+
+def registration_defaults() -> dict[str, Any]:
+    from . import register
+
+    return {**register.DEFAULTS}
+
+
+def same_walk_copies(th: dict | None) -> dict[str, Any] | None:
+    """R28 (lead decision 1 of 11/2, thresholds matching.same_walk_copies): the leaf, or None when absent or off."""
+    leaf = (th or {}).get("matching", {}).get("same_walk_copies")
+    if not isinstance(leaf, dict) or not leaf.get("enabled"):
+        return None
+    return {"into_labels": [VerdictLabel.ALREADY_THERE.value], "refused_fit_min_mask_iou": 0.85, "refused_fit_min_hits": 2, **leaf}
+
+
+def _renumbered(pm: PanelMatch, kept: list[Verdict]) -> list[Verdict]:
+    return [v.model_copy(update={"verdict_id": f"{pm.panel_id.value}_v{n}"}) for n, v in enumerate(kept, 1)]
+
+
+def _box_hit(box: tuple[float, float, float, float], target: list[float], cfg: dict[str, Any]) -> float | None:
+    """The distance from box's centre to target's centre when the centre lies inside target or within coincide_px."""
+    from . import register
+
+    t = (float(target[0]), float(target[1]), float(target[2]), float(target[3]))
+    cx, cy = _centre(box)
+    tx, ty = _centre(t)
+    dist = math.hypot(cx - tx, cy - ty)
+    inside = t[0] <= cx <= t[2] and t[1] <= cy <= t[3]
+    return dist if inside or dist <= register.coincide_px(t, cfg) else None
+
+
+def copies_step(
+    pm: PanelMatch, verdicts: list[Verdict], marks: dict[str, Mark], whitened: dict[str, WhitenedMark], cache: "RegistrationCache | None", th: dict
+) -> tuple[PanelMatch, list[Verdict]]:
+    """R28 (lead decision 1 of 11/2, matching.same_walk_copies), after the verdicts: a mark seen in one walk only, on
+    another keyframe of the same panel in the same walk as a mark of a pair labelled one of into_labels, that maps onto
+    that pair's mark is the pair's mark seen again. Its line leaves the list and a CopyNote names it in how checked. It
+    maps through the panel frame (whitened distance within dedup.cluster_radius_units) or the registration (the crop
+    fit of its keyframe onto the pair mark's keyframe, same walk first, then the other walk; the box centre inside the
+    pair mark's box or within register.coincide_px). A fit that was refused after an outline fit with mask IoU at least
+    refused_fit_min_mask_iou counts only when it puts at least refused_fit_min_hits marks of the keyframe on distinct
+    decided marks: the marks themselves then confirm the map. Pure apart from the cache's fits; only removes lines."""
+    cfg = same_walk_copies(th)
+    if cfg is None or pm.state != MatchState.COMPARABLE or pm.panel_id in WHEEL_PANELS or not verdicts:
+        return pm, verdicts
+    labels = {VerdictLabel(x) for x in cfg["into_labels"]}
+    anchors: list[tuple[Mark, Mark]] = []  # (the decided mark, its partner in the other walk)
+    for v in verdicts:
+        pair = [marks.get(i) for i in v.mark_ids]
+        if v.label in labels and len(pair) == 2 and pair[0] is not None and pair[1] is not None and pair[0].role != pair[1].role:
+            anchors += [(pair[0], pair[1]), (pair[1], pair[0])]
+    if not anchors:
+        return pm, verdicts
+    radius = float(th["dedup"]["cluster_radius_units"])
+    reg_cfg = cache.cfg if cache is not None else None
+    found: dict[str, CopyNote] = {}
+    refused: dict[tuple[str, str], list[tuple[str, CopyNote]]] = {}  # (copy kf, target kf) -> (target mark, note)
+    for v in verdicts:
+        if len(v.mark_ids) != 1 or v.label == VerdictLabel.NOT_COMPARABLE:
+            continue
+        m = marks.get(v.mark_ids[0])
+        if m is None:
+            continue
+        mine = [(a, b) for a, b in anchors if a.role == m.role and a.kf_id != m.kf_id]
+        if not mine:
+            continue
+
+        def note(a: Mark, b: Mark, target: Mark, via: str, dist: float, fit: str | None = None, was_refused: bool = False) -> CopyNote:
+            pick, ret = (a, b) if a.role == ROLES[0] else (b, a)
+            return CopyNote(mark_id=m.mark_id, kf_id=m.kf_id, into_mark=target.mark_id, into_pair=[pick.mark_id, ret.mark_id], via=via, distance=round(dist, 3), fit=fit, refused_fit=was_refused)  # type: ignore[arg-type]  # noqa: B023
+
+        wm = whitened.get(m.mark_id)
+        near = []
+        for a, b in mine:
+            wa = whitened.get(a.mark_id)
+            if wm is not None and wa is not None and wm.frame_used == wa.frame_used == FrameUsed.MOMENT:
+                d = math.hypot(wm.u - wa.u, wm.v - wa.v)
+                if d <= radius:
+                    near.append((d, a.mark_id, a, b))
+        if near:
+            d, _, a, b = min(near)
+            found[m.mark_id] = note(a, b, a, "panel_frame", d)
+            continue
+        if cache is None or reg_cfg is None or m.bbox_crop is None:
+            continue
+        box = tuple(float(x) for x in m.bbox_crop)
+        hits = []
+        for a, b in mine:
+            for target in (a, b):
+                if target.bbox_crop is None or target.kf_id == m.kf_id:
+                    continue
+                al = cache.fit(m.kf_id, target.kf_id)
+                if al is None or al.H is None:
+                    continue
+                from . import register
+
+                dist = _box_hit(register.map_box(al.H, box), target.bbox_crop, reg_cfg)  # type: ignore[arg-type]
+                if dist is None:
+                    continue
+                if al.ok:
+                    hits.append((0, dist, target.mark_id, note(a, b, target, "registration", dist, str(al.model))))
+                elif str(al.model) == "outline" and float(al.mask_iou) >= float(cfg["refused_fit_min_mask_iou"]):
+                    refused.setdefault((m.kf_id, target.kf_id), []).append((target.mark_id, note(a, b, target, "registration", dist, "outline", True)))
+        if hits:
+            found[m.mark_id] = min(hits, key=lambda h: (h[0], h[1], h[2]))[3]
+    for group in refused.values():
+        best: dict[str, tuple[str, CopyNote]] = {}
+        for target_id, n in group:
+            if n.mark_id in found:
+                continue
+            if n.mark_id not in best or (n.distance or 0.0) < (best[n.mark_id][1].distance or 0.0):
+                best[n.mark_id] = (target_id, n)
+        if len(best) >= int(cfg["refused_fit_min_hits"]) and len({t for t, _ in best.values()}) >= int(cfg["refused_fit_min_hits"]):
+            for mark_id, (_, n) in best.items():
+                found.setdefault(mark_id, n)
+    if not found:
+        return pm, verdicts
+    kept = [v for v in verdicts if not (len(v.mark_ids) == 1 and v.mark_ids[0] in found)]
+    notes = [found[i] for i in sorted(found)]
+    return pm.model_copy(update={"copies": [*pm.copies, *notes]}), _renumbered(pm, kept)
+
+
+def copies_words(pm: PanelMatch) -> str | None:
+    """how_checked's part for same-walk copies (R28)."""
+    if not pm.copies:
+        return None
+    parts = []
+    for n in pm.copies:
+        if n.via == "panel_frame":
+            how = f"within {n.distance:.2f} panel units in the panel frame"
+        elif n.refused_fit:
+            how = f"by an outline fit that was refused on its own but put this and another mark of {n.kf_id} inside the paired marks ({n.distance:.0f} px)"
+        else:
+            how = f"by a {n.fit} fit ({n.distance:.0f} px)"
+        parts.append(f"{n.mark_id} is {n.into_mark} seen again in {n.kf_id}, {how}, so it has no line of its own (already decided with {' and '.join(i for i in n.into_pair if i != n.into_mark)})")
+    return "copies: " + "; ".join(parts)
+
+
+def faint_left_off(th: dict | None) -> bool:
+    """R28 (lead decision 3 of 11/2, thresholds matching.faint_left_off)."""
+    leaf = (th or {}).get("matching", {}).get("faint_left_off")
+    return bool(leaf.get("enabled")) if isinstance(leaf, dict) else bool(leaf)
+
+
+def faint_step(pm: PanelMatch, verdicts: list[Verdict], th: dict) -> tuple[PanelMatch, list[Verdict]]:
+    """R28 (matching.faint_left_off): a line of one mark seen in one walk only that K20 capped (its box does not stand
+    out from its own surroundings) leaves the renter's list; pm.left_off keeps its id so how checked says so with its
+    contrast. Pure; only removes lines."""
+    if not faint_left_off(th) or not verdicts:
+        return pm, verdicts
+    off = [v for v in verdicts if len(v.mark_ids) == 1 and "K20" in (v.trace.rule_ids if v.trace is not None else [])]
+    if not off:
+        return pm, verdicts
+    gone = {v.verdict_id for v in off}
+    kept = [v for v in verdicts if v.verdict_id not in gone]
+    return pm.model_copy(update={"left_off": sorted({*pm.left_off, *(v.mark_ids[0] for v in off)})}), _renumbered(pm, kept)
+
+
+def side_from_track(th: dict | None) -> dict[str, Any] | None:
+    """R28 (lead decision 4 of 11/2, thresholds matching.side_from_track): the leaf, or None when absent or off."""
+    leaf = (th or {}).get("matching", {}).get("side_from_track")
+    if not isinstance(leaf, dict) or not leaf.get("enabled"):
+        return None
+    return {"panels": [PanelId.MIRRORS.value], "min_shared_frames": 15, "min_share": 0.8, **leaf}
+
+
+def orientation_free_panels(th: dict | None) -> frozenset[PanelId]:
+    cfg = side_from_track(th)
+    return frozenset(PanelId(p) for p in cfg["panels"]) if cfg is not None else frozenset()
+
+
+def track_sides(tracks: list[PanelTrack], cfg: dict[str, Any]) -> dict[str, str]:
+    """For each track of an orientation-free panel, its side from the side-decided door tracks of its walk it shares
+    frames with: the side holding at least min_share of those frames and at least min_shared_frames, else none."""
+    free = {PanelId(p) for p in cfg["panels"]}
+    doors: dict[str, list[tuple[str, set[int]]]] = {}
+    for t in tracks:
+        if t.noun == Noun.CAR_DOOR and t.side.value in SIDE_SIGN:
+            doors.setdefault(t.role, []).append((t.side.value, {f.frame for f in t.per_frame}))
+    out: dict[str, str] = {}
+    for t in tracks:
+        if t.panel_id not in free:
+            continue
+        frames = {f.frame for f in t.per_frame}
+        counts = {s: 0 for s in SIDE_SIGN}
+        for side, door_frames in doors.get(t.role, []):
+            counts[side] += len(frames & door_frames)
+        total = sum(counts.values())
+        side, n = max(counts.items(), key=lambda kv: (kv[1], kv[0]))
+        out[t.track_id] = side if total and n >= int(cfg["min_shared_frames"]) and n >= float(cfg["min_share"]) * total else "none"
+    return out
+
+
+def assign_sides(run_id: str, keyframes: list[Keyframe], marks: list[Mark], th: dict) -> tuple[list[Keyframe], list[Mark], dict[str, str]]:
+    """R28 (matching.side_from_track): a keyframe of an orientation-free panel with no front sign takes the sign of its
+    track's side (right +1, left -1, the lateral rule) for the match, and its marks are whitened in that frame (in
+    memory; marks.json keeps them as Muse Spark placed them). Returns the keyframes, the marks and each such keyframe's
+    side ("none" when its track got none, and it keeps G6)."""
+    cfg = side_from_track(th)
+    free = orientation_free_panels(th)
+    todo = [kf for kf in keyframes if kf.panel_id in free and kf.front_sign is None]
+    if cfg is None or not todo:
+        return keyframes, marks, {}
+    path = paths.tracks_json(run_id)
+    sides = track_sides(_read_list(path, PanelTrack), cfg) if path.is_file() else {}
+    from .marks import whiten_marks
+
+    given: dict[str, str] = {}
+    signed: dict[str, Keyframe] = {}
+    for kf in todo:
+        side = sides.get(kf.track_id or "", "none")
+        given[kf.kf_id] = side
+        if side in SIDE_SIGN:
+            signed[kf.kf_id] = kf.model_copy(update={"front_sign": SIDE_SIGN[side]})
+    keyframes = [signed.get(kf.kf_id, kf) for kf in keyframes]
+    out = []
+    for m in marks:
+        kf = signed.get(m.kf_id)
+        out.append(whiten_marks([m], kf, th=th)[0][0] if kf is not None and m.w is None else m)
+    return keyframes, out, given
+
+
+def side_words(pm: PanelMatch) -> str | None:
+    """how_checked's part for an orientation-free panel (R28): each keyframe's side from its own track."""
+    if not pm.sides:
+        return None
+    return "no front sign on this panel, so each keyframe's side comes from its own track: " + ", ".join(f"{k} {v}" for k, v in sorted(pm.sides.items()))
 
 
 def registration_config(th: dict | None) -> dict[str, Any] | None:
@@ -1191,7 +1440,9 @@ def how_checked(pm: PanelMatch) -> str | None:
         "; ".join(f"second marks pass: {w}" for w in pm.second_pass) if pm.second_pass else None,
         registration_words(pm),
         same_walk_words(pm),
+        copies_words(pm),
         stands_out_words(pm),
+        side_words(pm),
     ]
     line = "; ".join(p for p in parts if p)
     return line or None
@@ -1466,7 +1717,8 @@ def panel_gates(
         failing.append("G4")
     if residual is not None and math.hypot(residual[0], residual[1]) > calibration.tau_pre:
         failing.append("G5")
-    if panel.side_uncertain or panel.front_sign is None or any(kf is not None and kf.front_sign is None for kf in kfs):
+    free = panel.panel_id in orientation_free_panels(th)  # R28: the mirrors carry no front sign; their side is their own
+    if panel.side_uncertain or (panel.front_sign is None and not free) or any(kf is not None and kf.front_sign is None for kf in kfs):
         failing.append("G6")
     for role in ROLES:
         status = lane_status.get(role, {}).get(panel.noun)
@@ -1488,6 +1740,8 @@ def panel_gates(
     tm = twin_mirror(th)
     if tm is not None and paired and panel.panel_id in TWIN_PANELS and mirrored is not None and mirrored[1] > mirrored[0] + float(tm["margin"]):
         failing.append("G13")
+    elif free and paired and kf_pickup.front_sign is not None and kf_return.front_sign is not None and kf_pickup.front_sign != kf_return.front_sign:  # type: ignore[union-attr]
+        failing.append("G13")  # R28: the two keyframes' tracks were given different sides, so they show the two mirrors
     return failing
 
 
@@ -2640,6 +2894,7 @@ def derive_match(
         sigma_frame, sigma_spark = measured_sigmas(th)
         calibration = calibrate(sigma_frame=sigma_frame, sigma_spark=sigma_spark, sigma_view=None, pseudo_pair_d=None, th=th)
         write_json(cal_path, calibration)
+    keyframes, marks, kf_sides = assign_sides(run_id, keyframes, marks, th)  # R28: the mirrors' sides from their tracks
     whitened = whitened_from_marks(marks)
     marks_by_id = {m.mark_id: m for m in marks}
     kf_by_id = {kf.kf_id: kf for kf in keyframes}
@@ -2667,6 +2922,7 @@ def derive_match(
     sw_cache = (reg_cache if reg_cache is not None and reg_cache.cfg == sw_cfg else RegistrationCache(run_id, kf_by_id, marks, sw_cfg)) if sw_cfg is not None else None
     so_cfg = stands_out_config(th)
     so_cache = (reg_cache or sw_cache or RegistrationCache(run_id, kf_by_id, marks, so_cfg)) if so_cfg is not None else None  # pixels only
+    copy_cache = (reg_cache or sw_cache or RegistrationCache(run_id, kf_by_id, marks, registration_config(th) or registration_defaults())) if same_walk_copies(th) is not None else None
     as_placed = {m.mark_id: m for m in marks}  # before the same-walk step re-places any
     masks: dict[str, np.ndarray | None] = {}
     scales = keyframe_scales(run_id, keyframes, masks) if pair_scale(th) is not None else None
@@ -2741,6 +2997,9 @@ def derive_match(
                 unmatched_pickup=[m.mark_id for m in panel_marks["pickup"]],
                 unmatched_return=[m.mark_id for m in panel_marks["return"]],
             )
+        sided = {k: side for k, side in kf_sides.items() if k in kf_by_id and kf_by_id[k].panel_id == panel.panel_id}
+        if sided:
+            pm = pm.model_copy(update={"sides": sided})
         dropped = [fixtures[m.mark_id] for m in marks if m.panel_id == panel.panel_id and m.mark_id in fixtures]
         if dropped:
             pm = pm.model_copy(update={"fixtures": dropped})
@@ -2787,6 +3046,8 @@ def derive_match(
             matches.append(pm)  # the glass line stands for the panel: no verdict, not even not comparable
             continue
         panel_verdicts = verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th, counters, skipped, tallies)
+        pm, panel_verdicts = copies_step(pm, panel_verdicts, marks_by_id, whitened, copy_cache, th)  # R28, decision 1
+        pm, panel_verdicts = faint_step(pm, panel_verdicts, th)  # R28, decision 3
         pm, panel_verdicts = debris_split(pm, panel_verdicts, marks_by_id, kf_by_id, th)
         matches.append(pm)
         verdicts.extend(panel_verdicts)

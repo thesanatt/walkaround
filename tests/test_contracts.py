@@ -80,6 +80,8 @@ def _instances() -> list[c.Contract]:
         c.RegistrationVouch(fit=c.RegistrationFit(kf_pair=["pickup_rear_bumper_kf1", "return_rear_bumper_kf2"], model="features", ok=True, n_matches=179, n_inliers=110, spread=0.665, mask_iou=0.858, reproj_px=1.32), vouched=True),
         c.KeyframePairTry(kf_pair=["pickup_rear_bumper_kf1", "return_rear_bumper_kf2"], gates=["G4"], mask_iou=0.68, vouch=c.RegistrationVouch(fit=c.RegistrationFit(kf_pair=["pickup_rear_bumper_kf1", "return_rear_bumper_kf2"], model="outline", ok=False, why="mask IoU after the warp 0.86"), vouched=False, why="the fit was refused (mask IoU after the warp 0.86)")),
         c.SameWalkNote(mark_id="pickup_rear_bumper_kf3_m1", from_kf="pickup_rear_bumper_kf3", to_kf="pickup_rear_bumper_kf2", merged_into="pickup_rear_bumper_kf2_m1", model="features", reproj_px=0.87),
+        c.CopyNote(mark_id="pickup_rear_bumper_kf2_m1", kf_id="pickup_rear_bumper_kf2", into_mark="pickup_rear_bumper_kf1_m1", into_pair=["pickup_rear_bumper_kf1_m1", "return_rear_bumper_kf1_m1"], via="registration", distance=3.6, fit="outline", refused_fit=True),
+        c.Rederived(from_run="r0", from_events_head_hash=SHA, stored_on="Nov 2, 2026", recomputed_on="Nov 2, 2026", text="verdicts recomputed on Nov 2, 2026 with this version's rules (code abc1234) from the model answers stored on Nov 2, 2026 by run r0; no new model calls"),
         c.RegistrationMark(mark_id="return_hood_kf1_m1", other_kf="pickup_hood_kf1", result="present", mapped_box=[10.0, 10.0, 30.0, 20.0], found_box=[12.0, 10.0, 32.0, 20.0], ncc=0.8, contrast_own=12.0, contrast_other=10.0, uncertainty_px=4.0, used="capped"),
         c.OffPanelNote(mark_id="pickup_hood_kf1_m2", from_panel=c.PanelId.HOOD, off_frac=0.06),
         c.SideVotes(R1=2, R2=1),

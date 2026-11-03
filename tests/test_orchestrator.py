@@ -320,9 +320,9 @@ class Fakes:
         minutes: Any = "camera time not present" if camera_time == "camera time not present" else int((parse_ts(now) - parse_ts(camera_time)).total_seconds() // 60)
         return manifest, c.ThreeClocks(sealed_at=now, sealed_minutes_after_camera=minutes, camera_time=None if camera_time == "camera time not present" else camera_time)
 
-    def write_manifest_run(self, run_id: str, *, deletions: list, events_head_hash: str, config_hash: str, app_commit: str, pdf_sha256: str | None) -> c.SealManifest:
+    def write_manifest_run(self, run_id: str, *, deletions: list, events_head_hash: str, config_hash: str, app_commit: str, pdf_sha256: str | None, rederived: str | None = None) -> c.SealManifest:
         self.calls["write_manifest_run"] += 1
-        manifest = c.SealManifest(run_id=run_id, files=[], deletions=deletions, events_head_hash=events_head_hash or None, config_hash=config_hash or None, app_commit=app_commit or None, pdf_sha256=pdf_sha256)
+        manifest = c.SealManifest(run_id=run_id, files=[], deletions=deletions, events_head_hash=events_head_hash or None, config_hash=config_hash or None, app_commit=app_commit or None, pdf_sha256=pdf_sha256, rederived=rederived)
         c.write_json(paths.manifest_run_json(run_id), manifest)
         return manifest
 

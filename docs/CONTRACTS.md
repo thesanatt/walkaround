@@ -2107,3 +2107,51 @@ on for new runs and absent from frozen runs (which rebuild and blur as they did)
 - Rules: G11, G12, G13 in walkaround/rules.py and web/src/lib/rules.ts; match.VIEW_GATES includes them.
 - Tests: tests/test_r27.py (17); tests/test_contracts.py (gate ids G1 to G13, PrivacyDrop round trip);
   tests/test_privacy.py's carry test runs the box rule without the leaf.
+
+## R28: same-walk copies, debris on any view, faint marks left off, the mirrors' side, rederive (2026-11-02, round 28)
+
+Lead decisions of 11/2 on hero_focus5 (docs/inspect_hero_focus5/NOTES.md in the workspace). Each is a thresholds leaf, on
+for new runs and absent from frozen runs, which rebuild as they did. Steps 1 to 3 run after verdicts_for, so the
+counter-look asks are the same with or without them and stored looks replay unchanged; they only remove lines.
+
+- matching.same_walk_copies `{"enabled", "into_labels": ["already_there"], "refused_fit_min_mask_iou": 0.85,
+  "refused_fit_min_hits": 2}`, match.copies_step: a one-mark line whose mark sits on another keyframe of the same panel
+  and walk than a mark of a pair labelled one of into_labels, and maps onto that pair's mark, leaves the list. It maps
+  through the panel frame (whitened distance within dedup.cluster_radius_units) or the registration (cache.fit of its
+  keyframe onto the pair mark's keyframe, same walk then other walk; box centre inside the target box or within
+  register.coincide_px). A fit refused after an outline fit with mask IoU at least refused_fit_min_mask_iou counts only
+  when it puts refused_fit_min_hits or more marks of that keyframe on distinct decided marks. PanelMatch.copies:
+  list[CopyNote] (mark_id, kf_id, into_mark, into_pair, via, distance, fit, refused_fit), left out when empty.
+- matching.debris_by_eye gains `"any_view": true`, match.debris_any_view: a one-mark needs-your-eye line whose mark is
+  typed dirt folds into the debris line whether or not its views are flagged; ByEyeLine.any_view (left out when None)
+  switches the count wording to "typed dirt, not listed one by one". A damage type or unsure never folds.
+- matching.faint_left_off `{"enabled"}`, match.faint_step: a one-mark line with K20 in its rule ids leaves the list;
+  PanelMatch.left_off: list[str] (left out when empty), and how_checked's K20 part says "so it is left off the list".
+- matching.side_from_track `{"enabled", "panels": ["mirrors"], "min_shared_frames": 15, "min_share": 0.8}`,
+  match.track_sides / assign_sides / orientation_free_panels: for a panel in the list, a keyframe with front_sign null
+  takes the side of its own track, the side of the side-decided door tracks of its walk it shares frames with (at least
+  min_share of those frames and min_shared_frames), as front_sign (right +1, left -1) for the match only; its marks are
+  whitened in that frame in memory (marks.json is unchanged). panel_gates: G6 no longer fails on the panel's own null
+  front_sign for these panels (a keyframe without a side still fails it); two keyframes given different sides fail G13.
+  PanelMatch.sides: dict[kf_id, side], left out when empty; how_checked says each keyframe's side.
+- Sheet glossary: GLOSSARY_COPIES, GLOSSARY_DEBRIS_ANY, GLOSSARY_LEFT_OFF, GLOSSARY_SIDE_FROM_TRACK, each only with its
+  leaf.
+
+`walkaround rederive RUN NEW_RUN` (pipeline.rederive, Orchestrator.rederive): RUN must be done or partial, sealed and
+hold its stored answers; NEW_RUN must be a free id. The run directory is copied without quarantine, uploads, proxies,
+the sheet, manifest_run.json, the letter, note and verify files, run.json and the event log. bundle/manifest.json and
+its .ots/.tsq/.tsr proofs are RUN's, byte for byte (the seal over the originals). events.ndjson is RUN's log up to its
+first output or run-end event (match.derived, sheet.written, a deletion, run.completed, run.partial or run.failed),
+byte for byte, so the chain from manifest.json still verifies; then NEW_RUN's own events (stage matching with
+rederived_from, match.derived with a rederived block, stage sheet, sheet.written, stage done, run.completed with
+api_spend_cents 0). run.json: run_id NEW_RUN, created_at now, the server's thresholds as run.json stores them
+(6-place floats) and their config_hash, app_commit now, api_spend_cents 0, `rederived: Rederived` (from_run,
+from_events_head_hash, from_config_hash, from_app_commit, stored_on, recomputed_on, text), left out of every other run.
+The recompute is rebuild's (coverage, marks from spark.json, narration from voice.json, Stays Put from stored clips,
+the second pass applied, looks replayed from looks.json, match, ruler, claims), then a first manifest_run.json (the
+sheet's verify reads the deletions), the sheet, and the final manifest_run.json with `rederived: str` (left out when
+None) and NEW_RUN's head. deletions.json keeps RUN's rows. Tracks, keyframes and crops are RUN's: they need the
+deleted originals to recompute. text: "verdicts recomputed on <ET date> with this version's rules (code <7 hex>) from
+the model answers stored on <ET date of RUN's created_at> by run RUN; no new model calls"; SheetModel.rederived_line
+(left out when None) prints it on page 1, in the letter and in the verify appendix. `walkaround verify NEW_RUN`
+rebuilds it like any run.

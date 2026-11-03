@@ -455,6 +455,7 @@ def write_manifest_run(
     app_commit: str,
     pdf_sha256: str | None,
     stamps: Stamps | None = None,
+    rederived: str | None = None,
 ) -> SealManifest:
     """manifest_run.json: every kept artifact (quarantine, upload chunks, run.json, the event log and the upgradeable
     .ots proofs excluded; the chain head covers the log), the deletions, the chain head, the config hash, the app
@@ -470,6 +471,7 @@ def write_manifest_run(
         config_hash=config_hash,
         app_commit=app_commit,
         pdf_sha256=pdf_sha256,
+        rederived=rederived,
     )
     path = paths.manifest_run_json(run_id)
     write_json(path, manifest)

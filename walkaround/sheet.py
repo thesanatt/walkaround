@@ -401,6 +401,7 @@ def letter_md(sheet: SheetModel) -> str:
         f"{originals}\n"
         f"- sealed at {sealed}\n"
         f"- Walkaround run {sheet.run_id}; the panel-by-panel evidence sheet is attached\n"
+        + (f"- {sheet.rederived_line}\n" if sheet.rederived_line else "")
         + (f"- the frames on the sheet: {footage_line(sheet)}\n" if sheet.footage_credit else "")
         + "\n"
         "The attached sheet shows the panel in question at pickup and at return with the marks drawn on both frames. The\n"
@@ -448,6 +449,8 @@ def verify_md(sheet: SheetModel) -> str:
         steps.append((f"Verify the RFC 3161 token from {issuer} ({stamps.tsr_time}) with {certs}:", [f"   {cmd}"]))
     steps.append(("Re-hash every file in the bundle and rebuild the derived files from the stored model answers:", [f"   walkaround verify {sheet.run_id}"]))
     lines = [f"Verify it yourself ({len(steps)} steps; none needs Walkaround's server)", ""]
+    if sheet.rederived_line:  # R28: the originals' seal is the earlier run's; the verdicts are this run's
+        lines += [f"This run's {sheet.rederived_line}. The originals' hashes and stamps are that run's seal.", ""]
     for n, (title, body) in enumerate(steps, 1):
         lines += [f"{n}. {title}", *body]
     return "\n".join(lines) + "\n"
@@ -559,6 +562,26 @@ GLOSSARY_FIXTURES = (  # match.fixtures_not_damage, lead decision 4 of 11/1
 )
 
 
+GLOSSARY_COPIES = (  # match.same_walk_copies, R28 (lead decision 1 of 11/2)
+    "the same mark seen again: a mark seen in one walk only, on another frame of the same panel and walk, that lands on a mark already called already there "
+    "(close in the panel frame, or carried there by a fit of the two frames) is that mark seen again. It gets no line of its own; how it was checked names it.\n"
+)
+
+GLOSSARY_DEBRIS_ANY = (  # match.debris_any_view, R28 (lead decision 2 of 11/2)
+    "debris on any view: a mark seen in one walk only that Muse Spark typed dirt joins the panel's debris line whether or not the view was flagged. "
+    "A mark Muse Spark typed as damage, or could not type, never joins it.\n"
+)
+
+GLOSSARY_LEFT_OFF = (  # match.faint_left_off, R28 (lead decision 3 of 11/2)
+    "left off the list: a mark seen in one walk only whose box does not stand out from the paint around it (K20) gets no line. "
+    "How it was checked names it with its contrast, so you can still look.\n"
+)
+
+GLOSSARY_SIDE_FROM_TRACK = (  # match.side_from_track, R28 (lead decision 4 of 11/2)
+    "mirror side: a side mirror has no front or back the way a door does, so gate G6 does not ask for one. "
+    "Each mirror frame takes the side of the doors filmed with it; frames of the two different mirrors are not compared (G13).\n"
+)
+
 def glossary_md(th: dict[str, Any] | None = None) -> str:
     """The glossary appendix. The 11/1 lines print only for a run whose thresholds turn those rules on, so a sheet
     frozen before them rebuilds byte for byte."""
@@ -584,6 +607,10 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + (GLOSSARY_STANDS_OUT if match.stands_out_config(th) is not None else "")
         + (GLOSSARY_VOUCH if match.registration_vouches(th) is not None else "")
         + (GLOSSARY_MAJORITY if match.look_majority(th) is not None else "")
+        + (GLOSSARY_COPIES if match.same_walk_copies(th) is not None else "")
+        + (GLOSSARY_DEBRIS_ANY if match.debris_any_view(th) else "")
+        + (GLOSSARY_LEFT_OFF if match.faint_left_off(th) else "")
+        + (GLOSSARY_SIDE_FROM_TRACK if match.side_from_track(th) is not None else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"
@@ -1019,6 +1046,8 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     if th.get("sheet", {}).get("footage_credit") and run.footage_credit:
         sheet.footage_credit = _ascii(run.footage_credit)
         sheet.footage_license_url = footage_license_url(run.footage_credit)
+    if run.rederived is not None:  # walkaround rederive (R28)
+        sheet.rederived_line = _ascii(run.rederived.text)
     sheet.note_lines = note_lines(sheet)
     appendices = {"A certification": certification_md(sheet), "B glossary": glossary_md(th), "C verify it yourself": verify_md(sheet)}
     if claim is not None:

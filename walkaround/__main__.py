@@ -58,6 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
     verify.add_argument("run_id")
     verify.add_argument("--out", type=Path, help="scratch directory for the rebuild (default runs/_verify)")
 
+    rederive = sub.add_parser("rederive", help="a new run from a run's sealed originals and stored model answers, under this version's rules, no model call")
+    rederive.add_argument("run_id")
+    rederive.add_argument("new_run_id")
+
     serve = sub.add_parser("serve", help="start the web app")
     serve.add_argument("--host", default=os.environ.get("HOST", "127.0.0.1"))
     serve.add_argument("--port", type=int, default=int(os.environ.get("PORT", "8000")))
@@ -214,6 +218,22 @@ def why_differs(run_id: str, problem: str) -> str | None:
     return why_rebuild_differs(run_id, name) or narration.why_rebuild_differs(run_id, name)
 
 
+def cmd_rederive(args: argparse.Namespace, orch: Orchestrator) -> int:
+    if not orch.run_exists(args.run_id):
+        sys.stderr.write(f"no run {args.run_id}\n")
+        return 1
+    if why := sample_copy(orch, args.run_id):
+        sys.stderr.write(why)
+        return 2
+    try:
+        run = pipeline.rederive(args.run_id, args.new_run_id, orch=orch)
+    except (RebuildRefused, FileExistsError, ValueError) as exc:
+        sys.stderr.write(f"{exc}\n")
+        return 2
+    sys.stdout.write(f"{run.run_id}: {run.rederived.text if run.rederived else ''}\n")
+    return 0
+
+
 def cmd_serve(args: argparse.Namespace, orch: Orchestrator) -> int:
     import uvicorn
 
@@ -223,7 +243,7 @@ def cmd_serve(args: argparse.Namespace, orch: Orchestrator) -> int:
     return 0
 
 
-COMMANDS = {"run": cmd_run, "rebuild": cmd_rebuild, "verify": cmd_verify, "serve": cmd_serve}
+COMMANDS = {"run": cmd_run, "rebuild": cmd_rebuild, "verify": cmd_verify, "rederive": cmd_rederive, "serve": cmd_serve}
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -84,6 +84,10 @@ def th() -> dict[str, Any]:
     # both have their own tests (tests/test_vouch_majority_1102.py)
     for leaf in ("registration_vouches", "look_majority"):
         values["matching"].pop(leaf, None)
+    # the R28 leaves (same-walk copies, faint marks left off, the mirrors' side) have their own tests
+    # (tests/test_r28_1102.py); debris_by_eye, which carries any_view, is already out above
+    for leaf in ("same_walk_copies", "faint_left_off", "side_from_track"):
+        values["matching"].pop(leaf, None)
     return values
 
 

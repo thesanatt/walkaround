@@ -649,6 +649,21 @@ class RunCounts(Contract):
     matches: int = 0
 
 
+class Rederived(Contract):
+    """walkaround rederive RUN NEW_RUN (R28): NEW_RUN was made from RUN's sealed originals (the same
+    bundle/manifest.json and its stamps) and RUN's stored model answers (SAM, Muse Spark, Muse Voice, the looks),
+    with this version's code and thresholds and no model call. text is the plain sentence the sheet and
+    manifest_run.json print."""
+
+    from_run: str
+    from_events_head_hash: str | None = None
+    from_config_hash: str | None = None
+    from_app_commit: str | None = None
+    stored_on: str  # the date RUN's model answers were stored (RUN's created_at, ET)
+    recomputed_on: str  # the date NEW_RUN was made (ET)
+    text: str
+
+
 class RunManifest(Contract):
     """run.json. Timestamps are allowed here; it is not a derived file."""
 
@@ -679,13 +694,18 @@ class RunManifest(Contract):
     events_head_hash: str | None = None
     counts: RunCounts = Field(default_factory=RunCounts)
     errors: list[RunError] = Field(default_factory=list)
+    # walkaround rederive (R28): this run's verdicts were recomputed from another run's stored model answers
+    rederived: Rederived | None = None
 
     @model_serializer(mode="wrap")
     def _omit_absent_tire_code(self, handler: Any) -> Any:
-        """A run with no tire code typed serializes as it did before the field existed (10/31)."""
+        """A run with no tire code typed serializes as it did before the field existed (10/31); so does a run that
+        was not rederived (R28)."""
         data = handler(self)
         if isinstance(data, dict) and data.get("tire_code") is None:
             data.pop("tire_code", None)
+        if isinstance(data, dict) and data.get("rederived") is None:
+            data.pop("rederived", None)
         return data
 
 
@@ -784,6 +804,15 @@ class SealManifest(Contract):
     config_hash: str | None = None
     app_commit: str | None = None
     pdf_sha256: Sha256 | None = None
+    rederived: str | None = None  # walkaround rederive (R28): the sentence saying what was recomputed and from what
+
+    @model_serializer(mode="wrap")
+    def _omit_not_rederived(self, handler: Any) -> Any:
+        """A manifest of a run that was not rederived serializes as it did before the field existed (R28)."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("rederived") is None:
+            data.pop("rederived", None)
+        return data
 
 
 class Event(Contract):
@@ -1653,6 +1682,33 @@ class ByEyeLine(Contract):
     kind: Literal["glass", "debris"]
     text: str
     mark_ids: list[str] = Field(default_factory=list)
+    # debris folded whether or not the view was flagged (matching.debris_by_eye any_view, R28); None before it
+    any_view: bool | None = None
+
+    @model_serializer(mode="wrap")
+    def _omit_absent_any_view(self, handler: Any) -> Any:
+        """A line made before any_view serializes as it did before the field existed (R28)."""
+        data = handler(self)
+        if isinstance(data, dict) and data.get("any_view") is None:
+            data.pop("any_view", None)
+        return data
+
+
+class CopyNote(Contract):
+    """A mark seen in one walk only on another keyframe of the same panel and walk that maps onto a mark already in a
+    decided pair (thresholds matching.same_walk_copies, R28): it is that mark seen again, so it gets no line of its
+    own. via panel_frame: within radius in the moment-whitened panel frame; via registration: the crop fit put its box
+    on the pair's mark (fit names the fit, and refused_fit says the fit was refused on its own and counted only
+    because it put two or more marks of that keyframe on two decided marks)."""
+
+    mark_id: str
+    kf_id: str
+    into_mark: str  # the decided pair's mark it landed on
+    into_pair: list[str] = Field(default_factory=list)  # that pair's two marks, pickup first
+    via: Literal["panel_frame", "registration"]
+    distance: float | None = None  # whitened units (panel_frame) or crop pixels (registration)
+    fit: str | None = None  # registration: features or outline
+    refused_fit: bool = False
 
 
 class SameWalkNote(Contract):
@@ -1711,6 +1767,12 @@ class PanelMatch(Contract):
     same_walk: list[SameWalkNote] = Field(default_factory=list)
     # one-walk marks tested for standing out from their own surroundings (matching.stands_out, 11/2, K20)
     own_contrast: list[OwnContrast] = Field(default_factory=list)
+    # same-walk copies of a decided pair's mark, merged into it with no line (matching.same_walk_copies, R28)
+    copies: list[CopyNote] = Field(default_factory=list)
+    # one-walk marks that failed K20, left off the renter's list and kept in how checked (matching.faint_left_off, R28)
+    left_off: list[str] = Field(default_factory=list)
+    # orientation-free panels (the mirrors): each keyframe's side from its own track (matching.side_from_track, R28)
+    sides: dict[str, str] = Field(default_factory=dict)
 
     @model_serializer(mode="wrap")
     def _omit_no_tries(self, handler: Any) -> Any:
@@ -1723,7 +1785,7 @@ class PanelMatch(Contract):
             data.pop("reshape", None)
         if isinstance(data, dict) and not data.get("fixtures"):
             data.pop("fixtures", None)
-        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk", "own_contrast", "privacy_drops"):
+        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk", "own_contrast", "privacy_drops", "copies", "left_off", "sides"):
             if isinstance(data, dict) and not data.get(key):
                 data.pop(key, None)
         return data
@@ -2078,14 +2140,17 @@ class SheetModel(Contract):
     # sheet.footage_credit is on (11/1; CC BY 4.0 asks for both wherever the modified frames are shared)
     footage_credit: str | None = None
     footage_license_url: str | None = None
+    # walkaround rederive (R28): "verdicts recomputed on <date> with this version's rules from the model answers
+    # stored on <date>; no new model calls", on page 1, in the letter and in the verify appendix
+    rederived_line: str | None = None
 
     @model_serializer(mode="wrap")
     def _omit_absent_footage(self, handler: Any) -> Any:
         """A sheet with no credit printed serializes as it did before the fields existed (11/1), so every run frozen
-        before the rule rebuilds byte-identical."""
+        before the rule rebuilds byte-identical; so does a sheet of a run that was not rederived (R28)."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("footage_credit", "footage_license_url"):
+            for key in ("footage_credit", "footage_license_url", "rederived_line"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data
