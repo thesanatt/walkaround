@@ -1,0 +1,63 @@
+{
+ "checks": {
+  "left_front_door_v1": {
+   "config_hash": "89dbc3e3f49f0557e848db8e744a679f5a8615224e031eacf26d813416e9407f",
+   "correct_label": null,
+   "mark_ids": [
+    "return_left_front_door_kf1_m1",
+    "return_left_front_door_kf1_m2",
+    "return_left_front_door_kf1_m3"
+   ],
+   "panel_id": "left_front_door",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   "status": "unsure",
+   "updated_at": "2026-11-02T03:56:44.715Z"
+  },
+  "left_rear_door_v1": {
+   "config_hash": "89dbc3e3f49f0557e848db8e744a679f5a8615224e031eacf26d813416e9407f",
+   "correct_label": null,
+   "mark_ids": [
+    "return_left_rear_door_kf1_m1",
+    "return_left_rear_door_kf1_m2",
+    "return_left_rear_door_kf1_m3"
+   ],
+   "panel_id": "left_rear_door",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "status": "unsure",
+   "updated_at": "2026-11-02T03:56:50.044Z"
+  },
+  "right_front_door_v1": {
+   "config_hash": "89dbc3e3f49f0557e848db8e744a679f5a8615224e031eacf26d813416e9407f",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_right_front_door_kf1_m1",
+    "pickup_right_front_door_kf1_m2",
+    "return_right_front_door_kf1_m1",
+    "return_right_front_door_kf2_m1",
+    "return_right_front_door_kf3_m1"
+   ],
+   "panel_id": "right_front_door",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4",
+    "G9"
+   ],
+   "status": "unsure",
+   "updated_at": "2026-11-02T03:57:47.265Z"
+  }
+ },
+ "run_id": "pairC_core3",
+ "saved_at": "2026-11-02T03:57:47Z",
+ "schema": 1
+}

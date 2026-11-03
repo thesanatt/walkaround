@@ -18,7 +18,8 @@
   "return_headlights_kf1",
   "return_headlights_kf2",
   "return_hood_kf1",
-  "return_hood_kf2"
+  "return_hood_kf2",
+  "return_windshield_kf1"
  ],
  "marks": {
   "pickup_front_bumper_kf1_m1": {
@@ -1377,6 +1378,6 @@
  },
  "missed": [],
  "run_id": "pairC_core3",
- "saved_at": "2026-11-02T03:33:08Z",
+ "saved_at": "2026-11-02T09:58:10Z",
  "schema": 1
 }

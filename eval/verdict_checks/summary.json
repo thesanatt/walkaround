@@ -1,0 +1,382 @@
+{
+ "hero_focus4": {
+  "already_there_called_wrong": [],
+  "by_product_label": {
+   "already_there": {
+    "checked": 3,
+    "right": 3,
+    "unsure": 0,
+    "verdicts": 5,
+    "wrong": 0
+   },
+   "needs_your_eye": {
+    "checked": 4,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 10,
+    "wrong": 4
+   },
+   "new_or_unseen": {
+    "checked": 1,
+    "right": 1,
+    "unsure": 0,
+    "verdicts": 1,
+    "wrong": 0
+   },
+   "not_comparable": {
+    "checked": 4,
+    "right": 1,
+    "unsure": 2,
+    "verdicts": 10,
+    "wrong": 1
+   },
+   "not_seen_at_return": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 0,
+    "wrong": 0
+   }
+  },
+  "checked": 12,
+  "drawn_missed": {
+   "pickup": 0,
+   "return": 0,
+   "verdicts": 0
+  },
+  "new_called_wrong": [],
+  "notes": [],
+  "of_verdicts": 26,
+  "right": 5,
+  "stale": 0,
+  "unsure": 2,
+  "wrong": 5,
+  "wrong_by_correct_label": {
+   "already_there": 4,
+   "not_seen_at_return": 1
+  },
+  "wrong_not_picked": 0,
+  "wrong_product_to_correct": {
+   "needs_your_eye": {
+    "already_there": 3,
+    "not_seen_at_return": 1
+   },
+   "not_comparable": {
+    "already_there": 1
+   }
+  }
+ },
+ "hero_focus5b": {
+  "already_there_called_wrong": [],
+  "by_product_label": {
+   "already_there": {
+    "checked": 5,
+    "right": 5,
+    "unsure": 0,
+    "verdicts": 5,
+    "wrong": 0
+   },
+   "needs_your_eye": {
+    "checked": 5,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 5,
+    "wrong": 5
+   },
+   "new_or_unseen": {
+    "checked": 1,
+    "right": 1,
+    "unsure": 0,
+    "verdicts": 1,
+    "wrong": 0
+   },
+   "not_comparable": {
+    "checked": 6,
+    "right": 0,
+    "unsure": 1,
+    "verdicts": 6,
+    "wrong": 5
+   },
+   "not_seen_at_return": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 0,
+    "wrong": 0
+   }
+  },
+  "checked": 17,
+  "drawn_missed": {
+   "pickup": 0,
+   "return": 0,
+   "verdicts": 0
+  },
+  "new_called_wrong": [],
+  "notes": [
+   {
+    "item": "left_rear_fender_v1",
+    "run_id": "hero_focus5b",
+    "state": "wrong",
+    "text": "im sure there is a comparable pic for this bruh"
+   },
+   {
+    "item": "left_rear_wheel_v1",
+    "run_id": "hero_focus5b",
+    "state": "wrong",
+    "text": "im sure there is a comparable pic for this bruh"
+   },
+   {
+    "item": "right_front_fender_v1",
+    "run_id": "hero_focus5b",
+    "state": "wrong",
+    "text": "im sure there is a comparable pic for this bruh"
+   },
+   {
+    "item": "right_front_wheel_v1",
+    "run_id": "hero_focus5b",
+    "state": "wrong",
+    "text": "im sure there is a comparable pic for this bruh"
+   }
+  ],
+  "of_verdicts": 17,
+  "right": 6,
+  "stale": 0,
+  "unsure": 1,
+  "wrong": 10,
+  "wrong_by_correct_label": {
+   "already_there": 5,
+   "new_or_unseen": 1,
+   "not_picked": 4
+  },
+  "wrong_not_picked": 4,
+  "wrong_product_to_correct": {
+   "needs_your_eye": {
+    "already_there": 4,
+    "new_or_unseen": 1
+   },
+   "not_comparable": {
+    "already_there": 1,
+    "not_picked": 4
+   }
+  }
+ },
+ "lexi_pair2": {
+  "already_there_called_wrong": [],
+  "by_product_label": {
+   "already_there": {
+    "checked": 1,
+    "right": 1,
+    "unsure": 0,
+    "verdicts": 2,
+    "wrong": 0
+   },
+   "needs_your_eye": {
+    "checked": 7,
+    "right": 2,
+    "unsure": 1,
+    "verdicts": 11,
+    "wrong": 4
+   },
+   "new_or_unseen": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 0,
+    "wrong": 0
+   },
+   "not_comparable": {
+    "checked": 4,
+    "right": 0,
+    "unsure": 2,
+    "verdicts": 9,
+    "wrong": 2
+   },
+   "not_seen_at_return": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 0,
+    "wrong": 0
+   }
+  },
+  "checked": 12,
+  "drawn_missed": {
+   "pickup": 0,
+   "return": 0,
+   "verdicts": 0
+  },
+  "new_called_wrong": [],
+  "notes": [],
+  "of_verdicts": 22,
+  "right": 3,
+  "stale": 0,
+  "unsure": 3,
+  "wrong": 6,
+  "wrong_by_correct_label": {
+   "already_there": 5,
+   "not_picked": 1
+  },
+  "wrong_not_picked": 1,
+  "wrong_product_to_correct": {
+   "needs_your_eye": {
+    "already_there": 4
+   },
+   "not_comparable": {
+    "already_there": 1,
+    "not_picked": 1
+   }
+  }
+ },
+ "overall": {
+  "already_there_called_wrong": [],
+  "by_product_label": {
+   "already_there": {
+    "checked": 9,
+    "right": 9,
+    "unsure": 0,
+    "verdicts": 13,
+    "wrong": 0
+   },
+   "needs_your_eye": {
+    "checked": 16,
+    "right": 2,
+    "unsure": 1,
+    "verdicts": 37,
+    "wrong": 13
+   },
+   "new_or_unseen": {
+    "checked": 2,
+    "right": 2,
+    "unsure": 0,
+    "verdicts": 2,
+    "wrong": 0
+   },
+   "not_comparable": {
+    "checked": 17,
+    "right": 1,
+    "unsure": 8,
+    "verdicts": 43,
+    "wrong": 8
+   },
+   "not_seen_at_return": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 0,
+    "wrong": 0
+   }
+  },
+  "checked": 44,
+  "drawn_missed": {
+   "pickup": 0,
+   "return": 0,
+   "verdicts": 0
+  },
+  "new_called_wrong": [],
+  "notes": [
+   {
+    "item": "left_rear_fender_v1",
+    "run_id": "hero_focus5b",
+    "state": "wrong",
+    "text": "im sure there is a comparable pic for this bruh"
+   },
+   {
+    "item": "left_rear_wheel_v1",
+    "run_id": "hero_focus5b",
+    "state": "wrong",
+    "text": "im sure there is a comparable pic for this bruh"
+   },
+   {
+    "item": "right_front_fender_v1",
+    "run_id": "hero_focus5b",
+    "state": "wrong",
+    "text": "im sure there is a comparable pic for this bruh"
+   },
+   {
+    "item": "right_front_wheel_v1",
+    "run_id": "hero_focus5b",
+    "state": "wrong",
+    "text": "im sure there is a comparable pic for this bruh"
+   }
+  ],
+  "of_verdicts": 95,
+  "right": 14,
+  "stale": 0,
+  "unsure": 9,
+  "wrong": 21,
+  "wrong_by_correct_label": {
+   "already_there": 14,
+   "new_or_unseen": 1,
+   "not_picked": 5,
+   "not_seen_at_return": 1
+  },
+  "wrong_not_picked": 5,
+  "wrong_product_to_correct": {
+   "needs_your_eye": {
+    "already_there": 11,
+    "new_or_unseen": 1,
+    "not_seen_at_return": 1
+   },
+   "not_comparable": {
+    "already_there": 3,
+    "not_picked": 5
+   }
+  }
+ },
+ "pairC_core3": {
+  "already_there_called_wrong": [],
+  "by_product_label": {
+   "already_there": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 1,
+    "wrong": 0
+   },
+   "needs_your_eye": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 11,
+    "wrong": 0
+   },
+   "new_or_unseen": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 0,
+    "wrong": 0
+   },
+   "not_comparable": {
+    "checked": 3,
+    "right": 0,
+    "unsure": 3,
+    "verdicts": 18,
+    "wrong": 0
+   },
+   "not_seen_at_return": {
+    "checked": 0,
+    "right": 0,
+    "unsure": 0,
+    "verdicts": 0,
+    "wrong": 0
+   }
+  },
+  "checked": 3,
+  "drawn_missed": {
+   "pickup": 0,
+   "return": 0,
+   "verdicts": 0
+  },
+  "new_called_wrong": [],
+  "notes": [],
+  "of_verdicts": 30,
+  "right": 0,
+  "stale": 0,
+  "unsure": 3,
+  "wrong": 0,
+  "wrong_by_correct_label": {},
+  "wrong_not_picked": 0,
+  "wrong_product_to_correct": {}
+ }
+}

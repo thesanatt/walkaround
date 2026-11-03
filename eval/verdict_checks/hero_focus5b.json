@@ -1,0 +1,287 @@
+{
+ "checks": {
+  "hood_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_hood_kf2_m1",
+    "return_hood_kf1_m1"
+   ],
+   "panel_id": "hood",
+   "product_label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "status": "right",
+   "updated_at": "2026-11-03T04:20:43.843Z"
+  },
+  "left_front_door_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m2",
+    "return_left_front_door_kf1_m1"
+   ],
+   "panel_id": "left_front_door",
+   "product_label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "status": "right",
+   "updated_at": "2026-11-03T04:19:18.287Z"
+  },
+  "left_front_door_v2": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m3",
+    "return_left_front_door_kf1_m2"
+   ],
+   "panel_id": "left_front_door",
+   "product_label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "status": "right",
+   "updated_at": "2026-11-03T04:19:21.846Z"
+  },
+  "left_front_door_v3": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": "new_or_unseen",
+   "mark_ids": [
+    "pickup_left_front_door_kf1_m1"
+   ],
+   "panel_id": "left_front_door",
+   "product_label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L1",
+    "K15"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:19:35.734Z"
+  },
+  "left_front_door_v4": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": "already_there",
+   "mark_ids": [
+    "return_left_front_door_kf1_m3"
+   ],
+   "panel_id": "left_front_door",
+   "product_label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K15"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:19:43.155Z"
+  },
+  "left_rear_fender_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "return_left_rear_fender_kf1_m1",
+    "return_left_rear_fender_kf2_m2"
+   ],
+   "note": "im sure there is a comparable pic for this bruh",
+   "panel_id": "left_rear_fender",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:20:22.402Z"
+  },
+  "left_rear_wheel_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [],
+   "note": "im sure there is a comparable pic for this bruh",
+   "panel_id": "left_rear_wheel",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:21:05.260Z"
+  },
+  "mirrors_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": "already_there",
+   "mark_ids": [
+    "return_mirrors_kf2_m3"
+   ],
+   "panel_id": "mirrors",
+   "product_label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K12",
+    "K18",
+    "K3",
+    "K4"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:21:27.499Z"
+  },
+  "rear_bumper_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_rear_bumper_kf1_m1",
+    "return_rear_bumper_kf1_m1"
+   ],
+   "panel_id": "rear_bumper",
+   "product_label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "status": "right",
+   "updated_at": "2026-11-03T04:20:50.622Z"
+  },
+  "rear_bumper_v2": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_rear_bumper_kf1_m2",
+    "return_rear_bumper_kf1_m2"
+   ],
+   "panel_id": "rear_bumper",
+   "product_label": "already_there",
+   "rule_ids": [
+    "L3"
+   ],
+   "status": "right",
+   "updated_at": "2026-11-03T04:20:58.122Z"
+  },
+  "right_front_fender_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_right_front_fender_kf1_m2"
+   ],
+   "note": "im sure there is a comparable pic for this bruh",
+   "panel_id": "right_front_fender",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:20:31.809Z"
+  },
+  "right_front_wheel_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_right_front_wheel_kf1_m1",
+    "pickup_right_front_wheel_kf1_m2"
+   ],
+   "note": "im sure there is a comparable pic for this bruh",
+   "panel_id": "right_front_wheel",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:21:12.574Z"
+  },
+  "right_rear_door_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": "already_there",
+   "mark_ids": [
+    "pickup_right_rear_door_kf1_s1"
+   ],
+   "panel_id": "right_rear_door",
+   "product_label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L5",
+    "K12",
+    "K3",
+    "K4"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:19:56.009Z"
+  },
+  "right_rear_door_v2": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "return_right_rear_door_kf1_m1"
+   ],
+   "panel_id": "right_rear_door",
+   "product_label": "new_or_unseen",
+   "rule_ids": [
+    "L5"
+   ],
+   "status": "right",
+   "updated_at": "2026-11-03T04:19:58.096Z"
+  },
+  "right_rear_fender_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": "already_there",
+   "mark_ids": [
+    "pickup_right_rear_fender_kf1_m1",
+    "return_right_rear_fender_kf1_m1"
+   ],
+   "panel_id": "right_rear_fender",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G4"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:20:40.193Z"
+  },
+  "right_rear_wheel_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": "already_there",
+   "mark_ids": [
+    "return_right_rear_wheel_kf3_m2"
+   ],
+   "panel_id": "right_rear_wheel",
+   "product_label": "needs_your_eye",
+   "rule_ids": [
+    "L4",
+    "L2",
+    "K12",
+    "K15",
+    "K2"
+   ],
+   "status": "wrong",
+   "updated_at": "2026-11-03T04:21:21.090Z"
+  },
+  "roof_v1": {
+   "config_hash": "f9bb1ca339d97887886fe182bb4dd4a02f079cfd799565057148412f8277a775",
+   "correct_label": null,
+   "mark_ids": [
+    "pickup_roof_kf1_m1",
+    "pickup_roof_kf1_m2",
+    "pickup_roof_kf1_m3",
+    "pickup_roof_kf1_m4",
+    "return_roof_kf1_m1",
+    "return_roof_kf1_m2",
+    "return_roof_kf2_m1",
+    "return_roof_kf2_m2"
+   ],
+   "panel_id": "roof",
+   "product_label": "not_comparable",
+   "rule_ids": [
+    "L6",
+    "G1",
+    "G4",
+    "G6"
+   ],
+   "status": "unsure",
+   "updated_at": "2026-11-03T04:20:48.256Z"
+  }
+ },
+ "run_id": "hero_focus5b",
+ "saved_at": "2026-11-03T04:21:27Z",
+ "schema": 1
+}

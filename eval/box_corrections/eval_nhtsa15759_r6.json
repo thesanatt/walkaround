@@ -1,0 +1,99 @@
+{
+ "crops_seen": [
+  "pickup_rear_bumper_kf1",
+  "pickup_rear_bumper_kf3",
+  "pickup_right_rear_door_kf1",
+  "pickup_right_rear_door_kf2",
+  "return_windshield_kf2"
+ ],
+ "marks": {
+  "pickup_rear_bumper_kf1_m1": {
+   "box": null,
+   "box_used": null,
+   "crop_h": 144,
+   "crop_w": 1280,
+   "kf_id": "pickup_rear_bumper_kf1",
+   "panel_id": "rear_bumper",
+   "point_only": false,
+   "product_box": [
+    314,
+    14,
+    359,
+    21
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "not_mark",
+   "type": "scuff",
+   "updated_at": "2026-11-02T09:58:19.527Z"
+  },
+  "pickup_rear_bumper_kf1_m2": {
+   "box": null,
+   "box_used": null,
+   "crop_h": 144,
+   "crop_w": 1280,
+   "kf_id": "pickup_rear_bumper_kf1",
+   "panel_id": "rear_bumper",
+   "point_only": false,
+   "product_box": [
+    844,
+    15,
+    885,
+    20
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "not_mark",
+   "type": "scuff",
+   "updated_at": "2026-11-02T09:58:27.156Z"
+  },
+  "pickup_rear_bumper_kf1_m3": {
+   "box": null,
+   "box_used": null,
+   "crop_h": 144,
+   "crop_w": 1280,
+   "kf_id": "pickup_rear_bumper_kf1",
+   "panel_id": "rear_bumper",
+   "point_only": false,
+   "product_box": [
+    1024,
+    17,
+    1076,
+    23
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "not_mark",
+   "type": "scuff",
+   "updated_at": "2026-11-02T09:58:30.860Z"
+  },
+  "pickup_rear_bumper_kf3_m1": {
+   "box": null,
+   "box_used": null,
+   "crop_h": 121,
+   "crop_w": 1280,
+   "kf_id": "pickup_rear_bumper_kf3",
+   "panel_id": "rear_bumper",
+   "point_only": false,
+   "product_box": [
+    890,
+    21,
+    923,
+    25
+   ],
+   "role": "pickup",
+   "size_class": "S",
+   "spark_box": null,
+   "status": "not_mark",
+   "type": "unsure",
+   "updated_at": "2026-11-02T09:58:34.056Z"
+  }
+ },
+ "missed": [],
+ "run_id": "eval_nhtsa15759_r6",
+ "saved_at": "2026-11-02T09:58:45Z",
+ "schema": 1
+}

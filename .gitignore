@@ -10,3 +10,5 @@ node_modules/
 *.egg-info/
 # web/dist/ is committed on purpose: a clone serves the app without Node. Rebuild it (cd web && npm run build) with
 # every web change.
+# generated contact sheets from tools/boxfix; two hold frames of a car whose footage is not in this repo
+eval/box_corrections/worst/
