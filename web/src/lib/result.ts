@@ -35,6 +35,9 @@ const GATE_WORDS: Record<string, string> = {
   G8: 'did not line up between the two walks',
   G9: 'had the window cut out in one walk only',
   G10: 'had their mark list cut short',
+  G11: 'were filmed at very different sizes in the two walks',
+  G12: 'were mostly blurred for privacy in one walk',
+  G13: 'showed the left one in one walk and the right one in the other',
 };
 
 // "18 panels could not be compared. Most were not filmed long enough in both walks."
@@ -70,10 +73,18 @@ export const WHY: Record<string, string> = {
   K15: 'Dirt, water or glare on this panel in one of the walks.',
   K16: 'The other walk may show it too.',
   K17: 'A second look did not see damage in the box.',
+  K18: 'The other walk shows the same patch here, but nothing was boxed there.',
+  K19: 'The other walk boxed a bigger area over this spot.',
+  K20: 'It does not stand out from the paint around it.',
+  K21: 'The other walk barely filmed this part of the panel.',
   L7: 'The panel outline changed. It may be bent.',
 };
 
+// L8: code called it already there from the pixels, so there is no distance to give.
+const FOUND_IN_BOTH = 'Boxed in one walk only, but lining up the two frames shows the same patch in the other walk.';
+
 export function whyLine(v: Verdict): string {
+  if (v.label === 'already_there' && v.rule_id === 'L8' && v.distance_cm_est === null) return FOUND_IN_BOTH;
   if (v.label === 'already_there')
     return v.distance_cm_est !== null
       ? `In the same place at pickup and at return, about ${v.distance_cm_est.toFixed(0)} cm apart.`
@@ -118,9 +129,11 @@ function unique<T>(xs: T[]): T[] {
 }
 
 // The panels both walks show clearly enough to compare: the matcher's comparable panels, else every panel a
-// verdict other than not comparable is on.
+// verdict other than not comparable is on. Glass and the wheels (R30) get a check-by-eye line, not a comparison.
+const notJudged = (m: PanelMatch) => (m.by_eye ?? []).some((b) => b.kind === 'glass' || b.kind === 'wheels');
+
 export function comparedPanels(matches: PanelMatch[], verdicts: Verdict[]): string[] {
-  const fromMatches = unique(matches.filter((m) => m.state === 'comparable').map((m) => m.panel_id));
+  const fromMatches = unique(matches.filter((m) => m.state === 'comparable' && !notJudged(m)).map((m) => m.panel_id));
   if (fromMatches.length) return fromMatches;
   return unique(verdicts.filter((v) => v.label !== 'not_comparable').map((v) => v.panel_id));
 }
@@ -185,8 +198,14 @@ export const EYE_KINDS: EyeKind[] = [
     todo: 'Look along the panel with the light across it for a dent or a bend, and photograph it from the side.',
   },
   {
+    key: 'unseen',
+    ids: ['K21'],
+    title: (n) => `${spots(n, 'spot', 'spots')} the other walk barely filmed`,
+    todo: 'Look at each spot on the car. Next time, film that part of the panel in both walks.',
+  },
+  {
     key: 'pair',
-    ids: ['K1', 'K5', 'K7', 'K16'],
+    ids: ['K1', 'K5', 'K7', 'K16', 'K18', 'K19'],
     title: (n) => `${spots(n, 'mark that', 'marks that')} may or may not be the same in both walks`,
     todo: 'Compare the two frames yourself. Both walks are sealed, so either frame can back you up.',
   },
@@ -198,7 +217,7 @@ export const EYE_KINDS: EyeKind[] = [
   },
   {
     key: 'unsure',
-    ids: ['K12', 'K17', 'K2', 'K3', 'K8', 'K13', 'K10'],
+    ids: ['K12', 'K17', 'K20', 'K2', 'K3', 'K8', 'K13', 'K10'],
     title: (n) => `${spots(n, 'spot', 'spots')} the models were not sure is damage`,
     todo: 'Look at each spot on the car. Take a close photo of any that is real damage.',
   },
@@ -227,8 +246,11 @@ const GATE_PLAIN: [string, string][] = [
   ['G1', 'not filmed long enough in both walks'],
   ['G7', 'not fully tracked'],
   ['G3', 'blurry in one walk'],
+  ['G12', 'mostly blurred for privacy in one walk'],
   ['G6', 'unclear which side of the car it is'],
+  ['G13', 'the left one in one walk and the right one in the other'],
   ['G9', 'the window was cut out in one walk only'],
+  ['G11', 'filmed at very different sizes in the two walks'],
   ['G4', 'the two views did not line up'],
   ['G8', 'the two views did not line up'],
   ['G5', 'the door handle check failed'],
@@ -242,6 +264,33 @@ export function notComparedRows(verdicts: Verdict[]): { panelId: string; reason:
       const hit = GATE_PLAIN.find(([id]) => v.trace.rule_ids.includes(id));
       return { panelId: v.panel_id, reason: hit ? hit[1] : 'could not be compared', filming: v.trace.rule_ids.includes('G1') };
     });
+}
+
+// The check-by-eye lines code wrote in place of verdicts: one row for the glass, one for the wheels (car body only,
+// R30), one per compared panel whose dirt was folded into a debris line.
+export interface ByEyeRow {
+  key: string;
+  title: string;
+  text: string;
+}
+
+export const BY_EYE_WORDS: Record<string, string> = {
+  glass: 'reflections make marks on glass unreliable, so marks there are not compared',
+  wheels: 'rims and tires are not checked mark by mark; the check covers the car body',
+  debris: 'dirt on this panel',
+};
+
+export function byEyeRows(matches: PanelMatch[]): ByEyeRow[] {
+  const of = (kind: string) => matches.filter((m) => (m.by_eye ?? []).some((b) => b.kind === kind));
+  const rows: ByEyeRow[] = [];
+  const glass = of('glass');
+  if (glass.length) rows.push({ key: 'glass', title: joinWords(glass.map((m) => panelName(m.panel_id))), text: BY_EYE_WORDS['glass']! });
+  if (of('wheels').length) rows.push({ key: 'wheels', title: 'wheels', text: BY_EYE_WORDS['wheels']! });
+  for (const m of of('debris')) {
+    const n = (m.by_eye ?? []).filter((b) => b.kind === 'debris').reduce((sum, b) => sum + b.mark_ids.length, 0);
+    rows.push({ key: `debris-${m.panel_id}`, title: panelName(m.panel_id), text: `${BY_EYE_WORDS['debris']!}, ${n} ${n === 1 ? 'spot' : 'spots'} not listed one by one` });
+  }
+  return rows;
 }
 
 // One quiet line per card: which Meta model did what, and that code made the call. Built from the marks and the

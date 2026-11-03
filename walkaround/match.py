@@ -455,6 +455,7 @@ def same_walk_words(pm: PanelMatch) -> str | None:
 
 
 GLASS_LINE = "glass: check by eye; reflections make marks on glass unreliable"
+WHEELS_LINE = "wheels: check by eye; rims and tires are not checked mark by mark"
 DEBRIS_LINE = "debris on this panel; check by eye"
 
 
@@ -467,6 +468,25 @@ def glass_by_eye(th: dict | None) -> frozenset[PanelId]:
     if not isinstance(leaf, dict) or not leaf.get("enabled"):
         return frozenset()
     return frozenset(PanelId(p) for p in leaf.get("panels", [PanelId.WINDSHIELD.value, PanelId.REAR_WINDOW.value]))
+
+
+def wheels_by_eye(th: dict | None) -> frozenset[PanelId]:
+    """R30 (lead decision of Nov 3, car body only; thresholds matching.wheels_by_eye {"enabled", "panels"}): the wheel
+    panels (rims and tires) whose marks are left out of matching and that get one check-by-eye line (WHEELS_LINE)
+    instead of verdicts, as glass does. Wheel tracking, keyframes and crops stay: the fenders are built from the wheels.
+    Empty when absent or off."""
+    leaf = (th or {}).get("matching", {}).get("wheels_by_eye")
+    if not isinstance(leaf, dict) or not leaf.get("enabled"):
+        return frozenset()
+    return frozenset(PanelId(p) for p in leaf.get("panels", [p.value for p in WHEEL_PANELS]))
+
+
+def by_eye_panels(th: dict | None) -> dict[PanelId, tuple[str, str]]:
+    """The panels that get one check-by-eye line and no verdict (glass, then the wheels when R30's leaf is on): panel
+    to (line kind, line text)."""
+    out = {p: ("glass", GLASS_LINE) for p in glass_by_eye(th)}
+    out.update({p: ("wheels", WHEELS_LINE) for p in wheels_by_eye(th) if p not in out})
+    return out
 
 
 def debris_by_eye(th: dict | None) -> frozenset[MarkKind]:
@@ -513,7 +533,7 @@ def by_eye_words(pm: PanelMatch | None) -> list[str]:
     out = []
     for line in pm.by_eye if pm is not None else []:
         n = len(line.mark_ids)
-        if line.kind == "glass":
+        if line.kind in ("glass", "wheels"):
             out.append(f"{line.text} ({n} spot{'' if n == 1 else 's'} Muse Spark boxed on it, not judged)" if n else line.text)
         elif line.any_view:
             out.append(f"{line.text} ({n} spot{'' if n == 1 else 's'} Muse Spark typed dirt, not listed one by one)")
@@ -3166,7 +3186,8 @@ def derive_match(
     majority = look_majority(th)
     tallies: dict[tuple[str, str], tuple[int, int]] = {}
     vouch_cache = (reg_cache if reg_cache is not None else RegistrationCache(run_id, kf_by_id, marks, vouch_fit_config(th))) if vouch_cfg is not None else None
-    glass = glass_by_eye(th)
+    by_eye = by_eye_panels(th)
+    glass = frozenset(by_eye)  # glass and, with R30's leaf, the wheels: one check-by-eye line, no verdict
     sw_cfg = same_walk_config(th)
     sw_cache = (reg_cache if reg_cache is not None and reg_cache.cfg == sw_cfg else RegistrationCache(run_id, kf_by_id, marks, sw_cfg)) if sw_cfg is not None else None
     so_cfg = stands_out_config(th)
@@ -3184,7 +3205,7 @@ def derive_match(
             continue
         panel_marks = {role: [m for m in marks if m.panel_id == panel.panel_id and m.role == role and m.mark_id not in fixtures and m.mark_id not in left_out and m.mark_id not in blurred] for role in ROLES}
         glass_ids: list[str] = []
-        if panel.panel_id in glass:  # lead Nov 2: glass gets one check-by-eye line, its marks no verdict
+        if panel.panel_id in glass:  # lead Nov 2: glass gets one check-by-eye line, its marks no verdict (R30: wheels too)
             glass_ids = sorted(m.mark_id for role in ROLES for m in panel_marks[role])
             panel_marks = {role: [] for role in ROLES}
         truncated_all = {role: bool(kfs[role]) and all(kf.marks_status == MarksStatus.TRUNCATED for kf in kfs[role]) for role in ROLES}
@@ -3230,7 +3251,7 @@ def derive_match(
             if reshaped and pm.state == MatchState.NOT_COMPARABLE:
                 pm = pm.model_copy(update={"reshape": reshape_check(run_id, tries, kf_by_id, th, masks)})
             geo_wheels = geometric_already_there(th)
-            if reg_cache is not None and geo_wheels is not None and geo_wheels.get("wheels") and panel.panel_id in WHEEL_PANELS:
+            if reg_cache is not None and geo_wheels is not None and geo_wheels.get("wheels") and panel.panel_id in WHEEL_PANELS and panel.panel_id not in glass:
                 try:  # R29: a wheel found in both crops on an edge fit
                     pm = wheel_geometric_step(pm, panel_marks, reg_cache, geo_wheels)
                 except Exception as exc:  # pixels only: a failure here must not stop the match
@@ -3271,7 +3292,8 @@ def derive_match(
         if passes.get(panel.panel_id):
             pm = pm.model_copy(update={"second_pass": passes[panel.panel_id]})
         if panel.panel_id in glass:
-            pm = pm.model_copy(update={"by_eye": [ByEyeLine(kind="glass", text=GLASS_LINE, mark_ids=glass_ids)]})
+            kind, text = by_eye[panel.panel_id]
+            pm = pm.model_copy(update={"by_eye": [ByEyeLine(kind=kind, text=text, mark_ids=glass_ids)]})
         looks: dict[tuple[str, str], LookVerdict | None] = {}  # None: asked, no usable answer
         if second_look is not None and pm.state == MatchState.COMPARABLE:
             kf_status = {kf.kf_id: kf.marks_status for kf in keyframes if kf.panel_id == pm.panel_id}
@@ -3310,7 +3332,7 @@ def derive_match(
             counters[ask.mark_id] = counter(ask)
     for pm, looks in staged:
         if pm.panel_id in glass:
-            matches.append(pm)  # the glass line stands for the panel: no verdict, not even not comparable
+            matches.append(pm)  # the glass (or wheels) line stands for the panel: no verdict, not even not comparable
             continue
         panel_verdicts = verdicts_for(pm, marks_by_id, mark_tracks, looks, kf_by_id, calibration, trace_base, th, counters, skipped, tallies)
         pm, panel_verdicts = copies_step(pm, panel_verdicts, marks_by_id, whitened, copy_cache, th)  # R28, decision 1

@@ -475,6 +475,15 @@ export interface PanelMatch {
   kf_pairs_tried?: KeyframePairTry[]; // every pair tried in order, the chosen pair first; absent in runs matched before 11/1
   reshape?: ReshapeCheck | null; // absent unless the reshaped-panel precondition held
   fixtures?: FixtureDrop[]; // absent unless a mark was left out as a factory fixture
+  by_eye?: ByEyeLine[]; // check-by-eye lines in place of verdicts: glass, wheels (R30), debris; absent when none
+}
+
+// One check-by-eye line on a panel (match.ByEyeLine): mark_ids are the boxes it stands for, not judged one by one.
+export interface ByEyeLine {
+  kind: 'glass' | 'debris' | 'wheels';
+  text: string;
+  mark_ids: string[];
+  any_view?: boolean | null;
 }
 
 export interface Trace {

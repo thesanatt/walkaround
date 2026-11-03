@@ -8,9 +8,9 @@ import { describe, expect, it } from 'vitest';
 import { MarkCard, zoomWindow } from '../src/components/MarkCard.tsx';
 import { clipWindow } from '../src/components/PanelClip.tsx';
 import { pinsFor, ResultMap } from '../src/components/ResultMap.tsx';
-import type { Keyframe, Mark, PanelTrack, Verdict } from '../src/contracts/types.ts';
+import type { Keyframe, Mark, PanelMatch, PanelTrack, Verdict } from '../src/contracts/types.ts';
 import { RULES } from '../src/lib/rules.ts';
-import { answerSentences, comparedPanels, creditLine, EYE_KINDS, eyeGroups, headline, notComparableLine, notComparedRows, subline, tally, WHY, whyLine } from '../src/lib/result.ts';
+import { answerSentences, byEyeRows, comparedPanels, creditLine, EYE_KINDS, eyeGroups, eyeKind, headline, notComparableLine, notComparedRows, subline, tally, WHY, whyLine } from '../src/lib/result.ts';
 import { RUN_DIR } from './helpers.ts';
 
 const derived = <T>(name: string): T => JSON.parse(readFileSync(join(RUN_DIR, 'derived', name), 'utf8')) as T;
@@ -149,5 +149,70 @@ describe('the renter-first answer (second UI pass, Nov 1)', () => {
     const track = { role: 'return', panel_id: 'left_front_door', fragments: [{ object_id: '1', first_frame: 180, last_frame: 240 }] } as unknown as PanelTrack;
     expect(clipWindow([track], 'return', 'left_front_door', 200, 15)).toEqual([180, 223]);
     expect(clipWindow([track], 'pickup', 'left_front_door', 200, 15)).toBeNull();
+  });
+});
+
+describe('the R29 and R30 words (L8, K21, the gates G11 to G13, check by eye)', () => {
+  const base = derived<Verdict[]>('verdicts.json')[0]!;
+  const v = (label: Verdict['label'], panel: string, ids: string[]): Verdict => ({
+    ...base,
+    verdict_id: `${label}-${panel}`,
+    label,
+    panel_id: panel as Verdict['panel_id'],
+    rule_id: ids[0] ?? 'L4',
+    mark_ids: [],
+    trace: { ...base.trace, rule_ids: ids },
+    reasons: [],
+    distance_cm_est: null,
+  });
+  const pm = (panel: string, state: PanelMatch['state'], kinds: ('glass' | 'wheels' | 'debris')[] = [], n = 0): PanelMatch => ({
+    panel_id: panel as PanelMatch['panel_id'],
+    state,
+    reasons: state === 'comparable' ? [] : ['G1'],
+    kf_pair: null,
+    aspect_diff: null,
+    mask_iou: null,
+    handle_residual: null,
+    frame_used: 'moment',
+    pairs: [],
+    unmatched_pickup: [],
+    unmatched_return: [],
+    groups: [],
+    by_eye: kinds.map((kind) => ({ kind, text: kind, mark_ids: Array.from({ length: n }, (_, i) => `m${i}`) })),
+  });
+
+  it('gives K18 to K21 a plain line and a group, and L8 its own already-there line', () => {
+    for (const id of ['K18', 'K19', 'K20', 'K21']) expect(WHY[id], id).toBeTruthy();
+    expect(whyLine(v('needs_your_eye', 'hood', ['L4', 'K21']))).toBe(WHY['K21']);
+    expect(eyeKind(v('needs_your_eye', 'hood', ['L4', 'K21', 'K15'])).key).toBe('unseen');
+    expect(eyeKind(v('needs_your_eye', 'hood', ['L4', 'K18'])).key).toBe('pair');
+    expect(eyeKind(v('needs_your_eye', 'hood', ['L4', 'K20'])).key).toBe('unsure');
+    expect(whyLine(v('already_there', 'mirrors', ['L8']))).toMatch(/^Boxed in one walk only, but lining up the two frames/);
+    expect(RULES['L8']!.label).toBe('already there, found in both crops');
+    expect(RULES['K21']!.label).toBe('the other walk did not see this spot');
+  });
+
+  it('words the gates G11, G12 and G13 on the not-compared rows', () => {
+    const rows = notComparedRows([v('not_comparable', 'right_rear_fender', ['L6', 'G11']), v('not_comparable', 'windshield', ['L6', 'G12']), v('not_comparable', 'headlights', ['L6', 'G13'])]);
+    expect(rows.map((r) => r.reason)).toEqual(['filmed at very different sizes in the two walks', 'mostly blurred for privacy in one walk', 'the left one in one walk and the right one in the other']);
+    expect(notComparableLine([v('not_comparable', 'right_rear_fender', ['L6', 'G11'])])).toBe('1 panel could not be compared. It was filmed at very different sizes in the two walks.');
+  });
+
+  it('lists glass, wheels and debris once each to check by eye, and never counts glass or wheels as compared', () => {
+    const matches = [
+      pm('left_front_door', 'comparable'),
+      pm('hood', 'comparable', ['debris'], 3),
+      pm('windshield', 'not_comparable', ['glass']),
+      pm('rear_window', 'comparable', ['glass'], 1),
+      pm('left_front_wheel', 'comparable', ['wheels'], 2),
+      pm('right_front_wheel', 'not_comparable', ['wheels']),
+    ];
+    const rows = byEyeRows(matches);
+    expect(rows.map((r) => r.key)).toEqual(['glass', 'wheels', 'debris-hood']);
+    expect(rows[0]!.title).toBe('windshield and rear window');
+    expect(rows[1]!.text).toBe('rims and tires are not checked mark by mark; the check covers the car body');
+    expect(rows[2]!.text).toBe('dirt on this panel, 3 spots not listed one by one');
+    expect(comparedPanels(matches, [])).toEqual(['left_front_door', 'hood']);
+    expect(byEyeRows([pm('left_front_door', 'comparable')])).toEqual([]);
   });
 });

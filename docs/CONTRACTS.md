@@ -2194,3 +2194,26 @@ thresholds leaf, on for new runs and absent from frozen runs, which rebuild as t
   wheel of the same side is filed front or rear by panels.wheel_order (on the shared frames, the box centre farther to
   image-left is front on the left side, farther to image-right on the right side; mixed peers go by the larger gap).
   Fender tracks built from wheels follow, as they are built after the vote.
+
+## R30: wheels checked by eye, car body only (2026-11-03, round 30)
+
+Lead decision of 11/3 (Sanat): the check covers the car body. A thresholds leaf, on for new runs and absent from frozen
+runs, which rebuild as they did.
+
+- matching.wheels_by_eye `{"enabled": true, "panels": ["left_front_wheel", "left_rear_wheel", "right_front_wheel",
+  "right_rear_wheel"]}`. match.wheels_by_eye(th) gives the panels (the four wheels when "panels" is left out); empty when
+  absent or off. match.by_eye_panels(th) maps each check-by-eye panel to (kind, text): glass first (GLASS_LINE), then the
+  wheels (WHEELS_LINE, "wheels: check by eye; rims and tires are not checked mark by mark"); glass wins a panel listed in
+  both. derive_match treats a wheel panel exactly as glass: its marks (after the fixture, off-panel and privacy drops)
+  are left out of matching and kept on one ByEyeLine of kind "wheels" with their mark ids; the gates still run, so
+  PanelMatch keeps its state, reasons and kf_pair; no verdict is written for the panel, not even not comparable; the R29
+  wheel edge-fit step (wheel_geometric_step) does not run on it; no counter-look or L8 look is asked for it.
+- ByEyeLine.kind gains "wheels". match.by_eye_words words it as glass: the line, then "(n spots Muse Spark boxed on it,
+  not judged)" when it holds marks. The sheet's panel page shows it under "Check by eye", and the glossary gains a
+  wheels paragraph when the leaf is on.
+- Not changed: SAM 3.1's wheel lane, wheel tracks, keyframes and crops (panels.fender_from_wheels builds the fenders from
+  them), the wheel ruler, coverage and the top-up order, Muse Spark's marks pass on wheel crops (its boxes are counted on
+  the line), and claims on a wheel (claim.py compares them as before).
+- web: types.ts PanelMatch.by_eye; result.byEyeRows (one row for the glass, one for the wheels, one per debris panel) in
+  a "Check by eye" section of the run page; MatchPane shows the panel's line; comparedPanels leaves glass and wheel
+  panels out of "the N panels both walks show clearly".

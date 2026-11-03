@@ -91,6 +91,9 @@ def th() -> dict[str, Any]:
     # the R29 leaves (already there from the pixels, glimpsed panels compared) have their own tests (tests/test_r29_1102.py)
     for leaf in ("geometric_already_there", "glimpsed_compare"):
         values["matching"].pop(leaf, None)
+    # R30: wheels get one check-by-eye line and no verdict (matching.wheels_by_eye); these fixtures test wheel matching,
+    # and the leaf has its own tests (tests/test_r30_1103.py)
+    values["matching"].pop("wheels_by_eye", None)
     return values
 
 

@@ -4,6 +4,7 @@ import { drawnPairs, offPaneMarks, paneKeyframes, panelCards, panelFocus } from 
 import { daysBetween, formatClock, formatDateTime, formatDay, formatTime, minutesBetween } from '../lib/format.ts';
 import { keyframePairLine, markLabel, sizeLine, wallClock } from '../lib/lines.ts';
 import { lookFor, loweredByLook, loweredIds } from '../lib/looks.ts';
+import { BY_EYE_WORDS } from '../lib/result.ts';
 import { colorForPanel, familyNoun, hexToUnit, panelName, VERDICT_LABEL } from '../lib/panels.ts';
 import { ruleLabel, ruleTitle } from '../lib/rules.ts';
 import type { RoleMedia } from '../state/types.ts';
@@ -263,7 +264,13 @@ export function MatchPane(props: MatchPaneProps) {
           {match.reshape?.called ? ' The outline changed in place, so this panel needs your eye (L7).' : ''}
         </p>
       ) : null}
-      {match?.state === 'comparable' && !match.pairs.length && !panelVerdicts.length ? <p className="small muted">Compared: no marks on either frame.</p> : null}
+      {(match?.by_eye ?? []).map((b) => (
+        <p key={b.kind} className="small">
+          Check by eye: {BY_EYE_WORDS[b.kind] ?? b.text}
+          {b.mark_ids.length ? ` (${b.mark_ids.length} ${b.mark_ids.length === 1 ? 'spot' : 'spots'} Muse Spark boxed, not judged one by one)` : ''}.
+        </p>
+      ))}
+      {match?.state === 'comparable' && !match.pairs.length && !panelVerdicts.length && !match.by_eye?.length ? <p className="small muted">Compared: no marks on either frame.</p> : null}
       {!moment && keyframePairLine(match) ? <p className="small muted">How it was checked: {keyframePairLine(match)}</p> : null}
       {!moment && hidden.length ? (
         <p className="small muted">

@@ -524,6 +524,11 @@ GLOSSARY_GLASS = (  # match.glass_by_eye, lead decision 11/2
     "so marks on glass are not compared. The boxes it drew there are kept and counted on the line.\n"
 )
 
+GLOSSARY_WHEELS = (  # match.wheels_by_eye, R30, lead decision 11/3
+    "wheels: each wheel gets one line, check by eye. The check covers the car body only, so marks on rims and tires are not compared. "
+    "The wheels are still tracked, since the fenders are found from them, and the boxes Muse Spark drew on a wheel are kept and counted on its line.\n"
+)
+
 GLOSSARY_DEBRIS = (  # match.debris_by_eye, lead decision 11/2
     "debris: on a compared panel, the needs-your-eye lines whose every mark Muse Spark typed dirt, on a view it flagged wet, dirty or glare, become one line for the panel, "
     "debris on this panel; check by eye. A line holding a mark typed as damage or unsure stays as its own line.\n"
@@ -612,6 +617,7 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + (GLOSSARY_FIXTURES if match.fixtures_not_damage(th) else "")
         + (GLOSSARY_REGISTRATION if match.registration_config(th) is not None else "")
         + (GLOSSARY_GLASS if match.glass_by_eye(th) else "")
+        + (GLOSSARY_WHEELS if match.wheels_by_eye(th) else "")
         + (GLOSSARY_DEBRIS if match.debris_by_eye(th) else "")
         + (GLOSSARY_COLOUR if match.colour_on_paint(th) else "")
         + (GLOSSARY_INSIDE_OTHER if match.inside_other_box(th) else "")

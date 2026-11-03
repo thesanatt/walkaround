@@ -1678,10 +1678,11 @@ class ByEyeLine(Contract):
     """One check-by-eye line on a panel in place of mark-level verdicts (lead Nov 2, hero_focus1). kind "glass": the
     panel is glass (thresholds matching.glass_by_eye), its marks are left out of matching and it gets no verdict;
     kind "debris": the needs-your-eye lines whose every mark Muse Spark typed dirt on a flagged view (thresholds
-    matching.debris_by_eye), folded into this one line. mark_ids are the marks the line stands for, never dropped
+    matching.debris_by_eye), folded into this one line; kind "wheels" (R30, thresholds matching.wheels_by_eye): a wheel
+    panel (rim and tire), left out of matching like glass. mark_ids are the marks the line stands for, never dropped
     silently."""
 
-    kind: Literal["glass", "debris"]
+    kind: Literal["glass", "debris", "wheels"]
     text: str
     mark_ids: list[str] = Field(default_factory=list)
     # debris folded whether or not the view was flagged (matching.debris_by_eye any_view, R28); None before it

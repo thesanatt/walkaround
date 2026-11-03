@@ -31,7 +31,7 @@ import { RunFiles } from '../lib/files.tsx';
 import { focusTrack, panelFocus } from '../lib/focus.ts';
 import { formatDate, formatDateTime } from '../lib/format.ts';
 import { staysPutCalibrated } from '../lib/lines.ts';
-import { clearVerdicts, comparedPanels, eyeGroups, eyeKind, headline, notComparedRows, subline } from '../lib/result.ts';
+import { byEyeRows, clearVerdicts, comparedPanels, eyeGroups, eyeKind, headline, notComparedRows, subline } from '../lib/result.ts';
 import { replayBadgeDate, sheetFileHash } from '../lib/runview.ts';
 import { colorForLane, colorForPanel, DRAWN_LANES, nounOfLane, panelName } from '../lib/panels.ts';
 import { Link, navigate } from '../lib/router.tsx';
@@ -171,6 +171,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   const groups = eyeGroups(state.verdicts);
   const gone = state.verdicts.filter((v) => v.label === 'not_seen_at_return');
   const ncRows = notComparedRows(state.verdicts);
+  const byEye = byEyeRows(state.matches);
   const eyeTarget = (id: string) => `eye-${eyeKind(state.verdicts.find((v) => v.label === 'needs_your_eye' && v.panel_id === id)!).key}`;
   const pins = pinsFor(clear, groups.flatMap((g) => g.verdicts), eyeTarget);
   const pdf = Boolean(sheetFileHash(state.sheet.sha256s, 'evidence.pdf'));
@@ -398,6 +399,24 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
                 {ncRows.map((r) => (
                   <li key={r.panelId}>
                     <strong>{cap(panelName(r.panelId))}</strong>: {r.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </section>
+        ) : null}
+
+        {done && pair && byEye.length ? (
+          <section className="mark-group row-section" aria-label="check by eye">
+            <details className="eye-group nc-group" id="check-by-eye">
+              <summary>
+                <span className="eye-title">Check by eye</span>
+                <span className="eye-todo">The check leaves these to you. Look at them on the car at pickup and at return.</span>
+              </summary>
+              <ul className="nc-list">
+                {byEye.map((r) => (
+                  <li key={r.key}>
+                    <strong>{cap(r.title)}</strong>: {r.text}
                   </li>
                 ))}
               </ul>

@@ -1,4 +1,4 @@
-// Mirror of walkaround/rules.py (generated from it on 2026-10-31, K15 and the retired G2 added that night) so every printed rule id carries its meaning on hover.
+// Mirror of walkaround/rules.py (generated from it on 2026-10-31, K15 and the retired G2 added that night; L8 and K21 added 2026-11-03) so every printed rule id carries its meaning on hover.
 // If rules.py changes, regenerate: the id set must match, or a sheet id would print here without its text.
 export interface RuleText {
   label: string;
@@ -39,6 +39,7 @@ export const RULES: Record<string, RuleText> = {
   K18: { label: "the other walk shows the same patch", text: "registration (11/2): the pickup and return crops of the panel were aligned from the panel outline and its rigid edges, and at this mark's mapped spot the other walk's crop shows the same patch (normalized cross-correlation and the same contrast against its surroundings) with no mark of the other walk there, so the mark is not new or gone; needs your eye" },
   K19: { label: "the other walk boxed a mark over this spot", text: "a mark seen in one walk only whose box, carried into the other walk's panel frame, lies at least half inside a box Muse Spark drew in the other walk's compared view (often one large box such as a crush, a scuff area, dirt or a reflection); the other walk did not show clean paint there, so the mark is not called new or gone; needs your eye (thresholds matching.inside_other_box, 11/2)" },
   K20: { label: "the box does not stand out", text: "a mark seen in one walk only whose box does not stand out from its own surroundings in plain pixels: on the high-passed colour image of its own crop, the box's brightest tenth sits under min_contrast ring spreads above the ring around it (the registration presence test's contrast measure). Muse Spark may have boxed clean paint, so the mark is not called new or gone; needs your eye. A box over max_panel_share of its panel is an area such as a crush and is not tested (thresholds matching.stands_out, 11/2)" },
+  K21: { label: "the other walk did not see this spot", text: "the panel was compared on a keyframe pair though one walk only glimpsed it (thresholds matching.glimpsed_compare, R29), and this mark seen in one walk only lands, through the crop fit or the panel frame, off the other walk's view of the panel, so that walk may simply not have shown this part; needs your eye" },
   L1: { label: "not seen at return", text: "d is None for a pickup mark: not_seen_at_return" },
   L2: { label: "new or unseen", text: "d is None for a return mark: new_or_unseen" },
   L3: { label: "already there", text: "d < tau_pre_r" },
@@ -46,6 +47,7 @@ export const RULES: Record<string, RuleText> = {
   L5: { label: "beyond the band", text: "d >= tau_eye_r: both marks keep their unmatched labels" },
   L6: { label: "not comparable", text: "a G rule failed for the panel; both best frames still show" },
   L7: { label: "outline changed in place", text: "G4 alone failed on every keyframe pair tried, the best whitened mask IoU is from 0.5 to under 0.7, the two keyframes' box aspect ratios agree within 2% and the largest blob of the mask difference holds at least half of it: the panel may be reshaped, so needs your eye; never already there or new" },
+  L8: { label: "already there, found in both crops", text: "a mark seen in one walk only whose patch the registration presence test finds at its mapped spot in the other walk's crop, on a strong crop fit (thresholds matching.geometric_already_there, R29): code labels it already there from the pixels; a second look may still lower it, as every look may" },
   E1: { label: "no car panel", text: "the claim image shows no car panel" },
   E2: { label: "naming disagreed", text: "Spark and the SAM vote name different panels: two candidates and one tap, recorded as the renter's input" },
   E2b: { label: "side unknown", text: "no side from the text or Spark: both sides shown" },
