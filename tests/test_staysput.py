@@ -1382,7 +1382,9 @@ def test_cross_walk_pairs_are_the_closest_candidates_inside_the_eye_band(offline
         placed("p_door", "pickup", door, (0.2, 0.0)), placed("r_door", "return", door, (0.2, 0.0)),  # G1: glimpsed at return, never compared
     ]
     c.write_json(paths.marks_json("xw1"), marks)
-    assert staysput.cross_walk_pairs("xw1", th=TH) == [("p_hood_a", "r_hood_a")]
+    before_r29 = {**TH, "matching": {k: v for k, v in TH["matching"].items() if k != "glimpsed_compare"}}
+    assert staysput.cross_walk_pairs("xw1", th=before_r29) == [("p_hood_a", "r_hood_a")]
+    assert staysput.cross_walk_pairs("xw1", th=TH) == [("p_hood_a", "r_hood_a"), ("p_door", "r_door")]  # R29: a keyframe in each walk compares
     assert not paths.calibration_json("xw1").exists()  # the match's calibration, worked out and not written
     c.write_json(paths.marks_json("xw1"), [m for m in marks if m.role == "pickup"])
     assert staysput.cross_walk_pairs("xw1", th=TH) == []  # one walk has no pair

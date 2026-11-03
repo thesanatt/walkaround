@@ -67,6 +67,7 @@ from .contracts import (
     RegistrationVouch,
     RegistrationMark,
     SameWalkNote,
+    SpotCheck,
     SparkPurpose,
     SparkRequestRecord,
     StaysPutVerdict,
@@ -787,6 +788,96 @@ def registration_vouches(th: dict | None) -> dict[str, Any] | None:
     return {**VOUCH_DEFAULTS, **raw}
 
 
+GEOMETRIC_DEFAULTS: dict[str, Any] = {
+    "enabled": False,
+    "min_inliers": 20,
+    "min_spread": 0.30,
+    "max_reproj_px": 2.0,
+    "min_mask_iou": 0.90,
+    "outline_min_mask_iou": 0.95,
+    "max_uncertainty_px": 4.0,
+    "caps_ignored": ["K2", "K3", "K4", "K12", "K14"],
+    "types_excluded": ["dirt", "reflection"],
+    "wheels": True,
+    "looks_max": 6,
+}
+
+
+def geometric_already_there(th: dict | None) -> dict[str, Any] | None:
+    """thresholds matching.geometric_already_there (R29) over GEOMETRIC_DEFAULTS, or None when off or absent (every run
+    frozen before it)."""
+    raw = (th or {}).get("matching", {}).get("geometric_already_there")
+    if not isinstance(raw, dict) or not raw.get("enabled"):
+        return None
+    return {**GEOMETRIC_DEFAULTS, **raw}
+
+
+def strong_fit(al: Any, pr: Any, cfg: dict[str, Any]) -> bool:
+    """A crop fit good enough for code to call a mark already there from its presence test (R29): accepted, the map
+    sure at the mark within max_uncertainty_px, and either fitted on matched edges (min_inliers agreeing points spread
+    over min_spread of the panel, reprojection at most max_reproj_px, mask IoU after the warp at least min_mask_iou)
+    or on the outline alone with the two outlines all but the same (mask IoU at least outline_min_mask_iou)."""
+    if al is None or not al.ok or pr is None or pr.uncertainty_px is None or float(pr.uncertainty_px) > float(cfg["max_uncertainty_px"]):
+        return False
+    if al.model == "features":
+        return (
+            al.n_inliers >= int(cfg["min_inliers"])
+            and al.spread >= float(cfg["min_spread"])
+            and al.reproj_px <= float(cfg["max_reproj_px"])
+            and al.mask_iou >= float(cfg["min_mask_iou"])
+        )
+    return al.model == "outline" and al.mask_iou >= float(cfg["outline_min_mask_iou"])
+
+
+def geometric_ids(pm: PanelMatch) -> dict[str, RegistrationMark]:
+    return {r.mark_id: r for r in pm.registration_marks if r.used == "already_there"}
+
+
+def geometric_spot(r: RegistrationMark, kf_other: Keyframe | None, min_px: float = 24.0) -> tuple[float, float, float, float] | None:
+    """The found box of a mark called already there by registration, grown to at least min_px a side and clipped to
+    the other crop: the spot its look outlines."""
+    if r.found_box is None or kf_other is None or kf_other.crop is None:
+        return None
+    x1, y1, x2, y2 = (float(v) for v in r.found_box)
+    cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+    hw, hh = max((x2 - x1) / 2.0, min_px / 2.0), max((y2 - y1) / 2.0, min_px / 2.0)
+    w_px, h_px = float(kf_other.crop.w), float(kf_other.crop.h)
+    box = (round(max(0.0, cx - hw), 2), round(max(0.0, cy - hh), 2), round(min(w_px, cx + hw), 2), round(min(h_px, cy + hh), 2))
+    return box if box[2] - box[0] >= 1.0 and box[3] - box[1] >= 1.0 else None
+
+
+def geometric_asks(pm: PanelMatch, marks: dict[str, Mark], keyframes: dict[str, Keyframe]) -> list[CounterAsk]:
+    """One one-question look per mark called already there by registration (R29): the mark's own crop beside the other
+    walk's crop with the found spot outlined. A different or unsure answer lowers it (K7), as a look lowers a pair."""
+    out: list[CounterAsk] = []
+    for mid, r in geometric_ids(pm).items():
+        mark = marks.get(mid)
+        spot = geometric_spot(r, keyframes.get(r.other_kf))
+        if mark is None or spot is None or mark.role not in ROLES:
+            continue
+        w = (float(mark.w[0]), float(mark.w[1])) if mark.w is not None else (0.0, 0.0)
+        out.append(CounterAsk(mark_id=mid, role=mark.role, panel_id=pm.panel_id, other_kf=r.other_kf, spot=spot, w=w, radius_units=0.0, confirm_mark=False))
+    return out
+
+
+def geometric_look(mark: Mark, flags: VerdictFlags, counters: dict[str, LookVerdict | CounterAnswer | None]) -> tuple[VerdictFlags, str | None]:
+    """K7 and the note for a mark called already there by registration: the look's spot answer (a one-question
+    verdict, or part 2 of a two-question answer stored for the same mark) different or unsure lowers it."""
+    if mark.mark_id not in counters:
+        return flags, None
+    other = "pickup" if mark.role == "return" else "return"
+    look = counters[mark.mark_id]
+    spot = look.spot if isinstance(look, CounterAnswer) else look
+    what = f"the second look compared this mark with the spot found in the {other} crop"
+    if spot == LookVerdict.SAME:
+        return flags, f"{what} and said same, so it stays already there"
+    if spot == LookVerdict.DIFFERENT:
+        return flags.model_copy(update={"K7": True}), f"{what} and said different, so needs your eye (K7)"
+    if spot == LookVerdict.UNSURE:
+        return flags.model_copy(update={"K7": True}), f"{what} and was unsure, so needs your eye (K7)"
+    return flags, f"{what} and gave no usable answer, so the label stands"
+
+
 def vouch_fit_config(th: dict | None) -> dict[str, Any]:
     """The register numbers the vouch fits with: matching.registration's when that leaf is on (so the fit is shared
     with the registration step), register.DEFAULTS otherwise."""
@@ -1443,6 +1534,7 @@ def how_checked(pm: PanelMatch) -> str | None:
         copies_words(pm),
         stands_out_words(pm),
         side_words(pm),
+        spot_words(pm),
     ]
     line = "; ".join(p for p in parts if p)
     return line or None
@@ -1686,6 +1778,95 @@ def off_panel_notes(marks: list[Mark]) -> dict[PanelId, list[OffPanelNote]]:
 # Panel gates (section 6, G1 and G3 to G10; G2 retired 10/31) ----------------------------------------------------------
 
 
+def glimpsed_compare(th: dict | None) -> bool:
+    """thresholds matching.glimpsed_compare (R29): a panel one walk only glimpsed is compared when both walks have a
+    keyframe and the pair passes the view gates; absent from every run frozen before it."""
+    cfg = (th or {}).get("matching", {}).get("glimpsed_compare")
+    return isinstance(cfg, dict) and bool(cfg.get("enabled"))
+
+
+def glimpsed_pair(panel: Panel) -> bool:
+    """True when either walk's coverage of the panel is not filmed (glimpsed, or missing from per_role)."""
+    return any(panel.per_role.get(role) is None or panel.per_role[role].state != CoverageState.FILMED for role in ROLES)
+
+
+def spot_checks(
+    pm: PanelMatch,
+    panel_marks: dict[str, list[Mark]],
+    kf_by_id: dict[str, Keyframe],
+    *,
+    run_id: str,
+    cache: "RegistrationCache | None",
+    masks: dict[str, np.ndarray | None],
+) -> list[SpotCheck]:
+    """R29, on a pair compared though a walk only glimpsed the panel: for each mark seen in one walk only (unmatched,
+    or either mark of a pair beyond tau_eye_r) that registration did not find in both crops, where it lands in the other
+    walk's keyframe of the pair. Through the accepted crop fit when there is one, else through the moment-whitened panel
+    frame (the handle residual undone, as the match compares); inside when that point is on the other keyframe's panel
+    mask. A mark that cannot be placed gets via none, inside None."""
+    from . import register
+
+    if pm.state != MatchState.COMPARABLE or not pm.kf_pair:
+        return []
+    by_id = {m.mark_id: m for role in ROLES for m in panel_marks[role]}
+    found = {r.mark_id for r in pm.registration_marks if r.used in ("already_there", "paired", "pair_kept")}
+    one_walk = [*pm.unmatched_pickup, *pm.unmatched_return]
+    for pair in pm.pairs:
+        if pair.d >= pair.tau_eye_r:
+            one_walk.extend([pair.pickup_mark, pair.return_mark])
+    out: list[SpotCheck] = []
+    for mid in dict.fromkeys(one_walk):
+        m = by_id.get(mid)
+        if m is None or mid in found or m.role not in ROLES:
+            continue
+        kf_o = kf_by_id.get(pm.kf_pair[1] if m.role == "pickup" else pm.kf_pair[0])
+        if kf_o is None:
+            continue
+        point: tuple[float, float] | None = None
+        via = "none"
+        if cache is not None and m.bbox_crop is not None:
+            al = cache.fit(m.kf_id, kf_o.kf_id) if m.role == "pickup" else cache.fit(kf_o.kf_id, m.kf_id)
+            if al is not None and al.ok and al.H is not None:
+                if m.role != "pickup":
+                    al = register.inverse(al)
+                x, y = register.apply(al.H, np.array([_centre(m.bbox_crop)], dtype=float))[0]
+                point, via = (float(x), float(y)), "registration"
+        if point is None and m.w is not None and kf_o.moments is not None and kf_o.front_sign is not None:
+            du, dv = (float(pm.handle_residual[0]), float(pm.handle_residual[1])) if pm.handle_residual is not None else (0.0, 0.0)
+            sign = -1.0 if m.role == "return" else 1.0
+            try:
+                point = geometry.unwhiten((float(m.w[0]) + sign * du, float(m.w[1]) + sign * dv), kf_o.moments, kf_o.front_sign)
+                via = "panel_frame"
+            except (ValueError, np.linalg.LinAlgError):
+                point = None
+        if point is None:
+            out.append(SpotCheck(mark_id=mid, other_kf=kf_o.kf_id, via="none"))
+            continue
+        if kf_o.kf_id not in masks:
+            masks[kf_o.kf_id] = _load_mask(run_id, kf_o)
+        mask = masks[kf_o.kf_id]
+        x, y = int(math.floor(point[0])), int(math.floor(point[1]))
+        inside = mask is not None and 0 <= y < mask.shape[0] and 0 <= x < mask.shape[1] and bool(mask[y, x])
+        out.append(SpotCheck(mark_id=mid, other_kf=kf_o.kf_id, via=via, point=(round(point[0], 2), round(point[1], 2)), inside=inside))  # type: ignore[arg-type]
+    return out
+
+
+def spot_words(pm: PanelMatch) -> str | None:
+    """The glimpsed pair's spot checks in words for how_checked (R29)."""
+    if not pm.spots:
+        return None
+    parts = []
+    for sc in pm.spots:
+        how = {"registration": "through the crop fit", "panel_frame": "through the panel frame", "none": ""}[sc.via]
+        if sc.inside:
+            parts.append(f"{sc.mark_id} lands on the panel in {sc.other_kf} ({how})")
+        elif sc.via == "none":
+            parts.append(f"{sc.mark_id} could not be placed in {sc.other_kf}, so needs your eye (K21)")
+        else:
+            parts.append(f"{sc.mark_id} lands off the panel in {sc.other_kf} ({how}), so needs your eye (K21)")
+    return "one walk only glimpsed this panel; " + "; ".join(parts)
+
+
 def panel_gates(
     panel: Panel,
     kf_pickup: Keyframe | None,
@@ -1708,8 +1889,8 @@ def panel_gates(
     failing: list[str] = []
     states = [panel.per_role.get(role).state if panel.per_role.get(role) is not None else CoverageState.NOT_SEEN for role in ROLES]
     kfs = (kf_pickup, kf_return)
-    if any(s != CoverageState.FILMED for s in states) or any(kf is None for kf in kfs):
-        failing.append("G1")
+    if any(kf is None for kf in kfs) or (any(s != CoverageState.FILMED for s in states) and not glimpsed_compare(th)):
+        failing.append("G1")  # R29 (matching.glimpsed_compare): a keyframe in each walk is enough; the view gates decide
     if any(kf is not None and kf.score.sharpness < float(m["sharpness_rel_min"]) for kf in kfs):
         failing.append("G3")
     paired = kf_pickup is not None and kf_return is not None
@@ -2258,6 +2439,9 @@ def verdicts_for(
     so_cfg = stands_out_config(th)
     contrast = {r.mark_id: r for r in pm.own_contrast} if so_cfg is not None else {}
     faint = {i for i, r in contrast.items() if r.result == "faint"}
+    geo_cfg = geometric_already_there(th)
+    geo = geometric_ids(pm) if geo_cfg is not None else {}
+    off_view = {sc.mark_id for sc in pm.spots if not sc.inside}  # R29, K21
 
     def contrast_used(mark_id: str) -> dict[str, Any] | None:
         r = contrast.get(mark_id)
@@ -2366,6 +2550,19 @@ def verdicts_for(
             )
         )
 
+    def emit_geometric(mark: Mark, is_return: bool, pair: MatchCandidate | None) -> None:
+        """R29: a mark seen in one walk only whose patch the presence test found at its spot on a strong fit is already
+        there (L8). The caps that only doubt the box is a damage mark (caps_ignored) do not lower it, nor K15 (it is in
+        the same place in both walks); the look on the found spot and every other cap still may."""
+        r = geo[mark.mark_id]
+        flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return)
+        flags = flags.model_copy(update={k: False for k in geo_cfg["caps_ignored"] if k in type(flags).model_fields})  # type: ignore[index]
+        flags, note = geometric_look(mark, flags, counters)
+        label, ids = verdict(0.0, 1.0, 2.0, flags)
+        ids = ["L8" if i == "L3" else i for i in ids]
+        extra = {"registered_present": True, "ncc": r.ncc, "uncertainty_px": r.uncertainty_px, "other_kf": r.other_kf}
+        emit(label, ids, [mark.mark_id], None, pair, both_walks_note(flags_by_role([mark]), same_place=True), counter_note=note, extra=extra)
+
     tight, deferrable = tight_pair_look(th), tight_pair_deferrable(th)
     for pair in pm.pairs:
         a, b = marks.get(pair.pickup_mark), marks.get(pair.return_mark)
@@ -2383,8 +2580,13 @@ def verdicts_for(
             emit(label, ids, [a.mark_id, b.mark_id], pair.d_pos, pair, both_walks_note(flags_by_role([a, b]), same_place=pair.d < pair.tau_pre_r), type_note=type_note, note_ids=notes)
         else:
             for mark, is_return in ((a, False), (b, True)):
+                if mark.mark_id in geo:
+                    emit_geometric(mark, is_return, pair)
+                    continue
                 view = flags_by_role([mark])
                 flags = flags_for(pair, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
+                if mark.mark_id in off_view:
+                    flags = flags.model_copy(update={"K21": True})
                 if mark.mark_id in reg_capped:
                     flags = flags.model_copy(update={"K18": True})
                 if mark.mark_id in covered:
@@ -2400,11 +2602,16 @@ def verdicts_for(
         if mark is None:
             continue
         mark = _with_k10(mark, pm, unmatched)
+        if mark.mark_id in geo:
+            emit_geometric(mark, is_return, None)
+            continue
         r = mark.r if mark.r is not None else 0.0
         tau_pre_r = tau_r(calibration.tau_pre, r, th)
         tau_eye_r = tau_r(calibration.tau_eye, r, th)
         view = flags_by_role([mark])
         flags = flags_for(None, mark, None, caps, None, kf_status, return_mark=is_return, view_flagged=any(view.values()))
+        if mark.mark_id in off_view:
+            flags = flags.model_copy(update={"K21": True})
         if mark.mark_id in reg_capped:
             flags = flags.model_copy(update={"K18": True})
         if mark.mark_id in covered:
@@ -2639,11 +2846,15 @@ def registration_step(pm: PanelMatch, panel_marks: dict[str, list[Mark]], cache:
         records[mid] = _reg_record(mid, kf_o, pr, "paired", oid)
         if oid in records and records[oid].used == "none":
             records[oid] = records[oid].model_copy(update={"paired_with": mid})
+    geo = geometric_already_there(th)
     for m in [*unmatched["pickup"], *unmatched["return"], *one_walk]:
         if m.mark_id in taken or m.mark_id not in present_at:
             continue
         kf_o, pr = present_at[m.mark_id]
-        records[m.mark_id] = _reg_record(m.mark_id, kf_o, pr, "capped")
+        al = fit(m.kf_id, kf_o) if m.role == "pickup" else fit(kf_o, m.kf_id)
+        # R29: code calls it already there from the pixels; dirt and reflections seen twice stay capped for the debris line
+        strong = geo is not None and m.type.value not in geo["types_excluded"] and strong_fit(al, pr, geo)
+        records[m.mark_id] = _reg_record(m.mark_id, kf_o, pr, "already_there" if strong else "capped")
     order = [i for i in (*(p.pickup_mark for p in pm.pairs), *(p.return_mark for p in pm.pairs), *pm.unmatched_pickup, *pm.unmatched_return) if i in records]
     return pm.model_copy(
         update={
@@ -2654,6 +2865,42 @@ def registration_step(pm: PanelMatch, panel_marks: dict[str, list[Mark]], cache:
             "registration_marks": [records[i] for i in dict.fromkeys(order)],
         }
     )
+
+
+def wheel_geometric_step(pm: PanelMatch, panel_marks: dict[str, list[Mark]], cache: RegistrationCache, cfg: dict[str, Any]) -> PanelMatch:
+    """R29 on a compared wheel (matching.geometric_already_there wheels): the registration rules skip wheels, since a rim
+    turns between walks and its outline cannot say how far. Here each mark seen in one walk only is tested at its spot in
+    the other walk's keyframe of the pair, and only a fit on matched edges counts as strong (the outline gate drops edges
+    that turned with the rim, so a turned wheel gets no such fit). Present on a strong fit: already there (L8). Nothing
+    else changes: no cap, no pair. Pixels only."""
+    from . import register
+
+    if pm.state != MatchState.COMPARABLE or not pm.kf_pair:
+        return pm
+    kp, kr = pm.kf_pair
+    by_id = {m.mark_id: m for role in ROLES for m in panel_marks[role]}
+    al_pr = cache.fit(kp, kr)
+    if al_pr is None:
+        return pm
+    records: list[RegistrationMark] = []
+    for mid in (*pm.unmatched_pickup, *pm.unmatched_return):
+        m = by_id.get(mid)
+        if m is None or m.bbox_crop is None or m.role not in ROLES:
+            continue
+        other_kf = kr if m.role == "pickup" else kp
+        own, other = cache.pixels(m.kf_id), cache.pixels(other_kf)
+        al = cache.fit(m.kf_id, other_kf) if m.role == "pickup" else cache.fit(other_kf, m.kf_id)
+        if own is None or other is None or al is None:
+            continue
+        al_m = al if m.role == "pickup" else register.inverse(al)
+        ys, xs = np.nonzero(own[1])
+        diag = math.hypot(float(xs.max() - xs.min()), float(ys.max() - ys.min())) if xs.size else 1.0
+        pr = register.presence(al_m, own[0], other[0], other[1], tuple(float(v) for v in m.bbox_crop), cache.cfg, diag_a=diag)  # type: ignore[arg-type]
+        strong = pr.result == register.PRESENT and al.model == "features" and m.type.value not in cfg["types_excluded"] and strong_fit(al, pr, cfg)
+        records.append(_reg_record(mid, other_kf, pr, "already_there" if strong else "none"))
+    if not records:
+        return pm
+    return pm.model_copy(update={"registration": [_fit_record(al_pr)], "registration_marks": records})
 
 
 def registration_capped(pm: PanelMatch) -> set[str]:
@@ -2676,6 +2923,8 @@ def registration_words(pm: PanelMatch) -> str | None:
         ncc = f"NCC {r.ncc:.2f}" if r.ncc is not None else "no NCC"
         if r.used == "capped":
             parts.append(f"{r.mark_id}: the {other} crop shows the same patch at its spot ({ncc}) and no mark there, so needs your eye (K18)")
+        elif r.used == "already_there":
+            parts.append(f"{r.mark_id}: the {other} crop shows the same patch at its spot ({ncc}) on a strong fit, so already there (L8)")
         elif r.used == "paired":
             parts.append(f"{r.mark_id}: paired with {r.paired_with}, the same patch at the same spot in the {other} crop ({ncc})")
         elif r.used == "pair_kept":
@@ -2980,6 +3229,13 @@ def derive_match(
             pm = pm.model_copy(update={"mask_iou": used.mask_iou, "kf_pairs_tried": tries if retry or any(t.vouch is not None for t in tries) else []})
             if reshaped and pm.state == MatchState.NOT_COMPARABLE:
                 pm = pm.model_copy(update={"reshape": reshape_check(run_id, tries, kf_by_id, th, masks)})
+            geo_wheels = geometric_already_there(th)
+            if reg_cache is not None and geo_wheels is not None and geo_wheels.get("wheels") and panel.panel_id in WHEEL_PANELS:
+                try:  # R29: a wheel found in both crops on an edge fit
+                    pm = wheel_geometric_step(pm, panel_marks, reg_cache, geo_wheels)
+                except Exception as exc:  # pixels only: a failure here must not stop the match
+                    failed = RegistrationFit(kf_pair=list(pm.kf_pair or [kf_p.kf_id, kf_r.kf_id]), model="none", ok=False, why=f"registration failed: {type(exc).__name__}")
+                    pm = pm.model_copy(update={"registration": [failed]})
             if reg_cache is not None and panel.panel_id not in glass:
                 try:
                     pm = registration_step(pm, panel_marks, reg_cache, calibration, th)
@@ -2988,6 +3244,10 @@ def derive_match(
                     pm = pm.model_copy(update={"registration": [failed]})
             if so_cache is not None and so_cfg is not None and panel.panel_id not in glass:
                 pm = stands_out_step(pm, as_placed, so_cache, so_cfg)
+            if glimpsed_compare(th) and glimpsed_pair(panel) and panel.panel_id not in glass and panel.panel_id not in WHEEL_PANELS:
+                checks = spot_checks(pm, panel_marks, kf_by_id, run_id=run_id, cache=reg_cache or sw_cache or so_cache, masks=masks)
+                if checks:
+                    pm = pm.model_copy(update={"spots": checks})
         else:
             gates = panel_gates(panel, kfs["pickup"][0] if kfs["pickup"] else None, kfs["return"][0] if kfs["return"] else None, mask_iou=None, residual=None, lane_status=lane_status, marks_truncated_all=truncated_all, calibration=calibration, th=th)
             pm = PanelMatch(
@@ -3041,6 +3301,13 @@ def derive_match(
             else:
                 counters[ask.mark_id] = counter(ask)
         skipped = {ask.mark_id: cap for ask in ranked[cap:]}
+    geo_cfg = geometric_already_there(th)
+    if geo_cfg is not None and counter is not None and int(geo_cfg["looks_max"]) > 0:
+        # R29: a mark code called already there from the pixels gets its own look at the found spot, after the counter-
+        # looks and on its own budget, so the counter-looks a run asked (and stores) are the same with or without it
+        geo_asks = [a for pm, _looks in staged for a in geometric_asks(pm, marks_by_id, kf_by_id)]
+        for ask in rank_counter_asks(geo_asks, marks_by_id)[: int(geo_cfg["looks_max"])]:
+            counters[ask.mark_id] = counter(ask)
     for pm, looks in staged:
         if pm.panel_id in glass:
             matches.append(pm)  # the glass line stands for the panel: no verdict, not even not comparable

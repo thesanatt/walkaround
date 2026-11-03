@@ -582,6 +582,17 @@ GLOSSARY_SIDE_FROM_TRACK = (  # match.side_from_track, R28 (lead decision 4 of 1
     "Each mirror frame takes the side of the doors filmed with it; frames of the two different mirrors are not compared (G13).\n"
 )
 
+GLOSSARY_GEOMETRIC = (  # match.geometric_already_there, R29 (lead decision 1 of 11/2 night)
+    "already there, found in both crops (L8): a mark Muse Spark boxed in one walk only, whose patch the code finds at the same spot in the other walk's crop once the two crops are aligned on matched edges (or on outlines that all but coincide). "
+    "Code decides this from the pixels; a second look at the found spot may still lower it (K7). Dirt and reflections seen twice stay in the debris line.\n"
+)
+
+GLOSSARY_GLIMPSED = (  # match.glimpsed_compare, R29 (lead decision 2 of 11/2 night)
+    "glimpsed panels: a panel one walk only glimpsed is still compared when both walks have a usable frame of it. "
+    "A mark seen in one walk only there keeps new or not seen at return only if its spot is on the other walk's view of the panel; else needs your eye (K21).\n"
+)
+
+
 def glossary_md(th: dict[str, Any] | None = None) -> str:
     """The glossary appendix. The 11/1 lines print only for a run whose thresholds turn those rules on, so a sheet
     frozen before them rebuilds byte for byte."""
@@ -611,6 +622,8 @@ def glossary_md(th: dict[str, Any] | None = None) -> str:
         + (GLOSSARY_DEBRIS_ANY if match.debris_any_view(th) else "")
         + (GLOSSARY_LEFT_OFF if match.faint_left_off(th) else "")
         + (GLOSSARY_SIDE_FROM_TRACK if match.side_from_track(th) is not None else "")
+        + (GLOSSARY_GEOMETRIC if match.geometric_already_there(th) is not None else "")
+        + (GLOSSARY_GLIMPSED if match.glimpsed_compare(th) else "")
         + "units: panel-normalized distance; 1 unit is about 35 cm along a door (the about-cm beside it uses that).\n"
         "tau_pre, tau_eye: the two distance thresholds, calibrated from the run's own repeat frames; printed on the method page.\n"
         "Stays Put: a check that a mark moves with the panel through a short clip; a reflection slides, a scratch stays put.\n"

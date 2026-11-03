@@ -2155,3 +2155,42 @@ deleted originals to recompute. text: "verdicts recomputed on <ET date> with thi
 the model answers stored on <ET date of RUN's created_at> by run RUN; no new model calls"; SheetModel.rederived_line
 (left out when None) prints it on page 1, in the letter and in the verify appendix. `walkaround verify NEW_RUN`
 rebuilds it like any run.
+
+## R29: already there from the pixels, glimpsed panels compared, wheels ordered after the side check (2026-11-02 night, round 29)
+
+Lead decisions of 11/2 night on Sanat's checks of hero_focus5b (eval/verdict_checks/hero_focus5b.json). Each is a
+thresholds leaf, on for new runs and absent from frozen runs, which rebuild as they did.
+
+- matching.geometric_already_there `{"enabled", "min_inliers": 20, "min_spread": 0.3, "max_reproj_px": 2.0,
+  "min_mask_iou": 0.9, "outline_min_mask_iou": 0.95, "max_uncertainty_px": 4.0, "caps_ignored": ["K2", "K3", "K4", "K12",
+  "K14"], "types_excluded": ["dirt", "reflection"], "wheels": true, "looks_max": 6}`. In match.registration_step, a mark
+  seen in one walk only (unmatched, or either mark of a pair beyond tau_eye_r) whose presence test is present at its
+  mapped spot, with no unmatched mark of the other walk there to pair with, gets RegistrationMark.used "already_there"
+  (not "capped", K18) when match.strong_fit holds: the fit accepted, uncertainty_px at the mark at most
+  max_uncertainty_px, and either model "features" with n_inliers, spread, reproj_px and mask_iou within the leaf, or
+  model "outline" with mask_iou at least outline_min_mask_iou. A mark typed one of types_excluded stays capped (the debris
+  line takes it). verdicts_for gives such a mark one verdict, label already_there, rule_ids ["L8"] (L8 replaces L3 when a
+  cap lowers it: ["L4", "L8", ...]); caps_ignored and K15 do not lower it, every other cap of the mark does; trace
+  thresholds carry registered_present, ncc, uncertainty_px and other_kf; view_note is both_walks_note. With wheels true,
+  match.wheel_geometric_step runs the same presence test on a compared wheel (registration_step still skips wheels): a
+  fit of model features only, present and strong gives "already_there", anything else "none"; no cap and no pair on a
+  wheel. The look: after the counter-looks, derive_match asks counter(ask) once for each such mark (match.geometric_asks,
+  CounterAsk with confirm_mark false, spot the found box grown to 24 px a side, ranked like counter-looks, at most
+  looks_max); the answer's spot verdict (a LookVerdict, or part 2 of a CounterAnswer stored for the same mark) different
+  or unsure sets K7 (match.geometric_look, counter_note says why); no answer leaves it. Asked after the counter-looks and
+  on its own budget, so the counter-looks are the same with or without the leaf. Rule L8 "already there, found in both
+  crops"; sheet GLOSSARY_GEOMETRIC with the leaf.
+- matching.glimpsed_compare `{"enabled"}`. panel_gates: G1 fails only when a walk has no keyframe of the panel (without
+  the leaf, also when either walk's coverage state is not filmed). On a compared pair where either walk's state is not
+  filmed (match.glimpsed_pair; wheels and glass excepted), match.spot_checks places each mark seen in one walk only that
+  registration did not find in both crops in the other walk's keyframe of the pair: through the accepted crop fit (via
+  registration, the box centre mapped by H) else the moment-whitened panel frame with the handle residual undone (via
+  panel_frame); inside when that point is on the keyframe's panel mask. PanelMatch.spots: list[SpotCheck] (mark_id,
+  other_kf, via, point, inside), left out when empty. verdicts_for sets K21 on a mark whose check is not inside (False,
+  or None for via none). how_checked prints match.spot_words. Rule K21 "the other walk did not see this spot";
+  VerdictFlags.K21; sheet GLOSSARY_GLIMPSED with the leaf.
+- panels.wheel_order_after_side `{"enabled", "min_shared_frames": 5}`. vote_sides calls panels.apply_wheel_order after
+  apply_part_check: each side-decided wheel track of a walk that shares at least min_shared_frames frames with another
+  wheel of the same side is filed front or rear by panels.wheel_order (on the shared frames, the box centre farther to
+  image-left is front on the left side, farther to image-right on the right side; mixed peers go by the larger gap).
+  Fender tracks built from wheels follow, as they are built after the vote.

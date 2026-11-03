@@ -83,6 +83,9 @@ def _instances() -> list[c.Contract]:
         c.CopyNote(mark_id="pickup_rear_bumper_kf2_m1", kf_id="pickup_rear_bumper_kf2", into_mark="pickup_rear_bumper_kf1_m1", into_pair=["pickup_rear_bumper_kf1_m1", "return_rear_bumper_kf1_m1"], via="registration", distance=3.6, fit="outline", refused_fit=True),
         c.Rederived(from_run="r0", from_events_head_hash=SHA, stored_on="Nov 2, 2026", recomputed_on="Nov 2, 2026", text="verdicts recomputed on Nov 2, 2026 with this version's rules (code abc1234) from the model answers stored on Nov 2, 2026 by run r0; no new model calls"),
         c.RegistrationMark(mark_id="return_hood_kf1_m1", other_kf="pickup_hood_kf1", result="present", mapped_box=[10.0, 10.0, 30.0, 20.0], found_box=[12.0, 10.0, 32.0, 20.0], ncc=0.8, contrast_own=12.0, contrast_other=10.0, uncertainty_px=4.0, used="capped"),
+        c.RegistrationMark(mark_id="return_mirrors_kf2_m3", other_kf="pickup_mirrors_kf3", result="present", found_box=[146.81, 65.15, 152.1, 68.94], ncc=0.846, uncertainty_px=3.06, used="already_there"),
+        c.SpotCheck(mark_id="pickup_roof_kf1_m1", other_kf="return_roof_kf2", via="registration", point=[120.5, 44.25], inside=True),
+        c.SpotCheck(mark_id="pickup_roof_kf1_m2", other_kf="return_roof_kf2", via="none"),
         c.OffPanelNote(mark_id="pickup_hood_kf1_m2", from_panel=c.PanelId.HOOD, off_frac=0.06),
         c.SideVotes(R1=2, R2=1),
         c.PanelRole(track_ids=["t1"], windows=[[8.0, 14.0]], seconds_visible=6.0, state=c.CoverageState.FILMED, keyframe_ids=["kf1"]),
@@ -245,7 +248,7 @@ def test_thresholds_load_and_hash() -> None:
 
 def test_rules_table() -> None:
     assert rules.gate_ids() == [f"G{i}" for i in range(1, 14)]  # G11 to G13 since R27
-    assert rules.cap_ids() == [f"K{i}" for i in range(1, 21)]
+    assert rules.cap_ids() == [f"K{i}" for i in range(1, 22)]  # K21 since R29
     assert rules.rule("K7").label == "second look"
     assert rules.describe(["G1"])[0].startswith("G1 not filmed: ")
     with pytest.raises(KeyError):

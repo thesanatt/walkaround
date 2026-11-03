@@ -55,6 +55,7 @@ CAPS: tuple[Rule, ...] = (
     Rule("K18", "the other walk shows the same patch", "registration (11/2): the pickup and return crops of the panel were aligned from the panel outline and its rigid edges, and at this mark's mapped spot the other walk's crop shows the same patch (normalized cross-correlation and the same contrast against its surroundings) with no mark of the other walk there, so the mark is not new or gone; needs your eye", "6; registration 11/2"),
     Rule("K19", "the other walk boxed a mark over this spot", "a mark seen in one walk only whose box, carried into the other walk's panel frame, lies at least half inside a box Muse Spark drew in the other walk's compared view (often one large box such as a crush, a scuff area, dirt or a reflection); the other walk did not show clean paint there, so the mark is not called new or gone; needs your eye (thresholds matching.inside_other_box, 11/2)", "6; hero_focus1 11/2"),
     Rule("K20", "the box does not stand out", "a mark seen in one walk only whose box does not stand out from its own surroundings in plain pixels: on the high-passed colour image of its own crop, the box's brightest tenth sits under min_contrast ring spreads above the ring around it (the registration presence test's contrast measure). Muse Spark may have boxed clean paint, so the mark is not called new or gone; needs your eye. A box over max_panel_share of its panel is an area such as a crush and is not tested (thresholds matching.stands_out, 11/2)", "6; hero_focus2 11/2"),
+    Rule("K21", "the other walk did not see this spot", "the panel was compared on a keyframe pair though one walk only glimpsed it (thresholds matching.glimpsed_compare, R29), and this mark seen in one walk only lands, through the crop fit or the panel frame, off the other walk's view of the panel, so that walk may simply not have shown this part; needs your eye", "6; hero_focus5b R29"),
 )
 
 LABELS: tuple[Rule, ...] = (
@@ -65,6 +66,7 @@ LABELS: tuple[Rule, ...] = (
     Rule("L5", "beyond the band", "d >= tau_eye_r: both marks keep their unmatched labels", "6, labels paragraph"),
     Rule("L6", "not comparable", "a G rule failed for the panel; both best frames still show", "6, panel gates"),
     Rule("L7", "outline changed in place", "G4 alone failed on every keyframe pair tried, the best whitened mask IoU is from 0.5 to under 0.7, the two keyframes' box aspect ratios agree within 2% and the largest blob of the mask difference holds at least half of it: the panel may be reshaped, so needs your eye; never already there or new", "6, panel gates; lead 11/1"),  # noqa: E501
+    Rule("L8", "already there, found in both crops", "a mark seen in one walk only whose patch the registration presence test finds at its mapped spot in the other walk's crop, on a strong crop fit (thresholds matching.geometric_already_there, R29): code labels it already there from the pixels; a second look may still lower it, as every look may", "6; hero_focus5b R29"),
 )
 
 EXITS: tuple[Rule, ...] = (

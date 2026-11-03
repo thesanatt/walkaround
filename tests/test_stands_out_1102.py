@@ -161,7 +161,7 @@ def test_the_leaf_is_off_when_absent_and_on_in_config(th: dict) -> None:
 
 
 def test_k20_is_in_the_rules_table_and_the_glossary_only_with_the_leaf(th: dict) -> None:
-    assert rules.cap_ids()[-1] == "K20" and rules.rule("K20").label == "the box does not stand out"
+    assert "K20" in rules.cap_ids() and rules.rule("K20").label == "the box does not stand out"
     assert all(t.isascii() and "--" not in t for t in (rules.rule("K20").text, sheet.GLOSSARY_STANDS_OUT))
     assert sheet.GLOSSARY_STANDS_OUT in sheet.glossary_md(_on(th)) and sheet.GLOSSARY_STANDS_OUT not in sheet.glossary_md(th)
 

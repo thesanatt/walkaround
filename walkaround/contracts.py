@@ -1582,7 +1582,9 @@ class OwnContrast(Contract):
 class RegistrationMark(Contract):
     """The presence test of one mark at its mapped spot in the other walk's crop (11/2), and what the match did with it:
     capped (K18, the same patch is there and no mark of the other walk is), paired (with an unmatched mark of the other
-    walk at that spot), pair_kept (a moment pair whose spots coincide, now measured by registration) or none."""
+    walk at that spot), pair_kept (a moment pair whose spots coincide, now measured by registration), already_there (R29,
+    thresholds matching.geometric_already_there: the same patch is there, the fit is strong and no mark of the other walk
+    is, so code labels the mark already there, L8) or none."""
 
     mark_id: str
     other_kf: str
@@ -1594,7 +1596,7 @@ class RegistrationMark(Contract):
     contrast_own: float | None = None  # Delta E the box stands out by in its own crop
     contrast_other: float | None = None  # and at the found spot in the other crop
     uncertainty_px: float | None = None
-    used: Literal["capped", "paired", "pair_kept", "none"] = "none"
+    used: Literal["capped", "paired", "pair_kept", "already_there", "none"] = "none"
     paired_with: str | None = None
 
 
@@ -1733,6 +1735,19 @@ class OffPanelNote(Contract):
     off_frac: float
 
 
+class SpotCheck(Contract):
+    """Where a mark seen in one walk only lands in the other walk's keyframe of a pair compared though a walk only
+    glimpsed the panel (thresholds matching.glimpsed_compare, R29). via registration: the accepted crop fit maps the
+    box centre; via panel_frame: the moment-whitened panel frame does. inside: the spot is on the other keyframe's panel
+    mask, so the other walk saw that part of the panel; False or None (no spot) caps the mark at needs your eye (K21)."""
+
+    mark_id: str
+    other_kf: str
+    via: Literal["registration", "panel_frame", "none"]
+    point: Point2 | None = None  # in the other crop's pixels
+    inside: bool | None = None
+
+
 class PanelMatch(Contract):
     panel_id: PanelId
     state: MatchState
@@ -1773,6 +1788,8 @@ class PanelMatch(Contract):
     left_off: list[str] = Field(default_factory=list)
     # orientation-free panels (the mirrors): each keyframe's side from its own track (matching.side_from_track, R28)
     sides: dict[str, str] = Field(default_factory=dict)
+    # a pair compared though a walk only glimpsed the panel: each one-walk mark's spot in the other view (R29, K21)
+    spots: list[SpotCheck] = Field(default_factory=list)
 
     @model_serializer(mode="wrap")
     def _omit_no_tries(self, handler: Any) -> Any:
@@ -1785,7 +1802,7 @@ class PanelMatch(Contract):
             data.pop("reshape", None)
         if isinstance(data, dict) and not data.get("fixtures"):
             data.pop("fixtures", None)
-        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk", "own_contrast", "privacy_drops", "copies", "left_off", "sides"):
+        for key in ("off_panel", "second_pass", "registration", "registration_marks", "by_eye", "same_walk", "own_contrast", "privacy_drops", "copies", "left_off", "sides", "spots"):
             if isinstance(data, dict) and not data.get(key):
                 data.pop(key, None)
         return data
@@ -1815,6 +1832,7 @@ class VerdictFlags(Contract):
     K18: bool = False  # registration: the other walk's crop shows the same patch at this mark's mapped spot (11/2)
     K19: bool = False  # the mark's spot lies inside a box the other walk drew in its compared view (11/2)
     K20: bool = False  # the mark's box does not stand out from its own surroundings in its own crop (11/2)
+    K21: bool = False  # a glimpsed pair: the mark's spot is not on the other walk's panel view (R29)
 
     def set_caps(self) -> list[str]:
         return [name for name in sorted(type(self).model_fields) if name.startswith("K") and getattr(self, name)]

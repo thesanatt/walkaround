@@ -1276,6 +1276,7 @@ def vote_sides(
             apply_twin_check(role_tracks, th, result=twin)
             apply_door_check(ctx, role_tracks, th)
             apply_part_check(role_tracks, th)
+            apply_wheel_order(role_tracks, th)
     panels = _panels_from(
         out_tracks,
         votes_by_track,
@@ -1977,6 +1978,60 @@ def apply_part_check(role_tracks: list[c.PanelTrack], th: dict[str, Any]) -> Non
         t.panel_id = slot
         if slot != record.was:
             log.info("%s: %s filed as %s by the part check (was %s)", t.role, t.track_id, slot.value, record.was.value if record.was else None)
+
+
+def wheel_order_settings(th: dict[str, Any] | None) -> dict[str, Any] | None:
+    """thresholds panels.wheel_order_after_side (R29), or None when the run's thresholds predate it."""
+    cfg = (th or {}).get("panels", {}).get("wheel_order_after_side")
+    return cfg if isinstance(cfg, dict) and cfg.get("enabled") else None
+
+
+def wheel_order(role_tracks: list[c.PanelTrack], cfg: dict[str, Any]) -> dict[str, Position]:
+    """{track id: front or rear} for each side-decided wheel track of one walk that shares at least min_shared_frames
+    frames with another wheel track of the same side. Seen from outside, a car's front is to the left on its left side
+    and to the right on its right side, so the wheel whose box centre sits farther that way on the shared frames is the
+    front one; a wheel whose peers disagree goes by the larger gap (pairwise_position's tie rule)."""
+    min_shared = int(cfg.get("min_shared_frames", 5))
+    cent = {t.track_id: {r.frame: _centroid(r.box)[0] for r in t.per_frame} for t in role_tracks}
+    wheels = [t for t in role_tracks if t.noun is Noun.WHEEL and t.side in (Side.LEFT, Side.RIGHT) and t.per_frame]
+    out: dict[str, Position] = {}
+    for t in wheels:
+        toward_front = -1.0 if t.side is Side.LEFT else 1.0
+        rel: list[float] = []
+        for o in wheels:
+            if o.track_id == t.track_id or o.side is not t.side:
+                continue
+            shared = sorted(set(cent[t.track_id]) & set(cent[o.track_id]))
+            if len(shared) < min_shared:
+                continue
+            dx = float(np.mean([cent[t.track_id][f] - cent[o.track_id][f] for f in shared]))
+            rel.append(dx * toward_front)  # positive: t sits toward the front of o
+        if not rel:
+            continue
+        if all(r > 0 for r in rel):
+            out[t.track_id] = Position.FRONT
+        elif all(r < 0 for r in rel):
+            out[t.track_id] = Position.REAR
+        else:
+            out[t.track_id] = Position.FRONT if max(rel) >= abs(min(rel)) else Position.REAR
+    return out
+
+
+def apply_wheel_order(role_tracks: list[c.PanelTrack], th: dict[str, Any]) -> None:
+    """R29 (hero_focus5b): re-file the side-decided wheels of one voted walk by their order on the image once the part
+    check has settled their sides. The vote gives a wheel its position under the side it voted then; when the part check
+    moves a wheel to the other side, the position stays, so two wheels seen together on one side could both be front
+    (R4 gives front to every wheel that shares frames with a headlight). In place; nothing without the leaf."""
+    cfg = wheel_order_settings(th)
+    if cfg is None:
+        return
+    for tid, position in wheel_order(role_tracks, cfg).items():
+        t = next(x for x in role_tracks if x.track_id == tid)
+        if t.position is position:
+            continue
+        slot = _lateral_panel_id(t.noun, t.side, position)
+        log.info("%s: %s filed as %s by the wheel order (was %s)", t.role, t.track_id, slot.value, t.panel_id.value if t.panel_id else None)
+        t.panel_id, t.position = slot, position
 
 
 # ----------------------------------------------------------------------------------------------------------------

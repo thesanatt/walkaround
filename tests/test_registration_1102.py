@@ -179,6 +179,7 @@ def _setup(*, pickup_marks: bool = False, misaligned_pickup: bool = False):
     cal = c.Calibration(tau_pre=0.4, tau_eye=0.8, tau_fix=0.08)
     th = c.load_thresholds()
     th["matching"]["registration"] = {"enabled": True}
+    th["matching"].pop("geometric_already_there", None)  # R21's K18 rules; R29's already there has tests/test_r29_1102.py
     pm = c.PanelMatch(
         panel_id=c.PanelId.LEFT_FRONT_DOOR,
         state=c.MatchState.COMPARABLE,

@@ -1,0 +1,704 @@
+{
+ "eval_nhtsa15759_r16": {
+  "current": {
+   "changed": [
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4"
+      ]
+     ],
+     "line": "headlights",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4",
+       "G11"
+      ]
+     ],
+     "line": "rear_bumper",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4",
+       "G11"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4",
+       "G6"
+      ]
+     ],
+     "line": "roof",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4",
+       "G6"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1"
+      ]
+     ],
+     "line": "tail_lights",
+     "r29": null
+    }
+   ],
+   "geometric": [],
+   "spots": [],
+   "summary_base": {
+    "needs_your_eye": 1,
+    "not_comparable": 12
+   },
+   "summary_r29": {
+    "needs_your_eye": 1,
+    "not_comparable": 11
+   }
+  },
+  "frozen": {
+   "changed": [
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4"
+      ]
+     ],
+     "line": "headlights",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4"
+      ]
+     ],
+     "line": "rear_bumper",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4",
+       "G6"
+      ]
+     ],
+     "line": "roof",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4",
+       "G6"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1"
+      ]
+     ],
+     "line": "tail_lights",
+     "r29": null
+    }
+   ],
+   "geometric": [],
+   "spots": [],
+   "summary_base": {
+    "needs_your_eye": 1,
+    "new_or_unseen": 1,
+    "not_comparable": 14
+   },
+   "summary_r29": {
+    "needs_your_eye": 1,
+    "new_or_unseen": 1,
+    "not_comparable": 13
+   }
+  }
+ },
+ "hero_focus5": {
+  "current": {
+   "changed": [
+    {
+     "base": [
+      "needs_your_eye",
+      [
+       "L4",
+       "L2",
+       "K12",
+       "K18",
+       "K3",
+       "K4"
+      ]
+     ],
+     "line": "mirrors|return_mirrors_kf2_m3",
+     "r29": [
+      "already_there",
+      [
+       "L8"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "needs_your_eye",
+      [
+       "L4",
+       "L2",
+       "K12",
+       "K15",
+       "K2"
+      ]
+     ],
+     "line": "right_rear_wheel|return_right_rear_wheel_kf3_m2",
+     "r29": [
+      "already_there",
+      [
+       "L8"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4",
+       "G6"
+      ]
+     ],
+     "line": "roof|pickup_roof_kf1_m1|pickup_roof_kf1_m2|pickup_roof_kf1_m3|pickup_roof_kf1_m4|return_roof_kf1_m1|return_roof_kf1_m2|return_roof_kf2_m1|return_roof_kf2_m2",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4",
+       "G6"
+      ]
+     ]
+    }
+   ],
+   "geometric": [
+    {
+     "contrast_other": 5.32,
+     "contrast_own": 5.62,
+     "found_box": [
+      266.09,
+      375.75,
+      331.25,
+      417.84
+     ],
+     "mapped_box": [
+      267.09,
+      375.75,
+      332.25,
+      417.84
+     ],
+     "mark_id": "return_right_rear_wheel_kf3_m2",
+     "ncc": 0.949,
+     "other_kf": "pickup_right_rear_wheel_kf1",
+     "result": "present",
+     "uncertainty_px": 1.78,
+     "used": "already_there"
+    },
+    {
+     "contrast_other": 6.19,
+     "contrast_own": 4.22,
+     "found_box": [
+      146.81,
+      65.15,
+      152.1,
+      68.94
+     ],
+     "mapped_box": [
+      155.81,
+      62.15,
+      161.1,
+      65.94
+     ],
+     "mark_id": "return_mirrors_kf2_m3",
+     "ncc": 0.846,
+     "other_kf": "pickup_mirrors_kf3",
+     "result": "present",
+     "uncertainty_px": 3.06,
+     "used": "already_there"
+    }
+   ],
+   "spots": [],
+   "summary_base": {
+    "already_there": 5,
+    "needs_your_eye": 5,
+    "new_or_unseen": 1,
+    "not_comparable": 6
+   },
+   "summary_r29": {
+    "already_there": 7,
+    "needs_your_eye": 3,
+    "new_or_unseen": 1,
+    "not_comparable": 6
+   }
+  },
+  "frozen": {
+   "changed": [
+    {
+     "base": [
+      "needs_your_eye",
+      [
+       "L4",
+       "L2",
+       "K12",
+       "K15",
+       "K2"
+      ]
+     ],
+     "line": "right_rear_wheel|return_right_rear_wheel_kf3_m2",
+     "r29": [
+      "already_there",
+      [
+       "L8"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4",
+       "G6"
+      ]
+     ],
+     "line": "roof|pickup_roof_kf1_m1|pickup_roof_kf1_m2|pickup_roof_kf1_m3|pickup_roof_kf1_m4|return_roof_kf1_m1|return_roof_kf1_m2|return_roof_kf2_m1|return_roof_kf2_m2",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4",
+       "G6"
+      ]
+     ]
+    }
+   ],
+   "geometric": [
+    {
+     "contrast_other": 5.32,
+     "contrast_own": 5.62,
+     "found_box": [
+      266.09,
+      375.75,
+      331.25,
+      417.84
+     ],
+     "mapped_box": [
+      267.09,
+      375.75,
+      332.25,
+      417.84
+     ],
+     "mark_id": "return_right_rear_wheel_kf3_m2",
+     "ncc": 0.949,
+     "other_kf": "pickup_right_rear_wheel_kf1",
+     "result": "present",
+     "uncertainty_px": 1.78,
+     "used": "already_there"
+    }
+   ],
+   "spots": [],
+   "summary_base": {
+    "already_there": 5,
+    "needs_your_eye": 12,
+    "new_or_unseen": 1,
+    "not_comparable": 7
+   },
+   "summary_r29": {
+    "already_there": 6,
+    "needs_your_eye": 11,
+    "new_or_unseen": 1,
+    "not_comparable": 7
+   }
+  }
+ },
+ "lexi_pair2": {
+  "current": {
+   "changed": [
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G3",
+       "G4",
+       "G13"
+      ]
+     ],
+     "line": "mirrors",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G3",
+       "G4",
+       "G13"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1"
+      ]
+     ],
+     "line": "tail_lights",
+     "r29": null
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4",
+       "G6",
+       "G11"
+      ]
+     ],
+     "line": "trunk_lid",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4",
+       "G6",
+       "G11"
+      ]
+     ]
+    }
+   ],
+   "geometric": [],
+   "spots": [],
+   "summary_base": {
+    "already_there": 1,
+    "needs_your_eye": 4,
+    "not_comparable": 8
+   },
+   "summary_r29": {
+    "already_there": 1,
+    "needs_your_eye": 4,
+    "not_comparable": 7
+   }
+  },
+  "frozen": {
+   "changed": [
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G3",
+       "G4",
+       "G6"
+      ]
+     ],
+     "line": "mirrors",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G3",
+       "G4",
+       "G6"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1"
+      ]
+     ],
+     "line": "tail_lights",
+     "r29": null
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4",
+       "G6"
+      ]
+     ],
+     "line": "trunk_lid",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4",
+       "G6"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4"
+      ]
+     ],
+     "line": "windshield",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4"
+      ]
+     ]
+    }
+   ],
+   "geometric": [],
+   "spots": [],
+   "summary_base": {
+    "already_there": 2,
+    "needs_your_eye": 11,
+    "not_comparable": 9
+   },
+   "summary_r29": {
+    "already_there": 2,
+    "needs_your_eye": 11,
+    "not_comparable": 8
+   }
+  }
+ },
+ "pairC_r16": {
+  "current": {
+   "changed": [
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1"
+      ]
+     ],
+     "line": "headlights|pickup_headlights_kf1_m1",
+     "r29": null
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G4",
+       "G6"
+      ]
+     ],
+     "line": "mirrors|return_mirrors_kf2_m1",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G4",
+       "G6"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1"
+      ]
+     ],
+     "line": "tail_lights",
+     "r29": null
+    }
+   ],
+   "geometric": [],
+   "spots": [
+    {
+     "inside": true,
+     "mark_id": "pickup_headlights_kf1_m1",
+     "other_kf": "return_headlights_kf1",
+     "point": [
+      190.1,
+      81.24
+     ],
+     "via": "registration"
+    }
+   ],
+   "summary_base": {
+    "already_there": 2,
+    "needs_your_eye": 4,
+    "not_comparable": 10
+   },
+   "summary_r29": {
+    "already_there": 2,
+    "needs_your_eye": 4,
+    "not_comparable": 8
+   }
+  },
+  "frozen": {
+   "changed": [
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1"
+      ]
+     ],
+     "line": "headlights|pickup_headlights_kf1_m1",
+     "r29": [
+      "needs_your_eye",
+      [
+       "L4",
+       "L1",
+       "K15",
+       "K4"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G3",
+       "G4",
+       "G6"
+      ]
+     ],
+     "line": "mirrors|return_mirrors_kf2_m1",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G3",
+       "G4",
+       "G6"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1",
+       "G3"
+      ]
+     ],
+     "line": "rear_window|pickup_rear_window_kf1_m1|pickup_rear_window_kf1_m2|return_rear_window_kf2_m2|return_rear_window_kf3_m1|return_rear_window_kf3_m2|return_rear_window_kf3_m4",
+     "r29": [
+      "not_comparable",
+      [
+       "L6",
+       "G3"
+      ]
+     ]
+    },
+    {
+     "base": [
+      "not_comparable",
+      [
+       "L6",
+       "G1"
+      ]
+     ],
+     "line": "tail_lights",
+     "r29": null
+    }
+   ],
+   "geometric": [],
+   "spots": [
+    {
+     "inside": true,
+     "mark_id": "pickup_headlights_kf1_m1",
+     "other_kf": "return_headlights_kf1",
+     "point": [
+      159.63,
+      45.14
+     ],
+     "via": "panel_frame"
+    }
+   ],
+   "summary_base": {
+    "already_there": 2,
+    "needs_your_eye": 17,
+    "not_comparable": 12,
+    "not_seen_at_return": 1
+   },
+   "summary_r29": {
+    "already_there": 2,
+    "needs_your_eye": 18,
+    "not_comparable": 10,
+    "not_seen_at_return": 1
+   }
+  }
+ }
+}

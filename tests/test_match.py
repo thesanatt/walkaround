@@ -88,6 +88,9 @@ def th() -> dict[str, Any]:
     # (tests/test_r28_1102.py); debris_by_eye, which carries any_view, is already out above
     for leaf in ("same_walk_copies", "faint_left_off", "side_from_track"):
         values["matching"].pop(leaf, None)
+    # the R29 leaves (already there from the pixels, glimpsed panels compared) have their own tests (tests/test_r29_1102.py)
+    for leaf in ("geometric_already_there", "glimpsed_compare"):
+        values["matching"].pop(leaf, None)
     return values
 
 
