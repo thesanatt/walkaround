@@ -1,10 +1,10 @@
-# hero_focus5b against the truth (Nov 2, 2026)
+# hero_focus5d against the truth (Nov 3, 2026)
 
-The run: `runs/hero_focus5b`, the sample `samples/hero_focus5b`. Its verdicts were recomputed on Nov 2 with
-`walkaround rederive hero_focus5 hero_focus5b` (code d44edde) from the model answers that run hero_focus5 stored on
+The run: `runs/hero_focus5d`, the sample `samples/hero_focus5d`. Its verdicts were recomputed on Nov 3 with
+`walkaround rederive hero_focus5 hero_focus5d` (code 818a086) from the model answers that run hero_focus5 stored on
 Nov 2; no new model calls, $0. Its sheet, run.json and manifest_run.json carry the same line. hero_focus5 itself ran
 live on Nov 2, 6:42 to 6:55 PM EST, code 8a529ff, $6.52 (Meta Model API $6.44, Baseten $0.08; rows in
-`ledger_rows_hero_focus5.jsonl`). `walkaround verify hero_focus5b` prints "rebuild identical".
+`ledger_rows_hero_focus5.jsonl`). `walkaround verify hero_focus5d` prints "rebuild identical".
 
 The car: a friend's white Ford Focus, filmed with the owner's permission. The marks are blue tape strips we put on as
 stand-ins, plus one real scrape. Pickup walk IMG_2678.mov (52.9 s), return walk IMG_2679.mov (34.3 s), shot 4 minutes
@@ -21,7 +21,7 @@ apart. Two photos taken before the pickup walk show the pickup state.
 
 Each verdict was tied to its strip or scrape by looking at every row of the run, both walks' crops side by side.
 
-| Truth mark | Right label | hero_focus5b | Score |
+| Truth mark | Right label | hero_focus5d | Score |
 |---|---|---|---|
 | rear bumper strip A (middle) | already there | already there (rear_bumper_v1); its copy on the second pickup keyframe merged, no second line | right |
 | rear bumper strip B (right, beside the dealer sticker) | already there | already there (rear_bumper_v2); its copy on the second pickup keyframe merged, no second line | right |
@@ -35,22 +35,23 @@ Each verdict was tied to its strip or scrape by looking at every row of the run,
 Other lines on these panels: a tiny unsure speck on the right rear door at pickup, needs your eye (K3, K4, K12). The
 leaves in the trunk seam fold into the rear bumper's debris line.
 
-Elsewhere on the car: hood already there (the same spot boxed in both walks; not in the truth list); right rear wheel
-needs your eye (a rim glint typed scuff); mirrors needs your eye (K18: the registration found the same patch at
-pickup, but the small scuff boxes did not pair). 6 panels not comparable. Totals: already there 5, new or unseen 1,
-not seen at return 0, needs your eye 5, not comparable 6; 17 rows.
+Elsewhere on the car: hood already there (the same spot boxed in both walks; not in the truth list); mirrors already
+there (L8: a scuff boxed at return only, and lining up the two mirror crops on a strong fit finds the same patch at
+pickup). The check covers the car body only, so each wheel gets one line, "wheels: check by eye; rims and tires are
+not checked mark by mark", and no verdict. 4 panels not comparable. Totals: already there 6, new or unseen 1, not
+seen at return 0, needs your eye 3, not comparable 4; 14 rows.
 
 ## Box by box, against hand labels
 
 The same two videos were run earlier as hero_focus1, and every crop of that run was labelled by hand: each Muse Spark
 box marked right, moved or not a mark, and the marks it missed drawn in (`eval/box_corrections/hero_focus1.json`).
-hero_focus5b (hero_focus5's crops and boxes) picked the same frame for 49 crops (21 of them byte for byte the same
-crop). On those 49 crops (`hero_focus5b_truth_score.py`, no call):
+hero_focus5d (hero_focus5's crops and boxes) picked the same frame for 49 crops (21 of them byte for byte the same
+crop). On those 49 crops (`hero_focus5d_truth_score.py`, no call):
 
 - The hand labels hold 53 real marks; Muse Spark boxed 17 of them.
 - Of its 78 boxes there, 17 sit on a real mark, 13 on a spot labelled not a mark (rear window glass 6, windshield 2,
   wheel 2, mirror 2, roof 1) and 48 on spots left unlabelled. None of the 13 led to an already there, new or not
-  seen line: each ended not comparable or in no line.
+  seen line: each ended not comparable, in no line, or on a check-by-eye line (glass, wheels).
 - On the truth panels: the pickup front left door crop 4 of 4 (both strips, both scrape pieces), the return right
   rear door crop (same bytes) 1 of 1 (the new strip), the pickup rear bumper frame at 49.8 s 2 of 2 (strips A and B,
   the copies that merged). The second pickup front left door keyframe got no box at all (0 of 5); the first carried

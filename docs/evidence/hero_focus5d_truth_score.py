@@ -1,5 +1,5 @@
-# Box-level check of hero_focus5b against the hand labels on hero_focus1 (crops from the same frame). No call.
-# .venv/bin/python docs/evidence/hero_focus5b_truth_score.py
+# Box-level check of hero_focus5d against the hand labels on hero_focus1 (crops from the same frame). No call.
+# .venv/bin/python docs/evidence/hero_focus5d_truth_score.py
 import json
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
@@ -7,10 +7,10 @@ R = ROOT / 'runs'
 def kfs(r):
     k = json.load(open(R/r/'derived/keyframes.json'))
     return {x['kf_id']: x for x in (k if isinstance(k, list) else k.get('keyframes', k))}
-A, B = kfs('hero_focus1'), kfs('hero_focus5b')
-marks = json.load(open(R/'hero_focus5b/derived/marks.json'))
+A, B = kfs('hero_focus1'), kfs('hero_focus5d')
+marks = json.load(open(R/'hero_focus5d/derived/marks.json'))
 marks = marks if isinstance(marks, list) else marks.get('marks', marks)
-verd = json.load(open(R/'hero_focus5b/derived/verdicts.json'))
+verd = json.load(open(R/'hero_focus5d/derived/verdicts.json'))
 lab = {mid: (v['verdict_id'], v['label']) for v in verd for mid in v['mark_ids']}
 sb = json.load(open(ROOT / 'eval/box_corrections/hero_focus1.json'))
 seen = set(sb['crops_seen'])
@@ -48,5 +48,5 @@ for kid, kf in sorted(B.items()):
         else: k = 'unlabeled'; tot['other'] += 1
         det.append((m['mark_id'].split('_')[-1], k, lab.get(m['mark_id'], ('-', '-'))[1]))
     tot['true'] += len(true); tot['found'] += len(found); tot['h4'] += len(h4)
-    print(f"{kid} (hf1 {akf['kf_id']}, {'same crop' if same else 'same frame'}): Sanat real {len(true)}, hf5b boxed {len(found)}; hf5b boxes: {det}")
+    print(f"{kid} (hf1 {akf['kf_id']}, {'same crop' if same else 'same frame'}): Sanat real {len(true)}, hf5d boxed {len(found)}; hf5d boxes: {det}")
 print(tot)

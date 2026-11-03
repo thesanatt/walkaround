@@ -13,8 +13,8 @@ I recorded a walkaround video at pickup and at return. The files were hashed and
 - pickup: IMG_2678.mov, 58008058 bytes, sha256 0b1d3a373eeccd030eb8cc1eeadfa408d929a48cbabcf2f90481923bf4eca2cf, camera time 2026-11-02T19:46:29Z, received 2026-11-02T23:42:53.536Z
 - return: IMG_2679.mov, 37568726 bytes, sha256 cc683f02ad13d63d148fb5568724560f5c35e3d15202edcf7a21609cc23024f3, camera time 2026-11-02T19:50:42Z, received 2026-11-02T23:42:53.575Z
 - sealed at 2026-11-02T23:42:53.709Z
-- Walkaround run hero_focus5b; the panel-by-panel evidence sheet is attached
-- verdicts recomputed on Nov 2, 2026 with this version's rules (code d44edde) from the model answers stored on Nov 2, 2026 by run hero_focus5; no new model calls
+- Walkaround run hero_focus5d; the panel-by-panel evidence sheet is attached
+- verdicts recomputed on Nov 3, 2026 with this version's rules (code 818a086) from the model answers stored on Nov 2, 2026 by run hero_focus5; no new model calls
 - the frames on the sheet: Footage: filmed by us with the car owner's permission; the marks are blue tape stand-ins
 
 The attached sheet shows the panel in question at pickup and at return with the marks drawn on both frames. The
