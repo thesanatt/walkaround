@@ -31,6 +31,7 @@ SYNTH = REPO.parent / "synthetic" / "out"
 DEFAULT_RUNS = ["pairC_core3", "eval_nhtsa15759_r6", "synth_pair2_r9"]
 RUN_ID = re.compile(r"^[A-Za-z0-9_.-]+$")
 MAX_BODY = 5_000_000
+MAX_NOTE = 20_000
 LABELS = ("already_there", "new_or_unseen", "needs_your_eye", "not_seen_at_return", "not_comparable")
 BASE_LABEL = {"L1": "not_seen_at_return", "L2": "new_or_unseen", "L3": "already_there"}  # what an L4 was lowered from
 
@@ -222,6 +223,34 @@ def empty_vdoc(run_id: str) -> dict:
     return {"run_id": run_id, "schema": 1, "checks": {}}
 
 
+def check_extras(row: dict, where: str) -> str | None:
+    # the note and, on verdicts, the missed marks drawn on the pickup or return photo
+    if not isinstance(row.get("note", ""), str) or len(row.get("note", "")) > MAX_NOTE:
+        return f"bad note for {where}"
+    drawn = row.get("missed", [])
+    if not isinstance(drawn, list):
+        return f"bad drawn boxes for {where}"
+    for b in drawn:
+        if not isinstance(b, dict) or b.get("side") not in ("pickup", "return") or not valid_box(b.get("box")) \
+                or not isinstance(b.get("note", ""), str) or len(b.get("note", "")) > MAX_NOTE:
+            return f"bad drawn box for {where}"
+    return None
+
+
+def check_pending(doc: dict) -> str | None:
+    # notes (and drawn boxes) on items not judged yet; they move onto the item's row once it is judged
+    pend = doc.get("pending", {})
+    if not isinstance(pend, dict):
+        return "pending must be an object"
+    for key, row in pend.items():
+        if not isinstance(row, dict):
+            return f"bad pending entry for {key}"
+        err = check_extras(row, key)
+        if err:
+            return err
+    return None
+
+
 def check_vdoc(doc, run_id: str) -> str | None:
     if not isinstance(doc, dict) or doc.get("run_id") != run_id:
         return "run_id does not match"
@@ -230,6 +259,9 @@ def check_vdoc(doc, run_id: str) -> str | None:
     for vid, row in doc["checks"].items():
         if not isinstance(row, dict) or row.get("status") not in ("right", "wrong", "unsure"):
             return f"bad status for {vid}"
+        err = check_extras(row, vid)
+        if err:
+            return err
         if row.get("product_label") not in LABELS:
             return f"bad product label for {vid}"
         cl = row.get("correct_label")
@@ -238,7 +270,7 @@ def check_vdoc(doc, run_id: str) -> str | None:
                 return f"bad correct label for {vid}"
         elif cl is not None:
             return f"correct label set on a {row['status']} check for {vid}"
-    return None
+    return check_pending(doc)
 
 
 def valid_box(b) -> bool:
@@ -255,10 +287,12 @@ def check_doc(doc, run_id: str) -> str | None:
             return f"bad status for {mid}"
         if row["status"] != "not_mark" and not valid_box(row.get("box")):
             return f"bad box for {mid}"
+        if not isinstance(row.get("note", ""), str) or len(row.get("note", "")) > MAX_NOTE:
+            return f"bad note for {mid}"
     for row in doc["missed"]:
         if not isinstance(row, dict) or not valid_box(row.get("box")) or not row.get("kf_id"):
             return "bad missed box"
-    return None
+    return check_pending(doc)
 
 
 class Handler(BaseHTTPRequestHandler):

@@ -8,6 +8,7 @@ Boxes: prints counts and offsets per run and overall, writes summary.json, and d
 eval/box_corrections/worst/. Verdicts: per run and overall, checked, right, wrong and not sure by the product's label,
 wrong by the label the person picked, and every "new since pickup" or "already there" a person called wrong; writes
 eval/verdict_checks/summary.json. --verdicts-only skips the box part (which rewrites its summary and worst/).
+Both parts also list every note (run, item, text), and the Verdicts part counts the missed marks drawn per side.
 """
 
 from __future__ import annotations
@@ -258,6 +259,44 @@ def worst(moved: list[dict]) -> list[Path]:
     return paths
 
 
+# ---- notes and drawn boxes ----
+
+def notes_of(doc: dict, rows_key: str) -> list[dict]:
+    """Every note in one file: on judged rows, in "pending" (not judged yet), and on drawn boxes."""
+    out = []
+    for where, judged in ((doc.get(rows_key, {}), True), (doc.get("pending", {}), False)):
+        for key, r in where.items():
+            state = (r.get("status") or "?") if judged else "not judged yet"
+            if (r.get("note") or "").strip():
+                out.append({"run_id": doc["run_id"], "item": key, "state": state, "text": r["note"].strip()})
+            for b in r.get("missed") or []:
+                if (b.get("note") or "").strip():
+                    out.append({"run_id": doc["run_id"], "item": f"{key}, box drawn on {b.get('side')}", "state": state,
+                                "text": b["note"].strip()})
+    return out
+
+
+def print_notes(title: str, notes: list[dict]) -> None:
+    print(f"\n== {title}: {len(notes) or 'none'}")
+    for n in notes:
+        text = n["text"].replace("\n", "\n      ")
+        print(f"  {n['run_id']}  {n['item']} ({n['state']}):\n      {text}")
+
+
+def drawn_of(doc: dict) -> list[dict]:
+    """Missed marks drawn on the Verdicts tab, judged rows and pending alike."""
+    out = []
+    for where in (doc.get("checks", {}), doc.get("pending", {})):
+        for vid, r in where.items():
+            out += [dict(b, verdict_id=vid) for b in r.get("missed") or []]
+    return out
+
+
+def drawn_count(drawn: list[dict]) -> dict:
+    return {"pickup": sum(b.get("side") == "pickup" for b in drawn), "return": sum(b.get("side") == "return" for b in drawn),
+            "verdicts": len({b["verdict_id"] for b in drawn})}
+
+
 # ---- verdict checks ----
 
 def vrows_of(doc: dict, current: dict[str, dict]) -> list[dict]:
@@ -308,6 +347,10 @@ def vreport(name: str, s: dict) -> None:
           + (f" ({s['wrong_not_picked']} wrong with no right label picked yet)" if s["wrong_not_picked"] else ""))
     if s["stale"]:
         print(f"  {s['stale']} checks are on verdicts that changed since (run re-derived); they count against the label shown then")
+    d = s.get("drawn_missed")
+    if d is not None:
+        print("  missed marks drawn: " + (f"pickup {d['pickup']}, return {d['return']} (on {d['verdicts']} verdict"
+              f"{'' if d['verdicts'] == 1 else 's'})" if d["verdicts"] else "none"))
     print(f"  {'product says':<20}{'verdicts':>9}{'checked':>9}{'right':>7}{'wrong':>7}{'not sure':>10}")
     for lab, v in s["by_product_label"].items():
         n = "" if v["verdicts"] is None else v["verdicts"]
@@ -333,6 +376,7 @@ def verdict_main(vdir: Path) -> bool:
         print(f"\nno verdict checks in {vdir}")
         return False
     out, all_rows, totals, have_all = {}, [], {lab: 0 for lab in LABELS}, True
+    all_notes, all_drawn = [], []
     for f in files:
         doc = json.loads(f.read_text())
         run = doc.get("run_id") or f.stem
@@ -342,6 +386,10 @@ def verdict_main(vdir: Path) -> bool:
         counts = {lab: sum(v["label"] == lab for v in current.values()) for lab in LABELS} if vf.exists() else None
         rows = vrows_of(doc, current)
         s = vsummarize(rows, counts)
+        notes, drawn = notes_of(doc, "checks"), drawn_of(doc)
+        s["drawn_missed"], s["notes"] = drawn_count(drawn), notes
+        all_notes += notes
+        all_drawn += drawn
         out[run] = s
         vreport(run, s)
         all_rows += rows
@@ -351,9 +399,11 @@ def verdict_main(vdir: Path) -> bool:
             for lab in LABELS:
                 totals[lab] += counts[lab]
     s = vsummarize(all_rows, totals if have_all else None)
+    s["drawn_missed"], s["notes"] = drawn_count(all_drawn), all_notes
     out["overall"] = s
     if len(files) > 1:
         vreport("overall", s)
+    print_notes("verdict notes", all_notes)
     (vdir / "summary.json").write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
     print(f"\nverdict summary: {vdir / 'summary.json'}")
     return True
@@ -377,7 +427,7 @@ def main() -> None:
 
 
 def box_main(files: list[Path]) -> None:
-    all_rows, all_missed, out, seen_total, marks_total = [], [], {}, 0, 0
+    all_rows, all_missed, out, seen_total, marks_total, all_notes = [], [], {}, 0, 0, []
     for f in files:
         doc = json.loads(f.read_text())
         run = doc.get("run_id") or f.stem
@@ -388,6 +438,8 @@ def box_main(files: list[Path]) -> None:
         n_marks = len(json.loads(mj.read_text())) if mj.exists() else None
         seen = len(doc.get("crops_seen", []))
         s = summarize(rows, missed, n_marks, seen)
+        s["notes"] = notes_of(doc, "marks")
+        all_notes += s["notes"]
         out[run] = s
         report(run, s)
         all_rows += rows
@@ -395,9 +447,11 @@ def box_main(files: list[Path]) -> None:
         seen_total += seen
         marks_total += n_marks or 0
     s = summarize(all_rows, all_missed, marks_total, seen_total)
+    s["notes"] = all_notes
     out["overall"] = s
     if len(files) > 1:
         report("overall", s)
+    print_notes("box notes", all_notes)
     (OUT / "summary.json").write_text(json.dumps(out, indent=1, sort_keys=True) + "\n")
     paths = worst([r for r in all_rows if r["status"] == "moved" and "dx" in r])
     print(f"\nsummary: {OUT / 'summary.json'}")

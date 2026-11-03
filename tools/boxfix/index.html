@@ -61,6 +61,11 @@
   .sw.dash { border-top-style: dashed; } .sw.dot { border-top-style: dotted; }
   #save.err { color: var(--bad); font-weight: 650; }
   label { cursor: pointer; }
+  .notes { display: flex; gap: 12px; align-items: flex-start; margin-top: 10px; }
+  .notes label { font-size: 15px; color: var(--dim); padding-top: 7px; cursor: text; }
+  textarea { flex: 1; font: inherit; font-size: 16px; line-height: 1.35; color: var(--text); background: #2a2e33;
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; height: 3.1em; min-height: 2.2em; resize: vertical; }
+  textarea:focus { outline: none; border-color: #5a6068; }
 </style>
 </head>
 <body>
@@ -91,6 +96,7 @@
     <button class="small" id="b-zoom">Zoom<kbd>Z</kbd></button>
     <button class="small" id="b-gt">Ground truth<kbd>G</kbd></button>
   </div>
+  <div class="notes"><label for="note">Notes</label><textarea id="note" rows="2" placeholder="Anything about this box. Keys are off while you type here; Esc leaves the box."></textarea></div>
   <div class="rule">One box per separate mark; a tight cluster of specks counts as one. Press D to draw a mark the product missed.</div>
   <div class="meta">
     <select id="runsel" title="Jump to a run"></select>
@@ -146,10 +152,15 @@ function done(it) {
   return it.mark ? !!row(it) : doc(it.run).crops_seen.includes(it.crop.kf_id);
 }
 
-function save(run) {
+function save(run, leaving) {
   const d = doc(run), s = $("save");
   s.className = ""; s.textContent = "Saving";
-  const body = JSON.stringify(d);
+  const body = JSON.stringify(d, (k, v) => (k === "pending" && !Object.keys(v).length ? undefined : v));  // no empty pending
+  if (leaving) {  // page is closing: send now, outside the chain
+    fetch("/api/corrections/" + encodeURIComponent(run.run_id), { method: "PUT", headers: { "Content-Type": "application/json" },
+      body, keepalive: body.length < 60000 });
+    return;
+  }
   saveChain[run.run_id] = (saveChain[run.run_id] || Promise.resolve()).then(() =>
     fetch("/api/corrections/" + encodeURIComponent(run.run_id), {
       method: "PUT", headers: { "Content-Type": "application/json" }, body,
@@ -161,15 +172,61 @@ function save(run) {
 }
 
 function setRow(it, status, box) {
-  const d = doc(it.run), m = it.mark;
+  const d = doc(it.run), m = it.mark, note = getNote(it);
   d.marks[m.mark_id] = {
     status, box: status === "not_mark" ? null : box.map(r1), product_box: m.box, spark_box: m.spark_box,
     box_used: m.box_used, kf_id: it.crop.kf_id, role: it.crop.role, panel_id: it.crop.panel_id, type: m.type,
     size_class: m.size_class, point_only: m.point_only, crop_w: it.crop.w, crop_h: it.crop.h,
     updated_at: new Date().toISOString(),
   };
+  if (note) d.marks[m.mark_id].note = note;
+  delete d.pending[m.mark_id];
   seen(it, false);
   save(it.run);
+}
+
+// ---- notes ----
+// A note sits on the mark's row once the mark is judged. Before that it waits in doc.pending under the mark id
+// (a crop with no boxes keeps its note there under the kf_id); setRow moves it onto the row and Reset moves it back.
+const noteEl = $("note");
+let noteIt = null, noteTimer = null;
+function itemKey(it) { return it.mark ? it.mark.mark_id : it.crop.kf_id; }
+function getNote(it) {
+  const r = row(it), p = doc(it.run).pending[itemKey(it)];
+  return (r && r.note) || (p && p.note) || "";
+}
+function putNote(it, text) {
+  const d = doc(it.run), key = itemKey(it), r = row(it);
+  if (r) { if (text) r.note = text; else delete r.note; delete d.pending[key]; }
+  else if (text) d.pending[key] = { note: text };
+  else delete d.pending[key];
+}
+function flushNote(leaving) {
+  if (!noteTimer) return;
+  clearTimeout(noteTimer); noteTimer = null;
+  save(noteIt.run, leaving);
+}
+function bindNote(it) {
+  noteEl.disabled = !it;
+  if (noteIt && it && noteIt.run === it.run && itemKey(noteIt) === itemKey(it)) return;
+  flushNote();
+  noteIt = it;
+  noteEl.value = it ? getNote(it) : "";
+}
+noteEl.addEventListener("input", () => {
+  if (!noteIt) return;
+  putNote(noteIt, noteEl.value.trim() ? noteEl.value : "");
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(flushNote, 600);
+});
+noteEl.addEventListener("change", () => flushNote());
+window.addEventListener("pagehide", () => flushNote(true));
+// while the cursor is in a text box no shortcut fires; Esc leaves the box
+function typing(e) {
+  const t = e.target;
+  if (!(t.tagName === "TEXTAREA" || (t.tagName === "INPUT" && t.type === "text"))) return false;
+  if (e.key === "Escape") { e.preventDefault(); t.blur(); }
+  return true;
 }
 
 function seen(it, andSave) {
@@ -191,7 +248,7 @@ function act(kind) {
   if (kind === "correct") { setRow(it, "correct", it.mark.box); go(1); }
   else if (kind === "not") { setRow(it, "not_mark", null); go(1); }
   else if (kind === "moved") { setRow(it, "moved", curBox(it)); render(); }
-  else if (kind === "reset") { delete doc(it.run).marks[it.mark.mark_id]; save(it.run); render(); }
+  else if (kind === "reset") { const note = getNote(it); delete doc(it.run).marks[it.mark.mark_id]; putNote(it, note); save(it.run); render(); }
 }
 
 function toggleDraw() { drawMode = !drawMode; selMissed = null; render(); }
@@ -251,6 +308,7 @@ function label(text, x, y, color, k, parent) {
 
 function render() {
   const it = items[pos];
+  bindNote(it);
   if (!it) { $("count").textContent = "No boxes in these runs"; return; }
   const { run, crop, mark } = it;
   const d = doc(run), r = row(it), k0 = svg.getBoundingClientRect();
@@ -369,6 +427,7 @@ svg.addEventListener("pointerdown", (e) => {
   const it = items[pos];
   if (!it || e.button > 0) return;
   e.preventDefault();
+  if (document.activeElement === noteEl) noteEl.blur();
   const p = clampPt(toCrop(e), it.crop);
   if (drawMode) {
     drag = { kind: "draw", start: p, box: [p[0], p[1], p[0], p[1]] };
@@ -449,6 +508,7 @@ svg.addEventListener("pointercancel", endDrag);
 
 // ---- keys and buttons ----
 document.addEventListener("keydown", (e) => {
+  if (typing(e)) return;
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.target.tagName === "SELECT") return;
   const key = e.key.toLowerCase();
@@ -486,7 +546,7 @@ async function start() {
   runs = data.runs;
   await Promise.all(runs.map(async (run) => {
     const d = await (await fetch("/api/corrections/" + encodeURIComponent(run.run_id))).json();
-    d.marks = d.marks || {}; d.missed = d.missed || []; d.crops_seen = d.crops_seen || [];
+    d.marks = d.marks || {}; d.missed = d.missed || []; d.crops_seen = d.crops_seen || []; d.pending = d.pending || {};
     docs[run.run_id] = d;
   }));
   $("runsel").innerHTML = runs.map((r) => `<option value="${r.run_id}">${r.run_id} (${r.n_marks} boxes)</option>`).join("");
