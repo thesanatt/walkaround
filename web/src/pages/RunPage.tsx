@@ -22,7 +22,7 @@ import { SealCard } from '../components/SealCard.tsx';
 import { StageLine } from '../components/StageLine.tsx';
 import { StaysPutList } from '../components/StaysPutList.tsx';
 import { controlTrack, StaysPutPair } from '../components/StaysPutPair.tsx';
-import { TopUpBanner } from '../components/TopUpBanner.tsx';
+import { TopUpBanner, topUpShown } from '../components/TopUpBanner.tsx';
 import { VerdictList } from '../components/VerdictList.tsx';
 import { WalkPlayer } from '../components/WalkPlayer.tsx';
 import type { Coverage, Keyframe, Mark, PanelTrack, ReplayMode } from '../contracts/types.ts';
@@ -302,7 +302,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
 
         {!done && !failed ? <div className="walks-live">{walks}</div> : null}
 
-        {!mode ? <TopUpBanner runId={runId} coverage={coverage} onCoverage={setCoverageOverride} /> : null}
+        {topUpShown(mode !== null, state.run?.kind) ? <TopUpBanner runId={runId} coverage={coverage} onCoverage={setCoverageOverride} /> : null}
 
         {state.claim ? (
           <section className="result-claim" aria-label="claim photo">

@@ -16,7 +16,7 @@ import { SecondLookLine } from '../src/components/SecondLookLine.tsx';
 import { StaysPutList } from '../src/components/StaysPutList.tsx';
 import { ClipMissing } from '../src/components/ClipTrail.tsx';
 import { controlTrack, StaysPutPair } from '../src/components/StaysPutPair.tsx';
-import { topupErrorText, topupGains } from '../src/components/TopUpBanner.tsx';
+import { topUpShown, topupErrorText, topupGains } from '../src/components/TopUpBanner.tsx';
 import type { Claim, ClaimExit, Keyframe, MarkTrack } from '../src/contracts/types.ts';
 import { howChecked } from '../src/lib/checks.ts';
 import { claimCandidates, claimPhotoPath, claimWorkSize, effectiveExit, EXIT_WORDS, placementLine, samVoteLine, sideLine, sparkNamedLine } from '../src/lib/claim.ts';
@@ -205,6 +205,15 @@ describe('the coverage car', () => {
     expect(order).toHaveLength(22);
     expect(order[0]).toBe('right_rear_door'); // first seen at 0:00
     expect(order.indexOf('roof')).toBeGreaterThan(order.indexOf('front_bumper')); // never filmed, so last
+  });
+
+  it('offers the top-up box only on a live pickup check', () => {
+    expect(topUpShown(false, 'pickup_check')).toBe(true);
+    expect(topUpShown(true, 'pickup_check')).toBe(false);
+    expect(topUpShown(false, 'pair')).toBe(false);
+    expect(topUpShown(true, 'pair')).toBe(false);
+    expect(topUpShown(false, 'claim')).toBe(false);
+    expect(topUpShown(false, undefined)).toBe(false);
   });
 
   it('draws 22 slots, the callouts and the legend', async () => {

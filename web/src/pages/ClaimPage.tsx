@@ -312,7 +312,7 @@ function ClaimSampleLine() {
   if (!id) return null;
   return (
     <p className="claim-sample">
-      Want to see one first? <Link to={`/run/${encodeURIComponent(id)}?replay=fixed`}>Open a finished claim</Link>: a claim photo already placed against a pickup walk.
+      Want to see one first? <Link to={`/run/${encodeURIComponent(id)}?replay=instant`}>Open a finished claim</Link>: a claim photo already placed against a pickup walk.
     </p>
   );
 }

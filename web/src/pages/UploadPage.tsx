@@ -122,7 +122,7 @@ export function UploadPage({ status }: { status: StatusResponse | null }) {
     setSampleNote(null);
     try {
       const s = await api.sample();
-      navigate(`/run/${encodeURIComponent(s.run_id)}?replay=fixed`);
+      navigate(`/run/${encodeURIComponent(s.run_id)}?replay=instant`);
     } catch (err) {
       setSampleNote(err instanceof ApiError && err.status === 404 ? 'There is no finished check on this server yet.' : err instanceof Error ? err.message : String(err));
     }

@@ -76,7 +76,7 @@ function useFinished(): Finished[] | null {
   return list;
 }
 
-const replayUrl = (id: string) => `/run/${encodeURIComponent(id)}?replay=fixed`;
+const replayUrl = (id: string) => `/run/${encodeURIComponent(id)}?replay=instant`;
 
 function HeroCard({ f }: { f: Finished }) {
   const c = f.card!;

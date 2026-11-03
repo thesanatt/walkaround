@@ -1,9 +1,14 @@
 import { useEffect, useState, type ChangeEvent } from 'react';
 
 import { api, ApiError } from '../api/client.ts';
-import type { Coverage } from '../contracts/types.ts';
+import type { Coverage, RunKind } from '../contracts/types.ts';
 import { COVERAGE_LABEL, panelName } from '../lib/panels.ts';
 import { hashFile, sharedHashWorker } from '../lib/upload.ts';
+
+// The top-up box belongs to a live pickup check: never on a pair, a claim or any replay (a public sample takes no clip).
+export function topUpShown(replaying: boolean, kind: RunKind | undefined): boolean {
+  return !replaying && kind === 'pickup_check';
+}
 
 // What a top-up clip added: each slot filmed or glimpsed in a topup_<n> walk, with its seconds.
 export function topupGains(coverage: Coverage): { panel: string; state: string; seconds: number }[] {
