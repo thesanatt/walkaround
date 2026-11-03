@@ -21,6 +21,7 @@
   h3 { font-size: 11pt; font-weight: 600; margin: 4mm 0 1.5mm 0; }
   p { margin: 0 0 2mm 0; }
   .lede { color: var(--muted); margin-bottom: 4mm; }
+  .result { font-size: 12.5pt; font-weight: 600; margin: 0 0 2.5mm 0; }
   .disclaimer { border: 1px solid var(--ink); display: inline-block; padding: 1mm 2.5mm; font-weight: 600; }
   table { border-collapse: collapse; width: 100%; margin: 0 0 3mm 0; }
   th, td { text-align: left; vertical-align: top; padding: 1.2mm 2mm; border-bottom: 1px solid var(--rule); }
@@ -85,6 +86,7 @@
 
 <section class="page" id="page-1">
   <h1>{{ sheet.product }} evidence sheet</h1>
+  {% if sheet.result_line %}<p class="result">{{ sheet.result_line }}</p>{% endif %}
   <p class="lede">Two walkaround videos of one rental car, compared panel by panel. Code decides every verdict; a model answer can only lower one.</p>
   <p><span class="disclaimer">{{ sheet.disclaimer }}</span></p>
   {% if sheet.stand_in_line %}<p><span class="disclaimer">{{ sheet.stand_in_line }}</span></p>{% endif %}

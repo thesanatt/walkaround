@@ -2162,14 +2162,17 @@ class SheetModel(Contract):
     # walkaround rederive (R28): "verdicts recomputed on <date> with this version's rules from the model answers
     # stored on <date>; no new model calls", on page 1, in the letter and in the verify appendix
     rederived_line: str | None = None
+    # the one-line result under the title on page 1, when thresholds sheet.result_line is on (11/3)
+    result_line: str | None = None
 
     @model_serializer(mode="wrap")
     def _omit_absent_footage(self, handler: Any) -> Any:
         """A sheet with no credit printed serializes as it did before the fields existed (11/1), so every run frozen
-        before the rule rebuilds byte-identical; so does a sheet of a run that was not rederived (R28)."""
+        before the rule rebuilds byte-identical; so does a sheet of a run that was not rederived (R28) or has no
+        result line (11/3)."""
         data = handler(self)
         if isinstance(data, dict):
-            for key in ("footage_credit", "footage_license_url", "rederived_line"):
+            for key in ("footage_credit", "footage_license_url", "rederived_line", "result_line"):
                 if data.get(key) is None:
                     data.pop(key, None)
         return data

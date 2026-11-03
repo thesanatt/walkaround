@@ -429,7 +429,13 @@ def test_write_sheet_from_a_synthetic_run(runs: Path) -> None:
     assert "Model requests were sent with storage off." in model.privacy_line and "no plate detected" not in model.privacy_line
     assert len(model.note_lines) == 5
     assert model.coverage_summary["pickup"][:1] == ["left front door: filmed, 3.2 s"]
-    assert "missing at pickup: left front wheel" in model.coverage_summary["pickup"] and "top-up asked: film the left front wheel" in model.coverage_summary["pickup"]
+    # coverage.missing is the latest walk's gap, so on a pair it sits under return, and a pair asks no top-up (11/3)
+    assert "missing at return: left front wheel" in model.coverage_summary["return"]
+    assert not [line for line in model.coverage_summary["pickup"] if line.startswith(("missing at", "top-up asked"))]
+    assert model.result_line == (
+        "1 new mark: left front door. 1 mark there at pickup, 1 spot needs your eye, 1 mark from pickup not seen at return, "
+        "1 panel not compared."
+    )
 
     # Panel blocks: every canonical slot, the door with both frames and the marks drawn, the wheel leading with frames.
     assert [b.panel_id for b in model.panels] == list(c.PanelId)
@@ -696,6 +702,34 @@ def test_the_sheet_prints_the_footage_credit_and_its_license_wherever_the_frames
     assert f"- the frames on the sheet: {credit} License: {url}" in model.letter_md
     assert sheet.footage_license_url("Pexels clip 4228872, Pexels License") == "https://www.pexels.com/license/"
     assert sheet.footage_license_url("our own walk") is None
+
+
+def test_result_line_counts_the_verdicts() -> None:
+    def v(i: int, panel: c.PanelId, label: c.VerdictLabel) -> c.Verdict:
+        return c.Verdict(verdict_id=f"v{i}", panel_id=panel, label=label, rule_id="L1", trace=c.Trace(config_hash="x"))
+
+    A, E, N, NC = c.VerdictLabel.ALREADY_THERE, c.VerdictLabel.NEEDS_YOUR_EYE, c.VerdictLabel.NEW_OR_UNSEEN, c.VerdictLabel.NOT_COMPARABLE
+    rows = [v(1, c.PanelId.HOOD, A), v(2, c.PanelId.HOOD, A), v(3, c.PanelId.RIGHT_REAR_DOOR, N), v(4, c.PanelId.ROOF, NC), v(5, c.PanelId.HOOD, E)]
+    assert sheet.result_line(rows) == "1 new mark: right rear door. 2 marks there at pickup, 1 spot needs your eye, 1 panel not compared."
+    assert sheet.result_line([v(1, c.PanelId.HOOD, A), v(2, c.PanelId.ROOF, E), v(3, c.PanelId.ROOF, E)]) == (
+        "No new damage confirmed. 1 mark there at pickup, 2 spots need your eye."
+    )
+    assert sheet.result_line([v(1, c.PanelId.HOOD, N), v(2, c.PanelId.ROOF, N)]) == "2 new marks: hood and roof."
+    assert sheet.result_line([v(1, c.PanelId.HOOD, A)]) == "Nothing new found. 1 mark there at pickup."
+    assert sheet.result_line([]) is None
+
+
+def test_a_run_frozen_before_the_gap_and_result_rules_keeps_its_sheet(runs: Path) -> None:
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not on PATH")
+    old = copy.deepcopy(TH)
+    del old["sheet"]["gaps_by_walk"], old["sheet"]["result_line"]
+    _synthetic_run("frozen1103", keep_plate=False)
+    model = sheet.build_sheet("frozen1103", th=old)
+    assert model.result_line is None and "result_line" not in json.loads(model.to_json())
+    assert "missing at pickup: left front wheel" in model.coverage_summary["pickup"]
+    assert "top-up asked: film the left front wheel" in model.coverage_summary["pickup"]
+    assert '<p class="result">' not in sheet.render_html(model)
 
 
 def test_a_run_frozen_before_the_credit_rule_keeps_its_sheet(runs: Path) -> None:

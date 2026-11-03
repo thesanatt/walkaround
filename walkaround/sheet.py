@@ -313,7 +313,7 @@ def neighbour_line(mt: MarkTrack | None) -> str | None:
 def staysput_line(mt: MarkTrack | None, *, calibrated: bool = True) -> str | None:
     """'drift 0.03, b1 0.20, b2 0.01, not panned; fixed'; an inconclusive track says which test it stopped at: the
     camera's motion (section 14 item 18), too few whitened frames, or a drift between fixed and sliding. Uncalibrated
-    (thresholds staysput.cap_enabled off, docs/D1_MEMO.md note 2) the numbers only, said to change no label. A clip
+    (thresholds staysput.cap_enabled off, docs/evidence/D1_MEMO.md note 2) the numbers only, said to change no label. A clip
     with the neighbour test adds neighbour_line before that note (or at the end, calibrated)."""
     line = _staysput_drift_line(mt, calibrated=calibrated)
     near = neighbour_line(mt) if line is not None and mt is not None and mt.verdict != StaysPutVerdict.NO_TRACK else None
@@ -1002,10 +1002,19 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     if coverage is not None:
         for role in sorted(coverage.per_role, key=_role_order):
             coverage_summary[role] = _coverage_lines(role, coverage.per_role[role])
-        if coverage.missing and "pickup" in coverage_summary:
-            coverage_summary["pickup"].append("missing at pickup: " + ", ".join(display_name(p) for p in coverage.missing))
-        if coverage.topup_text and "pickup" in coverage_summary:
-            coverage_summary["pickup"].append(f"top-up asked: {coverage.topup_text}")
+        if _sheet_rule(th, "gaps_by_walk"):
+            # coverage.missing is read from the latest walk plus any top-up (panels.coverage_roles): the return walk on
+            # a pair. A top-up is only offered on a pickup check, so a pair prints no "top-up asked" line.
+            gap_walk = "return" if "return" in coverage.per_role else "pickup"
+            if coverage.missing and gap_walk in coverage_summary:
+                coverage_summary[gap_walk].append(f"missing at {gap_walk}: " + ", ".join(display_name(p) for p in coverage.missing))
+            if coverage.topup_text and gap_walk == "pickup" and "pickup" in coverage_summary:
+                coverage_summary["pickup"].append(f"top-up asked: {coverage.topup_text}")
+        else:  # runs frozen before the rule keep their sheet byte for byte
+            if coverage.missing and "pickup" in coverage_summary:
+                coverage_summary["pickup"].append("missing at pickup: " + ", ".join(display_name(p) for p in coverage.missing))
+            if coverage.topup_text and "pickup" in coverage_summary:
+                coverage_summary["pickup"].append(f"top-up asked: {coverage.topup_text}")
     elif panels:
         for role in sorted({r for p in panels for r in p.per_role}, key=_role_order):
             coverage_summary[role] = _coverage_lines(role, {p.panel_id: p.per_role[role] for p in panels if role in p.per_role})
@@ -1067,6 +1076,8 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
         sheet.footage_license_url = footage_license_url(run.footage_credit)
     if run.rederived is not None:  # walkaround rederive (R28)
         sheet.rederived_line = _ascii(run.rederived.text)
+    if _sheet_rule(th, "result_line"):
+        sheet.result_line = result_line(verdicts)
     sheet.note_lines = note_lines(sheet)
     appendices = {"A certification": certification_md(sheet), "B glossary": glossary_md(th), "C verify it yourself": verify_md(sheet)}
     if claim is not None:
@@ -1074,6 +1085,40 @@ def build_sheet(run_id: str, *, th: dict[str, Any]) -> SheetModel:
     sheet.appendices = appendices
     sheet.letter_md = letter_md(sheet)
     return sheet
+
+
+def _sheet_rule(th: dict[str, Any], name: str) -> bool:
+    """A sheet.<name> thresholds leaf; absent from runs frozen before it, so their sheets rebuild byte for byte."""
+    leaf = th.get("sheet", {}).get(name)
+    return bool(leaf.get("value") if isinstance(leaf, dict) else leaf)
+
+
+def result_line(verdicts: list[Verdict]) -> str | None:
+    """The answer under the title on page 1, counted from the verdicts code wrote, as the run page leads with it:
+    "1 new mark: right rear door. 6 marks there at pickup, 3 spots need your eye, 4 panels not compared."
+    None for a run with no verdicts (a pickup check)."""
+    if not verdicts:
+        return None
+    n = {label: sum(1 for v in verdicts if v.label == label) for label in VerdictLabel}
+    fresh = [v for v in verdicts if v.label == VerdictLabel.NEW_OR_UNSEEN]
+    if fresh:
+        names = list(dict.fromkeys(display_name(v.panel_id) for v in fresh))
+        joined = names[0] if len(names) == 1 else ", ".join(names[:-1]) + " and " + names[-1]
+        head = f"{len(fresh)} new {'mark' if len(fresh) == 1 else 'marks'}: {joined}."
+    elif n[VerdictLabel.NEEDS_YOUR_EYE]:
+        head = "No new damage confirmed."
+    else:
+        head = "Nothing new found."
+    parts = []
+    if k := n[VerdictLabel.ALREADY_THERE]:
+        parts.append(f"{k} {'mark' if k == 1 else 'marks'} there at pickup")
+    if k := n[VerdictLabel.NEEDS_YOUR_EYE]:
+        parts.append(f"{k} {'spot needs' if k == 1 else 'spots need'} your eye")
+    if k := n[VerdictLabel.NOT_SEEN_AT_RETURN]:
+        parts.append(f"{k} {'mark' if k == 1 else 'marks'} from pickup not seen at return")
+    if k := n[VerdictLabel.NOT_COMPARABLE]:
+        parts.append(f"{k} {'panel' if k == 1 else 'panels'} not compared")
+    return _ascii(head + (" " + ", ".join(parts) + "." if parts else ""))
 
 
 def stand_in_line(run: RunManifest) -> str:

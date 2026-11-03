@@ -2217,3 +2217,15 @@ runs, which rebuild as they did.
 - web: types.ts PanelMatch.by_eye; result.byEyeRows (one row for the glass, one for the wheels, one per debris panel) in
   a "Check by eye" section of the run page; MatchPane shows the panel's line; comparedPanels leaves glass and wheel
   panels out of "the N panels both walks show clearly".
+
+## Sheet page 1 and the coverage gaps (2026-11-03)
+
+Two thresholds leaves, on for new runs, absent from frozen runs (so their sheet.json rebuilds byte for byte):
+- `sheet.gaps_by_walk`: `coverage.missing` is read from the latest walk plus any top-up (`panels.coverage_roles`), so
+  the sheet prints "missing at <walk>: ..." under that walk's column: the return walk on a pair, the pickup walk on a
+  pickup check. A pair prints no "top-up asked" line; the app offers a top-up only on a live pickup check. Before this,
+  a pair's return gaps were printed under pickup as "missing at pickup".
+- `sheet.result_line`: `SheetModel.result_line`, printed under the title on page 1, counted from `verdicts.json` the
+  way the run page leads with it, e.g. "1 new mark: right rear door. 6 marks there at pickup, 3 spots need your eye, 4
+  panels not compared." None (and absent from sheet.json) on a run with no verdicts.
+Tests: tests/test_sheet.py (`test_result_line_counts_the_verdicts`, `test_a_run_frozen_before_the_gap_and_result_rules_keeps_its_sheet`).
