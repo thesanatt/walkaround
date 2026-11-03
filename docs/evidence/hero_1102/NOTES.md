@@ -3,7 +3,7 @@
 Run: runs/hero_focus1 (white Ford Focus, overcast daylight, 1x, about 2 m, 1080p; pickup IMG_2678, return IMG_2679;
 code 29bc7fe; $6.24). Truth: docs/HERO_FOCUS1_TRUTH.md in the workspace (2 blue strips on the rear bumper kept, 2 on
 the front left door of which 1 removed, 1 new on the right rear door, a real scrape low on the front left door).
-Crops were looked at by eye with the run's boxes drawn on (/private/tmp scratch, not kept: they show the plate area).
+Crops were looked at by eye with the run's boxes drawn on (a scratch folder, not kept: they show the plate area).
 
 ## 1. Each truth mark through hero_focus1
 

@@ -36,7 +36,7 @@
 
 # D1 decision memo
 
-Run `d1_20261031T195329Z`, started 2026-10-31T19:53:29Z, finished 2026-10-31T20:21:20Z, folder /Users/sanat/meta2026/walkaround/runs/d1/uco3d_pairC.
+Run `d1_20261031T195329Z`, started 2026-10-31T19:53:29Z, finished 2026-10-31T20:21:20Z, folder runs/d1/uco3d_pairC.
 Spend on ledger rows with this prefix: $9.6949 of the $15.00 ceiling; the whole ledger stands at $10.1761.
 Thresholds config hash 4d209b15dedecf0856e2c8f4f9646b1e6f70a8b6cf004c49ed2888740793c57e. Plan: none (picks below come from gate_sam's lanes).
 
@@ -93,8 +93,8 @@ The list section 11 asks the memo for, each with the criteria it comes from.
 
 | Role | File | sha256, first 16 | Camera time | Video |
 |---|---|---|---|---|
-| pickup | /Users/sanat/meta2026/walkaround/data/candidates/uco3d_car_automobile/uco3d_7336-29949-54766.mp4 | 0afacdbbd4799b35 | not present | 1920x1080 at 29.58 fps, 19.7 s |
-| return | /Users/sanat/meta2026/walkaround/data/candidates/uco3d_car_automobile/uco3d_50152-5241-46685.mp4 | f49b432f2932d4a9 | not present | 1920x1080 at 29.58 fps, 20.2 s |
+| pickup | data/candidates/uco3d_car_automobile/uco3d_7336-29949-54766.mp4 | 0afacdbbd4799b35 | not present | 1920x1080 at 29.58 fps, 19.7 s |
+| return | data/candidates/uco3d_car_automobile/uco3d_50152-5241-46685.mp4 | f49b432f2932d4a9 | not present | 1920x1080 at 29.58 fps, 20.2 s |
 
 Picked by the runner where the plan named nothing:
 
@@ -377,5 +377,4 @@ Unblurred intermediates deleted at the end of the run:
 - sam/clips/pickup_bridge.mp4 (5555509 bytes, sha256 177c31100125)
 - sam/clips/return_bridge.mp4 (5046842 bytes, sha256 021f1cfe8c96)
 
-Next: copy this memo to docs/D1_MEMO.md in the private workspace; Codex reads it and writes codex/SUGGESTIONS.md, and the
-README's measured rows are drafted from it, each number with the script and the run that produced it.
+Next: the README's measured rows are drafted from this memo, each number with the script and the run that produced it.

@@ -1,5 +1,4 @@
-"""Model ids, prices and paths. Prices are from docs/API_NOTES.md in the private workspace
-(https://dev.meta.ai/docs/pricing-rate-limits, read 2026-10-26)."""
+"""Model ids, prices and paths. Prices are from https://dev.meta.ai/docs/pricing-rate-limits (read 2026-10-26)."""
 
 from __future__ import annotations
 

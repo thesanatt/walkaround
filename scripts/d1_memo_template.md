@@ -121,5 +121,4 @@ Unblurred intermediates deleted at the end of the run:
 {% endfor %}
 {% endif %}
 
-Next: copy this memo to docs/D1_MEMO.md in the private workspace; Codex reads it and writes codex/SUGGESTIONS.md, and the
-README's measured rows are drafted from it, each number with the script and the run that produced it.
+Next: the README's measured rows are drafted from this memo, each number with the script and the run that produced it.

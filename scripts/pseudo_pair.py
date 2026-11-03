@@ -43,7 +43,7 @@ HIST_STEP = 0.05  # units per histogram bin
 HIST_TOP = 0.5  # last closed bin edge; farther pairs go in one overflow bin
 CALIBRATION_KINDS = ("time_split", "two_takes")
 FLOOR_WORDS = {"time_split": "same car, one clip split in two", "two_takes": "same car, two takes from one shoot"}
-# D1 E13 (docs/D1_MEMO.md), from parts on uCO3D pair C: 16 lanes on both walks cost $1.9792 for 39.9 s of video, and
+# D1 E13 (docs/evidence/D1_MEMO.md), from parts on uCO3D pair C: 16 lanes on both walks cost $1.9792 for 39.9 s of video, and
 # the whole pair $4.33; the rest (keyframe checks, Stays Put, Spark) is taken as a fixed $2.35 per pair. Plan lines only.
 LANE_USD_PER_S = 1.9792 / 39.9
 PAIR_EXTRAS_USD = 4.33 - 1.9792

@@ -98,7 +98,7 @@ CONFIDENCE_RANK = {Confidence.HIGH: 0, Confidence.MEDIUM: 1, Confidence.LOW: 2}
 SRC_REFERENCE_EDGE = 3840  # the "at 4K" of min_bbox_px_at_4k and the privacy pixel sizes
 PLAN_NAME = "staysput.json"
 # Leaves not yet in config/thresholds.json (staysput section); th wins once the integrator adds them. Estimates.
-# TODO(D1 E5): recalibrate on dark paint with a real reflection (lead note 2 on docs/D1_MEMO.md) before these, tau_fix
+# TODO(D1 E5): recalibrate on dark paint with a real reflection (lead note 2 on docs/evidence/D1_MEMO.md) before these, tau_fix
 # or the b floors are trusted; until then thresholds staysput.cap_enabled false keeps K6 off in match.
 DEFAULTS: dict[str, float] = {
     "min_drift_frames": 10,  # whitened frames a drift needs before it is a number
@@ -1479,7 +1479,7 @@ async def _run_clip(
 def tau_fix(th: dict[str, Any]) -> float:
     """max(tau_fix_floor, tau_fix_sigma_factor x staysput.sigma_frame); the floor alone while that leaf is absent. It
     does not read matching.sigma_frame: D1's 0.1689 there would make tau_fix 0.507, which the lead ruled out until E5
-    is recalibrated (docs/D1_MEMO.md note 2)."""
+    is recalibrated (docs/evidence/D1_MEMO.md note 2)."""
     sp = th["staysput"]
     floor = float(sp["tau_fix_floor"])
     sigma_frame = sp.get("sigma_frame")

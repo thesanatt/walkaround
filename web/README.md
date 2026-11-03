@@ -8,7 +8,7 @@ The browser half of Walkaround:
 - **Claim page.** A claim photo and the bill's words go to `POST /api/claims`; the answer is a `contracts.Claim`, shown with its exit in plain words and its rule id, the served pixelated copy of the claim photo beside the dated pickup frame, and a one-tap panel chooser after E2 or E2b (one button when only one panel fits; the tap is recorded as the renter's input).
 - **Kiosk route.** A 1920 x 1080 stage for screen capture, one scene per video beat.
 
-Stays Put is shown as the run froze `thresholds.staysput.cap_enabled`. While it is false (the lead's call after D1, docs/D1_MEMO.md note 2) the clips and their drift numbers show, but no caption states a verdict ("paint", "reflection"), the control is called the control clip, and the kiosk moment's upgraded form falls back to the boxed pickup frame.
+Stays Put is shown as the run froze `thresholds.staysput.cap_enabled`. While it is false (the lead's call after D1, docs/evidence/D1_MEMO.md note 2) the clips and their drift numbers show, but no caption states a verdict ("paint", "reflection"), the control is called the control clip, and the kiosk moment's upgraded form falls back to the boxed pickup frame.
 
 ## Commands
 

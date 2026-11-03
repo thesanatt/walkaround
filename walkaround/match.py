@@ -2350,7 +2350,7 @@ def _staysput_cap(mt: MarkTrack | None) -> bool:
 
 def staysput_caps(mark_tracks: dict[str, MarkTrack], th: dict) -> dict[str, MarkTrack]:
     """The Stays Put rows K6 may read: all of them while thresholds staysput.cap_enabled is on, none while it is off
-    (docs/D1_MEMO.md note 2: not calibrated). Traces keep reading the full rows for their request ids."""
+    (docs/evidence/D1_MEMO.md note 2: not calibrated). Traces keep reading the full rows for their request ids."""
     return mark_tracks if th["staysput"].get("cap_enabled", True) else {}
 
 

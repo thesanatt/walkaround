@@ -24,10 +24,8 @@ from walkaround.contracts import LedgerRow, VoiceMode, VoiceRecord, canonical_js
 from walkaround.voice_client import TranscribeError, Turn, check_wav, split_turn, transcribe_wav, validate_mode, voice_record
 
 FAKE_KEY = "LLM_test_team_test_secret"
-SPEECH_CLIP = Path(
-    "/private/tmp/claude-501/-Users-sanat-meta2026/086cb85f-3e5e-4a16-a188-2d31e59c8048/scratchpad/ext/"
-    "meta-model-cookbook/07_sam/03_headlocked_speech_bubble_captions/assets/sample-input.mp4"
-)
+# meta-model-cookbook 07_sam/03_headlocked_speech_bubble_captions/assets/sample-input.mp4 (LIVE=1 tests only)
+SPEECH_CLIP = Path(os.environ.get("SPEECH_CLIP", "data/test/sample-input.mp4"))
 
 TURNS_RESPONSE = {
     "sessionId": "ABC123",

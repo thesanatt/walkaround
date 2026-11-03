@@ -8,7 +8,7 @@ id. Thresholds leaf matching.stands_out (off when absent), rule K20.
 
 hero_focus2, rear bumper: pickup_rear_bumper_kf2_m2, Muse Spark's "blue tape strip on bumper" box at [775, 261, 811,
 283] on pickup_rear_bumper_kf2, came out not seen at return (L1). The box sits on clean paint above the right strip
-(looked at by eye with the boxes drawn on, /private/tmp scratch, not kept: the crop shows the plate area). Registration
+(looked at by eye with the boxes drawn on, a scratch folder, not kept: the crop shows the plate area). Registration
 could not test it: the rear bumper fit was refused (mask IoU 0.89 after the warp), so no contrast was measured. The
 counter-look said it saw a scuff there.
 

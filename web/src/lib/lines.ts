@@ -33,7 +33,7 @@ function num(v: number | null): string {
   return v === null ? 'n/a' : v.toFixed(2);
 }
 
-// thresholds staysput.cap_enabled as the run froze it. The lead turned it off after D1 (docs/D1_MEMO.md note 2):
+// thresholds staysput.cap_enabled as the run froze it. The lead turned it off after D1 (docs/evidence/D1_MEMO.md note 2):
 // real paint on pair C was labelled sliding, so until a recalibration turns it on Stays Put records and shows its
 // tracks but caps no label, and the page states none of its verdicts as fact. A run without the key is uncalibrated.
 export function staysPutCalibrated(run: Pick<RunManifest, 'thresholds'> | null | undefined): boolean {
