@@ -6,26 +6,26 @@ while the renter's only record is a phone video nobody can search.
 Walkaround reads the renter's own pickup and return videos, finds the same spot on the same panel in both, and writes a
 sealed sheet that says what was already there at pickup, what is new, and what it could not check.
 
-![Walkaround's result page for a friend's Ford Focus: 1 new mark on the right rear door and 6 marks already there at pickup, each shown with its pickup frame and return frame side by side](docs/img/hero_focus5d_result.jpg)
+![Walkaround's result page for a friend's Ford Focus: 1 new mark on the right rear door and 6 marks already there at pickup, each shown with its pickup frame and return frame side by side](docs/img/hero_focus5e_result.jpg)
 
 - Replay this run in a browser, no install and no key:
-  https://walkaround-web-production.up.railway.app/run/hero_focus5d
+  https://walkaround-web-production.up.railway.app/run/hero_focus5e?replay=instant
 - 3-minute demo video: DEMO_VIDEO_LINK
 - Built Oct 26 to Nov 4, 2026 by Sanat Gupta for the Meta Global AI Developer Hackathon (Indie Developer track). It is
   evidence support, not legal advice.
 
 The picture is a friend's white Ford Focus, filmed with the owner's permission: a 52.9 s pickup walk and a 34.3 s
 return walk, shot 4 minutes apart. We put blue tape strips on as stand-in marks, took one off and added one between the
-walks; one scrape on the front left door is real. Walkaround got 5 of the 6 marks right, called the added strip new,
-and sent the one it missed to "needs your eye" instead of giving it a wrong label
-([docs/evidence/hero_focus5d_truth.md](docs/evidence/hero_focus5d_truth.md)).
+walks; one scrape on the front left door is real. Walkaround got 5 of the 6 marks right, one of them only in part,
+called the added strip new, and sent the one it missed to "needs your eye" instead of giving it a wrong label
+([docs/evidence/hero_focus5e_truth.md](docs/evidence/hero_focus5e_truth.md)).
 
 ## How it works
 
 1. **Seal both walks.** Film one slow lap of the car at pickup and one at return. The phone hashes each video while it
    uploads, and the server timestamps it (RFC 3161, plus OpenTimestamps) before any model sees it.
 2. **Read each walk with Meta's models.** SAM 3.1 tracks 16 car parts through each handheld video, so code knows which
-   of 21 panels is on screen when, which panels were never filmed, and where plates and faces are (they are blurred
+   of 22 panels is on screen when, which panels were never filmed, and where plates and faces are (they are blurred
    before anything else leaves). Muse Spark 1.3 boxes marks on one blurred panel crop at a time.
 3. **Decide in code.** Code gives each panel its own coordinates, taken from the center and spread of SAM's outline,
    so a spot on a door has nearly the same coordinates in both walks. It matches marks across the walks and writes
@@ -37,10 +37,11 @@ and sent the one it missed to "needs your eye" instead of giving it a wrong labe
 
 ### The hero run, mark by mark
 
-The run is `hero_focus5d`, the first sample in `samples/`. Its labels were recomputed on Nov 3 with the current rules
+The run is `hero_focus5e`, the first sample in `samples/`. Its labels were recomputed on Nov 3 with the current rules
 (`walkaround rederive`) from the model answers that the live run `hero_focus5` stored on Nov 2, 6:42 to 6:55 PM EST,
-for $6.52. No new model calls, and `walkaround verify hero_focus5d` prints "rebuild identical". From
-[docs/evidence/hero_focus5d_truth.md](docs/evidence/hero_focus5d_truth.md):
+for $6.52. No new model calls, and `walkaround verify hero_focus5e` prints "rebuild identical" on the original run
+folder (a clone holds only the served files; see Limits). From
+[docs/evidence/hero_focus5e_truth.md](docs/evidence/hero_focus5e_truth.md):
 
 | Mark | Right label | Walkaround said | Score |
 |---|---|---|---|
@@ -51,9 +52,11 @@ for $6.52. No new model calls, and `walkaround verify hero_focus5d` prints "rebu
 | right rear door, strip added | new since pickup | new | right |
 | front left door, real scrape | already there | already there on its short piece; the long piece is not joined | right, in part |
 
-5 of 6 right, no false "new" and no false "not seen at return". The whole sheet has 14 rows: 6 already there, 1 new,
-3 needs your eye and 4 panels not comparable (`samples/hero_focus5d/derived/verdicts.json`). Glass and wheels get a
-"check by eye" line instead of a label.
+5 of 6 right (one in part), no false "new" and no false "not seen at return". The whole sheet has 14 rows: 6 already
+there, 1 new, 3 needs your eye and 4 panels not comparable (`samples/hero_focus5e/derived/verdicts.json`). The table
+has 4 of the 6 already there lines; the other two are a spot on the hood that Muse Spark described as a thin twig
+resembling a scratch (boxed in both walks) and a faint speck on a mirror cap (boxed at return, and code found the same
+patch at pickup). Neither is in my truth list. Glass and wheels get a "check by eye" line instead of a label.
 
 Box by box: I labelled every crop of an earlier run of the same two videos by hand
 (`eval/box_corrections/hero_focus1.json`). On the 49 crops both runs share, the hand labels hold 53 real marks and Muse
@@ -77,8 +80,9 @@ Every confident label I checked was right: 9 of 9 "already there" and 2 of 2 "ne
 labels are on the careful side, a "needs your eye" or "not comparable" where I could see the answer: 14 should have been
 already there, 1 new, 1 not seen at return, and for 5 I did not pick a label.
 
-The runs: hero_focus4 (12 of 26 labels checked) and hero_focus5b (17 of 17) are two runs of the same Ford Focus videos;
-lexi_pair2 (12 of 22) is a second car, filmed on Nov 2 with its owner's permission, with paper stand-in marks;
+The runs: hero_focus4 (12 of 26 labels checked) and hero_focus5b (17 of 17) are two runs of the same Ford Focus videos.
+They are not independent of the sample: hero_focus5b was recomputed from the same model answers as the sample
+hero_focus5e, and the two "new" labels are the same added strip in both runs. lexi_pair2 (12 of 22) is a second car, filmed on Nov 2 with its owner's permission, with paper stand-in marks;
 pairC_core3 (3 of 30) is a uCO3D dataset car. These are my own checks, not an outside review, and I changed rules after
 making them (`docs/CONTRACTS.md`, "R29"), so they are not a held-out test.
 
@@ -99,6 +103,11 @@ which comes from `samples/pairC_core3/derived/verdicts.json` and `docs/evidence/
 On the pairs where nothing changed, Walkaround mostly declines instead of guessing. Most "not comparable" panels are
 ones that one of the walks did not film well enough (gate G1 in `eval/results.json`).
 
+These eval rows and the three older samples (`eval_nhtsa15759_r6`, `pairC_core3`, `pairC_core3_claim2`) are runs from
+early Nov 1 (code f1fb68b, 0fa103a, f24ae02 and b10ad80). Most rules in `docs/CONTRACTS.md` came later, among them
+glass and wheels by eye, the faint rule, the majority second look and the blur inside each mask. I did not re-run them,
+so their samples still label glass and wheels and use the older blur.
+
 ## How each Meta model is used
 
 The numbers are the hero run's ledger rows, `docs/evidence/ledger_rows_hero_focus5.jsonl`: 504 calls, $6.52 in all
@@ -108,7 +117,7 @@ videos are set to expire after an hour and are deleted when the run ends.
 **SAM 3.1** (`sam-3.1`, Meta Model API, Responses API, streamed)
 - What it does: 16 text-prompted video lanes per walk (car, license plate, face, car door, bumper, wheel, hood, trunk
   lid, fender, roof, headlight, tail light, side mirror, windshield, rear window, car window) on a 960 px, 15 fps proxy.
-  Code votes the tracks into 21 panels with side and position, lists each panel as filmed, glimpsed or not filmed, and
+  Code votes the tracks into 22 panels with side and position, lists each panel as filmed, glimpsed or not filmed, and
   blurs plates and faces inside their own masks. On images, SAM 3.1 checks every keyframe for plates and faces before
   any crop leaves, and a box prompt tightens each Muse Spark box onto its mark. Stays Put follows each mark through a
   short clip along with its neighbours.
@@ -129,9 +138,10 @@ videos are set to expire after an hour and are deleted when the run ends.
 **Muse Voice Transcribe** (`muse-voice-transcribe-1.0`, ENDPOINTING mode)
 - What it does: turns the renter's narration into timed turns. Code pins a turn that names a panel ("trunk lid, two
   small chips") to the seconds SAM shows that panel and cuts an audio clip for the sheet.
-- Hero run: 2 calls on 52.96 s and 34.32 s of audio, $0.0043. It returned 1 turn at pickup and none at return, and no
-  turn was pinned (`samples/hero_focus5d/derived/narration.json`). The narrated case is the uCO3D sample, where every
-  turn that named a panel landed inside that panel's SAM window (`docs/evidence/D1_MEMO.md`).
+- Hero run: 2 calls on 52.96 s and 34.32 s of audio, $0.0043. Neither walk was narrated: Voice returned one empty turn
+  at pickup and none at return, so nothing was pinned (`voice.done` in `samples/hero_focus5e/events.ndjson.gz`). The
+  narrated case is the uCO3D sample, where all 4 turns were pinned to the panel they name
+  (`samples/pairC_core3/derived/narration.json`).
 - Why it matters: turn times are what let a spoken note attach to a panel and a moment in the video.
 
 **Muse Spark Open** (`meta-models/muse-spark-open-1026`, Baseten Model APIs, open weights)
@@ -139,7 +149,7 @@ videos are set to expire after an hour and are deleted when the run ends.
   answers same, different or unsure, and only "same" keeps the label. For a mark seen in one walk only, it is asked
   whether there is damage in the mark's box and whether the other walk shows it there; only "yes, then no" keeps "new".
   The majority of up to 3 answers counts. It can only lower a label to "needs your eye", never raise one.
-- Hero run: 20 calls, $0.08, 4.6 to 7.8 s each, all HTTP 200 (`samples/hero_focus5d/open_weights.ndjson`). 12 pair
+- Hero run: 20 calls, $0.08, 4.6 to 7.8 s each, all HTTP 200 (`samples/hero_focus5e/open_weights.ndjson`). 12 pair
   answers: 10 "same" on the five pairs that ended already there, and 2 "different" on a speck on the front bumper, so
   that pair was not called already there. 8 answers on one-walk marks; on the added strip, 2 of 3 saw a blue patch with
   clean paint at pickup, so "new" stood.
@@ -162,7 +172,7 @@ against, and Meta's uCO3D dataset supplies the pair C car.
   answer is stored, so a sheet rebuilds the same, but a new run of the same videos can come out different.
 - **Marks it misses.** On the hand-labelled hero crops, Muse Spark boxed 17 of 53 real marks, and the second pickup
   keyframe of the front left door got no box at all. A real faint scratch on the rear bumper was boxed but left off the
-  list as too faint (`docs/evidence/hero_focus5d_truth.md`). Muse Spark's boxes also tend to land about one vision patch
+  list as too faint (`docs/evidence/hero_focus5e_truth.md`). Muse Spark's boxes also tend to land about one vision patch
   off the mark (median 26 px from my hand boxes on pair C, `docs/evidence/zoom_refine_1101/NOTES.md`), which is why SAM
   3.1 tightens each box.
 - **Often too careful.** 13 of the 16 "needs your eye" labels I checked should have been a firm label, and 4 of the
@@ -173,8 +183,8 @@ against, and Meta's uCO3D dataset supplies the pair C car.
 - **Stand-in marks.** The hero's marks are blue tape strips plus one real scrape, and lexi_pair2's are paper shapes.
   Tape is easy to see; real rental damage is often fainter. No real rental and no real renter is in this work yet.
 - **One false "new" in the eval, not fixed.** The first run of the Pexels two-takes pair called a parking-sensor dot
-  new. Asked 5 times with a sentence saying sensors are not damage and 5 times without it, Muse Spark boxed a mark at
-  the dot all 10 times (`docs/evidence/fixtures_1101/prompt_ab.json`). The later run in the table did not box it.
+  new. Asked 5 times with a sentence saying sensors are not damage and 5 times without it, Muse Spark put a damage box
+  within 75 px of the dot in all 10 answers, on the dot itself in 4 (`docs/evidence/fixtures_1101/prompt_ab.json`). The later run in the table did not box it.
 - **Voice turns.** The same narration came back as 3, 2 and 4 turns on three runs, twice merging several sentences into
   one turn (11.2 s and 16.1 s), with no word times (`docs/evidence/voice_turns_pairC.json`).
 - **Stays Put** is not calibrated, so it changes no label.
@@ -209,13 +219,13 @@ evidence sheet. The same from a terminal:
 
 ```
 curl -s http://127.0.0.1:8000/api/samples
-curl -s "http://127.0.0.1:8000/api/runs/hero_focus5d/replay?mode=instant" | head -c 400
-curl -s -o evidence.pdf http://127.0.0.1:8000/api/runs/hero_focus5d/sheet.pdf
+curl -s "http://127.0.0.1:8000/api/runs/hero_focus5e/replay?mode=instant" | head -c 400
+curl -s -o evidence.pdf http://127.0.0.1:8000/api/runs/hero_focus5e/sheet.pdf
 ```
 
-The four samples, in the order of `samples/index.json`: `hero_focus5d` (the Ford Focus above), `eval_nhtsa15759_r6`
+The four samples, in the order of `samples/index.json`: `hero_focus5e` (the Ford Focus above), `eval_nhtsa15759_r6`
 (the NHTSA crash test), `pairC_core3` (the uCO3D car filmed twice) and `pairC_core3_claim2` (the same car with a claim
-photo of the trunk lid checked against the pickup walk). A sample is public, so it takes no new claim or top-up.
+photo of the trunk lid checked against the pickup walk); the last three were made on Nov 1 under that day's rules. A sample is public, so it takes no new claim or top-up.
 
 ### Live mode, with your own Meta Model API key
 
@@ -250,7 +260,7 @@ a model run only with `LIVE=1`.
 
 1. Seal: the browser hashes each video while it uploads; the server hashes it again on arrival and gets an RFC 3161
    timestamp (and an OpenTimestamps stamp) before any model sees it.
-2. Panels: SAM 3.1 runs 16 lanes per walk. Code drops tracks that lie on other parked cars, votes the rest into 21
+2. Panels: SAM 3.1 runs 16 lanes per walk. Code drops tracks that lie on other parked cars, votes the rest into 22
    panels with side and position, and lists each panel as filmed, glimpsed or not filmed. A hood and a trunk lid can look
    alike, so a twin check files each lid by what the walk shows next to it (a plate, mirrors, which lights and glass).
 3. Privacy: plates and faces are blurred inside their own SAM 3.1 masks (the video lanes plus an image check on every
@@ -276,7 +286,7 @@ Every Muse Spark Open request appends one line to `runs/<run_id>/open_weights.nd
 which key slot asked (`hackathon` or `account`, never the key), both request ids, the latency, the pair of marks, the
 answer, the reason and whether it passed the schema. No image bytes and no keys. The app serves it at
 `/api/runs/<run_id>/files/open_weights.ndjson`. The first line of the hero run
-(`samples/hero_focus5d/open_weights.ndjson`):
+(`samples/hero_focus5e/open_weights.ndjson`):
 
 ```
 {"baseten_request_id": "54ca701a19eae64e27ce886be5f2aa12cf018", "engine": "baseten", "error": null, "http_status": 200, "key_slot": "hackathon", "latency_ms": 6188, "model": "meta-models/muse-spark-open-1026", "model_requested": "meta-models/muse-spark-open-1026", "panel_id": "left_front_door", "pickup_mark": "pickup_left_front_door_kf1_m2", "purpose": "second_look", "reason": "Both outlined spots show the same small light-blue diagonal tape fragment in the identical mid-door location with matching shape and color.", "request_id": "chatcmpl-ec0c2e6067d44f0fb14a87c9d5125f84", "return_mark": "return_left_front_door_kf1_m1", "run_id": "hero_focus5", "status": "completed", "ts": "2026-11-02T23:53:17Z", "valid": true, "verdict": "same"}
@@ -299,7 +309,9 @@ Layout: `walkaround/` is the Python package (pipeline, model clients, matching, 
 browser app (its build in `web/dist/` is committed so a clone runs without Node), `config/thresholds.json` every
 threshold with its source, `samples/` the sample runs, `scripts/` the run, eval and sample tools, `eval/` labels, my
 checks and results, `docs/CONTRACTS.md` the module contracts and rules, `docs/evidence/` the files the numbers above
-come from.
+come from. Some code comments and threshold sources cite my planning notes (`docs/ARCHITECTURE.md`,
+`docs/BUILD_STATUS.md`, `docs/API_NOTES.md`, `LEDGER.md` and others). Those stay private; `docs/CONTRACTS.md` and
+`docs/evidence/` hold what the code relies on.
 
 ## Footage, data and credits
 
