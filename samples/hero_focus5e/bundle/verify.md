@@ -1,6 +1,6 @@
 Verify it yourself (5 steps; none needs Walkaround's server)
 
-This run's verdicts recomputed on Nov 3, 2026 with this version's rules (code 818a086) from the model answers stored on Nov 2, 2026 by run hero_focus5; no new model calls. The originals' hashes and stamps are that run's seal.
+This run's verdicts recomputed on Nov 3, 2026 with this version's rules (code d3ce7d9) from the model answers stored on Nov 2, 2026 by run hero_focus5; no new model calls. The originals' hashes and stamps are that run's seal.
 
 1. Hash the video file on your phone or computer and compare it with page 1:
    shasum -a 256 <your video file>     (Linux: sha256sum <your video file>)
@@ -13,4 +13,4 @@ This run's verdicts recomputed on Nov 3, 2026 with this version's rules (code 81
 4. Verify the RFC 3161 token from freetsa (2026-11-02T23:42:57Z) with freetsa's certificates (download https://freetsa.org/files/cacert.pem and https://freetsa.org/files/tsa.crt):
    openssl ts -verify -data bundle/manifest.json -in bundle/manifest.json.tsr -CAfile cacert.pem -untrusted tsa.crt
 5. Re-hash every file in the bundle and rebuild the derived files from the stored model answers:
-   walkaround verify hero_focus5d
+   walkaround verify hero_focus5e
