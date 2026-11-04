@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Bar, ReplayNote } from '../components/Bar.tsx';
 import { Frame, type BoxTone, type FrameBox } from '../components/Frame.tsx';
 import { MathPanel } from '../components/MathPanel.tsx';
+import { Nothing } from '../components/Nothing.tsx';
 import { SealedPanel, sealedAt } from '../components/SealedPanel.tsx';
 import type { Box4, Claim, Mark, Verdict } from '../contracts/types.ts';
 import { claimPhotoPath, claimWorkSize, effectiveExit, EXIT_WORDS } from '../lib/claim.ts';
@@ -28,7 +29,6 @@ import { panelName } from '../lib/panels.ts';
 import { comparedPanels, creditLine, whyLine } from '../lib/result.ts';
 import { Link, navigate } from '../lib/router.tsx';
 import { replayBadgeDate } from '../lib/runview.ts';
-import { exampleUrl, useExample } from '../lib/example.ts';
 import { useYourChecks } from '../lib/yourcheck.ts';
 import { rolesOf } from '../state/reducer.ts';
 import type { RunState } from '../state/types.ts';
@@ -73,7 +73,6 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   const { state } = handle;
   const roles = rolesOf(state);
   const yours = useYourChecks(runId);
-  const example = useExample();
   const marks = useMemo(() => new Map(state.marks.map((m) => [m.mark_id, m])), [state.marks]);
 
   const done = state.completed || state.stage.name === 'done' || state.stage.name === 'partial';
@@ -96,18 +95,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   ) : null;
 
   // No run at this address, or the server would not give it: one plain screen, never a half-drawn page.
-  if (handle.status === 'error' && !state.run && !done)
-    return (
-      <div className="nothing">
-        <Bar />
-        <h1>No check at this address</h1>
-        <p className="nothing-line">{handle.detail ? `The server said: ${handle.detail}.` : 'The server could not open it.'}</p>
-        <p className="nothing-links">
-          <Link to="/">Start over</Link>
-          {example ? <Link to={exampleUrl(example)}>See an example</Link> : null}
-        </p>
-      </div>
-    );
+  if (handle.status === 'error' && !state.run && !done) return <Nothing line={handle.detail ? `The server said: ${handle.detail}.` : 'The server could not open it.'} />;
 
   if (record || failed || (done && !pair) || (!done && mode !== 'instant'))
     return (

@@ -364,12 +364,30 @@ def test_samples_endpoint_lists_the_samples_here_in_index_order(client: TestClie
     assert [(s["run_id"], s["first"]) for s in body] == [("RUNPAIRC", True), ("RUNFRIEND", False), ("RUNNHTSA", False), ("RUNCHECK", False)]
 
 
+def the_app_page() -> str:
+    """What the server sends for a page of the web app: the build's index.html, or the fallback without a build."""
+    index = paths.web_dist_dir() / "index.html"
+    return index.read_text(encoding="utf-8") if index.is_file() else app_module.FALLBACK_HOME
+
+
 def test_healthz_and_spa_fallback(client: TestClient) -> None:
     health = client.get("/healthz").json()
     assert health["ok"] is True and health["engine"] == "meta-model-api" and health["probe_ok"] is None and health["free_bytes"] > 0
     for route in ("/", "/upload", "/run/abc", "/run/abc/sheet", "/claim", "/kiosk/abc", "/verify"):
         response = client.get(route)
-        assert response.status_code == 200 and response.headers["content-type"].startswith("text/html") and "Walkaround" in response.text
+        assert response.status_code == 200 and response.headers["content-type"].startswith("text/html") and response.text == the_app_page()
+
+
+def test_an_unknown_page_gets_the_app_and_an_unknown_api_path_its_json_404(client: TestClient) -> None:
+    for route in ("/nowhere", "/run/abc/nothing", "/a/b/c"):
+        response = client.get(route)
+        assert response.status_code == 404 and response.headers["content-type"].startswith("text/html") and response.text == the_app_page(), route
+    assert client.head("/nowhere").status_code == 404
+    for route in ("/api", "/api/nowhere", "/api/runs/abc/nothing"):
+        response = client.get(route)
+        assert response.status_code == 404 and response.json() == {"detail": "Not Found"}, route
+    assert client.post("/nowhere").json() == {"detail": "Not Found"}  # only a GET gets the page
+    assert client.get("/api/claims").status_code == 405  # a route asked with the wrong method keeps its 405
 
 
 # Files, sheet, top-up ----------------------------------------------------------------------------------------------------------

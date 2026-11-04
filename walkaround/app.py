@@ -683,6 +683,20 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
     for route in SPA_ROUTES:
         app.add_api_route(route, spa, methods=["GET", "HEAD"], include_in_schema=False)
 
+    # A GET no route matches gets the web app with a 404, so the page says there is nothing at this address; /api keeps
+    # its JSON 404, and a path a route matches by name but not by method keeps its 405.
+    not_found = app.router.default
+
+    async def app_or_not_found(scope: dict[str, Any], receive: Any, send: Any) -> None:
+        path = scope.get("path", "")
+        if scope["type"] == "http" and scope.get("method") in ("GET", "HEAD") and path != "/api" and not path.startswith("/api/"):
+            page = await spa(Request(scope, receive))
+            await HTMLResponse(page.body, status_code=404)(scope, receive, send)
+            return
+        await not_found(scope, receive, send)
+
+    app.router.default = app_or_not_found
+
     return app
 
 

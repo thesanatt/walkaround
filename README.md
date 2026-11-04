@@ -7,7 +7,7 @@ Alibi reads the renter's own pickup and return videos, finds the same spot on th
 sealed sheet that says what was already there at pickup, what is new, and what it could not check.
 The repo, the Python package and the CLI keep the working name walkaround.
 
-![Alibi's result page for a friend's Ford Focus: 1 new mark on the right rear door and 6 marks already there at pickup, each shown with its pickup frame and return frame side by side](docs/img/hero_focus5e_result.jpg)
+![Alibi's result page for a friend's Ford Focus: "1 new mark, Right rear door" in large type and 12 panels compared, then one row per finding with a thumbnail: 1 new, 3 that need your eye and 6 already there at pickup, and a line that wheels and glass are checked by eye](docs/img/hero_focus5e_result.jpg)
 
 - Replay this run in a browser, no install and no key:
   https://walkaround-web-production.up.railway.app/run/hero_focus5e?replay=instant

@@ -2,8 +2,9 @@ import { lazy, Suspense } from 'react';
 
 import { useStatus } from './api/useStatus.ts';
 import { Bar } from './components/Bar.tsx';
+import { Nothing } from './components/Nothing.tsx';
 import { Shell } from './components/Shell.tsx';
-import { Link, matchPath, useLocation, type Location } from './lib/router.tsx';
+import { matchPath, useLocation, type Location } from './lib/router.tsx';
 import { ClaimPage } from './pages/ClaimPage.tsx';
 import { SheetPage } from './pages/SheetPage.tsx';
 import { StartPage } from './pages/StartPage.tsx';
@@ -28,15 +29,7 @@ function page(loc: Location, status: StatusResponse | null) {
   if ((m = matchPath('/run/:id/sheet', loc.path))) return <SheetPage runId={m['id'] ?? ''} query={loc.query} />;
   if (loc.path === '/claim') return <ClaimPage query={loc.query} status={status} />;
   if (loc.path === '/verify') return <VerifyPage />;
-  return (
-    <div>
-      <Bar />
-      <h1>Nothing at this address</h1>
-      <p>
-        <Link to="/">Start over.</Link>
-      </p>
-    </div>
-  );
+  return <Nothing line="There is no page here." />;
 }
 
 export function App() {
