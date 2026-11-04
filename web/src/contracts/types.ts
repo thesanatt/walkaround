@@ -476,6 +476,22 @@ export interface PanelMatch {
   reshape?: ReshapeCheck | null; // absent unless the reshaped-panel precondition held
   fixtures?: FixtureDrop[]; // absent unless a mark was left out as a factory fixture
   by_eye?: ByEyeLine[]; // check-by-eye lines in place of verdicts: glass, wheels (R30), debris; absent when none
+  registration_marks?: RegistrationMark[]; // each one-walk mark carried into the other walk's crop (register.py); absent before 11/2
+}
+
+// register.py's presence test for one mark seen in one walk only: its box mapped into the other walk's crop, the spot
+// the patch search found there, and the result (present, absent or cannot_tell).
+export interface RegistrationMark {
+  mark_id: string;
+  other_kf: string;
+  mapped_box: Box4 | null;
+  found_box: Box4 | null;
+  ncc: number | null;
+  contrast_own: number | null;
+  contrast_other: number | null;
+  result: 'present' | 'absent' | 'cannot_tell' | string;
+  used: string | null;
+  why: string | null;
 }
 
 // One check-by-eye line on a panel (match.ByEyeLine): mark_ids are the boxes it stands for, not judged one by one.
@@ -654,6 +670,16 @@ export interface LookRow {
   mark_id?: string | null; // on a counter-look, the mark seen in one walk only
   mark_seen?: 'yes' | 'no' | 'unsure' | null; // counter2 only: is there a damage mark in the box on the mark's own crop (part 1); verdict is part 2
   answers?: number; // the usable answers this look stands on (matching.look_majority asks up to 3 times)
+  votes?: LookVotes; // how those answers split, for the math panel
+}
+
+// The answers of one look counted: the spot (same, different, unsure) and, on counter2, damage in the box (yes, no).
+export interface LookVotes {
+  same: number;
+  different: number;
+  unsure: number;
+  yes: number;
+  no: number;
 }
 
 // One open_weights.ndjson line (walkaround/open_weights.py): one per Muse Spark Open request on Baseten, failed ones

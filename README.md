@@ -1,12 +1,13 @@
-# Walkaround
+# Alibi
 
 Rental companies now check returned cars with AI scanners and can bill a renter for damage within minutes
 ([The Drive](https://www.thedrive.com/news/this-is-what-happens-when-hertzs-ai-scanner-finds-damage-on-your-rental)),
 while the renter's only record is a phone video nobody can search.
-Walkaround reads the renter's own pickup and return videos, finds the same spot on the same panel in both, and writes a
+Alibi reads the renter's own pickup and return videos, finds the same spot on the same panel in both, and writes a
 sealed sheet that says what was already there at pickup, what is new, and what it could not check.
+The repo, the Python package and the CLI keep the working name walkaround.
 
-![Walkaround's result page for a friend's Ford Focus: 1 new mark on the right rear door and 6 marks already there at pickup, each shown with its pickup frame and return frame side by side](docs/img/hero_focus5e_result.jpg)
+![Alibi's result page for a friend's Ford Focus: "1 new mark, Right rear door" in large type and 12 panels compared, then one row per finding with a thumbnail: 1 new, 3 that need your eye and 6 already there at pickup, and a line that wheels and glass are checked by eye](docs/img/hero_focus5e_result.jpg)
 
 - Replay this run in a browser, no install and no key:
   https://walkaround-web-production.up.railway.app/run/hero_focus5e?replay=instant
@@ -16,7 +17,7 @@ sealed sheet that says what was already there at pickup, what is new, and what i
 
 The picture is a friend's white Ford Focus, filmed with the owner's permission: a 52.9 s pickup walk and a 34.3 s
 return walk, shot 4 minutes apart. We put blue tape strips on as stand-in marks, took one off and added one between the
-walks; one scrape on the front left door is real. Walkaround got 5 of the 6 marks right, one of them only in part,
+walks; one scrape on the front left door is real. Alibi got 5 of the 6 marks right, one of them only in part,
 called the added strip new, and sent the one it missed to "needs your eye" instead of giving it a wrong label
 ([docs/evidence/hero_focus5e_truth.md](docs/evidence/hero_focus5e_truth.md)).
 
@@ -358,7 +359,7 @@ made with a footage credit prints it and the license link on page 1 of its sheet
 
 The code is MIT licensed (`LICENSE`). Dependencies keep their own licenses. `web/dist/` bundles Meta's `@meta-sam`
 packages, which are under the SAM License (`LICENSES/SAM_LICENSE.txt`); `meta-sam-parser`, installed from PyPI, is under
-the same license. The other code, styles and fonts in `web/dist/` (React, hash-wasm, mediabunny, Carbon styles, IBM
-Plex) are listed with their license texts in `LICENSES/README.md`.
+the same license. The other code and fonts in `web/dist/` (React, hash-wasm, mediabunny, Titillium Web, IBM Plex Mono)
+are listed with their license texts in `LICENSES/README.md`.
 The footage in `samples/` is not under MIT: the Ford Focus walks are used with the owner's permission, the uCO3D clips
 are under CC BY 4.0, and the NHTSA video is public information, each with the credit above.

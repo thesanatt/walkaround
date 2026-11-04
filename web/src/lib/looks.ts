@@ -127,7 +127,8 @@ export function majorityLooks(answers: readonly LookRow[]): LookRow[] {
     const unsure = rows.length - same - different;
     const verdict: LookVerdict = isCounterLook(rows[0]) ? side(different, same, unsure, 'different', 'same', 'unsure') : side(same, different, unsure, 'same', 'different', 'unsure');
     const standing = rows.find((r) => r.verdict === verdict) ?? rows[0]!;
-    const row: LookRow = { ...standing, verdict, answers: rows.length };
+    const seenAs = (m: string) => rows.filter((r) => r.mark_seen === m).length;
+    const row: LookRow = { ...standing, verdict, answers: rows.length, votes: { same, different, unsure, yes: seenAs('yes'), no: seenAs('no') } };
     if (rows[0]!.kind === 'counter2') {
       const seen = rows.map((r) => r.mark_seen);
       const yes = seen.filter((m) => m === 'yes').length;

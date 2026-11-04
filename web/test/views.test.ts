@@ -143,8 +143,8 @@ describe('the privacy card says only what the deletion rows show', () => {
   // privacy.privacy_line for a run with store false accepted, word for word.
   const SHEET_LINE =
     "Processed with Meta's Model API in Standard mode, which Meta's documentation says is not used to train Meta models. " +
-    'Uploads were set to expire after one hour and were deleted by Walkaround when the run ended. Model requests were sent with storage off. ' +
-    "Meta's terms allow it to retain content for abuse review and legal reasons; Walkaround does not control that. " +
+    'Uploads were set to expire after one hour and were deleted by Alibi when the run ended. Model requests were sent with storage off. ' +
+    "Meta's terms allow it to retain content for abuse review and legal reasons; Alibi does not control that. " +
     'SAM 3.1 saw the unblurred proxy for the length of one segmentation pass to find the plates and faces it then blurred.';
 
   it('promises in the present tense until the run ends', () => {
@@ -166,10 +166,10 @@ describe('the privacy card says only what the deletion rows show', () => {
     const rows = [ok('f1'), failed('f2')];
     expect(rows.map(deleteFailed)).toEqual([false, true]);
     const line = storageLine(run, { completed: true, uploads: ['f1', 'f2'], deletions: rows });
-    expect(line).not.toContain('were deleted by Walkaround');
-    expect(line).toContain("Walkaround's delete request failed for one upload, so the expiry applies");
+    expect(line).not.toContain('were deleted by Alibi');
+    expect(line).toContain("Alibi's delete request failed for one upload, so the expiry applies");
     const notRun = storageLine(run, { completed: true, uploads: ['f1', 'f2'], deletions: [ok('f1')] });
-    expect(notRun).toContain('The run ended before Walkaround deleted one upload, so the one-hour expiry applies.');
+    expect(notRun).toContain('The run ended before Alibi deleted one upload, so the one-hour expiry applies.');
     expect(storageLine(run, { completed: true, uploads: [], deletions: [] })).toBe("No file from this run reached Meta's Model API.");
     expect(deleteFailed({ ...ok('q'), kind: 'quarantine', api_response: null })).toBe(false); // a local unlink has no receipt
   });

@@ -160,7 +160,7 @@ export function WalkPlayer(props: WalkPlayerProps) {
 
     ctx.save();
     const px = p.labelPx ?? 12;
-    ctx.font = `500 ${Math.round(px * dpr)}px "IBM Plex Sans", system-ui, sans-serif`;
+    ctx.font = `600 ${Math.round(px * dpr)}px "Titillium Web", system-ui, sans-serif`;
     ctx.textBaseline = 'middle';
     for (const d of drawn) {
       if (d.age < LABEL_AFTER_MS) continue;

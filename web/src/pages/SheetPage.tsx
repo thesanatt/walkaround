@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { api, routes } from '../api/client.ts';
+import { Bar } from '../components/Bar.tsx';
+import { YourChecks } from '../components/YourChecks.tsx';
+import type { Mark, Verdict } from '../contracts/types.ts';
 import { Link } from '../lib/router.tsx';
+import { useYourChecks } from '../lib/yourcheck.ts';
 
 const SCROLL_PX_PER_S = 60;
 
@@ -13,6 +17,21 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
   const scroll = kiosk || query.get('scroll') === '1';
   // A frozen kiosk capture (?t=<ms>) shows the sheet where the scroll would be at that time.
   const frozenMs = kiosk && query.get('t') !== null && Number.isFinite(Number(query.get('t'))) ? Math.max(0, Number(query.get('t'))) : null;
+  // The renter's own checks of this run, listed under the sheet's links and never in it; the verdicts and marks are
+  // read only when there are some.
+  const { checks } = useYourChecks(runId);
+  const anyChecks = !kiosk && Object.keys(checks).length > 0;
+  const [found, setFound] = useState<{ verdicts: Verdict[]; marks: Map<string, Mark> } | null>(null);
+  useEffect(() => {
+    if (!anyChecks) return;
+    let live = true;
+    void Promise.all([api.file<Verdict[]>(runId, 'derived/verdicts.json'), api.file<Mark[]>(runId, 'derived/marks.json')])
+      .then(([verdicts, marks]) => live && setFound({ verdicts, marks: new Map(marks.map((m) => [m.mark_id, m])) }))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [runId, anyChecks]);
 
   useEffect(() => {
     let live = true;
@@ -61,6 +80,7 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
     <div className="sheet-page">
       {!kiosk ? (
         <div className="sheet-head">
+          <Bar />
           <p className="result-meta">
             <Link to={`/run/${encodeURIComponent(runId)}`}>Back to the result</Link>
           </p>
@@ -68,7 +88,7 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
           <p className="sheet-lead">It lists both walks' sealed hashes, when they were sealed, and every panel with the rule that decided it. Anyone can check it with the steps on the verify page.</p>
           <div className="sheet-actions">
             {pdf === 'ready' ? (
-              <a href={routes.sheetPdf(runId)} className="cds--btn cds--btn--primary">
+              <a href={routes.sheetPdf(runId)} className="button">
                 Download the PDF
               </a>
             ) : (
@@ -77,6 +97,7 @@ export function SheetPage({ runId, query, kiosk = false }: { runId: string; quer
             <a href={routes.bundleZip(runId)}>bundle.zip</a>
             <a href={routes.sheetJson(runId)}>sheet.json</a>
           </div>
+          {anyChecks && found ? <YourChecks checks={checks} verdicts={found.verdicts} marks={found.marks} /> : null}
         </div>
       ) : null}
       {html === 'missing' ? (

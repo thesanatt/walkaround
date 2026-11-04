@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 
 import { CropFigure } from '../src/components/CropView.tsx';
-import { MarkFrame, zoomWindow } from '../src/components/MarkCard.tsx';
+import { Frame, zoomWindow } from '../src/components/Frame.tsx';
 import type { Keyframe, Mark } from '../src/contracts/types.ts';
 
 // Box fix 11/1: every overlay draws the mark box in the crop's own pixels, inside the same SVG user space as the crop
@@ -34,23 +34,20 @@ describe('mark boxes sit on the crop pixels they name', () => {
     [938, 1280, [882, 610, 895, 624]],
     [1280, 1280, [10, 1200, 40, 1270]],
   ] as const) {
-    it(`the card frame, crop ${w}x${h}`, () => {
-      const html = renderToStaticMarkup(createElement(MarkFrame, { kf: kf(w, h), marks: [mark([...b])], role: 'pickup' }));
+    it(`the finding frame, crop ${w}x${h}`, () => {
+      const html = renderToStaticMarkup(createElement(Frame, { kf: kf(w, h), role: 'pickup', boxes: [{ box: [...b], tone: 'new' }] }));
       expect(attr(html, 'image', 'width')).toEqual([String(w)]);
       expect(attr(html, 'image', 'height')).toEqual([String(h)]);
       expect(html).not.toMatch(/<image[^>]*\s(x|y|preserveAspectRatio)=/);
-      const xs = attr(html, 'rect', 'x').map(Number);
-      const ys = attr(html, 'rect', 'y').map(Number);
-      const ws = attr(html, 'rect', 'width').map(Number);
-      const hs = attr(html, 'rect', 'height').map(Number);
-      expect(xs.length).toBe(2); // the dark under-stroke and the box, the same rectangle
-      for (let i = 0; i < xs.length; i += 1) {
-        expect(xs[i]! + ws[i]! / 2).toBeCloseTo((b[0] + b[2]) / 2, 6);
-        expect(ys[i]! + hs[i]! / 2).toBeCloseTo((b[1] + b[3]) / 2, 6);
-      }
       const [vx, vy, vw, vh] = nums(/viewBox="([^"]+)"/.exec(html)?.[1]);
       expect(vx! <= b[0] && vy! <= b[1] && vx! + vw! >= b[2] && vy! + vh! >= b[3]).toBe(true);
-      expect([vx, vy, vw, vh]).toEqual(zoomWindow(w, h, [[...b]], true));
+      expect([vx, vy, vw, vh]).toEqual(zoomWindow(w, h, [[...b]], true, 280, 7, 2 / 3));
+      // the box is centred on the mark in screen space, at least 56 px a side
+      const style = /class="frame-box new" style="([^"]+)"/.exec(html)?.[1] ?? '';
+      const pct = (name: string) => Number(new RegExp(`${name}:([0-9.]+)%`).exec(style)?.[1]);
+      expect(pct('left')).toBeCloseTo((100 * ((b[0] + b[2]) / 2 - vx!)) / vw!, 2);
+      expect(pct('top')).toBeCloseTo((100 * ((b[1] + b[3]) / 2 - vy!)) / vh!, 2);
+      expect(style).toContain('width:max(56px,');
     });
 
     it(`the crop figure, crop ${w}x${h}`, () => {

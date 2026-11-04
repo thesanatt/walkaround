@@ -99,3 +99,14 @@ export function formatDollars(usd: number): string {
 export function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
+
+// "Nov 2, 6:42 PM EST" in the viewer's zone, named; withYear gives "Nov 2, 2026, 6:42 PM EST".
+export function formatStamp(iso: string | null | undefined, withYear = false): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const zone = zoneOf(d);
+  const h = d.getHours() % 12 || 12;
+  const year = withYear ? `, ${d.getFullYear()}` : '';
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}${year}, ${h}:${String(d.getMinutes()).padStart(2, '0')} ${d.getHours() < 12 ? 'AM' : 'PM'}${zone ? ` ${zone}` : ''}`;
+}

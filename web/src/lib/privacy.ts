@@ -2,7 +2,7 @@ import type { DeletionRecord, RunManifest, VideoRecord } from '../contracts/type
 import type { RoleMedia } from '../state/types.ts';
 
 const TRAINING = "Processed with Meta's Model API in Standard mode, which Meta's documentation says is not used to train Meta models. ";
-const TERMS = "Meta's terms allow it to retain content for abuse review and legal reasons; Walkaround does not control that. ";
+const TERMS = "Meta's terms allow it to retain content for abuse review and legal reasons; Alibi does not control that. ";
 const SAM_SAW = 'SAM 3.1 saw the unblurred proxy for the length of one segmentation pass to find the plates and faces it then blurred.';
 // The second look on Baseten sends pixels to a company that is not Meta, so a run that used it says so. TODO(Sanat):
 // sign off on this wording; privacy.privacy_line (the sheet) needs the same clause (integrator).
@@ -11,7 +11,7 @@ const BASETEN = ' For the second look, two blurred crops per look were sent to M
 // The upload page, and a run that has not ended: what will happen, in the present tense.
 export const PRIVACY_BEFORE =
   TRAINING +
-  'Uploads expire after one hour and Walkaround deletes them when the run ends. Model requests are sent with storage off. ' +
+  'Uploads expire after one hour and Alibi deletes them when the run ends. Model requests are sent with storage off. ' +
   TERMS +
   'SAM 3.1 sees the unblurred proxy for one segmentation pass, to find the plates and faces it then blurs.';
 
@@ -34,8 +34,9 @@ function count(n: number, one: string, many: string): string {
   return n === 1 ? one : `${n} ${many}`;
 }
 
-// privacy.privacy_line word for word, but only for what the deletion rows show: before the run ends it is the
-// present-tense promise, and a delete that failed (or never ran) is said, not claimed (section 8 item 7, 14 item 25).
+// privacy.privacy_line word for word with the product named Alibi (the sealed sheet keeps Walkaround), but only for what
+// the deletion rows show: before the run ends it is the present-tense promise, and a delete that failed (or never ran)
+// is said, not claimed (section 8 item 7, 14 item 25).
 // baseten: the run sent second looks to Muse Spark Open on Baseten (a look row or an open_weights.ndjson line).
 export function storageLine(run: RunManifest | null, opts: { completed: boolean; uploads: string[]; deletions: DeletionRecord[]; baseten?: boolean }): string {
   const tail = opts.baseten ? BASETEN : '';
@@ -45,17 +46,17 @@ export function storageLine(run: RunManifest | null, opts: { completed: boolean;
   const failed = opts.uploads.filter((id) => rows.has(id) && deleteFailed(rows.get(id)!)).length;
   const pending = opts.uploads.filter((id) => !rows.has(id)).length;
   let text = TRAINING;
-  if (!failed && !pending) text += 'Uploads were set to expire after one hour and were deleted by Walkaround when the run ended. ';
+  if (!failed && !pending) text += 'Uploads were set to expire after one hour and were deleted by Alibi when the run ended. ';
   else {
     text += 'Uploads were set to expire after one hour. ';
-    if (failed) text += `Walkaround's delete request failed for ${count(failed, 'one upload', 'uploads')}, so the expiry applies; the rows below have the times. `;
-    if (pending) text += `The run ended before Walkaround deleted ${count(pending, 'one upload', 'uploads')}, so the one-hour expiry applies. `;
+    if (failed) text += `Alibi's delete request failed for ${count(failed, 'one upload', 'uploads')}, so the expiry applies; the rows below have the times. `;
+    if (pending) text += `The run ended before Alibi deleted ${count(pending, 'one upload', 'uploads')}, so the one-hour expiry applies. `;
   }
   if (run?.responses_store === 'deleted_per_request') {
     const bad = opts.deletions.filter((d) => d.kind === 'response' && deleteFailed(d)).length;
     text += bad
-      ? `Model requests were sent with storage off; a model refused it, and Walkaround's delete of ${count(bad, 'one stored response', 'stored responses')} failed (rows below). `
-      : 'Model requests were sent with storage off and every stored model response was deleted by Walkaround when the run ended. ';
+      ? `Model requests were sent with storage off; a model refused it, and Alibi's delete of ${count(bad, 'one stored response', 'stored responses')} failed (rows below). `
+      : 'Model requests were sent with storage off and every stored model response was deleted by Alibi when the run ended. ';
   } else {
     text += 'Model requests were sent with storage off. ';
   }

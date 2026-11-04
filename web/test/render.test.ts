@@ -111,15 +111,15 @@ describe('the changed components render against the fixture run', () => {
 
   it('labels a failed delete as failed on the privacy card', async () => {
     const state = await finalState();
-    expect(html(createElement(PrivacyCard, { state }))).toContain('were deleted by Walkaround when the run ended');
+    expect(html(createElement(PrivacyCard, { state }))).toContain('were deleted by Alibi when the run ended');
     const rows: DeletionRecord[] = state.deletions.map((d) =>
       d.kind === 'files_api' && d.target.endsWith('return') ? { ...d, api_response: null, reason: 'delete request failed at 2026-10-27T15:11:11Z; expiry at 2026-10-27T16:02:41Z applies' } : d,
     );
     const failed = html(createElement(PrivacyCard, { state: { ...state, deletions: rows } }));
-    expect(failed).not.toContain('were deleted by Walkaround');
+    expect(failed).not.toContain('were deleted by Alibi');
     expect(failed).toContain('file-mock-return</span>: delete request failed at 2026-10-27T15:11:11Z');
     const running = html(createElement(PrivacyCard, { state: { ...state, completed: false } }));
-    expect(running).toContain('Walkaround deletes them when the run ends');
+    expect(running).toContain('Alibi deletes them when the run ends');
   });
 
   it('says a walk was not sealed when the run failed before the seal', () => {
