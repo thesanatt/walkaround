@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 
 import { formatDate } from '../lib/format.ts';
-import { Link } from '../lib/router.tsx';
+import { Link, useLocation } from '../lib/router.tsx';
 
 // The product's name as it is drawn: ALIBI. in Titillium Web Black. Read aloud as the word.
 export function Wordmark() {
@@ -23,7 +23,15 @@ export function ReplayNote({ date }: { date: string }) {
 }
 
 // The top row of every screen: the wordmark, a replay's note beside it, and on a run the sealed link at the right.
+// The site's three places, top right on every page; the page you are on is underlined.
+const NAV = [
+  { to: '/how', label: 'How it works' },
+  { to: '/verify', label: 'Verify' },
+] as const;
+const GITHUB = 'https://github.com/thesanatt/walkaround';
+
 export function Bar({ note, children }: { note?: ReactNode; children?: ReactNode }) {
+  const { path } = useLocation();
   return (
     <header className="bar">
       <span className="bar-start">
@@ -33,6 +41,14 @@ export function Bar({ note, children }: { note?: ReactNode; children?: ReactNode
         {note ? <span className="bar-note">{note}</span> : null}
       </span>
       {children ? <div className="bar-end">{children}</div> : null}
+      <nav className="bar-nav" aria-label="Alibi">
+        {NAV.map((n) => (
+          <Link key={n.to} to={n.to} current={path === n.to}>
+            {n.label}
+          </Link>
+        ))}
+        <a href={GITHUB}>GitHub</a>
+      </nav>
     </header>
   );
 }

@@ -31,6 +31,10 @@ is renamed.
 
 ## The screens
 
+Every page's header carries the site nav top right: How it works, Verify and GitHub, quiet links with the current page
+underlined; on a phone the nav shares the first row with the wordmark and a page's own fact (Sealed) drops to a second
+row.
+
 1. Start (`/`): "Which scratches are new since you got the car?", one muted line on how to film, then the example by
    default: one frame from each of hero_focus5e's blurred videos at the rear right, the new strip boxed in red on the
    return frame and its spot dashed on the pickup frame, captioned with the times, one line and See the full result.
@@ -59,6 +63,10 @@ is renamed.
    and the sheet never change.
 5. Sealed: a text link in the top row with the local time and zone opens the hashes, the RFC 3161 and Bitcoin stamps,
    the PDF, the sheet, verify and bundle.zip, then the renter's checks, then "Everything the check recorded".
+6. How it works (`/how`): one column, seven numbered steps, each a real picture from hero_focus5e (the example pair,
+   SAM 3.1's outlines from the record view, Muse Spark's boxes on a crop, the new mark's pair with 0.915 > 0.849, the
+   second look's own two crops, the hashes and the seal time from the sheet, and the wheels and glass left to the eye).
+   Each fact's source is in a comment beside its step.
 6. Everything the check recorded (`?record=1`): one page of sections, each a heading, one grey line and the facts:
    the two walks with SAM 3.1's outlines and their seals, what each model did, coverage, panels, crops, the match,
    every verdict with its rule, the panels not compared and the lines left to check by eye, Stays Put (every tracked
