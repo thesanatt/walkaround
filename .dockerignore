@@ -6,3 +6,5 @@ serve.log
 **/__pycache__
 web/node_modules
 tests
+.env
+data
