@@ -10,8 +10,9 @@ Walkaround is an evidence tool. The page has to look like a careful instrument, 
 and dark, and IBM Plex, which the app already shipped through `@fontsource`.
 
 What the app installs: `@carbon/styles` 1.118.0 (Sass) and `sass` 1.107.1 as a dev dependency. `src/carbon.scss`
-loads only the theme tokens (`white` for light, `g100` for dark), the layout size tokens the button reads, and three
-component styles: button, tag and progress bar. `src/styles.css` maps the app's own token names (`--bg`, `--ink`,
+loads only the theme tokens (`g100` dark on every page whatever the system prefers, `white` where a page pins
+`data-theme='light'`, as the kiosk does unless `?theme=dark`), the layout size tokens the button reads, and three
+component styles: button, tag and progress bar. The evidence sheet and its PDF stay light. `src/styles.css` maps the app's own token names (`--bg`, `--ink`,
 `--line`, `--accent` and the rest) onto Carbon's `--cds-*` tokens, so every older component and the kiosk follow
 Carbon without renaming a class. That matters because the tests assert component markup and class names.
 

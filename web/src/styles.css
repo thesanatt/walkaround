@@ -1,8 +1,9 @@
-/* Tokens. The app's own names now point at Carbon's theme tokens (src/carbon.scss emits white and g100), so every
-   component below and the kiosk follow Carbon without renaming. Text colours for the verdict labels are Carbon's
-   60 grades on white and 40 grades on g100, the ones that pass 4.5:1. */
+/* Tokens. The app's own names now point at Carbon's theme tokens (src/carbon.scss emits g100 by default and white
+   under data-theme='light'), so every component below and the kiosk follow Carbon without renaming. Text colours for
+   the verdict labels are Carbon's 40 grades on g100 and 60 grades on white, the ones that pass 4.5:1. Dark is the
+   default whatever the system prefers; the kiosk pins light unless ?theme=dark. */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
   --bg: var(--cds-background);
   --surface: var(--cds-layer-01);
   --surface-2: var(--cds-layer-accent-01);
@@ -13,36 +14,6 @@
   --accent: var(--cds-link-primary);
   --accent-ink: var(--cds-text-on-color);
   --focus: var(--cds-focus);
-  --good: #198038;
-  --warn: #8e6a00;
-  --bad: #da1e28;
-  --slate: #4d5358;
-  --gray: #6f6f6f;
-  --good-bg: #defbe6;
-  --warn-bg: #fcf4d6;
-  --bad-bg: #fff1f1;
-  --slate-bg: #f2f4f8;
-  --mark: #f1c21b;
-  --video: #161616;
-  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --good: #42be65;
-    --warn: #f1c21b;
-    --bad: #ff8389;
-    --slate: #a2a9b0;
-    --gray: #a8a8a8;
-    --good-bg: #044317;
-    --warn-bg: #302400;
-    --bad-bg: #520408;
-    --slate-bg: #262626;
-  }
-}
-
-:root[data-theme='dark'] {
   --good: #42be65;
   --warn: #f1c21b;
   --bad: #ff8389;
@@ -52,6 +23,25 @@
   --warn-bg: #302400;
   --bad-bg: #520408;
   --slate-bg: #262626;
+  --mark: #f1c21b;
+  --pin-ink: #161616; /* pin digits: dark on the 40 grades here, white on the 60 grades in light */
+  --video: #161616;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --good: #198038;
+  --warn: #8e6a00;
+  --bad: #da1e28;
+  --slate: #4d5358;
+  --gray: #6f6f6f;
+  --good-bg: #defbe6;
+  --warn-bg: #fcf4d6;
+  --bad-bg: #fff1f1;
+  --slate-bg: #f2f4f8;
+  --pin-ink: #fff;
 }
 
 * {
@@ -945,7 +935,7 @@ abbr[title] {
   border-radius: 11px;
   font-size: 0.75rem;
   font-weight: 600;
-  color: #fff;
+  color: var(--pin-ink);
   background: var(--slate);
 }
 
@@ -1050,7 +1040,7 @@ abbr[title] {
 .rm-pin text {
   font-size: 11px;
   font-weight: 600;
-  fill: #fff;
+  fill: var(--pin-ink);
   pointer-events: none;
 }
 

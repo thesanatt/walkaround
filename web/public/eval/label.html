@@ -3,12 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark">
 <meta name="description" content="Label a Walkaround run: real or not for each mark, missed marks, and which panels changed between the walks.">
 <title>Walkaround labels</title>
 <style>
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+  --bg: #151918; --surface: #1d2321; --surface-2: #242c29; --ink: #e9e4d9; --muted: #a8a295; --line: #333d3a;
+  --accent: #9ad0c0; --accent-ink: #10201b; --focus: #e9a960; --good: #6fc39f; --warn: #d9a84a; --bad: #e07a7a;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+:root[data-theme='light'] {
+  color-scheme: light;
   --bg: #f4f1ea;
   --surface: #fffdf9;
   --surface-2: #ece8de;
@@ -21,18 +28,6 @@
   --good: #2b7a5b;
   --warn: #9a6a12;
   --bad: #a33a3a;
-  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --bg: #151918; --surface: #1d2321; --surface-2: #242c29; --ink: #e9e4d9; --muted: #a8a295; --line: #333d3a;
-    --accent: #9ad0c0; --accent-ink: #10201b; --focus: #e9a960; --good: #6fc39f; --warn: #d9a84a; --bad: #e07a7a;
-  }
-}
-:root[data-theme='dark'] {
-  --bg: #151918; --surface: #1d2321; --surface-2: #242c29; --ink: #e9e4d9; --muted: #a8a295; --line: #333d3a;
-  --accent: #9ad0c0; --accent-ink: #10201b; --focus: #e9a960; --good: #6fc39f; --warn: #d9a84a; --bad: #e07a7a;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
