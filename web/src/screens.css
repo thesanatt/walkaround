@@ -379,7 +379,6 @@
 /* how it works: one column, seven numbered steps, each with a real picture from the sample run --------------- */
 .how {
   max-width: 876px;
-  margin: 0 auto;
 }
 
 .how-head h1 {
