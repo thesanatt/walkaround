@@ -8,6 +8,7 @@ import { matchPath, useLocation, type Location } from './lib/router.tsx';
 import { ClaimPage } from './pages/ClaimPage.tsx';
 import { SheetPage } from './pages/SheetPage.tsx';
 import { StartPage } from './pages/StartPage.tsx';
+import { UploadPage } from './pages/UploadPage.tsx';
 import { VerifyPage } from './pages/VerifyPage.tsx';
 import type { StatusResponse } from './contracts/types.ts';
 
@@ -19,7 +20,8 @@ const loading = <Bar />;
 // The routes app.py serves as this app: /, /upload, /run/{id}, /run/{id}/sheet, /claim, /kiosk/{id}, /verify.
 function page(loc: Location, status: StatusResponse | null) {
   let m: Record<string, string> | null;
-  if (loc.path === '/' || loc.path === '/upload') return <StartPage status={status} />;
+  if (loc.path === '/') return <StartPage />;
+  if (loc.path === '/upload') return <UploadPage status={status} />;
   if ((m = matchPath('/run/:id', loc.path)))
     return (
       <Suspense fallback={loading}>

@@ -289,6 +289,68 @@
   accent-color: var(--ink);
 }
 
+/* the example the start page opens on, and the one button to check your own car */
+.example {
+  max-width: 876px;
+  margin: 40px auto 0;
+}
+
+.example-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.example-frame {
+  margin: 0;
+}
+
+.example-view {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.example-view img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.example-view .frame-box {
+  width: 40px;
+  height: 40px;
+}
+
+.example-frame figcaption {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 1rem;
+  text-align: left;
+}
+
+.example-line {
+  color: var(--muted);
+  margin: 16px auto 0;
+}
+
+.example-line a {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.start-own {
+  margin: 40px 0 0;
+}
+
+.start-own .button {
+  min-width: 240px;
+  min-height: 56px;
+  font-size: 1.25rem;
+}
+
 /* result --------------------------------------------------------------------------------------------------------- */
 .result-grid {
   margin-top: 48px;
@@ -1332,6 +1394,24 @@
 
   .slot-hint-narrow {
     display: inline;
+  }
+
+  .example {
+    margin-top: 28px;
+  }
+
+  .example-pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .example-view .frame-box {
+    width: 32px;
+    height: 32px;
+  }
+
+  .start-own .button {
+    width: 100%;
   }
 
   .start-go .button {

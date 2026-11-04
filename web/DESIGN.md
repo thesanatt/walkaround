@@ -30,10 +30,12 @@ is renamed.
 
 ## The screens
 
-1. Start (`/`, `/upload`): "Which scratches are new since you got the car?", one muted line on how to film, two empty
-   16:9 frames side by side with the label under each (the same in-browser hashing and resumable upload as before),
-   then Compare, the one filled shape, once both videos are in ("Add both videos" until then), See an example and the
-   privacy line. On a replay-only copy the slots
+1. Start (`/`): "Which scratches are new since you got the car?", one muted line on how to film, then the example by
+   default: one frame from each of hero_focus5e's blurred videos at the rear right, the new strip boxed in red on the
+   return frame and its spot dashed on the pickup frame, captioned with the times, one line and See the full result.
+   Then the one filled button, Check your own car. It opens the upload view (`/upload`): two empty 16:9 frames side by
+   side with the label under each (the same in-browser hashing and resumable upload as before), then Compare, the one
+   filled shape, once both videos are in ("Add both videos" until then), See an example and the privacy line. On a replay-only copy the slots
    rest, one line says new checks are off, and the button opens the example. Options (pickup only, keep the plate) sit
    in a closed row.
 2. Result (`/run/<id>`): the answer first and very large, from the verdicts code wrote: "1 new mark" in red, or "No
