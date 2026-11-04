@@ -15,7 +15,7 @@ while the renter's only record is a phone video nobody can search.
 - [The example result](https://walkaround-web-production.up.railway.app/run/hero_focus5e?replay=instant), replayed in
   the browser with no install and no key
 - [How it works](https://walkaround-web-production.up.railway.app/how), with the exact math and what the run cost
-- Demo video: https://youtu.be/tBx6UkLXO94
+- Demo video: https://youtu.be/tBx6UkLXO94 ([credits, and which voices are text-to-speech](#the-demo-video))
 
 Built Oct 26 to Nov 4, 2026 by Sanat Gupta for the Meta Global AI Developer Hackathon (Indie Developer track). Alibi is
 evidence support, not legal advice.
@@ -361,6 +361,22 @@ Only footage we have rights to is in this repo or behind any number in it.
 
 The source clips are not in the repo (`data/` is ignored); each label file in `eval/labels/` names its footage. A run
 made with a footage credit prints it and the license link on page 1 of its sheet and in the footer of every page.
+
+### The demo video
+
+- Voices: mine, except the black and white opener (0:07 to 0:33) and one line of its narrator at 1:44 ("...and finds a
+  scratch."). Those are text-to-speech voices from ElevenLabs (the narrator, Junior and Mother), made on my paid
+  ElevenLabs Creator plan. The skit is fiction.
+- Music: made with Eleven Music on the same paid plan, whose music terms allow online commercial use with no
+  attribution. The opener's own music is from Trader Thorne (about 1956), public domain.
+- Black and white film: Prelinger Archives on archive.org, public domain: Discipline During Adolescence (1958), Master
+  Hands (1936) and Automotive Service (1940). The walk-up and the scrape close-up in the opener are our own footage of
+  the Focus.
+- The $350 case is cited as text only (InvestigateTV and Arizona's Family, June 29, 2026); no news footage or audio is
+  used.
+- The rest is me on camera and the hero sample: the Focus walks with the masks, boxes and call table of run
+  hero_focus5e (Nov 2, 2026) drawn over them, plus screen recordings of the live app. No picture in the video is
+  AI-generated; the masks and boxes are the models' real output from that run.
 
 ## Privacy
 
