@@ -30,7 +30,7 @@ Each verdict was tied to its strip or scrape by looking at every row of the run,
 | front left door strip, kept (lower, by the handle) | already there | already there (left_front_door_v1) | right |
 | front left door strip, removed (upper) | not seen at return | needs your eye (left_front_door_v3, K15: Muse Spark flagged the pickup view of the door dirty) | miss, safe |
 | right rear door strip, new | new since pickup | new or unseen (right_rear_door_v2) | right |
-| front left door scrape | already there | already there on its short right piece (left_front_door_v2). The long left piece is not joined: its pickup box is left off as faint (K20, contrast 1.5) and its return box is needs your eye (left_front_door_v4, K15) | right, in part |
+| front left door scrape | already there | already there on its long left piece (left_front_door_v2: pickup m3, return m2). The short right piece is not joined: its pickup box (m4) is left off as faint (K20, contrast 1.5) and its return box (m3) is needs your eye (left_front_door_v4, K15) | right, in part |
 
 5 of 6 right, one of them in part. No false "new" and no false "not seen at return": the one miss ended at needs your eye.
 
