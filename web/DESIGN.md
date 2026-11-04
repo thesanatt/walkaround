@@ -13,7 +13,8 @@ is renamed.
 
 - Pure black `#000`, one warm white `#f3f0ea` for text, one grey `#8f8f8a` for secondary text (6.4:1 on black), hairlines
   `#262626`. Square corners. No cards with shadows, no pills, no gradients, no glow, no icons.
-- The page background carries a faint static fibre texture (`src/textures/fibre.png`, a 128 px tile of curved strands),
+- The page background carries a static fibre texture (`src/textures/fibre.png`, a 128 px tile of curved 1 px strands,
+  mean 5/255, peak 30/255 so small red, grey and white text keep 4.5:1),
   off on phones and under `prefers-contrast` and `forced-colors`. Frames and thumbnails stay flat.
 - Colour only where the renter must act: brake red `#ff3b2b` for new, amber `#ffbf1f` for needs your eye. Already there,
   gone at return and everything else stay white or grey. Every label is also a word.
