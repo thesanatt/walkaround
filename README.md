@@ -25,7 +25,7 @@ called the added strip new, and sent the one it missed to "needs your eye" inste
 
 1. **Seal both walks.** Film one slow lap of the car at pickup and one at return. The phone hashes each video while it
    uploads, and the server timestamps it (RFC 3161, plus OpenTimestamps) before any model sees it.
-2. **Read each walk with Meta's models.** SAM 3.1 tracks 16 car parts through each handheld video, so code knows which
+2. **Read each walk with Meta's models.** SAM 3.1 tracks 16 text prompts (doors, bumpers, plates, faces and more) through each handheld video, so code knows which
    of 22 panels is on screen when, which panels were never filmed, and where plates and faces are (they are blurred
    before anything else leaves). Muse Spark 1.3 boxes marks on one blurred panel crop at a time.
 3. **Decide in code.** Code gives each panel its own coordinates, taken from the center and spread of SAM's outline,
