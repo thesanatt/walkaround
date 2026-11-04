@@ -314,6 +314,46 @@
   accent-color: var(--ink);
 }
 
+/* a copy that takes no new checks: why, then the README's steps to run Alibi with your own key */
+.start-why {
+  max-width: 640px;
+  margin: 40px auto 0;
+}
+
+.start-steps {
+  list-style: none;
+  max-width: 640px;
+  margin: 28px auto 0;
+  padding: 0;
+  text-align: left;
+}
+
+.start-steps li + li {
+  margin-top: 24px;
+}
+
+.start-step {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+}
+
+.start-step-num {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.start-steps pre {
+  margin: 10px 0 0;
+  padding: 14px 18px;
+  border: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 0.875rem;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
 /* the example the start page opens on, and the one button to check your own car */
 .example {
   max-width: 876px;

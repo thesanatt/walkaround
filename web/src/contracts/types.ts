@@ -722,6 +722,7 @@ export interface StatusResponse {
   queue_position: number | null;
   queue_eta_minutes?: number | null; // app.py adds it beside the contract's fields
   engine: string;
+  replay_only?: boolean; // app.py adds it too: both daily caps at 0, as on the public copy
 }
 
 // GET /api/samples (app.py): every finished check this server replays, in samples/index.json order; the first is the

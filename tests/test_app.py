@@ -200,7 +200,7 @@ def test_create_run_429_when_the_caps_or_the_pause_apply(client: TestClient, orc
     assert response.json() == {"reason": "no full pairs left today", "pickup_left": th["orchestrator"]["pickup_runs_per_day"], "pairs_left": 0}
     assert client.post("/api/runs", json={"kind": "pickup_check"}).status_code == 201
     status = client.get("/api/status").json()
-    assert status == {"paused": False, "pickup_left": th["orchestrator"]["pickup_runs_per_day"] - 1, "pairs_left": 0, "queue_position": None, "queue_eta_minutes": None, "engine": "meta-model-api"}
+    assert status == {"paused": False, "pickup_left": th["orchestrator"]["pickup_runs_per_day"] - 1, "pairs_left": 0, "queue_position": None, "queue_eta_minutes": None, "engine": "meta-model-api", "replay_only": False}
     orch.paused = True
     response = client.post("/api/runs", json={"kind": "pickup_check"})
     assert response.status_code == 429 and "paused" in response.json()["reason"]

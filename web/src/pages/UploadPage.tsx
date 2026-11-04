@@ -14,13 +14,53 @@ type Kind = 'pickup_check' | 'pair';
 // Why the slots are off, in one line; null while they take files.
 function offLine(status: StatusResponse | null, kind: Kind): string | null {
   if (!status) return null;
-  if (status.paused) return 'New checks are off on this public copy.';
   if (kind === 'pair' ? status.pairs_left <= 0 : status.pickup_left <= 0) return 'No new checks are left today.';
   return null;
 }
 
 // Where the README says how to run Alibi from a clean clone, for a copy that takes no new checks.
 const RUN_IT_YOURSELF = 'https://github.com/thesanatt/walkaround#run-it-from-a-clean-clone';
+
+// The README's clean-clone commands and its live-mode .env line, word for word (test/upload_page.test.ts checks).
+export const OWN_STEPS = [
+  { label: 'Clone the repo and install it. You need uv and ffmpeg.', code: 'git clone --depth 1 https://github.com/thesanatt/walkaround.git\ncd walkaround\nuv venv --python 3.13\nuv pip install -e ".[dev]"' },
+  { label: 'Put your key in .env as MODEL_API_KEY.', code: 'cp .env.example .env' },
+  { label: 'Start it, then open http://127.0.0.1:8000.', code: '.venv/bin/walkaround serve' },
+];
+
+// In place of the slots on a copy that takes no new checks: why, then how to run Alibi with your own key. A paused
+// clone already has the code, so it gets the last two steps.
+function RunYourOwn({ replayOnly, example }: { replayOnly: boolean; example: string | null }) {
+  const steps = replayOnly ? OWN_STEPS : OWN_STEPS.slice(1);
+  return (
+    <>
+      <p className="start-why">
+        {replayOnly
+          ? "This public copy only replays the example, so strangers can't spend my model credits. To check your own car, run Alibi on your computer with a Meta Model API key, about 5 minutes:"
+          : 'New checks are off here because this copy has no working Meta Model API key. Add yours, then start it again:'}
+      </p>
+      <ol className="start-steps">
+        {steps.map((step, i) => (
+          <li key={step.code}>
+            <p className="start-step">
+              <span className="start-step-num">{i + 1}</span>
+              {step.label}
+            </p>
+            <pre>{step.code}</pre>
+          </li>
+        ))}
+      </ol>
+      <div className="start-go">
+        {example ? (
+          <Link to={exampleUrl(example)} className="button">
+            See the example
+          </Link>
+        ) : null}
+        <a href={RUN_IT_YOURSELF}>Setup on GitHub</a>
+      </div>
+    </>
+  );
+}
 
 // The upload view (/upload), behind "Check your own car": the two videos, one button, and the example.
 export function UploadPage({ status }: { status: StatusResponse | null }) {
@@ -123,64 +163,64 @@ export function UploadPage({ status }: { status: StatusResponse | null }) {
   const off = run ? null : offLine(status, kind);
   const slotOff = (u: UploadUi | undefined) => off !== null || uploadBusy(u ?? null) || Boolean(u?.record);
   const go = () => run && navigate(`/run/${encodeURIComponent(run.run_id)}`);
+  // A replay-only or paused copy takes no new run, so the slots give way to how to run Alibi yourself.
+  const own = !run && status !== null && (status.replay_only === true || status.paused);
 
   return (
     <div className="start">
       <Bar />
       <h1 className="start-q">Check your own car</h1>
       <p className="start-sub">Film a slow walk around the car when you get it, and again when you hand it back.</p>
-      <div className={`slots slots-${roles.length}`}>
-        <Slot title="Pickup video" disabled={slotOff(uploads.pickup)} state={uploads.pickup ?? null} onFile={(f) => onFile('pickup', f)} onRetry={() => onRetry('pickup')} />
-        {kind === 'pair' ? (
-          <Slot title="Return video" disabled={slotOff(uploads.return)} state={uploads.return ?? null} onFile={(f) => onFile('return', f)} onRetry={() => onRetry('return')} />
-        ) : null}
-      </div>
-      {off ? (
-        <p className="start-off">
-          {off}
-          {status?.paused ? (
-            <>
-              {' '}
-              You can <a href={RUN_IT_YOURSELF}>run it yourself</a>.
-            </>
-          ) : null}
-        </p>
-      ) : null}
-      {error ? <p className="error-line">{error}</p> : null}
-      <div className="start-go">
-        {off && example ? (
-          <Link to={exampleUrl(example)} className="button">
-            See an example
-          </Link>
-        ) : (
-          <>
-            {complete ? (
-              <button type="button" className="button" onClick={go}>
-                {kind === 'pair' ? 'Compare' : 'Open the sealed video'}
-              </button>
+      {own ? (
+        <RunYourOwn replayOnly={status?.replay_only === true} example={example} />
+      ) : (
+        <>
+          <div className={`slots slots-${roles.length}`}>
+            <Slot title="Pickup video" disabled={slotOff(uploads.pickup)} state={uploads.pickup ?? null} onFile={(f) => onFile('pickup', f)} onRetry={() => onRetry('pickup')} />
+            {kind === 'pair' ? (
+              <Slot title="Return video" disabled={slotOff(uploads.return)} state={uploads.return ?? null} onFile={(f) => onFile('return', f)} onRetry={() => onRetry('return')} />
+            ) : null}
+          </div>
+          {off ? <p className="start-off">{off}</p> : null}
+          {error ? <p className="error-line">{error}</p> : null}
+          <div className="start-go">
+            {off && example ? (
+              <Link to={exampleUrl(example)} className="button">
+                See an example
+              </Link>
             ) : (
-              <p className="start-wait">{kind === 'pair' ? 'Add both videos' : 'Add the pickup video'}</p>
+              <>
+                {complete ? (
+                  <button type="button" className="button" onClick={go}>
+                    {kind === 'pair' ? 'Compare' : 'Open the sealed video'}
+                  </button>
+                ) : (
+                  <p className="start-wait">{kind === 'pair' ? 'Add both videos' : 'Add the pickup video'}</p>
+                )}
+                {example ? <Link to={exampleUrl(example)}>See an example</Link> : null}
+              </>
             )}
-            {example ? <Link to={exampleUrl(example)}>See an example</Link> : null}
-          </>
-        )}
-      </div>
-      {run && !complete && uploading ? <p className="start-note">Keep this tab open until both videos are sealed.</p> : null}
+          </div>
+          {run && !complete && uploading ? <p className="start-note">Keep this tab open until both videos are sealed.</p> : null}
+        </>
+      )}
       <p className="start-privacy">Faces are always blurred, and the plate unless you keep it. Runs are deleted after 24 hours.</p>
-      <details className="start-options">
-        <summary>Options</summary>
-        <fieldset disabled={run !== null}>
-          <legend className="sr-only">options</legend>
-          <label>
-            <input type="checkbox" checked={kind === 'pickup_check'} onChange={(e) => setKind(e.target.checked ? 'pickup_check' : 'pair')} />
-            I am at pickup: seal only the pickup video now
-          </label>
-          <label>
-            <input type="checkbox" checked={keepPlate} onChange={(e) => setKeepPlate(e.target.checked)} />
-            This is the car I rented: keep the plate on my sheet
-          </label>
-        </fieldset>
-      </details>
+      {own ? null : (
+        <details className="start-options">
+          <summary>Options</summary>
+          <fieldset disabled={run !== null}>
+            <legend className="sr-only">options</legend>
+            <label>
+              <input type="checkbox" checked={kind === 'pickup_check'} onChange={(e) => setKind(e.target.checked ? 'pickup_check' : 'pair')} />
+              I am at pickup: seal only the pickup video now
+            </label>
+            <label>
+              <input type="checkbox" checked={keepPlate} onChange={(e) => setKeepPlate(e.target.checked)} />
+              This is the car I rented: keep the plate on my sheet
+            </label>
+          </fieldset>
+        </details>
+      )}
     </div>
   );
 }

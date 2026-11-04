@@ -241,6 +241,7 @@ def test_a_replay_only_app_boots_without_touching_live_runs(runs_dir: Path, th: 
     with TestClient(create_app(replay, background=True)) as client:  # the boot path: seed samples, resume_all
         response = client.post(f"/api/runs/{run.run_id}/start")
         assert response.status_code == 429
+        assert client.get("/api/status").json()["replay_only"] is True  # the upload page says how to run it yourself
     assert replay._tasks == {} and paths.events_path(run.run_id).read_bytes() == events_before
     assert paths.quarantine_original(run.run_id, "pickup").exists()  # a run under way keeps its originals
 

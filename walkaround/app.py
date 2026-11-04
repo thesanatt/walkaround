@@ -629,6 +629,7 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
             "queue_position": position,
             "queue_eta_minutes": orch.queue_eta_minutes(position),
             "engine": orch.engine.value,
+            "replay_only": orch.replay_only,
         }
 
     @app.get("/api/sample")

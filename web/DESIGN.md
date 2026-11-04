@@ -20,7 +20,7 @@ is renamed.
   gone at return and everything else stay white or grey. Every label is also a word.
 - Type: Titillium Web (OFL, self-hosted in `src/fonts/`). Black only for the ALIBI. wordmark and the answer, Bold for
   the start headline, Regular for everything else; IBM Plex Mono (`@fontsource`) only for code and hashes in the
-  math and the sealed panel. Body 18 px. The answer is Titillium Black at up to 80 px. Text that fits on two lines is
+  math, the sealed panel and the upload view's setup commands. Body 18 px. The answer is Titillium Black at up to 80 px. Text that fits on two lines is
   centred; longer text on a phone is left-aligned.
 - Motion: the progress line of an upload, the button colour fade and the sealed panel sliding in (160 ms). All three
   stop under `prefers-reduced-motion`.
@@ -40,9 +40,11 @@ row.
    return frame and its spot dashed on the pickup frame, captioned with the times, one line and See the full result.
    Then the one filled button, Check your own car. It opens the upload view (`/upload`): two empty 16:9 frames side by
    side with the label under each (the same in-browser hashing and resumable upload as before), then Compare, the one
-   filled shape, once both videos are in ("Add both videos" until then), See an example and the privacy line. On a replay-only copy the slots
-   rest, one line says new checks are off, and the button opens the example. Options (pickup only, keep the plate) sit
-   in a closed row.
+   filled shape, once both videos are in ("Add both videos" until then), See an example and the privacy line. On a replay-only copy
+   (`replay_only` in /api/status) the slots give way to one line on why (strangers can't spend my model credits) and
+   the README's three steps to run Alibi with your own key, each command in a mono block, then See the example (the
+   button) and Setup on GitHub. A paused clone (no working key) gets its own line and the last two steps. Options
+   (pickup only, keep the plate) sit in a closed row, hidden when the slots are.
 2. Result (`/run/<id>`): the answer first and very large, from the verdicts code wrote: "1 new mark" in red, or "No
    new marks" in white. One line under it ("Right rear door. Not found in the pickup video." or "3 spots need your
    eye."), then the new mark's pickup and return frames side by side, the widest thing on the page, and Show the math.
