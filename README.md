@@ -358,7 +358,7 @@ made with a footage credit prints it and the license link on page 1 of its sheet
 
 The code is MIT licensed (`LICENSE`). Dependencies keep their own licenses. `web/dist/` bundles Meta's `@meta-sam`
 packages, which are under the SAM License (`LICENSES/SAM_LICENSE.txt`); `meta-sam-parser`, installed from PyPI, is under
-the same license. The other code, styles and fonts in `web/dist/` (React, hash-wasm, mediabunny, Carbon styles, IBM
-Plex) are listed with their license texts in `LICENSES/README.md`.
+the same license. The other code and fonts in `web/dist/` (React, hash-wasm, mediabunny, Titillium Web, IBM Plex Mono)
+are listed with their license texts in `LICENSES/README.md`.
 The footage in `samples/` is not under MIT: the Ford Focus walks are used with the owner's permission, the uCO3D clips
 are under CC BY 4.0, and the NHTSA video is public information, each with the credit above.

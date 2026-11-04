@@ -81,7 +81,8 @@
   font-weight: 700;
   line-height: 1.02;
   letter-spacing: -0.015em;
-  max-width: 17ch;
+  max-width: 21ch;
+  text-wrap: balance;
   margin: 56px 0 48px;
 }
 
@@ -1025,14 +1026,28 @@
     display: block;
   }
 
+  .math-steps h3 {
+    font-size: 1.0625rem;
+  }
+
   .code {
-    font-size: 0.75rem;
+    font-size: 0.71875rem;
+    line-height: 1.55;
+  }
+
+  .code-head {
+    padding: 6px 10px;
   }
 
   .code-row {
-    grid-template-columns: 2.8em minmax(0, 1fr);
-    gap: 10px;
+    grid-template-columns: 2.6em minmax(0, 1fr);
+    column-gap: 10px;
+    row-gap: 0;
     padding: 0 10px;
+  }
+
+  .code-row + .code-row {
+    margin-top: 6px;
   }
 
   .code-line {
