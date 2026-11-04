@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { api, routes } from '../api/client.ts';
+import { Wordmark } from '../components/Bar.tsx';
 import { BlurBeat } from '../components/BlurBeat.tsx';
 import { CoverageCar, revealOrder, walkGaps } from '../components/CoverageCar.tsx';
 import { bestKeyframe, CropFigure } from '../components/CropView.tsx';
@@ -159,7 +160,9 @@ export function KioskPage({ runId, query }: { runId: string; query: URLSearchPar
             {ready ? (
               <div className={`kiosk-scene kiosk-${scene.layout}`}>
                 <header className="kiosk-head">
-                  <span className="wordmark">Walkaround</span>
+                  <span className="wordmark">
+                    <Wordmark />
+                  </span>
                   {heading ? <span className="kiosk-heading">{heading}</span> : null}
                   {panelId && scene.panel !== null ? <span className="kiosk-panel">{panelName(panelId)}</span> : null}
                 </header>

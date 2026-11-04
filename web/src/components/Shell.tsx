@@ -9,7 +9,7 @@ export function Shell({ children, status }: { children: ReactNode; status: Statu
     <div className="shell">
       {status?.engine === 'mock' ? <MockBanner /> : null}
       <main className="page">{children}</main>
-      <footer className="site-foot">Walkaround is evidence support, not legal advice.</footer>
+      <footer className="site-foot">Alibi is evidence support, not legal advice.</footer>
     </div>
   );
 }

@@ -3,6 +3,12 @@
 Design D, Nov 4, 2026, replacing the Carbon look of Nov 1 (samples A, B and C were turned down as too busy). Minimal,
 little text, one easy path: start, answer, one finding at a time. The face is the video title's.
 
+The product is called Alibi. Wherever the app shows its name it draws the wordmark ALIBI. (capitals, with the full
+stop) in Titillium Web Black: the top row of every screen and the kiosk. The page title is Alibi and running text says
+Alibi. URLs, the package, the CLI and code identifiers keep walkaround. The privacy line still mirrors
+`walkaround/privacy.py` word for word, and the sealed sheets name Walkaround, so those say Walkaround until the backend
+is renamed.
+
 ## The look
 
 - Pure black `#000`, one white `#f4f4f1` for text, one grey `#8f8f8a` for secondary text (6.4:1 on black), hairlines
