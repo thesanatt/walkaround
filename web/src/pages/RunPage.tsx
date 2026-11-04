@@ -441,6 +441,7 @@ function ClaimScreen({ state, claim, note, bar, back }: { state: RunState; claim
         )}
       </div>
       <p className="credit">
+        {state.run?.keep ? 'The claim photo is a stand-in made for this example; a real one comes with the bill. ' : ''}
         {sealed ? `The pickup walk was sealed ${formatStamp(sealed, true)}. ` : ''}
         {state.run?.footage_credit ?? ''}
       </p>
