@@ -1,40 +1,56 @@
-# Alibi
+# ALIBI.
+
+Alibi is the product. The repo, the Python package and the CLI keep the working name `walkaround`, and the sealed
+evidence sheets still say Walkaround.
+
+**Which scratches are new since you got the car?** Alibi compares the video you take when you pick up a car with the
+one you take when you hand it back, spot by spot on each panel, and writes a sealed sheet of what was already there,
+what is new and what it could not check.
 
 Rental companies now check returned cars with AI scanners and can bill a renter for damage within minutes
 ([The Drive](https://www.thedrive.com/news/this-is-what-happens-when-hertzs-ai-scanner-finds-damage-on-your-rental)),
 while the renter's only record is a phone video nobody can search.
-Alibi reads the renter's own pickup and return videos, finds the same spot on the same panel in both, and writes a
-sealed sheet that says what was already there at pickup, what is new, and what it could not check.
-The repo, the Python package and the CLI keep the working name walkaround.
 
-![Alibi's result page for a friend's Ford Focus: "1 new mark, Right rear door" in large type and 12 panels compared, then one row per finding with a thumbnail: 1 new, 3 that need your eye and 6 already there at pickup, and a line that wheels and glass are checked by eye](docs/img/hero_focus5e_result.jpg)
-
-- Replay this run in a browser, no install and no key:
+- Live app: https://walkaround-web-production.up.railway.app
+- The example result, replayed in the browser with no install and no key:
   https://walkaround-web-production.up.railway.app/run/hero_focus5e?replay=instant
-- 3-minute demo video: DEMO_VIDEO_LINK
-- Built Oct 26 to Nov 4, 2026 by Sanat Gupta for the Meta Global AI Developer Hackathon (Indie Developer track). It is
-  evidence support, not legal advice.
+- How it works, with the exact math and what the run cost: https://walkaround-web-production.up.railway.app/how
+- Demo video: DEMO_VIDEO_LINK
 
-The picture is a friend's white Ford Focus, filmed with the owner's permission: a 52.9 s pickup walk and a 34.3 s
-return walk, shot 4 minutes apart. We put blue tape strips on as stand-in marks, took one off and added one between the
-walks; one scrape on the front left door is real. Alibi got 5 of the 6 marks right, one of them only in part,
-called the added strip new, and sent the one it missed to "needs your eye" instead of giving it a wrong label
-([docs/evidence/hero_focus5e_truth.md](docs/evidence/hero_focus5e_truth.md)).
+Built Oct 26 to Nov 4, 2026 by Sanat Gupta for the Meta Global AI Developer Hackathon (Indie Developer track). Alibi is
+evidence support, not legal advice.
+
+![Alibi's result page for the example, a friend's Ford Focus: "1 new mark" in large red type over "Right rear door. Not found in the pickup video.", then the right rear door at pickup (0:40) with an empty dashed box and at return (0:25) with a blue tape strip boxed in red, the line that blue tape stands in for damage but the scrape on the left front door is real, a Show the math link, and the first finding: New, Right rear door, light blue tape sticker](docs/img/result.jpg)
 
 ## How it works
 
-1. **Seal both walks.** Film one slow lap of the car at pickup and one at return. The phone hashes each video while it
-   uploads, and the server timestamps it (RFC 3161, plus OpenTimestamps) before any model sees it.
-2. **Read each walk with Meta's models.** SAM 3.1 tracks 16 text prompts (doors, bumpers, plates, faces and more) through each handheld video, so code knows which
-   of 22 panels is on screen when, which panels were never filmed, and where plates and faces are (they are blurred
-   before anything else leaves). Muse Spark 1.3 boxes marks on one blurred panel crop at a time.
-3. **Decide in code.** Code gives each panel its own coordinates, taken from the center and spread of SAM's outline,
-   so a spot on a door has nearly the same coordinates in both walks. It matches marks across the walks and writes
-   every label with the rule that decided it. Muse Spark Open, an open-weights model on Baseten, takes a second look at
-   close calls and can only lower a label to "needs your eye". The sheet shows both frames for every call and lists
-   what was not compared and why.
+1. **Sealed first.** Both videos are hashed and timestamped as they arrive, before any model sees them.
+2. **Meta SAM 3.1 follows each panel.** It follows 16 prompts through each video, and code turns them into 22 panels,
+   so a door is only compared with the same door.
+3. **Meta Muse Spark boxes the marks** on each panel and says what each one looks like.
+4. **Plain code compares the same spot:** the distance on the panel, plus a cost when the type or size differs, against
+   a cutoff. Code makes the call, not a model. The example's strip on the right rear door against the nearest pickup
+   mark: 0.285 + 0.4 + 0.230 = 0.915, over the 0.849 cutoff, so it is new.
+5. **A second look on open weights.** Close calls get a second look from Muse Spark Open, an open-weights model on
+   Baseten. It can only lower a label to "needs your eye", never raise one.
+6. **What it cost.** The example run made 504 model calls for $6.52; the How page splits it by model.
+
+**Limits.** I tuned the rules on the example's own footage, so its score (5 of 6 marks right, one in part) is not a
+held-out test, and model answers vary from run to run (the same two videos once scored 2 of 6). The marks are blue tape
+stand-ins plus one real scrape, Muse Spark boxed 17 of 53 marks I labelled by hand, wheels and glass are left to your
+eye, and no real renter has used it yet. More under [Limits](#limits).
+
+Step 5 of the How it works page, the lines of `walkaround/match.py` that called the strip new, with the run's values:
+
+<img src="docs/img/how_math.jpg" width="720" alt="Step 5 of the How it works page, Plain code compares the same spot: the sum 0.285 + 0.4 + 0.230 = 0.915 &gt; 0.849 in large type, the line that 0.915 is over the 0.849 cutoff so the strip is new, and an editor tab of walkaround/match.py, lines 1994 to 2090, with the run's value beside each line, ending in label L5, New">
 
 ## Proof
+
+The example is a friend's white Ford Focus, filmed with the owner's permission: a 52.9 s pickup walk and a 34.3 s
+return walk, shot 4 minutes apart. We put blue tape strips on as stand-in marks, took one off and added one between the
+walks; one scrape on the front left door is real. Alibi got 5 of the 6 marks right, one of them only in part, called
+the added strip new, and sent the one it missed to "needs your eye" instead of giving it a wrong label
+([docs/evidence/hero_focus5e_truth.md](docs/evidence/hero_focus5e_truth.md)).
 
 ### The hero run, mark by mark
 
@@ -44,14 +60,14 @@ for $6.52. No new model calls, and `walkaround verify hero_focus5e` prints "rebu
 folder (a clone holds only the served files; see Limits). From
 [docs/evidence/hero_focus5e_truth.md](docs/evidence/hero_focus5e_truth.md):
 
-| Mark | Right label | Walkaround said | Score |
+| Mark | Right label | Alibi said | Score |
 |---|---|---|---|
 | rear bumper, strip A | already there | already there | right |
 | rear bumper, strip B | already there | already there | right |
 | front left door, strip kept | already there | already there | right |
 | front left door, strip removed | not seen at return | needs your eye | miss, safe |
 | right rear door, strip added | new since pickup | new | right |
-| front left door, real scrape | already there | already there on its short piece; the long piece is not joined | right, in part |
+| front left door, real scrape | already there | already there on its long piece; the short piece is not joined | right, in part |
 
 5 of 6 right (one in part), no false "new" and no false "not seen at return". The whole sheet has 14 rows: 6 already
 there, 1 new, 3 needs your eye and 4 panels not comparable (`samples/hero_focus5e/derived/verdicts.json`). The table
@@ -69,7 +85,7 @@ mirror 2, roof 1), and none of those 13 became an already there, new or not seen
 I went through the labels of four runs on a review page (`tools/boxfix`, Verdicts tab) that shows the pickup and return
 frames side by side, and marked each label right, wrong or can't tell. Counts from `eval/verdict_checks/summary.json`:
 
-| Walkaround said | Labels | Checked | Right | Wrong | Can't tell |
+| Alibi said | Labels | Checked | Right | Wrong | Can't tell |
 |---|---|---|---|---|---|
 | already there | 13 | 9 | 9 | 0 | 0 |
 | new since pickup | 2 | 2 | 2 | 0 | 0 |
@@ -101,7 +117,7 @@ which comes from `samples/pairC_core3/derived/verdicts.json` and `docs/evidence/
 | Pexels 4228872 split at its scene cut | nothing | eval_px4228872_cut | 16 not comparable | The two halves barely overlap, so nothing was compared | 14 of 26 | $2.53 |
 | uCO3D pair C, one dataset car filmed twice | nothing | pairC_core3 | 1 already there, 11 needs your eye, 18 not comparable | No false "new" | not scored | $3.31 |
 
-On the pairs where nothing changed, Walkaround mostly declines instead of guessing. Most "not comparable" panels are
+On the pairs where nothing changed, Alibi mostly declines instead of guessing. Most "not comparable" panels are
 ones that one of the walks did not film well enough (gate G1 in `eval/results.json`).
 
 These eval rows and the three older samples (`eval_nhtsa15759_r6`, `pairC_core3`, `pairC_core3_claim2`) are runs from
@@ -196,10 +212,10 @@ against, and Meta's uCO3D dataset supplies the pair C car.
 ## Run it from a clean clone
 
 You need [uv](https://docs.astral.sh/uv/) (it fetches Python 3.13 itself) or pip with Python 3.13 or newer. No API key,
-no Node, no ffmpeg. I ran these steps from a fresh clone on Nov 3, 2026.
+no Node, no ffmpeg. I ran these steps from a fresh clone on Nov 4, 2026, with uv and again with pip on Python 3.14.
 
 ```
-git clone <this repo's URL> walkaround
+git clone https://github.com/thesanatt/walkaround.git
 cd walkaround
 uv venv --python 3.13
 uv pip install -e ".[dev]"
@@ -213,10 +229,17 @@ python3 -m venv .venv
 .venv/bin/pip install -e ".[dev]"
 ```
 
-The first start in a new environment can take 20 to 30 seconds. Open http://127.0.0.1:8000 and press "See a finished
-check". On start the app copies every folder in `samples/` into `runs/`, and the page replays the run's stored events
-under a "replayed from a run" badge; no model is called. "Download the sealed PDF" and "Read the sheet here" open the
-evidence sheet. The same from a terminal:
+The first start in a new environment can take 20 to 30 seconds. Open http://127.0.0.1:8000. The home page opens on the
+example, and "See the full result" opens it: the page replays the run's stored events, the top bar says Replay, and no
+model is called. On start the app copies every folder in `samples/` into `runs/`. "Sealed" at the top right shows the
+hashes, "Download the PDF" and "Open the sheet", and "How it works" walks through the same run in seven steps.
+
+<p>
+<img src="docs/img/home.jpg" width="49%" alt="Alibi's home page: the question Which scratches are new since you got the car?, a line to film a slow walk around the car when you get it and again when you hand it back, two frames of a white Ford Focus from the rear right, pickup at 2:46 PM with an empty dashed box on the rear door and return at 2:50 PM with a blue strip boxed in red, the line that the example has 1 new mark, on the right rear door, and a Check your own car button">
+<img src="docs/img/how.jpg" width="49%" alt="The top of the How it works page: the heading, the line What happens between your two videos, shown on the example of a friend's Ford Focus, and step 1, Two videos, with the pickup frame at 2:46 PM and the return frame at 2:50 PM">
+</p>
+
+The same from a terminal:
 
 ```
 curl -s http://127.0.0.1:8000/api/samples
@@ -347,13 +370,13 @@ made with a footage credit prints it and the license link on page 1 of its sheet
 - Unblurred originals and proxies are deleted when a run ends; the sheet prints when, and `deletions.json` lists each
   file's SHA-256. Model API uploads expire after an hour and are deleted at run end, and every request is sent with
   storage off. Meta's documentation says Standard mode is not used to train Meta models; Meta's terms allow it to keep
-  content for abuse review and legal reasons, which Walkaround does not control.
+  content for abuse review and legal reasons, which Alibi does not control.
 - The second look sends two blurred crops to Muse Spark Open on Baseten, a company separate from Meta; no video goes
   there. I have not confirmed Baseten's retention terms for Model APIs, only what is sent.
 - The hero sample: I looked at frames around every plate and face track of both display videos and at every bumper,
   trunk and rear window crop. The rear plate, the front plate bracket, the dealer sticker and the plates of cars in the
   background are smooth blurs with nothing readable; the one "face" track is the windshield glass, and no face appears.
-  The image at the top of this README was checked the same way.
+  The screenshots in `docs/img/` were checked the same way: the plates are blurred and no face appears.
 
 ## License
 
