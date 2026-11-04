@@ -12,9 +12,9 @@ Rental companies now check returned cars with AI scanners and can bill a renter 
 while the renter's only record is a phone video nobody can search.
 
 - Live app: https://walkaround-web-production.up.railway.app
-- The example result, replayed in the browser with no install and no key:
-  https://walkaround-web-production.up.railway.app/run/hero_focus5e?replay=instant
-- How it works, with the exact math and what the run cost: https://walkaround-web-production.up.railway.app/how
+- [The example result](https://walkaround-web-production.up.railway.app/run/hero_focus5e?replay=instant), replayed in
+  the browser with no install and no key
+- [How it works](https://walkaround-web-production.up.railway.app/how), with the exact math and what the run cost
 - Demo video: DEMO_VIDEO_LINK
 
 Built Oct 26 to Nov 4, 2026 by Sanat Gupta for the Meta Global AI Developer Hackathon (Indie Developer track). Alibi is
