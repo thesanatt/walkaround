@@ -26,7 +26,7 @@ function page(loc: Location, status: StatusResponse | null) {
       </Suspense>
     );
   if ((m = matchPath('/run/:id/sheet', loc.path))) return <SheetPage runId={m['id'] ?? ''} query={loc.query} />;
-  if (loc.path === '/claim') return <ClaimPage query={loc.query} />;
+  if (loc.path === '/claim') return <ClaimPage query={loc.query} status={status} />;
   if (loc.path === '/verify') return <VerifyPage />;
   return (
     <div>

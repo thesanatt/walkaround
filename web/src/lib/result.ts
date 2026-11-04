@@ -2,58 +2,6 @@ import type { LookRow, Mark, PanelMatch, Verdict, VerdictLabel } from '../contra
 import { isCounterLook, lookFor } from './looks.ts';
 import { panelName } from './panels.ts';
 
-// The answer at the top of the result page, counted from the verdicts code wrote. One verdict is one mark (a pair
-// joined across the walks is one mark seen twice).
-export interface Tally {
-  already: number;
-  fresh: number;
-  eye: number;
-  gone: number;
-  notComparable: number;
-}
-
-export function tally(verdicts: Verdict[]): Tally {
-  const n = (label: VerdictLabel) => verdicts.filter((v) => v.label === label).length;
-  return { already: n('already_there'), fresh: n('new_or_unseen'), eye: n('needs_your_eye'), gone: n('not_seen_at_return'), notComparable: n('not_comparable') };
-}
-
-// "1 mark was already there at pickup. 0 new. 11 need your eye." The not-seen-at-return count joins only when it is
-// not zero, since it never costs the renter anything.
-export function answerSentences(t: Tally): string[] {
-  const out = [`${t.already} ${t.already === 1 ? 'mark was' : 'marks were'} already there at pickup.`, `${t.fresh} new.`, `${t.eye} ${t.eye === 1 ? 'needs' : 'need'} your eye.`];
-  if (t.gone) out.push(`${t.gone} not seen at return.`);
-  return out;
-}
-
-const GATE_WORDS: Record<string, string> = {
-  G1: 'were not filmed long enough in both walks',
-  G3: 'had a blurry frame',
-  G4: 'did not line up between the two walks',
-  G5: 'failed the door handle check',
-  G6: 'were seen from an unclear side',
-  G7: 'were not fully tracked',
-  G8: 'did not line up between the two walks',
-  G9: 'had the window cut out in one walk only',
-  G10: 'had their mark list cut short',
-  G11: 'were filmed at very different sizes in the two walks',
-  G12: 'were mostly blurred for privacy in one walk',
-  G13: 'showed the left one in one walk and the right one in the other',
-};
-
-// "18 panels could not be compared. Most were not filmed long enough in both walks."
-export function notComparableLine(verdicts: Verdict[]): string | null {
-  const nc = verdicts.filter((v) => v.label === 'not_comparable');
-  if (!nc.length) return null;
-  const counts = new Map<string, number>();
-  for (const v of nc) for (const id of new Set(v.trace.rule_ids.filter((r) => GATE_WORDS[r]))) counts.set(id, (counts.get(id) ?? 0) + 1);
-  const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-  const head = nc.length === 1 ? '1 panel could not be compared.' : `${nc.length} panels could not be compared.`;
-  if (!top) return head;
-  const words = GATE_WORDS[top[0]]!;
-  if (nc.length === 1) return `${head} It ${words.replace(/^were /, 'was ').replace(/^had their /, 'had its ')}.`;
-  return `${head} ${top[1] === nc.length ? 'All' : 'Most'} ${words}.`;
-}
-
 // One short plain line per needs-your-eye rule: why code left the call to the renter.
 export const WHY: Record<string, string> = {
   K1: 'Close to a mark in the other walk, but not close enough to call it the same one.',
@@ -94,25 +42,6 @@ export function whyLine(v: Verdict): string {
   if (v.label === 'not_comparable') return 'This panel could not be compared.';
   const id = [v.rule_id, ...v.trace.rule_ids].find((r) => WHY[r]);
   return id ? WHY[id]! : 'The check could not decide, so it leaves this one to you.';
-}
-
-// The order of the cards, which is the order of the answer sentence.
-export const CARD_ORDER: VerdictLabel[] = ['already_there', 'new_or_unseen', 'needs_your_eye', 'not_seen_at_return'];
-
-export const GROUP_TITLE: Record<string, string> = {
-  already_there: 'Already there at pickup',
-  new_or_unseen: 'New since pickup, or hidden at pickup',
-  needs_your_eye: 'Needs your eye',
-  not_seen_at_return: 'Not seen at return',
-};
-
-// "small dark speck", from the first mark that carries Muse Spark's words.
-export function markWords(v: Verdict, marks: Map<string, Mark>): string | null {
-  for (const id of v.mark_ids) {
-    const d = marks.get(id)?.description;
-    if (d) return d;
-  }
-  return null;
 }
 
 // The renter-first answer (critic, Nov 1): panels, not marks. Every count comes from the labels code wrote; this only
@@ -171,74 +100,6 @@ export function subline(verdicts: Verdict[], compared: number): string {
     out.push(`${nc.length} ${nc.length === 1 ? 'panel' : 'panels'} ${what}.`);
   }
   return out.join(' ');
-}
-
-// Needs your eye, grouped by the reason code gave, each with what the renter can do about it. The first group whose
-// ids the verdict carries wins, so the most specific reason leads.
-export interface EyeKind {
-  key: string;
-  ids: string[];
-  title: (n: number) => string;
-  todo: string;
-}
-
-const spots = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-export const EYE_KINDS: EyeKind[] = [
-  {
-    key: 'named',
-    ids: ['K14'],
-    title: (n) => `${spots(n, 'spot', 'spots')} you pointed out while filming`,
-    todo: 'Check that each box sits on what you meant. Your words are saved with the walk.',
-  },
-  {
-    key: 'shape',
-    ids: ['L7'],
-    title: (n) => `${spots(n, 'panel whose', 'panels whose')} outline changed between the walks`,
-    todo: 'Look along the panel with the light across it for a dent or a bend, and photograph it from the side.',
-  },
-  {
-    key: 'unseen',
-    ids: ['K21'],
-    title: (n) => `${spots(n, 'spot', 'spots')} the other walk barely filmed`,
-    todo: 'Look at each spot on the car. Next time, film that part of the panel in both walks.',
-  },
-  {
-    key: 'pair',
-    ids: ['K1', 'K5', 'K7', 'K16', 'K18', 'K19'],
-    title: (n) => `${spots(n, 'mark that', 'marks that')} may or may not be the same in both walks`,
-    todo: 'Compare the two frames yourself. Both walks are sealed, so either frame can back you up.',
-  },
-  {
-    key: 'dirt',
-    ids: ['K4', 'K15', 'K6', 'K9'],
-    title: (n) => `${spots(n, 'spot that', 'spots that')} may be dirt, water or glare`,
-    todo: 'Wipe each spot and look again. If it is still there, take a close photo of it.',
-  },
-  {
-    key: 'unsure',
-    ids: ['K12', 'K17', 'K20', 'K2', 'K3', 'K8', 'K13', 'K10'],
-    title: (n) => `${spots(n, 'spot', 'spots')} the models were not sure is damage`,
-    todo: 'Look at each spot on the car. Take a close photo of any that is real damage.',
-  },
-  {
-    key: 'claim',
-    ids: ['K11'],
-    title: (n) => `${spots(n, 'claim box covers', 'claim boxes cover')} a whole area`,
-    todo: 'Place a photo cropped closer to the one mark the bill is about.',
-  },
-];
-
-const OTHER: EyeKind = { key: 'other', ids: [], title: (n) => `${spots(n, 'spot', 'spots')} the check could not call`, todo: 'Look at both frames yourself.' };
-
-export function eyeKind(v: Verdict): EyeKind {
-  const ids = new Set([v.rule_id, ...v.trace.rule_ids, ...v.reasons]);
-  return EYE_KINDS.find((k) => k.ids.some((id) => ids.has(id))) ?? OTHER;
-}
-
-export function eyeGroups(verdicts: Verdict[]): { kind: EyeKind; verdicts: Verdict[] }[] {
-  const eye = verdicts.filter((v) => v.label === 'needs_your_eye');
-  return [...EYE_KINDS, OTHER].map((kind) => ({ kind, verdicts: eye.filter((v) => eyeKind(v) === kind) })).filter((g) => g.verdicts.length);
 }
 
 // The panels not compared, each with its reason in plain words.
@@ -318,9 +179,4 @@ export function creditLine(v: Verdict, marks: Map<string, Mark>, looks: LookRow[
   }
   parts.push(v.label === 'needs_your_eye' ? 'code left the call to you' : 'code made the call');
   return `${parts.join('; ')}.`;
-}
-
-// The cards that answer the question (new first, then already there), in the order the answer names them.
-export function clearVerdicts(verdicts: Verdict[]): Verdict[] {
-  return [...verdicts.filter((v) => v.label === 'new_or_unseen'), ...verdicts.filter((v) => v.label === 'already_there')];
 }

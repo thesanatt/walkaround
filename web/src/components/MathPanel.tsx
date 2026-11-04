@@ -45,10 +45,12 @@ function Code({ rows }: { rows: MathRow[] }) {
   );
 }
 
-export function MathPanel({ math, id }: { math: MathView; id: string }) {
+// credit: which Meta model did what for this finding, and that code made the call (lib/result.ts creditLine).
+export function MathPanel({ math, id, credit }: { math: MathView; id: string; credit?: string }) {
   const d = math.decision;
   return (
     <section className="math" id={id} aria-label="the math">
+      {credit ? <p className="math-credit">{credit}</p> : null}
       {d ? (
         <div className="math-decision">
           <p className="math-big">

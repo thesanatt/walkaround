@@ -3,7 +3,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { api, ApiError } from '../api/client.ts';
 import { Bar } from '../components/Bar.tsx';
 import { Link } from '../lib/router.tsx';
-import type { Claim, Coverage, Keyframe, Mark, Panel, PanelId, VideoRecord } from '../contracts/types.ts';
+import type { Claim, Coverage, Keyframe, Mark, Panel, PanelId, StatusResponse, VideoRecord } from '../contracts/types.ts';
 import {
   claimCandidates,
   claimPhotoPath,
@@ -268,11 +268,8 @@ export function ClaimResult({
         </div>
       </div>
       {folded ? (
-        <details className="eye-group claim-more">
-          <summary>
-            <span className="eye-title">How the photo was placed</span>
-            <span className="eye-todo">Which model named the panel, where the photo landed, and the full sheet paragraph.</span>
-          </summary>
+        <details className="fold">
+          <summary>How the photo was placed</summary>
           {facts}
         </details>
       ) : (
@@ -313,12 +310,12 @@ function ClaimSampleLine() {
   if (!id) return null;
   return (
     <p className="claim-sample">
-      Want to see one first? <Link to={`/run/${encodeURIComponent(id)}?replay=instant`}>Open a finished claim</Link>: a claim photo already placed against a pickup walk.
+      <Link to={`/run/${encodeURIComponent(id)}?replay=instant&claim=1`}>See a finished claim</Link>
     </p>
   );
 }
 
-export function ClaimPage({ query }: { query: URLSearchParams }) {
+export function ClaimPage({ query, status = null }: { query: URLSearchParams; status?: StatusResponse | null }) {
   const [runId, setRunId] = useState(query.get('run') ?? '');
   const [text, setText] = useState('');
   const [tire, setTire] = useState('');
@@ -349,37 +346,43 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
     void place();
   };
 
+  // A replay-only copy takes no claim; the form stays to show what it asks, and the finished claim opens instead.
+  const off = Boolean(status?.paused);
+
   return (
     <div className="claim">
       <Bar />
-      <h1>Place a claim photo</h1>
-      <p className="lead">
-        Add the photo from the damage bill and the bill's words. Muse Spark names the panel, SAM 3.1 checks the name, and your dated pickup frame of that panel
-        comes back next to the photo. A size is printed only when a ruler (the plate, or a wheel with its tire size) is in frame, and always with its range.
+      <h1 className="page-title">A bill arrived?</h1>
+      <p className="page-lead">
+        Add the photo and the words from the bill. Muse Spark names the panel, SAM 3.1 checks the name, and your sealed pickup frame of that panel comes back beside
+        the photo.
       </p>
       <ClaimSampleLine />
+      {off ? <p className="start-off">New claims are off on this copy.</p> : null}
       <form className="form-grid" onSubmit={submit}>
-        <label>
-          Your check's id (the end of its result page address)
-          <input value={runId} onChange={(e) => setRunId(e.target.value.trim())} required spellCheck={false} />
-        </label>
-        <label>
-          The claim photo
-          <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] ?? null)} required />
-        </label>
-        <label>
-          The words on the bill
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="scratch, right rear door" />
-        </label>
-        <label>
-          Tire size from the sidewall, only for a wheel mark
-          <input value={tire} onChange={(e) => setTire(e.target.value.trim())} placeholder="225/45R17" spellCheck={false} />
-        </label>
-        <div>
-          <button type="submit" className="button" disabled={busy || !image || !runId}>
-            {busy ? 'Placing the claim' : 'Place the claim against the pickup walk'}
-          </button>
-        </div>
+        <fieldset disabled={off}>
+          <label>
+            Your check's id, the end of its result address
+            <input value={runId} onChange={(e) => setRunId(e.target.value.trim())} required spellCheck={false} />
+          </label>
+          <label>
+            The claim photo
+            <input type="file" accept="image/*" onChange={(e) => setImage(e.target.files?.[0] ?? null)} required />
+          </label>
+          <label>
+            The words on the bill
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3} placeholder="scratch, right rear door" />
+          </label>
+          <label>
+            Tire size from the sidewall, only for a wheel mark
+            <input value={tire} onChange={(e) => setTire(e.target.value.trim())} placeholder="225/45R17" spellCheck={false} />
+          </label>
+          <div>
+            <button type="submit" className="button" disabled={off || busy || !image || !runId}>
+              {busy ? 'Placing the claim' : 'Place the claim against the pickup walk'}
+            </button>
+          </div>
+        </fieldset>
       </form>
       {busy ? <p className="small muted" role="status">Muse Spark is naming the panel and SAM 3.1 is checking the name. This takes up to about 30 seconds.</p> : null}
       {error ? <p className="error-line">{error}</p> : null}

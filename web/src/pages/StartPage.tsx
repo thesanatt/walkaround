@@ -4,32 +4,12 @@ import { api, ApiError } from '../api/client.ts';
 import { Bar } from '../components/Bar.tsx';
 import { Slot, uploadBusy, type UploadUi } from '../components/Slot.tsx';
 import type { RunManifest, StatusResponse, WalkRole } from '../contracts/types.ts';
+import { exampleUrl, useExample } from '../lib/example.ts';
 import { Link, navigate } from '../lib/router.tsx';
 import { HashMismatch, limitsOf, newUploadId, sharedHashWorker, uploadFile } from '../lib/upload.ts';
 
 type Kind = 'pickup_check' | 'pair';
 
-export const exampleUrl = (id: string) => `/run/${encodeURIComponent(id)}?replay=instant`;
-
-// The first sample the server lists (samples/index.json order), for "See an example".
-function useExample(): string | null {
-  const [id, setId] = useState<string | null>(null);
-  useEffect(() => {
-    let live = true;
-    void api
-      .samples()
-      .then((r) => r.samples[0]?.run_id ?? null)
-      .catch(() => api.sample().then((s) => s.run_id))
-      .catch(() => null)
-      .then((runId) => {
-        if (live) setId(runId);
-      });
-    return () => {
-      live = false;
-    };
-  }, []);
-  return id;
-}
 
 // Why the slots are off, in one line; null while they take files.
 function offLine(status: StatusResponse | null, kind: Kind): string | null {

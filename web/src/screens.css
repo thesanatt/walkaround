@@ -893,9 +893,304 @@
   color: var(--muted);
 }
 
-/* the record view keeps its own sections; only its head follows the screens */
+/* everything the check recorded, and the page while a check runs ---------------------------------------------- */
 .record-back {
+  margin: 4px 0 0;
+}
+
+.record-head {
+  margin: 36px 0 0;
+}
+
+.record-head h1 {
+  font-size: clamp(2.25rem, 4.2vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.015em;
+  margin: 0 0 14px;
+}
+
+.record-sum {
+  color: var(--muted);
+  font-size: 1.125rem;
+  max-width: 72ch;
+  margin: 0 0 8px;
+}
+
+.record-head .stage-line {
+  max-width: 720px;
+  margin: 20px 0 8px;
+}
+
+.record-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 32px;
+  margin-top: 24px;
+}
+
+.walks-live {
+  margin-top: 40px;
+}
+
+.rec-section {
+  margin-top: 72px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.rec-section > h2 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 6px;
+}
+
+.rec-note {
+  color: var(--muted);
+  max-width: 72ch;
+  margin: 0 0 24px;
+}
+
+.rec-sub {
+  font-size: 1.125rem;
+  font-weight: 600;
   margin: 0 0 12px;
+}
+
+.rec-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+  gap: 56px;
+  align-items: start;
+}
+
+.rec-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  max-width: 980px;
+}
+
+.rec-list li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.rec-list strong {
+  font-weight: 600;
+  margin-right: 10px;
+}
+
+.rec-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  align-items: center;
+  margin: 0 0 16px;
+}
+
+.rec-hashes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-width: 980px;
+}
+
+.rec-hashes li {
+  display: grid;
+  grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.rec-hashes .mono {
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.rec-run {
+  color: var(--muted);
+}
+
+.rec-mode select {
+  font: inherit;
+  font-size: 0.9375rem;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--strong-line);
+  border-radius: 0;
+  padding: 6px 10px;
+}
+
+.rec-more {
+  margin-top: 64px;
+  border-top: 1px solid var(--line);
+}
+
+.rec-more > summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 20px 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  width: max-content;
+}
+
+.rec-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.rec-more > summary::after {
+  content: ' +';
+  color: var(--muted);
+}
+
+.rec-more[open] > summary::after {
+  content: ' -';
+}
+
+.rec-marks {
+  margin-top: 56px;
+}
+
+.rec-marks > h2 {
+  font-size: 1.75rem;
+  margin-bottom: 20px;
+}
+
+.rec-mark-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: 28px 24px;
+}
+
+.fold > summary {
+  cursor: pointer;
+  list-style: none;
+  width: max-content;
+  max-width: 100%;
+  margin: 18px 0;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.record .walk-title h3 {
+  font-size: 1.125rem;
+  margin: 0;
+}
+
+.record .crops {
+  gap: 24px;
+}
+
+.record .crop figcaption,
+.record .footage-credit {
+  font-size: 0.8125rem;
+}
+
+/* nothing here: a missing run or route --------------------------------------------------------------------------- */
+.nothing h1,
+.page-title {
+  font-size: clamp(2.5rem, 4.6vw, 4rem);
+  font-weight: 700;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  margin: 56px 0 16px;
+  max-width: 18ch;
+}
+
+.nothing-line,
+.page-lead {
+  color: var(--muted);
+  font-size: 1.125rem;
+  max-width: 60ch;
+}
+
+.nothing-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  margin-top: 28px;
+}
+
+/* claim: the page that takes a bill's photo, and a placed claim on a run --------------------------------------- */
+.claim-sample {
+  margin: 20px 0 0;
+}
+
+.claim .form-grid {
+  margin-top: 40px;
+}
+
+.form-grid fieldset {
+  display: grid;
+  gap: 24px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.form-grid input[type='file'] {
+  border-bottom: 0;
+  padding: 4px 0;
+  font-size: 0.9375rem;
+  color: var(--muted);
+}
+
+.form-grid input[type='file']::file-selector-button {
+  font: inherit;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--strong-line);
+  border-radius: 0;
+  padding: 8px 16px;
+  margin-right: 14px;
+  cursor: pointer;
+}
+
+.form-grid fieldset:disabled {
+  opacity: 0.55;
+}
+
+.claim-result {
+  margin-top: 40px;
+}
+
+.claim-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.claim-screen .frame-view img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.claim-how .claim-steps {
+  max-width: 760px;
+}
+
+.claim-how .claim-paragraph {
+  margin-top: 16px;
+  max-width: 72ch;
+  color: var(--muted);
+}
+
+.find-group.claim h2 > span:first-child {
+  color: var(--ink);
 }
 
 /* phone ---------------------------------------------------------------------------------------------------------- */
@@ -1073,6 +1368,28 @@
   .sealed-panel {
     padding: 20px 20px 40px;
     border-left: 0;
+  }
+
+  .rec-panels {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+  }
+
+  .rec-section {
+    margin-top: 56px;
+  }
+
+  .rec-hashes li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
+
+/* a 1920 x 1080 screen (the demo recording) lays out as 1600 x 900 and scales up, so every screen keeps the 1440 x 900
+   composition at a size that reads on video; the kiosk has its own 1920 x 1080 stage outside the shell */
+@media (min-width: 1800px) and (min-height: 1000px) {
+  .shell {
+    zoom: 1.2;
   }
 }
 

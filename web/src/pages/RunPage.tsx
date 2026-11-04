@@ -1,11 +1,12 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
-import { Bar } from '../components/Bar.tsx';
+import { Bar, ReplayNote } from '../components/Bar.tsx';
 import { Frame, type BoxTone, type FrameBox } from '../components/Frame.tsx';
 import { MathPanel } from '../components/MathPanel.tsx';
 import { SealedPanel, sealedAt } from '../components/SealedPanel.tsx';
-import type { Box4, Mark, Verdict } from '../contracts/types.ts';
-import { RunFiles } from '../lib/files.tsx';
+import type { Box4, Claim, Mark, Verdict } from '../contracts/types.ts';
+import { claimPhotoPath, claimWorkSize, effectiveExit, EXIT_WORDS } from '../lib/claim.ts';
+import { RunFiles, useFileUrl } from '../lib/files.tsx';
 import {
   ANSWER_WORD,
   answerLines,
@@ -21,16 +22,18 @@ import {
   type Finding,
   type Group,
 } from '../lib/findings.ts';
-import { formatDate, formatStamp } from '../lib/format.ts';
+import { formatStamp } from '../lib/format.ts';
 import { mathFor } from '../lib/math.ts';
 import { panelName } from '../lib/panels.ts';
-import { comparedPanels, whyLine } from '../lib/result.ts';
+import { comparedPanels, creditLine, whyLine } from '../lib/result.ts';
 import { Link, navigate } from '../lib/router.tsx';
 import { replayBadgeDate } from '../lib/runview.ts';
+import { exampleUrl, useExample } from '../lib/example.ts';
 import { useYourChecks } from '../lib/yourcheck.ts';
 import { rolesOf } from '../state/reducer.ts';
 import type { RunState } from '../state/types.ts';
 import { useRun, type RunSource } from '../state/useRun.ts';
+import { claimFrame, ClaimSteps } from './ClaimPage.tsx';
 import { replayModeOf, RunRecord } from './RunRecord.tsx';
 
 // The run page. A finished pair opens on the answer and its findings (?f=<verdict> for one finding, &math=1 with the
@@ -70,6 +73,7 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   const { state } = handle;
   const roles = rolesOf(state);
   const yours = useYourChecks(runId);
+  const example = useExample();
   const marks = useMemo(() => new Map(state.marks.map((m) => [m.mark_id, m])), [state.marks]);
 
   const done = state.completed || state.stage.name === 'done' || state.stage.name === 'partial';
@@ -86,15 +90,24 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   ) : null;
   const badge = replayBadgeDate(state);
   // a replay says so beside the name, on every screen of it
-  const note =
-    badge !== null ? (
-      <>
-        Replay<span className="bar-note-more"> of a run from {formatDate(badge)}</span>
-      </>
-    ) : null;
+  const note = badge !== null ? <ReplayNote date={badge} /> : null;
   const panel = sealedOpen ? (
     <SealedPanel runId={runId} state={state} checks={yours.checks} marks={marks} closeTo={at({ sealed: null })} recordTo={at({ sealed: null, f: null, math: null, record: '1' })} />
   ) : null;
+
+  // No run at this address, or the server would not give it: one plain screen, never a half-drawn page.
+  if (handle.status === 'error' && !state.run && !done)
+    return (
+      <div className="nothing">
+        <Bar />
+        <h1>No check at this address</h1>
+        <p className="nothing-line">{handle.detail ? `The server said: ${handle.detail}.` : 'The server could not open it.'}</p>
+        <p className="nothing-links">
+          <Link to="/">Start over</Link>
+          {example ? <Link to={exampleUrl(example)}>See an example</Link> : null}
+        </p>
+      </div>
+    );
 
   if (record || failed || (done && !pair) || (!done && mode !== 'instant'))
     return (
@@ -108,7 +121,9 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
     return (
       <div className="opening">
         <Bar />
-        <p className="muted">{handle.status === 'error' ? `Could not open this check: ${handle.detail ?? 'unknown error'}.` : 'Opening the check'}</p>
+        <p className="muted" role="status">
+          Opening the check
+        </p>
       </div>
     );
 
@@ -116,9 +131,13 @@ export function RunPage({ runId, query }: { runId: string; query: URLSearchParam
   const fid = query.get('f');
   const index = fid ? list.findIndex((f) => f.v.verdict_id === fid) : -1;
 
+  const claimOpen = query.get('claim') === '1' && state.claim !== null;
+
   return (
     <RunFiles runId={runId}>
-      {index >= 0 ? (
+      {claimOpen && state.claim ? (
+        <ClaimScreen state={state} claim={state.claim} note={note} bar={sealedLink} back={at({ claim: null })} />
+      ) : index >= 0 ? (
         <FindingScreen
           key={fid}
           state={state}
@@ -174,6 +193,24 @@ function ResultScreen({
           {compared ? <p className="answer-count">{`${compared} ${compared === 1 ? 'panel' : 'panels'} compared`}</p> : null}
         </section>
         <section className="result-list" aria-label="findings">
+          {state.claim ? (
+            <div className="find-group claim">
+              <h2>
+                <span>Claim photo</span> <span className="find-count">{state.claims.length || 1}</span>
+              </h2>
+              <ul>
+                <li>
+                  <Link to={at({ claim: '1', f: null, math: null, sealed: null })} className="find-row">
+                    <ClaimThumb claim={state.claim} />
+                    <span className="find-text">
+                      <span className="find-panel">{state.claim.panel_id ? cap(panelName(state.claim.panel_id)) : 'No panel named'}</span>
+                      {state.claim.text ? <span className="find-words">{state.claim.text}</span> : null}
+                    </span>
+                  </Link>
+                </li>
+              </ul>
+            </div>
+          ) : null}
           {groups.map((g) => {
             const allYours = g.items.every((f) => f.answer);
             const title = g.group === 'gone' && !allYours ? 'Not seen at return' : GROUP_WORD[g.group];
@@ -192,11 +229,6 @@ function ResultScreen({
               </div>
             );
           })}
-          {state.claim ? (
-            <p className="result-note">
-              <Link to={at({ record: '1', f: null })}>A claim photo was placed on this check</Link>
-            </p>
-          ) : null}
           {byEye ? <p className="result-note">{byEye}: check by eye</p> : null}
           {credit ? <p className="credit">{credit}</p> : null}
         </section>
@@ -318,7 +350,7 @@ function FindingScreen({
           {mathOpen ? 'Hide the math' : 'Show the math'}
         </Link>
       </p>
-      {mathOpen ? <MathPanel math={mathFor(v, marks, match, state.looks)} id="math" /> : null}
+      {mathOpen ? <MathPanel math={mathFor(v, marks, match, state.looks)} credit={creditLine(v, marks, state.looks)} id="math" /> : null}
     </div>
   );
 }
@@ -348,6 +380,85 @@ function YourCheck({ v, marks, answer, onAnswer }: { v: Verdict; marks: Map<stri
       </div>
       <p className="yourcheck-note">Kept in this browser. The sealed sheet does not change.</p>
     </section>
+  );
+}
+
+function ClaimThumb({ claim }: { claim: Claim }) {
+  const url = useFileUrl();
+  const rel = claimPhotoPath(claim);
+  if (!rel) return <span className="frame-thumb empty" aria-hidden="true" />;
+  return (
+    <span className="frame-thumb claim-thumb" aria-hidden="true">
+      <img src={url(rel)} alt="" />
+    </span>
+  );
+}
+
+// A claim photo placed against the run: the photo from the bill beside the sealed pickup frame of that panel, the
+// exit or the placement in one line, and how it was placed behind a toggle.
+function ClaimScreen({ state, claim, note, bar, back }: { state: RunState; claim: Claim; note: ReactNode; bar: ReactNode; back: string }) {
+  const url = useFileUrl();
+  const [open, setOpen] = useState(false);
+  const ctx = { keyframes: state.keyframes, marks: state.marks, coverage: state.coverage };
+  const hit = claimFrame(claim, ctx);
+  const exit = effectiveExit(claim);
+  const rel = claimPhotoPath(claim);
+  const [w, h] = claimWorkSize(claim.image);
+  const roi = claim.roi?.source === 'drawn' ? claim.roi.box : null;
+  const sealed = sealedAt(state);
+  const pct = (v: number, of: number) => `${((100 * v) / of).toFixed(3)}%`;
+  return (
+    <div className="finding claim-screen">
+      <Bar note={note}>{bar}</Bar>
+      <nav className="finding-nav" aria-label="findings">
+        <Link to={back}>All findings</Link>
+      </nav>
+      <header className="finding-head">
+        <p className="finding-label">Claim photo</p>
+        <h1>{claim.panel_id ? cap(panelName(claim.panel_id)) : 'No panel named'}</h1>
+        {claim.text ? <p className="finding-words">The bill says: {claim.text}</p> : null}
+        <p className="finding-why">{exit ? EXIT_WORDS[exit] : 'Placed against the sealed pickup walk, beside its frame of the same panel.'}</p>
+      </header>
+      <div className="frames">
+        <figure className="frame">
+          <div className="frame-view" style={{ aspectRatio: `${w} / ${h}` }} role="img" aria-label="the claim photo, plates and faces pixelated">
+            {rel ? <img src={url(rel)} alt="" /> : null}
+            {roi ? (
+              <span
+                className="frame-box eye"
+                style={{ left: pct((roi[0] + roi[2]) / 2, w), top: pct((roi[1] + roi[3]) / 2, h), width: `max(56px, ${pct(roi[2] - roi[0], w)})`, height: `max(56px, ${pct(roi[3] - roi[1], h)})` }}
+              />
+            ) : null}
+          </div>
+          <figcaption>Claim photo</figcaption>
+        </figure>
+        {hit ? (
+          <Frame kf={hit.kf} role={hit.kf.role} boxes={hit.mark?.bbox_crop ? [{ box: hit.mark.bbox_crop, tone: 'plain' }] : []} whole />
+        ) : (
+          <figure className="frame empty">
+            <div className="frame-view">No pickup frame of this panel in the run.</div>
+          </figure>
+        )}
+      </div>
+      <p className="credit">
+        {sealed ? `The pickup walk was sealed ${formatStamp(sealed, true)}. ` : ''}
+        {state.run?.footage_credit ?? ''}
+      </p>
+      <p className="math-toggle">
+        <button type="button" className="link-button" aria-expanded={open} onClick={() => setOpen(!open)}>
+          {open ? 'Hide how it was placed' : 'Show how it was placed'}
+        </button>
+      </p>
+      {open ? (
+        <section className="math claim-how" aria-label="how the photo was placed">
+          <ClaimSteps claim={claim} />
+          {claim.paragraph ? <p className="claim-paragraph">{claim.paragraph}</p> : null}
+          <p className="small muted mono">
+            photo {claim.image.w}x{claim.image.h}, sha256 {claim.image.sha256.slice(0, 12)}
+          </p>
+        </section>
+      ) : null}
+    </div>
   );
 }
 
