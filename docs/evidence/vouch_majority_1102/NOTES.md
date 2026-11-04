@@ -31,7 +31,7 @@ Every G4 pair the rule asked about, 11 stored runs (replay_vouch_hf3.json, repla
 | hero_focus3 rear bumper | pickup kf1 with return kf2 (IoU 0.67) | yes: features, 110 of 179 agree, spread 0.665, 1.32 px, IoU after warp 0.858 |
 | hero_focus3 right front fender | 4 pairs (IoU 0.28 to 0.63) | kf3 with return kf2: 68 of 93, spread 0.551, 1.78 px, 0.888; the 3 others refused |
 | hero_focus3 right rear fender | 1 (0.69) | refused (outline, IoU after warp 0.83) |
-| hero_focus1, hero_focus2, lexi_pair1, lexi_pair2, pairC_r16, pairC_core3, eval_nhtsa15759_r16, synth_pair2_r9 | 33 | none: every fit refused by register.align (outline fits, IoU after warp 0.07 to 0.87) |
+| hero_focus1, hero_focus2, friend_pair1, friend_pair2, pairC_r16, pairC_core3, eval_nhtsa15759_r16, synth_pair2_r9 | 33 | none: every fit refused by register.align (outline fits, IoU after warp 0.07 to 0.87) |
 
 (synth_pair2_r8 has no G4-only pair.) The only accepted fits on a G4 pair are the two on hero_focus3; one more of its
 fits, right front fender kf2 with kf2 (78 agree, spread 0.21), would fail the spread floor, but that pair was never
@@ -64,7 +64,7 @@ Right front fender: one pair already there (pickup kf2 m1 with return kf1 m1, "t
 said same) and three lines capped by K20. That panel holds no truth mark, so the truth file cannot say whether the pair
 is right.
 
-Other runs: no label changes on hero_focus1, hero_focus2, lexi_pair1, lexi_pair2, pairC_r16, pairC_core3,
+Other runs: no label changes on hero_focus1, hero_focus2, friend_pair1, friend_pair2, pairC_r16, pairC_core3,
 eval_nhtsa15759_r16, synth_pair2_r8 or synth_pair2_r9, because no fit vouched.
 
 ## Decision 2: the second look by majority (matching.look_majority)
@@ -126,7 +126,7 @@ hero_focus2's stray-box not seen at return is capped by K20, as in R23's replay.
 ## No right label lost (replay, no call)
 
 replay_both.json (frozen thresholds) and replay_current.json (frozen plus every matching leaf config has), base
-against both leaves: lexi_pair2, pairC_r16 and eval_nhtsa15759_r16 give the same label on every line (0 changed
+against both leaves: friend_pair2, pairC_r16 and eval_nhtsa15759_r16 give the same label on every line (0 changed
 lines). With one stored answer per look, the majority gives that answer. hero_focus2 does not change offline either.
 
 ## Cost and time

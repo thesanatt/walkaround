@@ -1,6 +1,6 @@
-"""The second marks pass for silent misses (lexi run 1, 11/2; thresholds matching.second_marks_pass, off when absent).
+"""The second marks pass for silent misses (friend run 1, 11/2; thresholds matching.second_marks_pass, off when absent).
 
-On lexi_pair1 Muse Spark returned no mark on a panel in one walk while the other walk's crops held one there, on views
+On friend_pair1 Muse Spark returned no mark on a panel in one walk while the other walk's crops held one there, on views
 that passed every gate. Here, once the panels are gated, each panel that is comparable (every gate passed on its
 keyframe pair) with no mark in one walk and at least one in the other gets one more marks_v1 call per other-walk mark:
 on that walk's compared crop, a window around where the other walk's mark maps through the panel frame (whitened in

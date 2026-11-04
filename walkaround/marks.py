@@ -769,7 +769,7 @@ def _marks_of(root: Path, results: list[tuple[Keyframe, Any, Any]], *, th: dict,
     return [*marks, *left_out], updated, sq_sum, dof
 
 
-# On the panel (lexi run 1, 11/2, thresholds dedup.marks_on_panel) -------------------------------------------------------
+# On the panel (friend run 1, 11/2, thresholds dedup.marks_on_panel) -------------------------------------------------------
 
 
 def on_panel_frac(th: dict | None) -> float | None:

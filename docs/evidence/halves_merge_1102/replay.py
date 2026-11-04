@@ -5,7 +5,7 @@ copy as the run's frozen facts, then the product rebuild runs in place (marks, n
 stored second looks, sheet). A pair or counter-look with no stored answer replays as not asked (caps stay), so a new
 tight pair can only end at needs your eye here; a live run would ask it.
 
-  base     as R18: lexi_pair1 with R16's panels.uncertain_per_track and dedup.marks_on_panel; the other two with today's
+  base     as R18: friend_pair1 with R16's panels.uncertain_per_track and dedup.marks_on_panel; the other two with today's
            zoom refine and SAM step leaves.
   VARIANT  base plus dedup.spark_halves_pass with study.VARIANTS[VARIANT].
   _r17     synth_pair2_r9 only: R17's zoom and SAM answers for its full-crop marks go in too.
@@ -36,8 +36,8 @@ current = c.load_thresholds()
 orch = pipeline.make_orchestrator()
 run = orch.load_run(RUN)
 th = json.loads(json.dumps(orch.run_th(run)))
-lexi = RUN.startswith("lexi")
-if lexi:
+friend = RUN.startswith("friend")
+if friend:
     th["panels"]["uncertain_per_track"] = True
     th["dedup"]["marks_on_panel"] = current["dedup"]["marks_on_panel"]
 else:
@@ -60,7 +60,7 @@ with _runs_root(OUT):
     if EXTRA:
         zoom_refine.write_asks(RUN, [*zoom_refine.read_asks(RUN), *study.extra_zoom(RUN)])
         box_refine.write_asks(RUN, [*box_refine.read_asks(RUN), *study.extra_sam(RUN)])
-    if lexi:  # replay_1102 c1: panels re-derived from the stored tracks with per-track uncertainty
+    if friend:  # replay_1102 c1: panels re-derived from the stored tracks with per-track uncertainty
         tracks = c.read_json_list(paths.tracks_json(RUN), c.PanelTrack)
         old = {p.panel_id: p for p in c.read_json_list(paths.panels_json(RUN), c.Panel)}
         new = panels._panels_from(tracks, {}, fps=run.fps or 15.0, merge_gap_s=float(th["panels"]["merge_gap_max_s"]), fallback_dt=1.0 / float(th["media"]["proxy_fps"]), per_track=True)

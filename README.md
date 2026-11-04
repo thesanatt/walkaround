@@ -82,7 +82,7 @@ already there, 1 new, 1 not seen at return, and for 5 I did not pick a label.
 
 The runs: hero_focus4 (12 of 26 labels checked) and hero_focus5b (17 of 17) are two runs of the same Ford Focus videos.
 They are not independent of the sample: hero_focus5b was recomputed from the same model answers as the sample
-hero_focus5e, and the two "new" labels are the same added strip in both runs. lexi_pair2 (12 of 22) is a second car, filmed on Nov 2 with its owner's permission, with paper stand-in marks;
+hero_focus5e, and the two "new" labels are the same added strip in both runs. friend_pair2 (12 of 22) is a second car, filmed on Nov 2 with its owner's permission, with paper stand-in marks;
 pairC_core3 (3 of 30) is a uCO3D dataset car. These are my own checks, not an outside review, and I changed rules after
 making them (`docs/CONTRACTS.md`, "R29"), so they are not a held-out test.
 
@@ -180,7 +180,7 @@ against, and Meta's uCO3D dataset supplies the pair C car.
 - **Glass and wheels are left to your eye.** Windows, the windshield and the wheels (rims and tires) get a "check by
   eye" line and no label. Most of Muse Spark's boxes on spots that are not marks were on glass. Dirt folds into one
   debris line per panel.
-- **Stand-in marks.** The hero's marks are blue tape strips plus one real scrape, and lexi_pair2's are paper shapes.
+- **Stand-in marks.** The hero's marks are blue tape strips plus one real scrape, and friend_pair2's are paper shapes.
   Tape is easy to see; real rental damage is often fainter. No real rental and no real renter is in this work yet.
 - **One false "new" in the eval, not fixed.** The first run of the Pexels two-takes pair called a parking-sensor dot
   new. Asked 5 times with a sentence saying sensors are not damage and 5 times without it, Muse Spark put a damage box
@@ -320,7 +320,7 @@ Only footage we have rights to is in this repo or behind any number in it.
 - The hero car: a friend's white Ford Focus, filmed with the owner's permission (both walks sealed Nov 2, 2026); the
   marks are blue tape stand-ins plus one real scrape. Its credit line, as the run prints it: "Footage: filmed by us with the car owner's
   permission; the marks are blue tape stand-ins". Plates are blurred.
-- lexi_pair2: a second car, filmed on Nov 2, 2026 with its owner's permission, paper stand-in marks. Its footage is not
+- friend_pair2: a second car, filmed on Nov 2, 2026 with its owner's permission, paper stand-in marks. Its footage is not
   in this repo; only my checks of its labels are.
 - uCO3D (Liu et al., Meta, 2025), CC BY 4.0, https://github.com/facebookresearch/uco3d , license
   https://creativecommons.org/licenses/by/4.0/ , paper arXiv:2501.07574. We cropped, re-encoded and blurred plates in

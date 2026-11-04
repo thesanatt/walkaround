@@ -1755,7 +1755,7 @@ def privacy_drop_words(drops: list[PrivacyDrop]) -> str:
 
 
 def marks_on_panel(th: dict | None) -> bool:
-    """thresholds dedup.marks_on_panel (lexi run 1, 11/2): a mark off its own panel mask was moved or left out by the
+    """thresholds dedup.marks_on_panel (friend run 1, 11/2): a mark off its own panel mask was moved or left out by the
     marks stage, and match leaves the left-out ones out; off when absent."""
     from .marks import on_panel_frac
 

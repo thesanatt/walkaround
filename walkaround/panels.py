@@ -1289,7 +1289,7 @@ def vote_sides(
 
 
 def uncertain_per_track(th: dict[str, Any] | None) -> bool:
-    """thresholds panels.uncertain_per_track (lexi run 1, 11/2): side or position uncertainty is judged per track, not
+    """thresholds panels.uncertain_per_track (friend run 1, 11/2): side or position uncertainty is judged per track, not
     per slot. Off when absent, so runs frozen before it keep their panels."""
     return bool((th or {}).get("panels", {}).get("uncertain_per_track", False))
 
@@ -1789,10 +1789,10 @@ def apply_door_check(ctx: _RoleContext, role_tracks: list[c.PanelTrack], th: dic
 
 
 # ----------------------------------------------------------------------------------------------------------------
-# 5.2 the part check: which side a wheel is on, which end a glass panel is at (lexi run 1, 11/2, panels.part_check)
+# 5.2 the part check: which side a wheel is on, which end a glass panel is at (friend run 1, 11/2, panels.part_check)
 # ----------------------------------------------------------------------------------------------------------------
 #
-# On lexi_pair1 both walks start and end at the front-left corner and the side vote filed the left front wheel (and so
+# On friend_pair1 both walks start and end at the front-left corner and the side vote filed the left front wheel (and so
 # its built fender, and the fender view that held mark M3) as the right front in both walks, and the windshield lane
 # tracks seen behind the car stayed the windshield (the return's windshield keyframes showed the rear window). After the
 # door check, in its style, each wheel track (and fender-lane track) is judged for its side and each windshield or

@@ -1,8 +1,8 @@
 """Verdict changes between the base and reg replays, with truth where a run has it. Prints a table row per run and
 every verdict whose label or rule ids changed; writes compare.json.
 
-Truth for a verdict: synth runs, the generator mark under each box (study.synth_truth_for) and its walks; lexi_pair2,
-Sanat's verdict checks (eval/verdict_checks/lexi_pair2.json). A false "new" or "not seen at return" is a one-walk label
+Truth for a verdict: synth runs, the generator mark under each box (study.synth_truth_for) and its walks; friend_pair2,
+Sanat's verdict checks (eval/verdict_checks/friend_pair2.json). A false "new" or "not seen at return" is a one-walk label
 on a mark the truth has in both walks (or on no real mark); a false "already there" is a pair the truth does not have
 as one old mark.
 

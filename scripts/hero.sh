@@ -102,7 +102,7 @@ else
   P="$(copy_in "$SRC_P" "$SHA_P")"; R="$(copy_in "$SRC_R" "$SHA_R")"
   echo "  pickup $P"; echo "  return $R (hashes match the originals)"
 
-  say "3. Estimate against the caps (ledger rows of lexi_pair2 and synth_pair2_r9)"
+  say "3. Estimate against the caps (ledger rows of friend_pair2 and synth_pair2_r9)"
   est=0; "$PY" scripts/hero_check.py estimate "$P" "$R" | sed 's/^/  /' || est=$?
   if [ "$est" != 0 ]; then
     [ "$FORCE" = 1 ] && echo "  at risk; going on (--force)" || die "the run could stop on a cap: raise it in config/thresholds.json (with a source) or pass --force"

@@ -73,9 +73,9 @@ def test_meta_spend_leaves_out_baseten_and_counts_the_et_day() -> None:
 
 def test_config_caps_hold_a_padded_sixty_second_pair() -> None:
     """The lead's Nov 2 decision: the hero run (60 s + 60 s at 4K) must not stop on a cap. The reference numbers are
-    lexi_pair2 and synth_pair2_r9 as measured (scripts/hero_check.py on runs/ledger.jsonl)."""
+    friend_pair2 and synth_pair2_r9 as measured (scripts/hero_check.py on runs/ledger.jsonl)."""
     refs = {
-        "lexi_pair2": {"secs": 70.61, "usd": 4.8863, "lanes_usd": 3.392, "wall_s": 367.4, "scaled_s": 171.0},
+        "friend_pair2": {"secs": 70.61, "usd": 4.8863, "lanes_usd": 3.392, "wall_s": 367.4, "scaled_s": 171.0},
         "synth_pair2_r9": {"secs": 78.4, "usd": 5.3229, "lanes_usd": 3.881, "wall_s": 382.5, "scaled_s": 194.0},
     }
     e = hc.estimate(120.0, refs)

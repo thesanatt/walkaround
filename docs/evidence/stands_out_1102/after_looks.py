@@ -20,7 +20,7 @@ from walkaround import match, paths, register  # noqa: E402
 
 cfg = match.stands_out_config(c.load_thresholds())
 out = []
-for run in ("hero_focus1", "lexi_pair2", "pairC_r16", "eval_nhtsa15759_r16"):
+for run in ("hero_focus1", "friend_pair2", "pairC_r16", "eval_nhtsa15759_r16"):
     rows = json.loads((HERE.parent / "hero_1102" / f"replay_rr_{run}_all+reg_looks.json").read_text())["verdicts"]
     kfs = {k["kf_id"]: k for k in json.loads((paths.run_dir(run) / "derived" / "keyframes.json").read_text())}
     for r in rows:

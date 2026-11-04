@@ -1,6 +1,6 @@
 """A recall pass on two zoomed halves of each crop (11/2; thresholds dedup.spark_halves_pass, off when absent).
 
-On lexi_pair1 Muse Spark boxed 22 of the 32 real marks Sanat found in the crops he checked; the pink square M4 was never
+On friend_pair1 Muse Spark boxed 22 of the 32 real marks Sanat found in the crops he checked; the pink square M4 was never
 boxed in either walk. Round 10 found that the same marks_v1 question on an about 2x zoom of each half of a crop reaches
 marks the full crop misses. Here each crop Spark answered gets two more marks_v1 calls, one per half along its long
 side (span_frac of it each, so the halves share a band), each half enlarged scale times, with the run's prompt

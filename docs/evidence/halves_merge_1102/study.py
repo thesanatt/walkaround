@@ -2,7 +2,7 @@
 
 Per crop Sanat checked, the product's own steps as a new run takes them (marks._box_marks with the halves boxes, the zoom
 move, the SAM step), then the variant's last step (halves_pass.merge_after_refine or drop_after_refine). Full-crop boxes
-are moved with stored answers where they exist: lexi_pair1 its own run's, synth_pair2_r9 R17's (zoom_refine_synth_1102),
+are moved with stored answers where they exist: friend_pair1 its own run's, synth_pair2_r9 R17's (zoom_refine_synth_1102),
 pairC_core3 R14's w1 window and R13's SAM answers on the moved boxes (zoom_refine_1101). Halves boxes use R18's answers.
 
 Scoring is R18's (halves_1102/study.py): full-crop marks by his labels (correct, moved = found; not_mark = false box;

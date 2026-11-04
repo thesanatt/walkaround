@@ -83,12 +83,12 @@ def test_without_merge_key_it_is_the_after_refine_drop() -> None:
     assert halves_pass.merge_after_refine(rows, _kf(), th=c.load_thresholds()) == rows  # leaf absent
 
 
-@pytest.mark.skipif(not (REPO / "runs" / "lexi_pair1" / "run.json").is_file() or not (EVIDENCE / "study.json").is_file(), reason="lexi_pair1 or the study is not on this machine")
+@pytest.mark.skipif(not (REPO / "runs" / "friend_pair1" / "run.json").is_file() or not (EVIDENCE / "study.json").is_file(), reason="friend_pair1 or the study is not on this machine")
 def test_stored_study_replays_through_the_product_code() -> None:
     spec = importlib.util.spec_from_file_location("halves_merge_1102_study", EVIDENCE / "study.py")
     study = importlib.util.module_from_spec(spec)
     sys.modules["halves_merge_1102_study"] = study
     spec.loader.exec_module(study)  # type: ignore[union-attr]
-    got = study.score("lexi_pair1", "merge15")
-    saved = json.loads((EVIDENCE / "study.json").read_text())["lexi_pair1"]["merge15"]
+    got = study.score("friend_pair1", "merge15")
+    saved = json.loads((EVIDENCE / "study.json").read_text())["friend_pair1"]["merge15"]
     assert (got["found"], got["missed"], got["false"], got["merged"]) == (saved["found"], saved["missed"], saved["false"], saved["merged"]) == (22, 10, 13, 6)

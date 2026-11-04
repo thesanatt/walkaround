@@ -7,7 +7,7 @@ Arms, per crop he checked (crops_seen of eval/box_corrections/<run>.json):
           each box mapped back, dropped when it is the same mark as a box already kept, the rest moved by the zoom
           refine and tightened by the SAM step exactly as a new run does (zoom_refine.plan / ask_missing / refine_marks,
           box_refine.plan / ask / refine_marks).
-Runs: lexi_pair1 (every answered crop is asked, so the offline replay can run the whole pair), synth_pair2_r9 and
+Runs: friend_pair1 (every answered crop is asked, so the offline replay can run the whole pair), synth_pair2_r9 and
 pairC_core3 (crops_seen only). Thresholds: the run's own, with today's dedup.spark_zoom_refine and dedup.sam_box_refine
 where the run predates them, plus dedup.spark_halves_pass (LEAF below).
 
@@ -38,8 +38,8 @@ from walkaround.marks import _box_marks, _reusable_records, _wheel_mask, _read_r
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[2]
-RUNS = ["lexi_pair1", "synth_pair2_r9", "pairC_core3"]
-ALL_CROPS = {"lexi_pair1"}
+RUNS = ["friend_pair1", "synth_pair2_r9", "pairC_core3"]
+ALL_CROPS = {"friend_pair1"}
 SKIP_CROPS = {"pairC_core3": {"return_windshield_kf1"}}  # in crops_seen since 11/2 09:58Z, its two boxes unlabeled
 RUN_ID = "halves_1102"
 LEAF = {"enabled": True, "span_frac": 0.55, "scale": 2.0, "dup_iou": 0.3}

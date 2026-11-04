@@ -291,7 +291,7 @@ def checks(run: str) -> dict[str, str]:
     return out
 
 
-LEXI_NEW_PANELS = {"trunk_lid", "right_rear_door"}  # M5, M7; M6 (left rear door, bottom) is told apart by hand below
+FRIEND_NEW_PANELS = {"trunk_lid", "right_rear_door"}  # M5, M7; M6 (left rear door, bottom) is told apart by hand below
 
 
 def expected(run: str, mark: c.Mark, other_kf: str) -> tuple[str, str | None]:
@@ -305,8 +305,8 @@ def expected(run: str, mark: c.Mark, other_kf: str) -> tuple[str, str | None]:
     lab = labels(run).get(mark.mark_id)
     if lab == "not_mark":
         return "label:not_mark", "no_mark"
-    if lab == "real" and run.startswith("lexi") and mark.panel_id.value not in LEXI_NEW_PANELS:
-        return "label:real (old on lexi)", "present"
+    if lab == "real" and run.startswith("friend") and mark.panel_id.value not in FRIEND_NEW_PANELS:
+        return "label:real (old on friend)", "present"
     if lab == "real":
         return "label:real", None
     return "none", None
@@ -358,7 +358,7 @@ def truth_boxes(run: str, kf_id: str) -> list[tuple[str, tuple[float, float, flo
     return out
 
 
-HAND = HERE / "hand_labels.json"  # boxes I drew by eye where no label file covers a compared crop (lexi_pair2)
+HAND = HERE / "hand_labels.json"  # boxes I drew by eye where no label file covers a compared crop (friend_pair2)
 
 
 def hand_boxes(run: str, kf_id: str) -> list[tuple[str, tuple[float, float, float, float], str, str]]:
@@ -402,8 +402,8 @@ def cmd_truthbox(runs: list[str]) -> None:
                         for mid, box, kind, exp in items:
                             if run.startswith("synth"):
                                 exp = synth_expected(run, mid, other)
-                            elif exp is None and run.startswith("lexi"):
-                                exp = "present" if panel not in LEXI_NEW_PANELS and panel != "left_rear_door" else None
+                            elif exp is None and run.startswith("friend"):
+                                exp = "present" if panel not in FRIEND_NEW_PANELS and panel != "left_rear_door" else None
                             pr = register.presence(fit, img_o, pixels(run, other)[0], pixels(run, other)[1], box, cfg, diag_a=diag)
                             rows.append({"run": run, "panel": panel, "own": own, "other": other, "id": mid, "kind": kind, "expected": exp, "result": pr.result, "why": pr.why, "ncc": pr.ncc, "ncc_mark": pr.ncc_mark, "s_own": pr.contrast_a, "s_other": pr.contrast_b, "u": pr.uncertainty_px, "fit_ok": al.ok})
     (HERE / "truthbox.json").write_text(json.dumps(rows, indent=1) + "\n")
@@ -424,12 +424,12 @@ COMMANDS = {"truthbox": cmd_truthbox}
 
 OVERLAY_DIR = REPO.parent / "docs" / "registration"
 OVERLAYS = [
-    ("lexi_pair2", "pickup_left_rear_door_kf1", "return_left_rear_door_kf2", "lexi_pair2_left_rear_door.jpg"),
-    ("lexi_pair1", "pickup_left_rear_fender_kf1", "return_left_rear_fender_kf2", "lexi_pair1_left_rear_fender_M1.jpg"),
+    ("friend_pair2", "pickup_left_rear_door_kf1", "return_left_rear_door_kf2", "friend_pair2_left_rear_door.jpg"),
+    ("friend_pair1", "pickup_left_rear_fender_kf1", "return_left_rear_fender_kf2", "friend_pair1_left_rear_fender_M1.jpg"),
     ("synth_pair2_r9", "pickup_left_front_door_kf1", "return_left_front_door_kf1", "synth_pair2_r9_left_front_door.jpg"),
     ("synth_pair2_r8", "pickup_left_front_door_kf2", "return_left_front_door_kf1", "synth_pair2_r8_left_front_door_K18.jpg"),
     ("pairC_r16", "pickup_right_front_door_kf1", "return_right_front_door_kf1", "pairC_r16_right_front_door.jpg"),
-    ("lexi_pair2", "pickup_left_rear_fender_kf1", "return_left_rear_fender_kf1", "lexi_pair2_left_rear_fender_refused.jpg"),
+    ("friend_pair2", "pickup_left_rear_fender_kf1", "return_left_rear_fender_kf1", "friend_pair2_left_rear_fender_refused.jpg"),
 ]
 
 

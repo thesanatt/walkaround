@@ -76,7 +76,7 @@ as the same-day control, $2.85, all valid). On the 11 crops that hold the hero's
 every crop that shows it, all scuff/high ("light blue tape piece"), the scrape still scratch/medium, nothing on the
 pickup right rear door; old prompt again: no strip boxed, one "small blue rectangular mark" unsure at return.
 
-View flags K15 reads (flags.json, crops flagged wet, dirty or glare), control to new prompt: hero 38 to 31 of 70, lexi_pair2
+View flags K15 reads (flags.json, crops flagged wet, dirty or glare), control to new prompt: hero 38 to 31 of 70, friend_pair2
 46 to 38 of 78, pairC_r16 37 to 31 of 63, eval_nhtsa15759_r16 34 to 34 of 78.
 
 Offline replays (replay.py on scratch copies; base reproduces each run's labels, rule ids and marks): already there /
@@ -85,11 +85,11 @@ new / not seen at return / needs your eye, plus check-by-eye lines.
 | run | base (the run) | glass | debris | zoom | glass + debris + zoom |
 |---|---|---|---|---|---|
 | hero_focus1 | 5 / 0 / 0 / 37 | 3 / 0 / 0 / 26, 2 lines | 5 / 0 / 0 / 16, 6 lines | 5 / 0 / 0 / 37 | 3 / 0 / 0 / 12, 7 lines |
-| lexi_pair2 | 2 / 0 / 0 / 11 | 1 / 0 / 0 / 7, 2 | 2 / 0 / 0 / 7, 2 | same as base | |
+| friend_pair2 | 2 / 0 / 0 / 11 | 1 / 0 / 0 / 7, 2 | 2 / 0 / 0 / 7, 2 | same as base | |
 | pairC_r16 | 2 / 0 / 1 / 17 | 2 / 0 / 1 / 17, 2 | 2 / 0 / 1 / 12, 2 | same as base | |
 | eval_nhtsa15759_r16 | 0 / 1 / 0 / 1 | 0 / 1 / 0 / 1, 2 | same as base | same as base | |
 
-Glass removed only glass lines (hero's 2 glass "already there" were reflection and leaf pairs; lexi's was a rear window
+Glass removed only glass lines (hero's 2 glass "already there" were reflection and leaf pairs; friend's was a rear window
 speck). Debris folded only dirt-typed lines. The zoom pick changes hero's v3 copy onto the scrape, where it merges with
 P kf1 m1; the scrape's three-mark group then has two marks and the dash pair splits into two capped one-walk lines, so
 the count stays 37.
@@ -101,12 +101,12 @@ second looks and counter-looks a new run would ask (Spark Open on Baseten, a few
 | run | stored run | all switches, before looks | all switches, after live looks |
 |---|---|---|---|
 | hero_focus1 | 5 / 0 / 0 / 37 | 5 / 2 / 1 / 5, 7 lines | 6 / 0 / 1 / 7, 6 lines |
-| lexi_pair2 | 2 / 0 / 0 / 11 | 1 / 0 / 0 / 9, 2 | 2 / 0 / 0 / 8, 2 |
+| friend_pair2 | 2 / 0 / 0 / 11 | 1 / 0 / 0 / 9, 2 | 2 / 0 / 0 / 8, 2 |
 | pairC_r16 | 2 / 0 / 1 / 17 | 0 / 0 / 0 / 12, 5 | 0 / 0 / 0 / 12, 5 |
 | eval_nhtsa15759_r16 | 0 / 1 / 0 / 1 | 1 / 1 / 3 / 14, 2 | 1 / 1 / 0 / 17, 2 |
 
 Without the same-walk step (before looks): hero 4 / 3 / 1 / 6 (one bumper strip pair lost, one more false new),
-lexi 0 / 0 / 0 / 11 (its door pair lost), NHTSA 1 / 1 / 3 / 20, pair C unchanged.
+friend 0 / 0 / 0 / 11 (its door pair lost), NHTSA 1 / 1 / 3 / 20, pair C unchanged.
 
 Per run, after looks:
 - hero: kept door strip already there, both bumper strips already there, the scrape and its dash already there; the
@@ -114,7 +114,7 @@ Per run, after looks:
   Open read the boxed strip as "a light blue-white horizontal reflection band along the body crease"; the box sits on
   the strip); a bumper box 110 px beside its strip (the zoom window missed it) capped K17; one false not seen at return
   on the right rear wheel rim (pickup-only box; wheel marks get no counter-look; from this answer sample, not a switch).
-- lexi_pair2 against its stored run: M1 already there (both), M2 needs your eye K7 (both), M3 and M6 needs your eye
+- friend_pair2 against its stored run: M1 already there (both), M2 needs your eye K7 (both), M3 and M6 needs your eye
   (both), M4 silent to a capped pickup-only box, M5 and M7 not comparable (both).
 - pairC_r16: the trunk-lid pair and the right rear fender pair still form, d unchanged; the fresh second look said
   different on both (the stored look said same), so needs your eye K7. Its not-seen line on pickup door specks went

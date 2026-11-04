@@ -49,7 +49,7 @@ matching leaf except the two; r29 adds the two leaves)
 |---|---|---|---|
 | hero_focus5 | frozen | right rear wheel to already there (L8); roof drops G1, still not comparable (G4, G6) | +1 already there (right) |
 | hero_focus5 | current | the same plus mirrors to already there (L8) | +2 already there (right) |
-| lexi_pair2 | both | tail lights (no marks) compared, no line; mirrors, trunk lid, windshield drop G1, still not comparable | none |
+| friend_pair2 | both | tail lights (no marks) compared, no line; mirrors, trunk lid, windshield drop G1, still not comparable | none |
 | pairC_r16 | frozen | headlights pickup m1 not comparable to needs your eye (K15, K4; its spot is on the return view); tail lights compared, no line; mirrors and rear window drop G1, still not comparable | none |
 | pairC_r16 | current | headlights m1 to no line (left off as faint); tail lights no line; mirrors drop G1 | none |
 | eval_nhtsa15759_r16 | both | tail lights compared, no line; headlights, rear bumper, roof drop G1, still not comparable | none |

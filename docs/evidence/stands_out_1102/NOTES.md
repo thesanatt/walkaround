@@ -45,7 +45,7 @@ already there / new / not seen at return / needs your eye / not comparable:
 | run | base | with K20 | lines changed |
 |---|---|---|---|
 | hero_focus2 | 7 / 1 / 1 / 11 / 8 | 7 / 1 / 0 / 12 / 8 | 7: the stray bumper box L1 to needs your eye; 6 lines already capped gain K20 |
-| lexi_pair2 | 2 / 0 / 0 / 11 / 9 | 2 / 0 / 0 / 11 / 9 | 5 capped lines gain K20 |
+| friend_pair2 | 2 / 0 / 0 / 11 / 9 | 2 / 0 / 0 / 11 / 9 | 5 capped lines gain K20 |
 | pairC_r16 | 2 / 0 / 1 / 17 / 12 | 2 / 0 / 0 / 18 / 12 | 10: the speck L1 to needs your eye; 9 capped lines gain K20 |
 | eval_nhtsa15759_r16 | 0 / 1 / 0 / 1 / 14 | same | 0 (the crush is an area) |
 

@@ -1057,7 +1057,7 @@ class TwinCheck(Contract):
 
 
 class PartCheck(Contract):
-    """The side check of a wheel or fender-lane track and the end check of a glass track (lexi run 1, 11/2, thresholds
+    """The side check of a wheel or fender-lane track and the end check of a glass track (friend run 1, 11/2, thresholds
     panels.part_check), in the style of DoorCheck. kind is "side" (votes +1 right, -1 left: lid_side, light_side,
     door_side) or "end" (votes +1 front, -1 rear: lights, bumper, lid, mirror). was is the slot before the check;
     decided false means the cues disagreed with the slot the vote gave and did not reach the margin, so the track keeps a
@@ -1319,7 +1319,7 @@ class ZoomRefine(Contract):
 
 class OffPanel(Contract):
     """A Spark mark whose point sat off its keyframe's panel mask by more than the claim path's on_panel_frac of the
-    crop's long side (lexi run 1, 11/2, thresholds dedup.marks_on_panel). When the same walk has a keyframe of another
+    crop's long side (friend run 1, 11/2, thresholds dedup.marks_on_panel). When the same walk has a keyframe of another
     panel cut from the same frame whose mask holds the point, the mark was moved there (moved_to_kf; the row then
     carries that panel, keyframe and crop coordinates); otherwise it is left out of matching and named in how_checked."""
 
@@ -1330,7 +1330,7 @@ class OffPanel(Contract):
 
 
 class SecondPass(Contract):
-    """A mark found by the second marks pass (lexi run 1, 11/2, thresholds matching.second_marks_pass): on a panel that
+    """A mark found by the second marks pass (friend run 1, 11/2, thresholds matching.second_marks_pass): on a panel that
     passed every gate where this walk had no mark and the other walk had, Muse Spark was asked again on a zoomed window
     of this walk's compared crop around the other walk's mark mapped through the panel frame."""
 

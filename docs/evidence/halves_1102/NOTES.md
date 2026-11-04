@@ -14,7 +14,7 @@ unchanged.
   first) is dropped: its centre inside a kept box, a kept centre inside it, IoU over 0.3, or within
   dedup.cluster_radius_units (0.2) in the panel frame. The rest go through the zoom refine and the SAM step as in a new
   run (zoom_refine.plan / ask_missing / refine_marks, box_refine.plan / ask / refine_marks).
-- Crops: every answered crop of lexi_pair1 (74, so the replay can run the whole pair), plus the crops Sanat checked on
+- Crops: every answered crop of friend_pair1 (74, so the replay can run the whole pair), plus the crops Sanat checked on
   synth_pair2_r9 (36) and pairC_core3 (19; return_windshield_kf1 is left out because its two boxes are unlabeled).
   258 halves calls ($1.24), 171 zoom calls on the new boxes ($0.85), 70 SAM requests ($0.18). Meta day Nov 2 ET:
   $17.63 before, $19.89 after.
@@ -28,24 +28,24 @@ unchanged.
 
 | run | crops | real marks | full crop: found / missed / false boxes | full + halves: found / missed / false boxes | new boxes: find a miss / duplicate / false |
 |---|---|---|---|---|---|
-| lexi_pair1 | 22 | 32 | 22 / 10 / 13 | 25 / 7 / 41 | 3 / 7 / 28 |
+| friend_pair1 | 22 | 32 | 22 / 10 / 13 | 25 / 7 / 41 | 3 / 7 / 28 |
 | pairC_core3 | 19 | 48 | 48 / 0 / 5 | 48 / 0 / 53 | 0 / 21 / 48 |
 | synth_pair2_r9 | 36 | 44 | 43 / 1 / 4 | 43 / 1 / 10 | 0 / 39 / 6 |
 
 - The strict rule (centre within 10 px of his box) gives the same finds: 3, 0, 0. Without the zoom move and SAM, the
   raw halves boxes also find 3, 0 and 0.
-- All 3 lexi finds are low confidence (2 on return_left_rear_fender_kf2: scratch and scuff; 1 at the left edge of
-  return_right_rear_door_kf1: reflection). So K12 caps each one, and none can be a decided line alone. No lexi false
+- All 3 friend finds are low confidence (2 on return_left_rear_fender_kf2: scratch and scuff; 1 at the left edge of
+  return_right_rear_door_kf1: reflection). So K12 caps each one, and none can be a decided line alone. No friend false
   box is damage-typed above low. On synth 5 of the 6 false boxes are damage-typed and medium or high.
 - Pair C: his labels have no misses on these crops, so the pass can only add boxes there. The 48 false boxes are
   mostly dirt on the debris-covered hood and trunk (54 of 69 new boxes typed dirt). Some may be debris he did not
   mark as missed.
-- M4 (lexi's pink square, not on a crop he checked): the halves boxed it on all three right rear fender crops
+- M4 (friend's pink square, not on a crop he checked): the halves boxed it on all three right rear fender crops
   (pickup kf1 "small pink reflection spot" medium, pickup kf2 and return kf1 low, all typed reflection). I made that
-  call by eye against docs/LEXI_RUN1.md's location (just ahead of the fuel door's top corner, by the rear door's back
+  call by eye against docs/FRIEND_RUN1.md's location (just ahead of the fuel door's top corner, by the rear door's back
   edge). The same crops also got 3 boxes on the shirt's reflection.
 - after_refine (a second drop once the zoom move and SAM have run, against the full-crop marks' final boxes; no extra
-  call): on lexi it keeps the 3 finds, drops 5 of 7 duplicates and 1 false box, and 27 false boxes stay.
+  call): on friend it keeps the 3 finds, drops 5 of 7 duplicates and 1 false box, and 27 false boxes stay.
 
 ## Verdicts (replay.py; product rebuild on a scratch copy with the stored answers, no call)
 
@@ -54,12 +54,12 @@ new pair can only end at needs your eye here.
 
 | run (base) | base: already there / new / not seen / needs your eye | + halves | + halves, after_refine |
 |---|---|---|---|
-| lexi_pair1 (R16 c12 leaves) | 2 / 0 / 0 / 6 | 0 / 0 / 0 / 38 | 1 / 0 / 0 / 31 |
+| friend_pair1 (R16 c12 leaves) | 2 / 0 / 0 / 6 | 0 / 0 / 0 / 38 | 1 / 0 / 0 / 31 |
 | pairC_core3 (+ zoom and SAM leaves) | 1 / 0 / 0 / 11 | 1 / 0 / 0 / 18 | 1 / 0 / 0 / 17 |
 | synth_pair2_r9 (+ zoom and SAM leaves) | 2 / 1 / 0 / 14 | 2 / 2 / 1 / 27 | 2 / 2 / 1 / 24 |
 | synth_pair2_r9 with R17's zoom and SAM answers for its full-crop marks | 0 / 1 / 2 / 20 | 0 / 2 / 2 / 31 | 0 / 1 / 2 / 22 |
 
-- lexi: M1 and M2, both right "already there", drop to needs your eye with the halves. A halves box lands on the
+- friend: M1 and M2, both right "already there", drop to needs your eye with the halves. A halves box lands on the
   strip beside the full crop's box (on M2 the pickup's full box sits about 70 crop px above the strip). Two candidates
   then fail the match's ratio test, so neither pairs. after_refine brings M1 back but not M2: the zoom move does not
   bring M2's full box onto the strip (R16 open item 1).
@@ -68,7 +68,7 @@ new pair can only end at needs your eye here.
   second "new" line for it. The right front fender pair becomes a right "already there" (base: K7). With the full
   boxes moved as a new run would move them (R17's answers), the first union adds a false "new" on the return's old
   chip, and after_refine removes it, so the decided lines equal base there.
-- Lexi per mark (replay, R16 c12 leaves):
+- Friend per mark (replay, R16 c12 leaves):
 
 | mark | truth | base | + halves | + halves, after_refine |
 |---|---|---|---|---|
@@ -85,7 +85,7 @@ new pair can only end at needs your eye here.
 
 ## Decision
 
-Real marks found rise 22 to 25 of 32 on lexi (all three capped) and 48 to 48 on pair C, while false boxes go 13 to
+Real marks found rise 22 to 25 of 32 on friend (all three capped) and 48 to 48 on pair C, while false boxes go 13 to
 41 and 5 to 53. The replay loses M2's right "already there" in both variants, and the first variant also loses M1
 and adds a false "not seen at return" on synth. So the rule for adoption is not met. No live re-run was made. The
 code stays in the product with the leaf absent, so these replays can be repeated. What would have to change first:

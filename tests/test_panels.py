@@ -1370,7 +1370,7 @@ def test_twin_check_files_the_pair_c_lids_by_the_end_they_show() -> None:
 def test_lights_and_glass_take_the_end_of_the_lid_they_sit_beside() -> None:
     twin_only = copy.deepcopy(TH)
     twin_only["panels"].pop("door_check", None)  # the door check's moves are test_door_check_* below
-    twin_only["panels"].pop("part_check", None)  # the part check's moves are in tests/test_lexi_1102.py
+    twin_only["panels"].pop("part_check", None)  # the part check's moves are in tests/test_friend_1102.py
     old = copy.deepcopy(twin_only)
     del old["panels"]["twin_check"]
     _, before = _pair_c_vote(old)

@@ -112,14 +112,14 @@ def test_mark_json_has_no_halves_key_when_absent() -> None:
     assert _mark([1.0, 1.0, 5.0, 5.0], "m", halves=True).model_dump(mode="json")["halves"]["half"] == 0
 
 
-@pytest.mark.skipif(not (REPO / "runs" / "lexi_pair1" / "run.json").is_file() or not (EVIDENCE / "halves_answers.json").is_file(), reason="lexi_pair1 or the study answers are not on this machine")
+@pytest.mark.skipif(not (REPO / "runs" / "friend_pair1" / "run.json").is_file() or not (EVIDENCE / "halves_answers.json").is_file(), reason="friend_pair1 or the study answers are not on this machine")
 def test_stored_study_answers_replay_through_the_product_code() -> None:
     import sys
 
     sys.path.insert(0, str(EVIDENCE))
     import study  # type: ignore[import-not-found]
 
-    run = "lexi_pair1"
+    run = "friend_pair1"
     th = study.th_for(run)
     res, kfs = study.results(run, th), study.keyframes(run)
     kid = "return_left_rear_fender_kf2"

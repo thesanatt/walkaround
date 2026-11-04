@@ -63,7 +63,7 @@
   ]
  },
  {
-  "run": "lexi_pair1",
+  "run": "friend_pair1",
   "base": {
    "not_comparable": 13,
    "already_there": 1,
@@ -83,7 +83,7 @@
   "changes": []
  },
  {
-  "run": "lexi_pair2",
+  "run": "friend_pair2",
   "base": {
    "not_comparable": 9,
    "needs_your_eye": 11,

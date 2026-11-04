@@ -6,10 +6,10 @@ product rebuild runs in place on the copy (marks, narration, Stays Put, match wi
 A pair or counter-look with no stored answer replays as not asked (no K7, caps stay), so a new tight pair can only
 end at needs your eye here; a live run would ask it.
 
-  base   lexi_pair1: the run's thresholds plus R16's panels.uncertain_per_track and dedup.marks_on_panel (replay_1102
+  base   friend_pair1: the run's thresholds plus R16's panels.uncertain_per_track and dedup.marks_on_panel (replay_1102
          c12). synth_pair2_r9 and pairC_core3: the run's thresholds plus today's zoom refine and SAM step leaves (their
          full-crop boxes have no stored zoom or SAM answer, so they keep Spark's box, as the frozen run did).
-  halves the same plus dedup.spark_halves_pass (halves stored for every answered lexi crop; for the other two runs only
+  halves the same plus dedup.spark_halves_pass (halves stored for every answered friend crop; for the other two runs only
          on the crops Sanat checked).
 
 Usage: replay.py RUN_ID SCRATCH VARIANT   (one line per verdict; JSON summary on the last line)
@@ -35,8 +35,8 @@ current = c.load_thresholds()
 orch = pipeline.make_orchestrator()
 run = orch.load_run(RUN)
 th = json.loads(json.dumps(orch.run_th(run)))
-lexi = RUN.startswith("lexi")
-if lexi:
+friend = RUN.startswith("friend")
+if friend:
     th["panels"]["uncertain_per_track"] = True
     th["dedup"]["marks_on_panel"] = current["dedup"]["marks_on_panel"]
 else:
@@ -62,7 +62,7 @@ with _runs_root(OUT):
         r17 = HERE.parent / "zoom_refine_synth_1102"
         zoom_refine.write_asks(RUN, [*zoom_refine.read_asks(RUN), *c.read_json_list(r17 / "zoom_answers.json", zoom_refine.ZoomAsk)])
         box_refine.write_asks(RUN, [*box_refine.read_asks(RUN), *c.read_json_list(r17 / "sam_zoom.json", box_refine.BoxAsk)])
-    if lexi:  # replay_1102 c1: panels re-derived from the stored tracks with per-track uncertainty
+    if friend:  # replay_1102 c1: panels re-derived from the stored tracks with per-track uncertainty
         tracks = c.read_json_list(paths.tracks_json(RUN), c.PanelTrack)
         old = {p.panel_id: p for p in c.read_json_list(paths.panels_json(RUN), c.Panel)}
         new = panels._panels_from(tracks, {}, fps=run.fps or 15.0, merge_gap_s=float(th["panels"]["merge_gap_max_s"]), fallback_dt=1.0 / float(th["media"]["proxy_fps"]), per_track=True)

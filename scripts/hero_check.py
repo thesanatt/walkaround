@@ -34,7 +34,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 REPO = Path(__file__).resolve().parents[1]
-REFS = ("lexi_pair2", "synth_pair2_r9")
+REFS = ("friend_pair2", "synth_pair2_r9")
 SAFETY = 1.25
 META_GRANT_USD = 150.0  # the Meta Model API credit granted for the hackathon (LEDGER.md, checked 10/31)
 ET = ZoneInfo("America/New_York")

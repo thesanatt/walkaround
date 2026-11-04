@@ -1804,14 +1804,14 @@ walkaround/docs/evidence/doors_1101/ (NOTES.md, rederive_doors.py, summarize.py,
 - Tests: tests/test_doors_1101.py (12). test_panels' twin-check fixture test runs without door_check (the door check's
   moves on the same fixture are in test_doors_1101); test_contracts has a DoorCheck round-trip case.
 
-## Lexi run 1 fixes (2026-11-02): uncertainty per track, marks on their panel, part check, second marks pass
+## Friend run 1 fixes (2026-11-02): uncertainty per track, marks on their panel, part check, second marks pass
 
-Why: on lexi_pair1 (Sanat's friend's own car, 7 paper marks) the run got 1 of 7 right. The diagnosis is
-docs/LEXI_RUN1.md in the workspace: one stray undecided track hid whole panels, marks off their panel made noise lines,
+Why: on friend_pair1 (Sanat's friend's own car, 7 paper marks) the run got 1 of 7 right. The diagnosis is
+docs/FRIEND_RUN1.md in the workspace: one stray undecided track hid whole panels, marks off their panel made noise lines,
 the left front wheel (and so its fender and mark M3's view) was filed on the right in both walks, the windshield lane
 seen behind the car stayed the windshield, and Spark silently missed a mark the other walk had. Four thresholds leaves,
 each absent from runs frozen before them, so those vote, derive, rebuild and verify as they did. Evidence:
-walkaround/docs/evidence/lexi_1102/ (NOTES.md, replay_1102.py, the replay outputs).
+walkaround/docs/evidence/friend_1102/ (NOTES.md, replay_1102.py, the replay outputs).
 
 - `panels.uncertain_per_track` (bool). `panels._panels_from(..., per_track=)`: a panel is side_uncertain only when some
   role holds nothing but undecided tracks in its slot (before: any undecided track). Its front_sign follows. The
@@ -1825,7 +1825,7 @@ walkaround/docs/evidence/lexi_1102/ (NOTES.md, replay_1102.py, the replay output
   - wheel and fender-lane tracks (not built fenders), `part_side_cues`: lid_side and light_side, a lid or light the twin
     check placed (or the lane noun's light slot), on shared frames, end x sign(its centre x minus the part's), voting
     only on frames where that offset is at least offset_min_d part sizes (the hood over a front wheel sits 0.0 to 0.33
-    wheel sizes off its centre on lexi_pair1, which is depth, not direction); door_side, doors with a decided side
+    wheel sizes off its centre on friend_pair1, which is depth, not direction); door_side, doors with a decided side
     beside the part (the gap rule of fender_from_wheels). Each needs dir_share_min of min_frames or more signs.
   - windshield and rear-window tracks, `glass_end_cues`: lights, bumper, lid, the placed parts of each end beside the
     glass (box gap <= adjacent_sizes glass sizes), voting when one end is beside it on presence_margin more of the
@@ -1868,14 +1868,14 @@ walkaround/docs/evidence/lexi_1102/ (NOTES.md, replay_1102.py, the replay output
   derive_match and reports marks.json's hash after it. Ledger: one `spark` row per call (note marks) with the run id.
 - Web: nothing changed. The new fields are optional and not in web/src/contracts/types.ts; the sheet prints the new
   how-checked words, the web's own lines do not yet.
-- Tests: tests/test_lexi_1102.py (14). test_contracts has round-trip cases for the five new records; test_panels' twin
+- Tests: tests/test_friend_1102.py (14). test_contracts has round-trip cases for the five new records; test_panels' twin
   check test runs without part_check (its glass check moves the same pair C windshield track first).
 
 ## Halves pass (2026-11-02): a recall pass on two zoomed halves of each crop, not adopted
 
-Why: on lexi_pair1 Muse Spark boxed 22 of the 32 real marks Sanat labeled in the crops he checked, and never boxed
+Why: on friend_pair1 Muse Spark boxed 22 of the 32 real marks Sanat labeled in the crops he checked, and never boxed
 M4 in either walk. Measured on stored crops and not adopted (evidence walkaround/docs/evidence/halves_1102/NOTES.md:
-3 more real marks of 32 on lexi, all low confidence, false boxes 13 to 41; the replay loses M2's right "already
+3 more real marks of 32 on friend, all low confidence, false boxes 13 to 41; the replay loses M2's right "already
 there"). `dedup.spark_halves_pass` is not in config/thresholds.json, so it is absent from every run, new or frozen.
 
 - `dedup.spark_halves_pass` (dict: enabled, span_frac, scale, dup_iou, optional after_refine). Off when absent.

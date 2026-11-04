@@ -36,7 +36,7 @@ thresholds matching.registration (on for new runs; absent from every frozen run,
   docs/registration/ of the workspace).
 - replay.py: product rebuild of a scratch copy, base (frozen thresholds) or reg (plus the leaf): replay_<run>_<v>.json.
 - compare.py: base against reg with truth: compare.json.
-- hand_labels.json: M2 and M6 boxes I drew on 2x zooms of the lexi_pair2 left rear door crops.
+- hand_labels.json: M2 and M6 boxes I drew on 2x zooms of the friend_pair2 left rear door crops.
 
 ## Numbers (final code)
 
@@ -46,14 +46,14 @@ Alignment of the chosen keyframe pair of every compared non-wheel panel (align_<
 |---|---|---|---|
 | synth_pair2_r9 | 8 | 7 | 3 |
 | synth_pair2_r8 | 9 | 7 | 0 |
-| lexi_pair1 | 6 | 2 | 0 |
-| lexi_pair2 | 9 | 4 | 1 |
+| friend_pair1 | 6 | 2 | 0 |
+| friend_pair2 | 9 | 4 | 1 |
 | pairC_core3 | 2 | 0 | 0 |
 | pairC_r16 | 5 | 4 | 1 |
 | eval_nhtsa15759_r16 | 4 | 1 | 1 |
 
 25 of 43. Every refusal (27 of 77 pairs counting the mark keyframes) is the outline IoU under 0.90: SAM's two masks of
-the same panel differ (sill in one walk, crop edge, rear window against a side window on lexi_pair1). Synth truth: 25
+the same panel differ (sill in one walk, crop edge, rear window against a side window on friend_pair1). Synth truth: 25
 generator marks on the panel carried by accepted fits land a median 8.2 px (max 35.1 px) from their true spot, all
 inside the search window.
 
@@ -63,12 +63,12 @@ Presence on true boxes (truthbox.json; 190 views, 48 on refused fits; the rest):
 |---|---|---|---|---|
 | synth, old marks (in both walks) | 100 (7) | 80 | 0 | 20 |
 | synth, the new scratch tested in pickup | 12 (1) | 0 | 12 | 0 |
-| lexi_pair1, his boxes of old marks | 20 | 2 | 0 | 18 |
-| lexi_pair2 hand, M2 (old) | 4 | 4 | 0 | 0 |
-| lexi_pair2 hand, M6 (new) | 2 | 0 | 1 | 1 |
+| friend_pair1, his boxes of old marks | 20 | 2 | 0 | 18 |
+| friend_pair2 hand, M2 (old) | 4 | 4 | 0 | 0 |
+| friend_pair2 hand, M6 (new) | 2 | 0 | 1 | 1 |
 | pairC_core3, his boxes (no change truth) | 4 | 0 | 0 | 4 |
 
-Wrong calls: 0. The thresholds were set on the synth and lexi_pair2 rows above, so this is not a held-out score. Two
+Wrong calls: 0. The thresholds were set on the synth and friend_pair2 rows above, so this is not a held-out score. Two
 things it showed: NCC alone does not separate present from absent (M2 0.47 to 0.58, M6 0.43), the saliency does
 (M2 keeps 65 to 100%, M6 5%); and a clearcoat scratch can all but vanish under the other walk's light (synth
 old_scratch_05cm: 8.5 in pickup, 0.75 at return), which is why absent is strict and changes nothing.
@@ -81,10 +81,10 @@ Verdicts, base against reg (compare.json): the only label change is synth_pair2_
 false "not seen at return" on a box with no generator mark, now needs your eye (L4 L1 K18). K18 also joins 3 marks
 already at needs your eye (pairC_core3 1, pairC_r16 2). False "new" or "not seen at return": synth_pair2_r8 3 to 2,
 the rest unchanged; false "already there": unchanged (synth_pair2_r9 1, synth_pair2_r8 2, 0 elsewhere). No new false
-line, no right line lost. Lexi M1 to M7 are unchanged in both runs: M1's fender fit is refused (IoU 0.85), M2's pair
+line, no right line lost. Friend M1 to M7 are unchanged in both runs: M1's fender fit is refused (IoU 0.85), M2's pair
 sits inside tau_pre and was lowered by the second look (K7; Spark's pickup box is 70 px above the strip), M3's hood
 map is unsure by 67 to 115 px, M4 has no box, M5 and M7 are on panels not compared, M6's spot is below the pickup
 door mask.
 
-Time: derive_match 0.2 s to about 3 s a run with the leaf (synth_pair2_r8 2.96 s, lexi_pair2 2.94 s). Two rebuilds
+Time: derive_match 0.2 s to about 3 s a run with the leaf (synth_pair2_r8 2.96 s, friend_pair2 2.94 s). Two rebuilds
 of a run with the leaf give the same bytes (synth_pair2_r8 matches.json b44d721ab71e in two processes).
