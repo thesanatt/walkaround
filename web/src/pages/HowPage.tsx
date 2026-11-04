@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
 
 import { Bar } from '../components/Bar.tsx';
+import { COST_LINES, RULE_LINES, type HowLine } from '../lib/howmath.ts';
+import { tokenize } from '../lib/pycode.ts';
 import { Link } from '../lib/router.tsx';
 import pickupFrame from '../example/pickup.jpg';
 import returnFrame from '../example/return.jpg';
@@ -18,6 +20,47 @@ const RESULT = '/run/hero_focus5e?replay=instant';
 const MATH = `${RESULT}&f=right_rear_door_v2&math=1`;
 
 type Shot = { src: string; alt: string; caption: string; w: number; h: number };
+
+// What the example's model calls cost: docs/evidence/ledger_rows_hero_focus5.jsonl (504 rows of the run hero_focus5,
+// whose answers hero_focus5e reuses), summed by kind and note. sam_video rows whose note starts with sp_ are the Stays Put
+// clips; sam_image rows whose note starts with "license plate" or "face" are the privacy checks, the rest box tightening.
+const COSTS: { who: string; did: string; calls: number; usd: string }[] = [
+  { who: 'SAM 3.1, video', did: 'Followed the 16 prompts through each video', calls: 32, usd: '$4.19' },
+  { who: 'SAM 3.1, video', did: 'Stays Put, following each box through a short clip', calls: 27, usd: '$0.49' },
+  { who: 'SAM 3.1, images', did: 'Checked every crop for plates and faces', calls: 194, usd: '$0.49' },
+  { who: 'SAM 3.1, images', did: "Tightened Muse Spark's boxes", calls: 41, usd: '$0.10' },
+  { who: 'Muse Spark 1.3', did: 'Boxed and named the marks on each crop', calls: 188, usd: '$1.17' },
+  { who: 'Muse Voice', did: 'Transcribed the narration', calls: 2, usd: '$0.0043' },
+  { who: 'Muse Spark Open on Baseten', did: 'Second looks', calls: 20, usd: '$0.08' },
+];
+
+// A VS Code editor tab with the quoted lines in Dark+ colours (lib/pycode.ts, the math view's tokens) and the run's
+// values as quiet notes at the line ends.
+function Editor({ file, lines }: { file: string; lines: HowLine[] }) {
+  return (
+    <figure className="ed">
+      <div className="ed-bar">
+        <span className="ed-tab">{file}</span>
+      </div>
+      <div className="ed-body">
+        {lines.map((l, i) => (
+          <div key={l.n} className={`ed-row${i > 0 && l.n - lines[i - 1]!.n > 1 ? ' gap' : ''}`}>
+            <span className="ed-n">{l.n}</span>
+            <code className="ed-code">
+              {tokenize(l.code).map(([text, k], j) => (
+                <span key={j} className={`t-${k}`}>
+                  {text}
+                </span>
+              ))}
+              {l.note ? <span className="ed-note">{l.note}</span> : null}
+            </code>
+          </div>
+        ))}
+      </div>
+      <figcaption className="sr-only">The lines of {file} that scored this mark and chose its label, with the run's values.</figcaption>
+    </figure>
+  );
+}
 
 function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
@@ -144,9 +187,11 @@ export function HowPage() {
               Code lines the two views of a panel up and scores each mark against the nearest mark in the other video:
               the distance on the panel, plus a cost when the type or size differs. Code makes the call, not a model.
             </p>
-            <p className="how-big">
+            <p className="how-sum">0.285 + 0.4 + 0.230 = 0.915 &gt; 0.849</p>
+            <p className="how-text">
               0.915 is over the 0.849 cutoff: the nearest pickup mark is a tiny dark speck, not this strip, so it's new.
             </p>
+            <Editor file="walkaround/match.py" lines={[...COST_LINES.lines, ...RULE_LINES.lines]} />
             <Pair
               shots={[
                 { src: comparePickup, w: 860, h: 574, caption: 'Pickup 0:40', alt: 'The right rear door in the pickup video, the spot outlined with a black and white dash and nothing in it' },
@@ -155,7 +200,7 @@ export function HowPage() {
               caption="Right rear door."
             />
             <p className="how-link">
-              <Link to={MATH}>Show the math</Link>
+              <Link to={MATH}>Show the full math</Link>
             </p>
           </Step>
 
@@ -193,6 +238,43 @@ export function HowPage() {
             </p>
           </Step>
         </ol>
+        <section className="how-cost" aria-labelledby="how-cost-title">
+          <h2 id="how-cost-title">What it cost to run</h2>
+          <table className="how-table">
+            <thead>
+              <tr>
+                <th scope="col">Model or engine</th>
+                <th scope="col">What it did</th>
+                <th scope="col" className="num">
+                  Calls
+                </th>
+                <th scope="col" className="num">
+                  Cost
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {COSTS.map((c) => (
+                <tr key={c.did}>
+                  <td>{c.who}</td>
+                  <td>{c.did}</td>
+                  <td className="num">{c.calls}</td>
+                  <td className="num">{c.usd}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr>
+                <th scope="row" colSpan={2}>
+                  Total
+                </th>
+                <td className="num">504</td>
+                <td className="num">$6.52</td>
+              </tr>
+            </tfoot>
+          </table>
+          <p className="how-text">Every call is in the run's event log; the sheet rebuilds from the stored answers.</p>
+        </section>
       </div>
     </>
   );

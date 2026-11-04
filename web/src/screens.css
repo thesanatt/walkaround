@@ -427,12 +427,6 @@
   margin: 16px 0 0;
 }
 
-.how-big {
-  font-size: 1.5rem;
-  line-height: 1.35;
-  font-variant-numeric: tabular-nums;
-  margin: 24px 0 0;
-}
 
 .how-fig {
   margin: 32px 0 0;
@@ -470,6 +464,130 @@
 
 .how-link {
   margin: 20px 0 0;
+}
+
+.how-sum {
+  font-size: clamp(1.75rem, 3.4vw, 2.625rem);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  margin: 28px 0 0;
+}
+
+/* a VS Code editor tab in Dark+ (the math view's token colours), the run's values as quiet notes at the line ends */
+.ed {
+  margin: 28px 0 0;
+  border: 1px solid #2b2b2b;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  line-height: 1.75;
+}
+
+.ed-bar {
+  display: flex;
+  background: #252526;
+  border-bottom: 1px solid #2b2b2b;
+}
+
+.ed-tab {
+  padding: 7px 16px 8px;
+  margin-bottom: -1px;
+  background: #1e1e1e;
+  border-right: 1px solid #2b2b2b;
+  color: #ffffff;
+}
+
+.ed-body {
+  padding: 12px 0 14px;
+  overflow-x: auto;
+}
+
+.ed-row {
+  display: grid;
+  grid-template-columns: 4ch max-content;
+  gap: 20px;
+  padding: 0 20px 0 12px;
+  white-space: pre;
+}
+
+.ed-row.gap {
+  position: relative;
+  margin-top: 21px;
+}
+
+.ed-row.gap::before {
+  content: '...';
+  position: absolute;
+  top: -22px;
+  left: 12px;
+  width: 4ch;
+  text-align: right;
+  color: #6e7681;
+}
+
+.ed-n {
+  color: #6e7681;
+  text-align: right;
+  user-select: none;
+}
+
+.ed-code {
+  font: inherit;
+}
+
+.ed-note {
+  color: #9d9d9d;
+  margin-left: 4ch;
+}
+
+/* what the run cost */
+.how-cost {
+  margin-top: 112px;
+}
+
+.how-cost h2 {
+  font-size: clamp(1.625rem, 2.6vw, 2.125rem);
+  line-height: 1.15;
+  margin: 0;
+}
+
+.how-table {
+  width: 100%;
+  margin: 24px 0 0;
+  border-collapse: collapse;
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.how-table th,
+.how-table td {
+  text-align: left;
+  font-weight: 400;
+  padding: 10px 16px 10px 0;
+  border-bottom: 1px solid var(--line);
+  vertical-align: baseline;
+}
+
+.how-table thead th {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.how-table .num {
+  text-align: right;
+  padding-right: 0;
+  white-space: nowrap;
+}
+
+.how-table td + .num {
+  padding-left: 16px;
+}
+
+.how-table tfoot th,
+.how-table tfoot td {
+  border-bottom: 0;
+  border-top: 1px solid var(--strong-line);
 }
 
 .how-seal {
@@ -1553,8 +1671,17 @@
     gap: 20px;
   }
 
-  .how-big {
-    font-size: 1.25rem;
+  .how-sum {
+    font-size: 1.5rem;
+  }
+
+  .how-table {
+    font-size: 0.9375rem;
+  }
+
+  .how-table th,
+  .how-table td {
+    padding-right: 10px;
   }
 
   .start {
