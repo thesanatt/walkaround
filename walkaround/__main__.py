@@ -24,7 +24,7 @@ from typing import Any
 
 from . import contracts as c
 from . import paths, pipeline, ruler
-from .orchestrator import Orchestrator, RebuildRefused
+from .orchestrator import Orchestrator, RebuildRefused, RunLocked
 
 
 def make_orchestrator(th: dict[str, Any] | None = None) -> Orchestrator:
@@ -138,7 +138,7 @@ def cmd_run(args: argparse.Namespace, orch: Orchestrator) -> int:
         return 2
     try:
         return asyncio.run(_run_local(orch, args))
-    except (FileExistsError, ValueError) as exc:
+    except (FileExistsError, ValueError, RunLocked) as exc:
         sys.stderr.write(f"{exc}\n")
         return 2
 

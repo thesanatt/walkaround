@@ -54,6 +54,7 @@ _RUN_EXCLUDED_FILES = (
     "events.ndjson",
     "events.ndjson.gz",
     "bundle/manifest_run.json",
+    paths.WORK_LOCK_NAME,  # held while the close stage writes manifest_run.json, gone right after
 )
 # An OpenTimestamps proof is rewritten in place by the hourly `ots upgrade` (and leaves a .bak while it runs); the
 # proof carries its own commitment to the stamped file, so it is not hashed into manifest_run.json.

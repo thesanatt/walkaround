@@ -44,11 +44,13 @@ import hashlib
 import importlib
 import inspect
 import json
+import logging
 import math
 import os
 import re
 import secrets
 import shutil
+import socket
 import threading
 import time
 import wave
@@ -65,6 +67,7 @@ from . import ledger, paths
 from .config import BASE_URL, REPO_DIR, redact
 
 ET = ZoneInfo("America/New_York")
+log = logging.getLogger(__name__)
 TERMINAL_EVENTS = frozenset({c.EventKind.RUN_COMPLETED, c.EventKind.RUN_FAILED})
 TERMINAL_STATUSES = frozenset({c.RunStatus.DONE, c.RunStatus.FAILED, c.RunStatus.PARTIAL})
 TRACKED_STATUSES = frozenset({c.LaneStatus.COMPLETED, c.LaneStatus.ZERO_MATCHES})
@@ -165,6 +168,35 @@ def write_json_atomic(path: Path, value: Any) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+_HELD_LOCKS: dict[str, int] = {}  # this process's work locks: lock path -> depth (the server's start, then run_pipeline)
+_HELD_GUARD = threading.Lock()
+
+
+def pid_alive(pid: int) -> bool:
+    """os.kill(pid, 0): no such process means dead; a process we may not signal is still alive."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _read_lock(path: Path) -> dict[str, Any] | None:
+    try:
+        owner = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError):
+        return {}  # unreadable: nobody can be shown to hold it
+    return owner if isinstance(owner, dict) else {}
+
+
+def _lock_is_mine(owner: dict[str, Any] | None) -> bool:
+    return bool(owner) and owner.get("pid") == os.getpid() and owner.get("hostname") == socket.gethostname()
+
+
 def _plain(value: Any) -> Any:
     """Event payloads and the frozen thresholds hold plain JSON values only, in their canonical (rounded) form."""
     return json.loads(c.canonical_json(value))
@@ -212,6 +244,19 @@ class MissingChunks(Exception):
 
 class UploadRefused(Exception):
     """A finalize the run cannot take: the role is not one of its walks, or that walk is already sealed."""
+
+
+class RunLocked(Exception):
+    """Another process that may still be alive holds the run's work lock."""
+
+    def __init__(self, run_id: str, owner: dict[str, Any]) -> None:
+        self.run_id = run_id
+        self.owner = owner
+        lock = paths.work_lock_path(run_id)
+        super().__init__(
+            f"run {run_id} is being worked on by pid {owner.get('pid')} on {owner.get('hostname')} since {owner.get('started_at')}; "
+            f"if that process is gone, delete {lock}"
+        )
 
 
 class CapsExceeded(Exception):
@@ -365,6 +410,74 @@ class Orchestrator:
         }
         base.update({k: int(v) for k, v in overrides.items()})
         return base
+
+    @property
+    def replay_only(self) -> bool:
+        """Both daily caps at 0 (PICKUP_RUNS_PER_DAY=0 and PAIR_RUNS_PER_DAY=0, the Railway deploy): replays only, so
+        this server never resumes, starts or tops up live work."""
+        return self.limits["pickup_runs_per_day"] <= 0 and self.limits["pair_runs_per_day"] <= 0
+
+    # Work lock -------------------------------------------------------------------------------------------------------
+
+    def lock_holder(self, run_id: str) -> dict[str, Any] | None:
+        """The owner named in the run's work lock while it may still be working: a live pid on this host, or any pid
+        on another host (that cannot be checked from here). None when there is no lock, it is ours or it is stale."""
+        owner = _read_lock(paths.work_lock_path(run_id))
+        if not owner or not isinstance(owner.get("pid"), int):
+            return None
+        if owner.get("hostname") != socket.gethostname():
+            return owner
+        if owner["pid"] == os.getpid():
+            return None  # ours, or left by an earlier process that had our pid
+        return owner if pid_alive(owner["pid"]) else None
+
+    def acquire_work_lock(self, run_id: str) -> None:
+        """Take the run's work lock, or raise RunLocked. A stale lock (dead pid) is taken over; a process that already
+        holds it goes one deeper. The lock file appears whole: written to a temp file, then linked into place."""
+        path = paths.work_lock_path(run_id)
+        key = os.path.abspath(path)
+        with _HELD_GUARD:
+            if key in _HELD_LOCKS:
+                _HELD_LOCKS[key] += 1
+                return
+            holder = self.lock_holder(run_id)
+            if holder is not None:
+                raise RunLocked(run_id, holder)
+            tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+            tmp.write_text(json.dumps({"pid": os.getpid(), "hostname": socket.gethostname(), "started_at": self.now()}), encoding="utf-8")
+            try:
+                try:
+                    os.link(tmp, path)  # fails when the file exists, so two starting processes cannot both take a free lock
+                except FileExistsError:
+                    holder = self.lock_holder(run_id)
+                    if holder is not None:
+                        raise RunLocked(run_id, holder) from None
+                    os.replace(tmp, path)  # stale: take it over
+            finally:
+                tmp.unlink(missing_ok=True)
+            _HELD_LOCKS[key] = 1
+
+    def release_work_lock(self, run_id: str) -> None:
+        """One level off; at the last, the file goes if it still names this process."""
+        path = paths.work_lock_path(run_id)
+        key = os.path.abspath(path)
+        with _HELD_GUARD:
+            depth = _HELD_LOCKS.get(key, 0) - 1
+            if depth > 0:
+                _HELD_LOCKS[key] = depth
+                return
+            _HELD_LOCKS.pop(key, None)
+            if _lock_is_mine(_read_lock(path)):
+                path.unlink(missing_ok=True)
+
+    @contextmanager
+    def work_lock(self, run_id: str) -> Iterator[None]:
+        """Hold the run's work lock for the block; it goes on return, on errors and on Ctrl-C (a cancelled task)."""
+        self.acquire_work_lock(run_id)
+        try:
+            yield
+        finally:
+            self.release_work_lock(run_id)
 
     # Dependencies ----------------------------------------------------------------------------------------------------
 
@@ -736,6 +849,9 @@ class Orchestrator:
         task = self._tasks.get(run_id)
         if task is not None:
             return task
+        if self.replay_only:
+            raise CapsExceeded("this server shows replays only; it starts no live run", pickup_left=0, pairs_left=0)
+        self.acquire_work_lock(run_id)  # held while queued and running; _guarded lets it go (RunLocked when taken)
         self._queue.append(run_id)
         task = asyncio.create_task(self._guarded(run_id), name=f"run-{run_id}")
         self._tasks[run_id] = task
@@ -782,6 +898,7 @@ class Orchestrator:
         finally:
             if run_id in self._queue:
                 self._queue.remove(run_id)
+            self.release_work_lock(run_id)
 
     def queue_position(self, run_id: str) -> int | None:
         return self._queue.index(run_id) + 1 if run_id in self._queue else None
@@ -914,7 +1031,8 @@ class Orchestrator:
         # TODO(D1 E12/E13): time the seal on the deploy image. The deadline starts before it, and `ots stamp` may take
         # its 120 s timeout per file when the calendars hang (three files on a pair), which would cut lanes as not_run.
         try:
-            return await self._run_stages(run_id)
+            with self.work_lock(run_id):
+                return await self._run_stages(run_id)
         finally:
             self._checks_memo.pop(run_id, None)
 
@@ -1896,7 +2014,8 @@ class Orchestrator:
         topup_run = run.model_copy(update={"noun_list": nouns})
         t0 = self.clock()
         try:
-            return await self._topup(run, topup_run, role, t0)
+            with self.work_lock(run_id):
+                return await self._topup(run, topup_run, role, t0)
         finally:
             self._checks_memo.pop(run_id, None)
 
@@ -1933,7 +2052,7 @@ class Orchestrator:
         """Raise CapsExceeded when the pause, today's card ceiling or the run's own ceiling stops a top-up's lanes."""
         day = et_day_of(self.now())
         left = self.caps_remaining(et_day=day)
-        if self.paused:
+        if self.paused or self.replay_only:
             reason = "live runs paused; the sample pair is precomputed"
         elif self.card_ceiling_reached(day):
             reason = "live runs paused for today; the sample pair is precomputed"
@@ -1956,22 +2075,34 @@ class Orchestrator:
     # Resume ------------------------------------------------------------------------------------------------------------
 
     async def resume_all(self) -> list[str]:
-        """On boot: live runs without a terminal status become interrupted and resume where the files stop."""
-        resumed = []
+        """On boot: live runs without a terminal status become interrupted and resume where the files stop. A run whose
+        work lock names a live process (a CLI run, another server) is left alone; a stale lock is taken over. A
+        replay-only server resumes nothing."""
+        resumed: list[str] = []
+        if self.replay_only:
+            return resumed
         for run in self.list_runs():
             if run.live_or_replay != c.LiveOrReplay.LIVE or run.status in TERMINAL_STATUSES or self.active(run.run_id):
                 continue
             if not self.uploads_complete(run) and not self.stage_done(run, STAGE_BY_NAME["media"]):
                 continue
             try:
-                self.admit(run)  # a run that never started is admitted like a finalize would admit it
-            except CapsExceeded as exc:
-                await self.discard_uploads(run.run_id, reason=exc.reason)
+                self.acquire_work_lock(run.run_id)  # before anything is written to the run
+            except RunLocked as exc:
+                log.warning("not resuming: %s", exc)
                 continue
-            self.update_run(run.run_id, lambda r: setattr(r, "status", c.RunStatus.INTERRUPTED))
-            self.emit(run.run_id, c.EventKind.STAGE, {"name": c.RunStatus.INTERRUPTED.value, "pct": 0})
-            self.start(run.run_id)
-            resumed.append(run.run_id)
+            try:
+                try:
+                    self.admit(run)  # a run that never started is admitted like a finalize would admit it
+                except CapsExceeded as exc:
+                    await self.discard_uploads(run.run_id, reason=exc.reason)
+                    continue
+                self.update_run(run.run_id, lambda r: setattr(r, "status", c.RunStatus.INTERRUPTED))
+                self.emit(run.run_id, c.EventKind.STAGE, {"name": c.RunStatus.INTERRUPTED.value, "pct": 0})
+                self.start(run.run_id)  # one level deeper; the run's task holds the lock from here
+                resumed.append(run.run_id)
+            finally:
+                self.release_work_lock(run.run_id)
         return resumed
 
     # Money -------------------------------------------------------------------------------------------------------------
@@ -2277,7 +2408,7 @@ class Orchestrator:
         target = out / run_id
         if target.exists():
             shutil.rmtree(target)
-        never = ("quarantine", "uploads", "*.orig", "*.part", "*.tmp", "*.proxy.mp4", PENDING_EVENTS_NAME)  # no unblurred copy
+        never = ("quarantine", "uploads", "*.orig", "*.part", "*.tmp", "*.proxy.mp4", PENDING_EVENTS_NAME, paths.WORK_LOCK_NAME)  # no unblurred copy
         shutil.copytree(paths.run_dir(run_id), target, ignore=shutil.ignore_patterns(*never))
         rows = [r for r in self.ledger_rows() if r.get("run_id") == run_id]  # the sheet prints the run's ledger totals
         (out / "ledger.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
@@ -2483,7 +2614,7 @@ class Orchestrator:
             raise RebuildRefused(f"run {run_id} is {src.status.value}; rederive works on a finished run")
         _check_new_run_id(new_run_id)
         source_dir, target = paths.run_dir(run_id), paths.runs_root() / new_run_id
-        never = ("quarantine", "uploads", "*.orig", "*.part", "*.tmp", "*.proxy.mp4", PENDING_EVENTS_NAME, *self.REDERIVE_SKIP)
+        never = ("quarantine", "uploads", "*.orig", "*.part", "*.tmp", "*.proxy.mp4", PENDING_EVENTS_NAME, paths.WORK_LOCK_NAME, *self.REDERIVE_SKIP)
         shutil.copytree(source_dir, target, ignore=shutil.ignore_patterns(*never))
         try:
             return self._rederive_into(src, new_run_id)

@@ -604,6 +604,7 @@ def test_the_cli_reads_the_tire_code_before_spending(tmp_path: Path, monkeypatch
 def test_a_run_the_cli_creates_carries_the_tire_code(runs: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """--tire-code travels through pipeline.run_pair_async to Orchestrator.create_run (integrator 10/31: no wrapper)."""
     import asyncio
+    import contextlib
 
     from walkaround import __main__ as cli
     from walkaround import pipeline
@@ -623,6 +624,9 @@ def test_a_run_the_cli_creates_carries_the_tire_code(runs: Path, tmp_path: Path,
 
         async def run_pipeline(self, run_id: str) -> c.RunManifest:
             return self.load_run(run_id)
+
+        def work_lock(self, run_id: str) -> contextlib.nullcontext[None]:
+            return contextlib.nullcontext()
 
     async def staged(*_args: object, **_kw: object) -> None:
         return None

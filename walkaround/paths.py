@@ -77,6 +77,14 @@ def run_json(run_id: str) -> Path:
     return _file(run_dir(run_id) / "run.json")
 
 
+WORK_LOCK_NAME = ".work.lock"  # pid, hostname and start time of the process working on the run; never served or sealed
+
+
+def work_lock_path(run_id: str) -> Path:
+    """The run's work lock; no mkdir, so releasing it never recreates a run folder that is gone."""
+    return runs_root() / run_id / WORK_LOCK_NAME
+
+
 def events_path(run_id: str) -> Path:
     """events.ndjson, the hash-chained event log (M3)."""
     return _file(run_dir(run_id) / "events.ndjson")

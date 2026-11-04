@@ -83,7 +83,7 @@ async def _start_or_resume(
     footage_credit: str | None = None,
     tire_code: str | None = None,
 ) -> c.RunManifest:
-    """A new run with its files sent, or an unfinished run of that id with whatever upload it still lacks."""
+    """A new run, or an unfinished run of that id checked against the walks given; the caller stages the walks."""
     if run_id is not None and orch.run_exists(run_id):
         run = orch.load_run(run_id)
         if run.status in TERMINAL_STATUSES:
@@ -101,10 +101,7 @@ async def _start_or_resume(
             mode=c.RunMode.CAR, kind=kind, keep_plate=keep_plate, run_id=run_id, noun_list=lanes, prompts=prompts, keep=keep, footage_credit=footage_credit,
             tire_code=tire_code,
         )
-    for role, src in walks.items():
-        if not paths.quarantine_original(run.run_id, role).is_file():
-            await stage_local_file(orch, run.run_id, role, src)
-    return orch.load_run(run.run_id)
+    return run
 
 
 async def run_pair_async(
@@ -129,17 +126,21 @@ async def run_pair_async(
         if not path.is_file():
             raise FileNotFoundError(f"not a file: {path}")
     run = await _start_or_resume(orch, walks, run_id, nouns, container, keep_plate, keep, footage_credit, tire_code)
-    printer = asyncio.create_task(_tail(orch, run.run_id, on_event)) if on_event is not None else None
-    try:
-        final = await orch.run_pipeline(run.run_id)
-    finally:
-        if printer is not None:
-            try:
-                await asyncio.wait_for(printer, timeout=5)  # the tail ends by itself at run.completed or run.failed
-            except TimeoutError:
-                printer.cancel()
-                with suppress(asyncio.CancelledError):
-                    await printer
+    with orch.work_lock(run.run_id):  # from the first staged byte to the end, so a server booting meanwhile leaves it alone
+        for role, src in walks.items():
+            if not paths.quarantine_original(run.run_id, role).is_file():
+                await stage_local_file(orch, run.run_id, role, src)
+        printer = asyncio.create_task(_tail(orch, run.run_id, on_event)) if on_event is not None else None
+        try:
+            final = await orch.run_pipeline(run.run_id)
+        finally:
+            if printer is not None:
+                try:
+                    await asyncio.wait_for(printer, timeout=5)  # the tail ends by itself at run.completed or run.failed
+                except TimeoutError:
+                    printer.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await printer
     return final
 
 

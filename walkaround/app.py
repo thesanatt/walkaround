@@ -48,6 +48,7 @@ from .orchestrator import (
     MissingChunks,
     NoSpace,
     Orchestrator,
+    RunLocked,
     UploadRefused,
     VideoUnreadable,
     et_day_of,
@@ -62,6 +63,7 @@ EXEMPT_PATHS = re.compile(r"^/api/(uploads/[^/]+/chunks/[^/]+|runs/[^/]+/topup|c
 NEVER_SERVED_TOPS = ("quarantine", "uploads")
 NEVER_SERVED_SUFFIXES = (".orig", ".part", ".tmp", ".proxy.mp4")
 CLAIM_MAX_BYTES = 52_428_800  # a claim photo; the same 50 MB cap as an inline image
+BUSY_ELSEWHERE = "another process is working on this run; try again when it has finished"
 FIELD_MAX_BYTES = 4096
 SSE_POLL_S = 5.0  # how often a quiet event stream checks whether its run ended without a chained terminal event
 
@@ -342,7 +344,12 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
         except CapsExceeded as exc:
             await orch.discard_uploads(run.run_id, reason=exc.reason)
             return refused(exc)
-        orch.start(run.run_id)
+        try:
+            orch.start(run.run_id)
+        except CapsExceeded as exc:  # a replay-only server; a run already under way keeps its files
+            return refused(exc)
+        except RunLocked:
+            return JSONResponse({"detail": BUSY_ELSEWHERE}, status_code=409)
         return None
 
     # Uploads ---------------------------------------------------------------------------------------------------------
@@ -539,6 +546,8 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
             orch.check_can_topup(run)
         except CapsExceeded as exc:
             return refused(exc)
+        if orch.lock_holder(run_id) is not None:
+            return JSONResponse({"detail": BUSY_ELSEWHERE}, status_code=409)
         role = orch.reserve_role(run_id, "topup")
         upload_id = f"{role}-{secrets.token_hex(4)}"
         try:
@@ -563,6 +572,8 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
             coverage = await orch.run_topup(run_id, role)
         except VideoUnreadable as exc:
             return JSONResponse({"detail": str(exc)}, status_code=400)
+        except RunLocked:
+            return JSONResponse({"detail": BUSY_ELSEWHERE}, status_code=409)
         return canonical(coverage)
 
     @app.post("/api/claims")
@@ -577,9 +588,9 @@ def create_app(orchestrator: Orchestrator, *, background: bool = True) -> FastAP
         length = request.headers.get("content-length", "")
         if length.isdigit() and int(length) > CLAIM_MAX_BYTES:
             raise HTTPException(413, "the claim photo is over 50 MB")
-        if orch.paused or orch.card_ceiling_reached(et_day_of(orch.now())):
+        if orch.paused or orch.replay_only or orch.card_ceiling_reached(et_day_of(orch.now())):
             left = orch.caps_remaining(et_day=et_day_of(orch.now()))
-            reason = "live runs paused; the sample pair is precomputed" if orch.paused else "live runs paused for today; the sample pair is precomputed"
+            reason = "live runs paused; the sample pair is precomputed" if orch.paused or orch.replay_only else "live runs paused for today; the sample pair is precomputed"
             return refused(CapsExceeded(reason, pickup_left=left["pickup"], pairs_left=left["pair"]))
         sink = _MemorySink()
         fields, _filename = await read_multipart(request, file_field="image", sink=sink, max_bytes=CLAIM_MAX_BYTES, too_big="the claim photo is over 50 MB")
