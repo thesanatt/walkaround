@@ -15,7 +15,7 @@ while the renter's only record is a phone video nobody can search.
 - [The example result](https://walkaround-web-production.up.railway.app/run/hero_focus5e?replay=instant), replayed in
   the browser with no install and no key
 - [How it works](https://walkaround-web-production.up.railway.app/how), with the exact math and what the run cost
-- Demo video: DEMO_VIDEO_LINK
+- Demo video: https://youtu.be/tBx6UkLXO94
 
 Built Oct 26 to Nov 4, 2026 by Sanat Gupta for the Meta Global AI Developer Hackathon (Indie Developer track). Alibi is
 evidence support, not legal advice.
