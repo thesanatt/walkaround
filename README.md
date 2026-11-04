@@ -213,9 +213,10 @@ against, and Meta's uCO3D dataset supplies the pair C car.
 
 You need [uv](https://docs.astral.sh/uv/) (it fetches Python 3.13 itself) or pip with Python 3.13 or newer. No API key,
 no Node, no ffmpeg. I ran these steps from a fresh clone on Nov 4, 2026, with uv and again with pip on Python 3.14.
+`--depth 1` leaves out the git history, which holds older sample runs, so the download is smaller.
 
 ```
-git clone https://github.com/thesanatt/walkaround.git
+git clone --depth 1 https://github.com/thesanatt/walkaround.git
 cd walkaround
 uv venv --python 3.13
 uv pip install -e ".[dev]"
