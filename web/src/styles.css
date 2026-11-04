@@ -107,8 +107,9 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/* A faint fibre texture on the page background only, static, scrolling with the page; flat black on phones and when
-   more contrast or forced colours are asked for. */
+/* A fibre texture on the page background only (photos, thumbnails and the sheet sit on their own opaque grounds),
+   static, scrolling with the page; its brightest crossing (30/255) keeps red, grey and white text at 4.5:1. Flat black
+   on phones and when more contrast or forced colours are asked for. */
 body {
   background-image: url('./textures/fibre.png');
   background-size: 128px 128px;
