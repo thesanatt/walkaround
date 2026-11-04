@@ -6,6 +6,7 @@ import { Nothing } from './components/Nothing.tsx';
 import { Shell } from './components/Shell.tsx';
 import { matchPath, useLocation, type Location } from './lib/router.tsx';
 import { ClaimPage } from './pages/ClaimPage.tsx';
+import { HowPage } from './pages/HowPage.tsx';
 import { SheetPage } from './pages/SheetPage.tsx';
 import { StartPage } from './pages/StartPage.tsx';
 import { UploadPage } from './pages/UploadPage.tsx';
@@ -17,11 +18,12 @@ const RunPage = lazy(() => import('./pages/RunPage.tsx').then((m) => ({ default:
 const KioskPage = lazy(() => import('./pages/KioskPage.tsx').then((m) => ({ default: m.KioskPage })));
 const loading = <Bar />;
 
-// The routes app.py serves as this app: /, /upload, /run/{id}, /run/{id}/sheet, /claim, /kiosk/{id}, /verify.
+// The routes app.py serves as this app: /, /upload, /how, /run/{id}, /run/{id}/sheet, /claim, /kiosk/{id}, /verify.
 function page(loc: Location, status: StatusResponse | null) {
   let m: Record<string, string> | null;
   if (loc.path === '/') return <StartPage />;
   if (loc.path === '/upload') return <UploadPage status={status} />;
+  if (loc.path === '/how') return <HowPage />;
   if ((m = matchPath('/run/:id', loc.path)))
     return (
       <Suspense fallback={loading}>
