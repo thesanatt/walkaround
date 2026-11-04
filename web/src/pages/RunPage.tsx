@@ -42,6 +42,11 @@ import { replayModeOf, RunRecord } from './RunRecord.tsx';
 
 const TONE: Record<Group, BoxTone> = { new: 'new', eye: 'eye', already: 'plain', gone: 'plain' };
 
+// The hero sample's own line wherever its footage credit shows on screen; the sealed sheet keeps the credit.
+const HERO = 'hero_focus5e';
+const HERO_CAPTION =
+  "A friend's Ford Focus, filmed twice with the owner's permission. Blue tape stands in for damage, but the scrape low on the left front door is real.";
+
 function withQuery(runId: string, query: URLSearchParams, patch: Record<string, string | null>): string {
   const q = new URLSearchParams(query);
   for (const [k, v] of Object.entries(patch)) {
@@ -169,6 +174,18 @@ function ResultScreen({
   const kinds = new Set(state.matches.flatMap((m) => (m.by_eye ?? []).map((b) => b.kind)));
   const byEye = kinds.has('wheels') && kinds.has('glass') ? 'Wheels and glass' : kinds.has('wheels') ? 'Wheels' : kinds.has('glass') ? 'Glass' : null;
   const credit = state.run?.footage_credit ?? null;
+  const hero = state.run?.run_id === HERO;
+  const lead = groups.find((g) => g.group === 'new')?.items[0] ?? null;
+  const leadMatch = lead ? state.matches.find((m) => m.panel_id === lead.v.panel_id) : undefined;
+  const leadSides = lead ? (['pickup', 'return'] as const).map((role) => sideOf(lead.v, role, marks, state.keyframes, leadMatch)) : null;
+  const newPanels = new Set(state.verdicts.filter((v) => v.label === 'new_or_unseen').map((v) => v.panel_id)).size;
+  const eyeCount = Number(answer.where?.split(' ')[0] ?? 0);
+  const whereLine =
+    answer.tone === 'new'
+      ? `${answer.where ?? ''}.${newPanels === 1 ? ' Not found in the pickup video.' : ''}`
+      : answer.tone === 'eye'
+        ? `${eyeCount} ${eyeCount === 1 ? 'spot needs' : 'spots need'} your eye.`
+        : (answer.where?.replace('walks', 'videos') ?? null);
 
   return (
     <div className="result">
@@ -176,10 +193,22 @@ function ResultScreen({
       <div className="result-grid">
         <section className="result-answer" aria-live="polite">
           <h1 className={`answer-big ${answer.tone === 'new' ? 'new' : ''}`}>{answer.big}</h1>
-          {answer.where ? <p className={`answer-where ${answer.tone === 'eye' ? 'eye' : ''}`}>{answer.where}</p> : null}
+          {whereLine ? <p className={`answer-where ${answer.tone === 'eye' ? 'eye' : ''}`}>{whereLine}</p> : null}
           {extraNew ? <p className="answer-yours">{`and ${extraNew} more by your check`}</p> : null}
-          {compared ? <p className="answer-count">{`${compared} ${compared === 1 ? 'panel' : 'panels'} compared`}</p> : null}
         </section>
+        {lead && leadSides ? (
+          <div className="lead">
+            <div className="lead-frames">
+              {leadSides.map((s) => (
+                <Frame key={s.role} kf={s.kf} role={s.role} boxes={boxesOf(lead, s.own, spotBox(s.spot))} />
+              ))}
+            </div>
+            {hero ? <p className="lead-caption">{HERO_CAPTION}</p> : null}
+            <p className="lead-math">
+              <Link to={at({ f: lead.v.verdict_id, math: '1', sealed: null })}>Show the math</Link>
+            </p>
+          </div>
+        ) : null}
         <section className="result-list" aria-label="findings">
           {state.claim ? (
             <div className="find-group claim">
@@ -202,23 +231,42 @@ function ResultScreen({
           {groups.map((g) => {
             const allYours = g.items.every((f) => f.answer);
             const title = g.group === 'gone' && !allYours ? 'Not seen at return' : GROUP_WORD[g.group];
-            return (
+            const rows = (
+              <ul>
+                {g.items.map((f) => (
+                  <li key={f.v.verdict_id}>
+                    <Row f={f} state={state} marks={marks} to={at({ f: f.v.verdict_id, math: null, sealed: null })} />
+                  </li>
+                ))}
+              </ul>
+            );
+            return g.group === 'already' ? (
+              <details key={g.group} className="find-group already">
+                <summary>
+                  <span>{title}</span> <span className="find-count">{g.items.length}</span>
+                </summary>
+                {rows}
+              </details>
+            ) : (
               <div key={g.group} className={`find-group ${g.group}`}>
                 <h2>
                   <span>{title}</span> <span className="find-count">{g.items.length}</span>
                 </h2>
-                <ul>
-                  {g.items.map((f) => (
-                    <li key={f.v.verdict_id}>
-                      <Row f={f} state={state} marks={marks} to={at({ f: f.v.verdict_id, math: null, sealed: null })} />
-                    </li>
-                  ))}
-                </ul>
+                {rows}
               </div>
             );
           })}
-          {byEye ? <p className="result-note">{byEye}: check by eye</p> : null}
-          {credit ? <p className="credit">{credit}</p> : null}
+          {compared ? (
+            <p className="result-note">
+              {`${compared} ${compared === 1 ? 'panel' : 'panels'} compared.`}
+              {byEye ? ` ${byEye} ${byEye === 'Glass' ? 'is' : 'are'} not compared.` : ''}
+            </p>
+          ) : null}
+          {credit ? (
+            <p className="credit">
+              {hero ? `${credit}${/[.!?]$/.test(credit) ? '' : '.'} One mark, the scrape on the left front door, is real.` : credit}
+            </p>
+          ) : null}
         </section>
       </div>
     </div>
@@ -331,7 +379,7 @@ function FindingScreen({
           <Frame key={s.role} kf={s.kf} role={s.role} boxes={boxesOf(f, s.own, spotBox(s.spot))} />
         ))}
       </div>
-      {credit ? <p className="credit">{credit}</p> : null}
+      {credit ? <p className="credit">{state.run?.run_id === HERO ? HERO_CAPTION : credit}</p> : null}
       {v.label === 'needs_your_eye' ? <YourCheck v={v} marks={marks} answer={f.answer} onAnswer={onAnswer} /> : null}
       <p className="math-toggle">
         <Link to={at({ math: mathOpen ? null : '1' })} replace>

@@ -17,7 +17,7 @@ export function Wordmark() {
 export function ReplayNote({ date }: { date: string }) {
   return (
     <>
-      Replay<span className="bar-note-more"> of a run from {formatDate(date)}</span>
+      <span title={`Replay of a run from ${formatDate(date)}`}>Replay</span>
     </>
   );
 }

@@ -72,7 +72,7 @@ export function Slot({
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
       >
-        <span className="slot-title">{title}</span>
+        <span className="slot-frame">
         {state ? (
           <span className="slot-file">
             {state.file.name}
@@ -91,7 +91,10 @@ export function Slot({
           ) : busy ? (
             p ? `Sealing, ${pct}%` : 'Starting'
           ) : disabled ? null : (
-            'Choose or drop a video'
+            <>
+              <span className="slot-hint-wide">Choose or drop a video</span>
+              <span className="slot-hint-narrow">Choose a video</span>
+            </>
           )}
         </span>
         <input id={id} type="file" accept="video/*" disabled={disabled} onChange={onChange} />
@@ -100,6 +103,8 @@ export function Slot({
             <span style={{ width: `${pct}%` }} />
           </span>
         ) : null}
+        </span>
+        <span className="slot-title">{title}</span>
       </label>
       {state?.error && onRetry ? (
         <button type="button" className="link-button slot-retry" onClick={onRetry}>

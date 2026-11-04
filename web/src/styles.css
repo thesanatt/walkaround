@@ -38,7 +38,7 @@
 :root {
   color-scheme: dark;
   --bg: #000;
-  --ink: #f4f4f1;
+  --ink: #f3f0ea;
   --muted: #8f8f8a; /* the one grey for secondary text, 6.4:1 on black */
   --line: #262626;
   --strong-line: #4d4d4a;
@@ -107,6 +107,19 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+/* A faint fibre texture on the page background only, static, scrolling with the page; flat black on phones and when
+   more contrast or forced colours are asked for. */
+body {
+  background-image: url('./textures/fibre.png');
+  background-size: 128px 128px;
+}
+
+@media (max-width: 760px), (prefers-contrast: more), (forced-colors: active) {
+  body {
+    background-image: none;
+  }
+}
+
 a {
   color: var(--accent);
   text-decoration-thickness: 1px;
@@ -126,7 +139,7 @@ h1,
 h2,
 h3,
 h4 {
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.15;
   margin: 0 0 8px;
 }
@@ -137,13 +150,19 @@ h1 {
 
 h2 {
   font-size: 1.375rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 h3,
 h4 {
   font-size: 1.0625rem;
-  font-weight: 600;
+  font-weight: 400;
+}
+
+p,
+li,
+figcaption {
+  text-wrap: pretty;
 }
 
 p {
@@ -219,7 +238,7 @@ abbr[title] {
   padding: 0 28px;
   font: inherit;
   font-size: 1.125rem;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1;
   color: var(--accent-ink);
   background: var(--ink);
@@ -315,7 +334,7 @@ abbr[title] {
 
 .sealed-card h3 {
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 400;
   margin-bottom: 8px;
 }
 
@@ -926,7 +945,7 @@ abbr[title] {
 .label {
   display: inline;
   font-size: inherit;
-  font-weight: 600;
+  font-weight: 400;
   line-height: inherit;
   white-space: nowrap;
   color: var(--ink);
@@ -1571,7 +1590,7 @@ body.kiosk {
 }
 
 .how-checked dt {
-  font-weight: 600;
+  font-weight: 400;
   font-size: 0.9rem;
   margin-bottom: 2px;
 }
@@ -1759,7 +1778,7 @@ body.kiosk {
 }
 
 .cc-title {
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .cc-legend {
@@ -1822,7 +1841,7 @@ body.kiosk {
 }
 
 .second-look strong {
-  font-weight: 600;
+  font-weight: 400;
   color: var(--ink);
 }
 
@@ -2299,7 +2318,7 @@ body.kiosk {
 
 .cov-short .short-panel {
   font-size: 34px;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .cov-short .short-state {

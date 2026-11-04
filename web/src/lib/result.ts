@@ -4,7 +4,7 @@ import { panelName } from './panels.ts';
 
 // One short plain line per needs-your-eye rule: why code left the call to the renter.
 export const WHY: Record<string, string> = {
-  K1: 'Close to a mark in the other walk, but not close enough to call it the same one.',
+  K1: 'Close to a mark in the other video, but not close enough to call it the same one.',
   K2: 'Seen in only one of three frames.',
   K3: 'Too small to judge from video.',
   K4: 'It may be dirt or a reflection.',
@@ -16,20 +16,20 @@ export const WHY: Record<string, string> = {
   K10: 'A single mark on a wheel, away from where wheel marks usually are.',
   K11: 'The claim box covers a whole region, not one mark.',
   K12: 'The model was not sure this is damage.',
-  K13: "The other walk's look at this panel was cut short.",
+  K13: "The other video's look at this panel was cut short.",
   K14: 'Boxed only because you named it.',
-  K15: 'Dirt, water or glare on this panel in one of the walks.',
-  K16: 'The other walk may show it too.',
+  K15: 'Dirt, water or glare on this panel in one of the videos.',
+  K16: 'The other video may show it too.',
   K17: 'A second look did not see damage in the box.',
-  K18: 'The other walk shows the same patch here, but nothing was boxed there.',
-  K19: 'The other walk boxed a bigger area over this spot.',
+  K18: 'The other video shows the same patch here, but nothing was boxed there.',
+  K19: 'The other video boxed a bigger area over this spot.',
   K20: 'It does not stand out from the paint around it.',
-  K21: 'The other walk barely filmed this part of the panel.',
+  K21: 'The other video barely filmed this part of the panel.',
   L7: 'The panel outline changed. It may be bent.',
 };
 
 // L8: code called it already there from the pixels, so there is no distance to give.
-const FOUND_IN_BOTH = 'Boxed in one walk only, but lining up the two frames shows the same patch in the other walk.';
+const FOUND_IN_BOTH = 'Boxed in one video only, but lining up the two frames shows the same patch in the other video.';
 
 export function whyLine(v: Verdict): string {
   if (v.label === 'already_there' && v.rule_id === 'L8' && v.distance_cm_est === null) return FOUND_IN_BOTH;
@@ -67,7 +67,7 @@ export function comparedPanels(matches: PanelMatch[], verdicts: Verdict[]): stri
   return unique(verdicts.filter((v) => v.label !== 'not_comparable').map((v) => v.panel_id));
 }
 
-// "1 new mark: left front door." or "Nothing new on the 3 panels both walks show clearly." A spot code left to the
+// "1 new mark: left front door." or "Nothing new on the 3 panels both videos show clearly." A spot code left to the
 // renter keeps "nothing new" from being said outright.
 export function headline(verdicts: Verdict[], compared: number): string {
   const fresh = verdicts.filter((v) => v.label === 'new_or_unseen');
@@ -75,13 +75,13 @@ export function headline(verdicts: Verdict[], compared: number): string {
     const panels = unique(fresh.map((v) => panelName(v.panel_id)));
     return `${fresh.length} new ${fresh.length === 1 ? 'mark' : 'marks'}: ${joinWords(panels)}.`;
   }
-  if (!compared) return 'No panel was filmed clearly enough in both walks to compare.';
-  const where = compared === 1 ? 'the one panel both walks show clearly' : `the ${compared} panels both walks show clearly`;
+  if (!compared) return 'No panel was filmed clearly enough in both videos to compare.';
+  const where = compared === 1 ? 'the one panel both videos show clearly' : `the ${compared} panels both videos show clearly`;
   const eye = verdicts.some((v) => v.label === 'needs_your_eye');
   return eye ? `No new damage confirmed on ${where}.` : `Nothing new on ${where}.`;
 }
 
-// "1 mark was there at pickup. 11 spots need your eye. 18 panels weren't filmed clearly enough in both walks."
+// "1 mark was there at pickup. 11 spots need your eye. 18 panels weren't filmed clearly enough in both videos."
 export function subline(verdicts: Verdict[], compared: number): string {
   const n = (label: VerdictLabel) => verdicts.filter((v) => v.label === label).length;
   const out: string[] = [];
@@ -96,7 +96,7 @@ export function subline(verdicts: Verdict[], compared: number): string {
   const nc = verdicts.filter((v) => v.label === 'not_comparable');
   if (nc.length) {
     const filming = nc.filter((v) => v.trace.rule_ids.includes('G1')).length * 2 >= nc.length;
-    const what = filming ? "weren't filmed clearly enough in both walks to compare" : "couldn't be lined up between the two walks";
+    const what = filming ? "weren't filmed clearly enough in both videos to compare" : "couldn't be lined up between the two videos";
     out.push(`${nc.length} ${nc.length === 1 ? 'panel' : 'panels'} ${what}.`);
   }
   return out.join(' ');
@@ -104,14 +104,14 @@ export function subline(verdicts: Verdict[], compared: number): string {
 
 // The panels not compared, each with its reason in plain words.
 const GATE_PLAIN: [string, string][] = [
-  ['G1', 'not filmed long enough in both walks'],
+  ['G1', 'not filmed long enough in both videos'],
   ['G7', 'not fully tracked'],
-  ['G3', 'blurry in one walk'],
-  ['G12', 'mostly blurred for privacy in one walk'],
+  ['G3', 'blurry in one video'],
+  ['G12', 'mostly blurred for privacy in one video'],
   ['G6', 'unclear which side of the car it is'],
-  ['G13', 'the left one in one walk and the right one in the other'],
-  ['G9', 'the window was cut out in one walk only'],
-  ['G11', 'filmed at very different sizes in the two walks'],
+  ['G13', 'the left one in one video and the right one in the other'],
+  ['G9', 'the window was cut out in one video only'],
+  ['G11', 'filmed at very different sizes in the two videos'],
   ['G4', 'the two views did not line up'],
   ['G8', 'the two views did not line up'],
   ['G5', 'the door handle check failed'],
@@ -162,7 +162,7 @@ export function creditLine(v: Verdict, marks: Map<string, Mark>, looks: LookRow[
   const both = new Set(own.map((m) => m.role)).size > 1;
   if (own.some((m) => m.source === 'narration_seed')) parts.push('Muse Voice heard it named and Muse Spark boxed it');
   else if (own.length && own.every((m) => m.source === 'spark_count')) parts.push('Muse Spark found it while counting marks');
-  else parts.push(both ? 'Muse Spark found it in both walks' : 'Muse Spark found the mark');
+  else parts.push(both ? 'Muse Spark found it in both videos' : 'Muse Spark found the mark');
   if (own.some((m) => m.box_refine?.used === 'sam')) parts.push('SAM 3.1 tightened the box');
   const look = lookFor(v, looks);
   if (look?.engine) {
@@ -170,9 +170,9 @@ export function creditLine(v: Verdict, marks: Map<string, Mark>, looks: LookRow[
     if (isCounterLook(look)) {
       const other = look.mark_id === look.pickup_mark ? 'return' : 'pickup';
       if (look.kind === 'counter2' && look.mark_seen === 'no') parts.push(`${who} saw no damage in the box`);
-      else if (look.verdict === 'same') parts.push(`${who} said the ${other} walk may show it too`);
-      else if (look.verdict === 'different') parts.push(`${who} saw no such mark at that spot in the ${other} walk`);
-      else parts.push(`${who} could not tell what the ${other} walk shows there`);
+      else if (look.verdict === 'same') parts.push(`${who} said the ${other} video may show it too`);
+      else if (look.verdict === 'different') parts.push(`${who} saw no such mark at that spot in the ${other} video`);
+      else parts.push(`${who} could not tell what the ${other} video shows there`);
     } else if (look.verdict === 'same') parts.push(`${who} agreed it is the same spot`);
     else if (look.verdict === 'different') parts.push(`${who} said it is not the same spot`);
     else parts.push(`${who} could not tell if it is the same spot`);

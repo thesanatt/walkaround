@@ -45,7 +45,7 @@ export function Frame({ kf, role, boxes, thumb = false, whole = false }: { kf: K
       <span className="frame-thumb empty" aria-hidden="true" />
     ) : (
       <figure className="frame empty">
-        <div className="frame-view">No clear view of this panel in the {role} walk</div>
+        <div className="frame-view">No clear view of this panel in the {role} video</div>
       </figure>
     );
   const { w, h, path } = kf.crop;
@@ -91,7 +91,7 @@ export function Frame({ kf, role, boxes, thumb = false, whole = false }: { kf: K
         className="frame-view"
         style={{ aspectRatio: fit ? '3 / 2' : `${vw} / ${vh}` }}
         role="img"
-        aria-label={`${panelName(kf.panel_id)} in the ${role} walk at ${formatClock(kf.pts)}${marked ? ', the mark boxed' : spot ? ', the same spot outlined' : ''}`}
+        aria-label={`${panelName(kf.panel_id)} in the ${role} video at ${formatClock(kf.pts)}${marked ? ', the mark boxed' : spot ? ', the same spot outlined' : ''}`}
       >
         {view}
       </div>

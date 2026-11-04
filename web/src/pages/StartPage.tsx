@@ -124,7 +124,8 @@ export function StartPage({ status }: { status: StatusResponse | null }) {
   return (
     <div className="start">
       <Bar />
-      <h1 className="start-q">What changed between pickup and return?</h1>
+      <h1 className="start-q">Which scratches are new since you got the car?</h1>
+      <p className="start-sub">Film a slow walk around the car when you get it, and again when you hand it back.</p>
       <div className={`slots slots-${roles.length}`}>
         <Slot title="Pickup video" disabled={slotOff(uploads.pickup)} state={uploads.pickup ?? null} onFile={(f) => onFile('pickup', f)} onRetry={() => onRetry('pickup')} />
         {kind === 'pair' ? (
@@ -140,14 +141,19 @@ export function StartPage({ status }: { status: StatusResponse | null }) {
           </Link>
         ) : (
           <>
-            <button type="button" className="button" disabled={!complete} onClick={go}>
-              {kind === 'pair' ? 'Compare' : 'Open the sealed walk'}
-            </button>
+            {complete ? (
+              <button type="button" className="button" onClick={go}>
+                {kind === 'pair' ? 'Compare' : 'Open the sealed video'}
+              </button>
+            ) : (
+              <p className="start-wait">{kind === 'pair' ? 'Add both videos' : 'Add the pickup video'}</p>
+            )}
             {example ? <Link to={exampleUrl(example)}>See an example</Link> : null}
           </>
         )}
       </div>
       {run && !complete && uploading ? <p className="start-note">Keep this tab open until both videos are sealed.</p> : null}
+      <p className="start-privacy">Faces are always blurred, and the plate unless you keep it. Runs are deleted after 24 hours.</p>
       <details className="start-options">
         <summary>Options</summary>
         <fieldset disabled={run !== null}>
@@ -162,9 +168,6 @@ export function StartPage({ status }: { status: StatusResponse | null }) {
           </label>
         </fieldset>
       </details>
-      <p className="start-privacy">
-        Faces are always blurred, and the plate unless you keep it. Runs are deleted after 24 hours.
-      </p>
     </div>
   );
 }
