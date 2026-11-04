@@ -31,7 +31,7 @@ import { fpsOf, rolesOf } from '../state/reducer.ts';
 import type { RunState } from '../state/types.ts';
 import { useRun, type RunSource } from '../state/useRun.ts';
 import { ClaimExit, ClaimFrame, ClaimPhoto, ClaimSteps, type ClaimContext } from './ClaimPage.tsx';
-import { defaultPanel, useTrackStyle } from './RunPage.tsx';
+import { defaultPanel, useTrackStyle } from './RunRecord.tsx';
 import { SheetPage } from './SheetPage.tsx';
 
 const WIDTH = 1920;

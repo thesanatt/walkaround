@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { api, ApiError } from '../api/client.ts';
+import { Bar } from '../components/Bar.tsx';
 import { Link } from '../lib/router.tsx';
 import type { Claim, Coverage, Keyframe, Mark, Panel, PanelId, VideoRecord } from '../contracts/types.ts';
 import {
@@ -350,6 +351,7 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
 
   return (
     <div className="claim">
+      <Bar />
       <h1>Place a claim photo</h1>
       <p className="lead">
         Add the photo from the damage bill and the bill's words. Muse Spark names the panel, SAM 3.1 checks the name, and your dated pickup frame of that panel
@@ -374,7 +376,7 @@ export function ClaimPage({ query }: { query: URLSearchParams }) {
           <input value={tire} onChange={(e) => setTire(e.target.value.trim())} placeholder="225/45R17" spellCheck={false} />
         </label>
         <div>
-          <button type="submit" className="cds--btn cds--btn--primary" disabled={busy || !image || !runId}>
+          <button type="submit" className="button" disabled={busy || !image || !runId}>
             {busy ? 'Placing the claim' : 'Place the claim against the pickup walk'}
           </button>
         </div>

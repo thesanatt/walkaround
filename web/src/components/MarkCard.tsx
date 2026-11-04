@@ -7,19 +7,19 @@ import { creditLine, markWords, whyLine } from '../lib/result.ts';
 
 type Box = [number, number, number, number];
 
-// The part of the crop a card shows: around the boxed marks, about six times the mark's size, 4:3, inside the crop.
-// No box: the whole crop.
-export function zoomWindow(w: number, h: number, boxes: Box[], zoom: boolean, minSide = 320, factor = 6): Box {
+// The part of the crop a card shows: around the boxed marks, about six times the mark's size, 4:3 (or the aspect
+// given, height over width), inside the crop. No box: the whole crop.
+export function zoomWindow(w: number, h: number, boxes: Box[], zoom: boolean, minSide = 320, factor = 6, aspect = 3 / 4): Box {
   if (!zoom || !boxes.length) return [0, 0, w, h];
   const x0 = Math.min(...boxes.map((b) => b[0]));
   const y0 = Math.min(...boxes.map((b) => b[1]));
   const x1 = Math.max(...boxes.map((b) => b[2]));
   const y1 = Math.max(...boxes.map((b) => b[3]));
   let vw = Math.min(w, Math.max(minSide, factor * Math.max(x1 - x0, y1 - y0)));
-  let vh = (vw * 3) / 4;
+  let vh = vw * aspect;
   if (vh > h) {
     vh = h;
-    vw = Math.min(w, (vh * 4) / 3);
+    vw = Math.min(w, vh / aspect);
   }
   const cx = (x0 + x1) / 2;
   const cy = (y0 + y1) / 2;

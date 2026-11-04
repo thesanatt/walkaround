@@ -1,7 +1,10 @@
+import { Bar } from '../components/Bar.tsx';
+
 // Appendix C of the sheet: anyone holding the bundle can check it with tools that are not Walkaround.
 export function VerifyPage() {
   return (
     <div className="verify">
+      <Bar />
       <h1>Check a sheet yourself</h1>
       <p className="verify-lead">
         A run's bundle holds the originals' hashes, the OpenTimestamps proofs and the RFC 3161 token. Steps 1 to 3 check them with standard tools; step 4
