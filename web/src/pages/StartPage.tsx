@@ -7,6 +7,8 @@ import returnFrame from '../example/return.jpg';
 // (pickup 44.07 s, return 26.87 s, the closest pair of angles on that side), the new strip on the right rear door boxed
 // on the return frame and its spot outlined on the pickup frame. Box centres are fractions of the 960 x 540 frame.
 const EXAMPLE_RUN = '/run/hero_focus5e?replay=instant';
+// The second sample in samples/index.json: NHTSA test 15759 (public domain), filmed before and after a side impact.
+const CRASH_RUN = '/run/eval_nhtsa15759_r6?replay=instant';
 const SIDES = [
   {
     src: pickupFrame,
@@ -48,6 +50,9 @@ export function StartPage() {
         <p className="example-line">
           Example: a friend's Ford Focus. 1 new mark since pickup, on the right rear door.{' '}
           <Link to={EXAMPLE_RUN}>See the full result</Link>
+        </p>
+        <p className="example-line example-more">
+          Another example: a crash-test car, before and after a side impact. <Link to={CRASH_RUN}>See it</Link>
         </p>
       </section>
       <p className="start-own">

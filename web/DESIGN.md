@@ -37,8 +37,9 @@ row.
 
 1. Start (`/`): "Which scratches are new since you got the car?", one muted line on how to film, then the example by
    default: one frame from each of hero_focus5e's blurred videos at the rear right, the new strip boxed in red on the
-   return frame and its spot dashed on the pickup frame, captioned with the times, one line and See the full result.
-   Then the one filled button, Check your own car. It opens the upload view (`/upload`): two empty 16:9 frames side by
+   return frame and its spot dashed on the pickup frame, captioned with the times, one line and See the full result,
+   and under it a quieter line (16 px) with See it for the crash-test sample, eval_nhtsa15759_r6. Then the one filled
+   button, Check your own car. It opens the upload view (`/upload`): two empty 16:9 frames side by
    side with the label under each (the same in-browser hashing and resumable upload as before), then Compare, the one
    filled shape, once both videos are in ("Add both videos" until then), See an example and the privacy line. On a replay-only copy
    (`replay_only` in /api/status) the slots give way to one line on why (strangers can't spend my model credits) and
